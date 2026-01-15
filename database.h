@@ -40,7 +40,8 @@ class Database {
                              const std::string& status = "completed",
                              const std::string& group_id = "");
 
-  absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id);
+  absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id, bool include_dropped = false);
+  absl::StatusOr<std::vector<Message>> GetMessagesByGroups(const std::vector<std::string>& group_ids);
 
   struct Tool {
     std::string name;

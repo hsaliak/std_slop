@@ -7,7 +7,7 @@ Attempt1 is a C++17 AI coding agent driven by a persistent SQLite ledger for ses
 - Ledger-Driven: All interactions, tool calls, and system changes are stored in SQLite.
 - Dual API: Supports Google Gemini and OpenAI-compatible APIs.
 - Context Control: Manage memory via group-based drop and rebuild commands.
-- Hybrid Retrieval: FTS5 keyword matching and recency-based ranking (RRF) for long-term memory.
+- Hybrid Retrieval: Weighted Reciprocal Rank Fusion (RRF) combining FTS5 keyword relevance (1.5x) and chronological recency (1.0x).
 - Tool Execution: Autonomous local file system and shell operations.
 - Code Search: FTS5 virtual tables for full-text search.
 - Readline Support: Command history and line auto-completion.

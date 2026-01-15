@@ -46,7 +46,7 @@ void ShowHelp() {
               << "  /context show [N]    - Show last N messages of active history\n"
               << "  /context drop        - Hide all current messages from the LLM\n"
               << "  /context build [N]   - Reactivate last N message groups\n"
-              << "  /low-context-mode on <N> | off - Limit context to last N turns\n"
+              << "  /context-mode fts <N>|full - Set context retrieval strategy\n"
               << "\nKnowledge & Skills:\n"
               << "  /skills              - List all available agent skills\n"
               << "  /skill activate <N>  - Switch to skill N\n"
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
         if (input.empty()) continue;
 
         if (input[0] == '/') {
-            auto res = command_handler.Handle(input, session_id, active_skills, ShowHelp);
+            auto res = command_handler.Handle(input, session_id, active_skills, ShowHelp, orchestrator.GetLastSelectedGroups());
             if (res != sentinel::CommandHandler::Result::PROCEED_TO_LLM) continue;
         }
 

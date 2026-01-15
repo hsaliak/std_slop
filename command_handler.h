@@ -20,7 +20,7 @@ class CommandHandler {
 
   explicit CommandHandler(Database* db) : db_(db) {}
 
-  Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills, std::function<void()> show_help_fn);
+  Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills, std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
 
  private:
   Database* db_;

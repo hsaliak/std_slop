@@ -26,11 +26,12 @@ FetchContent_Declare(
   URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip
 )
 
-# curl options to keep it light
+# curl options to keep it light and STATIC
 set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(CURL_USE_LIBPSL OFF CACHE BOOL "" FORCE)
 set(CURL_USE_LIBSSH2 OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE) # Force static for all FetchContent
 
 FetchContent_Declare(
   curl
@@ -78,8 +79,13 @@ if(NOT READLINE_FOUND)
     endif()
 endif()
 
-add_library(sentinel_lib database.cpp http_client.cpp orchestrator.cpp tool_executor.cpp command_handler.cpp ui.cpp completion.cpp)
-target_link_libraries(sentinel_lib absl::status absl::statusor sqlite3 libcurl nlohmann_json::nlohmann_json absl::strings absl::time)
+add_library(sentinel_lib STATIC database.cpp http_client.cpp orchestrator.cpp tool_executor.cpp command_handler.cpp ui.cpp completion.cpp)
+target_link_libraries(sentinel_lib absl::status absl::statusor sqlite3 libcurl_static nlohmann_json::nlohmann_json absl::strings absl::time)
+
+# On macOS, static libcurl needs these frameworks
+if(APPLE)
+    target_link_libraries(sentinel_lib "-framework CoreFoundation" "-framework Security" "-framework SystemConfiguration" z)
+endif()
 
 if(READLINE_FOUND)
     target_link_libraries(sentinel_lib ${READLINE_LIBRARIES})
@@ -89,6 +95,9 @@ endif()
 
 add_executable(Attempt1 main.cpp)
 target_link_libraries(Attempt1 sentinel_lib nlohmann_json::nlohmann_json absl::time)
+
+# Copy commands.json to build directory
+configure_file(commands.json ${CMAKE_BINARY_DIR}/commands.json COPYONLY)
 
 enable_testing()
 
@@ -113,6 +122,9 @@ target_link_libraries(tool_executor_test GTest::gtest_main sentinel_lib nlohmann
 add_executable(command_handler_test command_handler_test.cpp)
 target_link_libraries(command_handler_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
 
+add_executable(completion_test completion_test.cpp)
+target_link_libraries(completion_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+
 add_executable(ui_test ui_test.cpp)
 target_link_libraries(ui_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
 
@@ -124,4 +136,5 @@ gtest_discover_tests(http_client_test)
 gtest_discover_tests(orchestrator_test)
 gtest_discover_tests(tool_executor_test)
 gtest_discover_tests(command_handler_test)
+add_test(NAME completion_test COMMAND completion_test)
 gtest_discover_tests(ui_test)

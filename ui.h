@@ -9,7 +9,7 @@
 namespace sentinel {
 
 std::string OpenInEditor(const std::string& initial_content = "");
-absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_id, int limit = 5);
+absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_id, int limit = 5, const std::vector<std::string>& selected_groups = {});
 absl::Status PrintJsonAsTable(const std::string& json_str);
 
 } // namespace sentinel

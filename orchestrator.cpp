@@ -14,13 +14,15 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   auto settings_or = db_->GetContextSettings(session_id);
   if (!settings_or.ok()) return settings_or.status();
   
-  auto history_or = db_->GetConversationHistory(session_id);
-  if (!history_or.ok()) return history_or.status();
-
+  std::vector<Database::Message> history;
   if (settings_or->mode == Database::ContextMode::FTS_RANKED) {
+      // For RRF, we need to consider ALL groups in this session, even dropped ones.
+      auto all_history_or = db_->GetConversationHistory(session_id, true);
+      if (!all_history_or.ok()) return all_history_or.status();
+
       // Hybrid Retrieval via RRF
       std::string last_user_query;
-      for (auto it = history_or->rbegin(); it != history_or->rend(); ++it) {
+      for (auto it = all_history_or->rbegin(); it != all_history_or->rend(); ++it) {
           if (it->role == "user") { last_user_query = it->content; break; }
       }
 
@@ -33,20 +35,36 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
       // Recency Ranking
       std::vector<std::string> recency_ranked;
       std::set<std::string> seen;
-      for (auto it = history_or->rbegin(); it != history_or->rend(); ++it) {
+      std::set<std::string> fts_set(fts_ranked.begin(), fts_ranked.end());
+
+      for (auto it = all_history_or->rbegin(); it != all_history_or->rend(); ++it) {
           if (seen.find(it->group_id) == seen.end()) {
-              recency_ranked.push_back(it->group_id);
+              // Subset Rule: If search found items, we only care about the recency of those specific items.
+              // Fallback: If search found nothing, we use global recency so the LLM has some context.
+              if (fts_ranked.empty() || fts_set.count(it->group_id)) {
+                  recency_ranked.push_back(it->group_id);
+                  if (recency_ranked.size() >= 20) break;
+              }
               seen.insert(it->group_id);
-              if (recency_ranked.size() >= 20) break;
           }
       }
 
-      // Reciprocal Rank Fusion (RRF)
+      // Reciprocal Rank Fusion (RRF): Merges two ranked lists into one final score.
+      // We use a constant k=60 to normalize the impact of high-ranking items.
       std::map<std::string, float> scores;
       float k = 60.0f;
-      for (size_t i = 0; i < fts_ranked.size(); ++i) scores[fts_ranked[i]] += 1.0f / (k + (float)i + 1.0f);
-      for (size_t i = 0; i < recency_ranked.size(); ++i) scores[recency_ranked[i]] += 1.0f / (k + (float)i + 1.0f);
+      float weight_bm25 = 1.5f;   // BM25 (FTS) is 50% more important than recency.
+      float weight_recency = 1.0f;
 
+      // Calculate scores: Score = sum( weight / (k + rank) )
+      for (size_t i = 0; i < fts_ranked.size(); ++i) {
+          scores[fts_ranked[i]] += weight_bm25 * (1.0f / (k + (float)i + 1.0f));
+      }
+      for (size_t i = 0; i < recency_ranked.size(); ++i) {
+          scores[recency_ranked[i]] += weight_recency * (1.0f / (k + (float)i + 1.0f));
+      }
+
+      // Sort groups by descending RRF score
       std::vector<std::pair<std::string, float>> sorted(scores.begin(), scores.end());
       std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b){ return a.second > b.second; });
 
@@ -55,22 +73,26 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
           top_groups.push_back(sorted[i].first);
       }
 
-      // Always include the current group being formed
-      if (!history_or->empty()) {
-          std::string current_gid = history_or->back().group_id;
+      // Always include the current group being formed (the very last one)
+      if (!all_history_or->empty()) {
+          std::string current_gid = all_history_or->back().group_id;
           bool included = false;
           for (const auto& g : top_groups) if (g == current_gid) included = true;
           if (!included) top_groups.push_back(current_gid);
       }
 
-      // Filter history to keep only selected groups
-      std::vector<Database::Message> filtered;
-      for (const auto& msg : *history_or) {
-          bool keep = false;
-          for (const auto& gid : top_groups) if (msg.group_id == gid) keep = true;
-          if (keep) filtered.push_back(msg);
-      }
-      *history_or = std::move(filtered);
+      auto filtered_or = db_->GetMessagesByGroups(top_groups);
+      if (!filtered_or.ok()) return filtered_or.status();
+      history = std::move(*filtered_or);
+      last_selected_groups_ = top_groups;
+  } else {
+      auto hist_or = db_->GetConversationHistory(session_id, false);
+      if (!hist_or.ok()) return hist_or.status();
+      history = std::move(*hist_or);
+      
+      std::set<std::string> groups;
+      for (const auto& m : history) groups.insert(m.group_id);
+      last_selected_groups_ = std::vector<std::string>(groups.begin(), groups.end());
   }
 
   std::string system_instruction;
@@ -86,7 +108,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   nlohmann::json payload;
   if (provider_ == Provider::GEMINI) {
       nlohmann::json contents = nlohmann::json::array();
-      for (const auto& msg : *history_or) {
+      for (const auto& msg : history) {
           if (msg.role == "system") { system_instruction += msg.content + "\n"; continue; }
           std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
           nlohmann::json part;
@@ -115,7 +137,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   } else {
       nlohmann::json messages = nlohmann::json::array();
       if (!system_instruction.empty()) messages.push_back({{"role", "system"}, {"content", system_instruction}});
-      for (const auto& msg : *history_or) {
+      for (const auto& msg : history) {
           if (msg.role == "system") { messages.push_back({{"role", "system"}, {"content", msg.content}}); continue; }
           nlohmann::json msg_obj = {{"role", msg.role}};
           auto j = nlohmann::json::parse(msg.content, nullptr, false);

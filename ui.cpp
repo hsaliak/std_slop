@@ -106,7 +106,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
     return absl::OkStatus();
 }
 
-absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_id, int limit) {
+absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_id, int limit, const std::vector<std::string>& selected_groups) {
     auto history_or = db.GetConversationHistory(session_id);
     if (!history_or.ok()) return history_or.status();
 
@@ -127,6 +127,21 @@ absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_i
             std::cout << "[System]> " << msg.content << std::endl;
         }
     }
+
+    if (!selected_groups.empty()) {
+        std::cout << "\n--- Injected Context (" << selected_groups.size() << " groups) ---" << std::endl;
+        for (const auto& gid : selected_groups) {
+            auto res = db.Query("SELECT role, substr(content, 1, 60) as preview FROM messages WHERE group_id = '" + gid + "' LIMIT 1");
+            if (res.ok()) {
+                auto j = nlohmann::json::parse(*res, nullptr, false);
+                if (!j.is_discarded() && !j.empty()) {
+                    std::cout << "  [" << gid << "] " << j[0]["role"].get<std::string>() << ": " << j[0]["preview"].get<std::string>() << "..." << std::endl;
+                }
+            }
+        }
+        std::cout << "------------------------------------------" << std::endl;
+    }
+
     std::cout << std::endl;
     return absl::OkStatus();
 }

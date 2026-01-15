@@ -3,10 +3,6 @@
 
 namespace sentinel {
 
-// Mock functions to avoid real I/O or global state issues in tests
-std::string OpenInEditor(const std::string& initial_content) { return ""; }
-absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_id, int limit) { return absl::OkStatus(); }
-
 class CommandHandlerTest : public ::testing::Test {
  protected:
   Database db;

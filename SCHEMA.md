@@ -57,7 +57,7 @@ FTS5 table for full-text code search.
 | content | TEXT | File content. |
 
 ### 6. group_search (Virtual Table)
-FTS5 table for ranked message group retrieval.
+FTS5 table for weighted hybrid RRF context retrieval.
 
 | Column | Type | Description |
 | :--- | :--- | :--- |

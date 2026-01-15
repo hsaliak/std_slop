@@ -7,7 +7,7 @@
 
 namespace sentinel {
 
-CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id, std::vector<std::string>& active_skills, std::function<void()> show_help_fn) {
+CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id, std::vector<std::string>& active_skills, std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups) {
     std::string trimmed = std::string(absl::StripLeadingAsciiWhitespace(input));
     if (trimmed.empty() || trimmed[0] != '/') return Result::NOT_A_COMMAND;
 
@@ -64,7 +64,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             std::string sub = "SELECT DISTINCT group_id FROM messages WHERE session_id = '" + session_id + "' ORDER BY created_at DESC LIMIT " + std::to_string(n);
             log_status(db_->Execute("UPDATE messages SET status = 'completed' WHERE group_id IN (" + sub + ")"));
         } else if (sub_cmd == "show") {
-            log_status(DisplayHistory(*db_, session_id, 20));
+            log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
         }
         return Result::HANDLED;
     } else if (cmd == "/context-mode") {
@@ -113,7 +113,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
         if (res.ok()) log_status(PrintJsonAsTable(*res));
         return Result::HANDLED;
     } else if (cmd == "/switch") {
-        if (!args.empty()) { session_id = args; std::cout << "Switched to: " << session_id << std::endl; }
+        if (!args.empty()) { session_id = args; std::cout << "Switched to: " << session_id << std::endl; DisplayHistory(*db_, session_id, 20, selected_groups); }
         return Result::HANDLED;
     } else if (cmd == "/undo") {
         auto gid_res = db_->Query("SELECT group_id FROM messages WHERE session_id = '" + session_id + "' AND status != 'dropped' ORDER BY created_at DESC LIMIT 1");

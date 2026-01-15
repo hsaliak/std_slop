@@ -36,11 +36,14 @@ class Orchestrator {
   };
   absl::StatusOr<ToolCall> ParseToolCall(const Database::Message& msg);
 
+  std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
+
  private:
   Database* db_;
   HttpClient* http_client_;
   Provider provider_ = Provider::GEMINI;
   std::string model_;
+  std::vector<std::string> last_selected_groups_;
 };
 
 }  // namespace sentinel

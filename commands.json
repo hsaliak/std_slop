@@ -7,8 +7,7 @@
   "/context": {
     "show": {},
     "drop": {},
-    "build": {},
-    "rebuild": {}
+    "build": {}
   },
   "/message": {
     "list": {},
@@ -16,15 +15,13 @@
     "remove": {},
     "drop": {}
   },
-  "/low-context-mode": {
-    "on": {},
-    "off": {}
+  "/context-mode": {
+    "fts": {},
+    "full": {}
   },
   "/skills": {},
   "/skill": {
-    "activate": {},
-    "view": {},
-    "add": {}
+    "activate": {}
   },
   "/sessions": {},
   "/switch": {},

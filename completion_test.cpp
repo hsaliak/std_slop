@@ -56,6 +56,29 @@ TEST_F(CompletionTest, SubCommandsPrefix) {
   EXPECT_EQ(matches[0], "show");
 }
 
+TEST_F(CompletionTest, DeepSubCommands) {
+  json deep_tree = {
+    {"/a", {
+      {"b", {
+        {"c", {}}
+      }}
+    }}
+  };
+  auto matches = sentinel::GetCompletionMatches("", "/a b ", deep_tree);
+  EXPECT_EQ(matches.size(), 1);
+  EXPECT_EQ(matches[0], "c");
+}
+
+TEST_F(CompletionTest, MultipleTrailingSpaces) {
+  auto matches = sentinel::GetCompletionMatches("", "/context  ", tree);
+  // Current logic might be sensitive to multiple spaces
+  // Tokenize uses ss >> token which skips all whitespace
+  // depth = tokens.size() if has_trailing_space
+  // For "/context  ", tokens = {"/context"}, has_trailing_space = true, depth = 1
+  // current_node will be tree["/context"], which contains "show", "drop"
+  EXPECT_EQ(matches.size(), 2);
+}
+
 TEST_F(CompletionTest, NoMatch) {
   auto matches = sentinel::GetCompletionMatches("x", "/context x", tree);
   EXPECT_EQ(matches.size(), 0);
