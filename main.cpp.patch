@@ -1,0 +1,37 @@
+--- main.cpp
++++ main.cpp
+@@ -176,17 +176,21 @@
+ 
+       // Thinking... UI with Timer
+       auto start_time = absl::Now();
+-      std::cout << "Thinking... " << std::flush;
++      std::string skill_suffix;
++      if (!active_skills.empty()) {
++          skill_suffix = " [" + absl::StrJoin(active_skills, ", ") + "]";
++      }
++      std::cout << "Thinking" << skill_suffix << "... " << std::flush;
+       
+       auto future = std::async(std::launch::async, [&]() {
+         return http_client.Post(url, prompt_or->dump(), current_headers);
+       });
+ 
+       while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+         double elapsed = absl::ToDoubleSeconds(absl::Now() - start_time);
+-        std::cout << "\rThinking... (" << std::fixed << std::setprecision(1) << elapsed << "s)" << std::flush;
++        std::cout << "\rThinking" << skill_suffix << "... (" << std::fixed << std::setprecision(1) << elapsed << "s)" << std::flush;
+       }
+ 
+       auto response_or = future.get();
+@@ -206,7 +210,11 @@
+       const auto& last_msg = history_or->back();
+ 
+       if (last_msg.status == "completed") {
+-        std::cout << "\n[Assistant]: " << last_msg.content << "\n" << std::endl;
++        std::string skill_str;
++        if (!active_skills.empty()) {
++            skill_str = " (" + absl::StrJoin(active_skills, ", ") + ")";
++        }
++        std::cout << "\n[Assistant" << skill_str << "]: " << last_msg.content << "\n" << std::endl;
+         active_skills.clear();
+         break; 
+       } else if (last_msg.status == "tool_call") {

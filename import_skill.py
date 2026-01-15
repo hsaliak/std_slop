@@ -1,29 +1,49 @@
 import sqlite3
 import json
-import os
+import sys
 
-db_path = 'slop.db'
-json_path = 'skill_default.json'
+def import_skill(db_path, skill_file):
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
 
-with open(json_path, 'r') as f:
-    data = json.load(f)
+        with open(skill_file, 'r') as f:
+            name = None
+            description = None
+            patch = None
+            for line in f:
+                line = line.strip()
+                if line.startswith('#name:'):
+                    name = line[6:].strip()
+                elif line.startswith('#description:'):
+                    description = line[13:].strip()
+                elif line.startswith('#patch:'):
+                    patch = line[7:].strip()
 
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
+            if not all([name, description, patch]):
+                raise ValueError("Skill file must contain #name, #description, and #patch fields.")
 
-# We want to insert it as 'assistant_manager'
-name = 'assistant_manager'
-description = data.get('description', '')
-system_prompt_patch = data.get('system_prompt_patch', '')
+            sql = "INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)"
+            cursor.execute(sql, (name, description, patch))
+            conn.commit()
 
-try:
-    cursor.execute("INSERT INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)", 
-                   (name, description, system_prompt_patch))
-    conn.commit()
-    print(f"Successfully imported skill '{name}' into {db_path}")
-except sqlite3.IntegrityError:
-    print(f"Skill '{name}' already exists in {db_path}")
-except Exception as e:
-    print(f"Error: {e}")
-finally:
-    conn.close()
+        print(f"Skill '{name}' imported successfully.")
+
+    except sqlite3.Error as e:
+        print(f"SQLite error: {e}")
+    except FileNotFoundError:
+        print(f"Error: Skill file '{skill_file}' not found.")
+    except ValueError as e:
+        print(f"Error: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python import_skill.py <skill_file>")
+        sys.exit(1)
+
+    db_path = "slop.db"
+    skill_file = sys.argv[1]
+    import_skill(db_path, skill_file)
