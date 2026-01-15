@@ -1,6 +1,6 @@
 # std::slop User Guide
 
-Welcome to **std::slop**, a powerful, SQL-backed AI coding agent. This guide will help you understand how to use the various features of the agent to enhance your development workflow.
+Welcome to **std::slop**, a rinky dink SQL-backed AI coding agent. This guide will help you understand how to use the various features of the agent to enhance your development workflow.
 
 ---
 
@@ -108,7 +108,7 @@ Sends the entire conversation history of the current session to the LLM.
 
 ### FTS-Ranked Context
 Uses a hybrid search (BM25 + Recency) to find the most relevant message groups for your current query. This is useful for very long conversations that exceed the LLM's context window.
-- **Enable**: `/context-mode fts <N>` (where N is the number of groups to retrieve)
+- **Enable**: `/context-mode fts <N>` (where N is the number of groups to retrieve). Usually 5 is a sweet spot.
 
 ---
 
@@ -143,7 +143,7 @@ The agent can autonomously perform tasks using tools. When it wants to use a too
 - `execute_bash`: Run shell commands.
 - `index_directory`: Recursively index a directory for searching.
 - `search_code`: Search through the indexed code using FTS5.
-- `query_db`: Run SQL queries against the internal `slop.db`.
+- `query_db`: Run SQL queries against the internal `slop.db`. This is a powerful tool. You can for example ask the llm to create and add a skill for you to do something interesting. You can use it to prune errors from the message ledger etc.
 
 ---
 
@@ -151,8 +151,8 @@ The agent can autonomously perform tasks using tools. When it wants to use a too
 
 ### Searching Your Codebase
 To allow the agent to "see" your project:
-1. Use `/exec` or the agent's `execute_bash` to explore the directory.
-2. Ask the agent to index the directory: "Index the current directory for code search."
+1. Use `/exec` or the agent's `execute_bash` to explore the directory. /exec is useful for simple stuff like /exec git diff.
+2. Ask the agent to index the directory: "Index the current directory for code search." It's indexed in sqlite of course.
 3. Once indexed, the agent can use `search_code` to find relevant snippets across your entire project.
 
 ### Inspecting the Database
