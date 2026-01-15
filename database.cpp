@@ -2,7 +2,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 
-namespace sentinel {
+namespace slop {
 
 absl::Status Database::Init(const std::string& db_path) {
   sqlite3* raw_db = nullptr;
@@ -319,4 +319,4 @@ absl::Status Database::Execute(const std::string& sql) {
   return absl::OkStatus();
 }
 
-}  // namespace sentinel
+}  // namespace slop

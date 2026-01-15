@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
-project(Attempt1)
+project(std_slop)
+
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -79,22 +83,22 @@ if(NOT READLINE_FOUND)
     endif()
 endif()
 
-add_library(sentinel_lib STATIC database.cpp http_client.cpp orchestrator.cpp tool_executor.cpp command_handler.cpp ui.cpp completion.cpp)
-target_link_libraries(sentinel_lib absl::status absl::statusor sqlite3 libcurl_static nlohmann_json::nlohmann_json absl::strings absl::time)
+add_library(slop_lib STATIC database.cpp http_client.cpp orchestrator.cpp tool_executor.cpp command_handler.cpp ui.cpp completion.cpp)
+target_link_libraries(slop_lib absl::status absl::statusor sqlite3 libcurl_static nlohmann_json::nlohmann_json absl::strings absl::time)
 
 # On macOS, static libcurl needs these frameworks
 if(APPLE)
-    target_link_libraries(sentinel_lib "-framework CoreFoundation" "-framework Security" "-framework SystemConfiguration" z)
+    target_link_libraries(slop_lib "-framework CoreFoundation" "-framework Security" "-framework SystemConfiguration" z)
 endif()
 
 if(READLINE_FOUND)
-    target_link_libraries(sentinel_lib ${READLINE_LIBRARIES})
-    target_include_directories(sentinel_lib PUBLIC ${READLINE_INCLUDE_DIRS})
+    target_link_libraries(slop_lib ${READLINE_LIBRARIES})
+    target_include_directories(slop_lib PUBLIC ${READLINE_INCLUDE_DIRS})
     add_definitions(-DHAVE_READLINE)
 endif()
 
-add_executable(Attempt1 main.cpp)
-target_link_libraries(Attempt1 sentinel_lib nlohmann_json::nlohmann_json absl::time)
+add_executable(std_slop main.cpp)
+target_link_libraries(std_slop slop_lib nlohmann_json::nlohmann_json absl::time)
 
 # Copy commands.json to build directory
 configure_file(commands.json ${CMAKE_BINARY_DIR}/commands.json COPYONLY)
@@ -108,25 +112,25 @@ add_executable(deps_test deps_test.cpp)
 target_link_libraries(deps_test GTest::gtest_main nlohmann_json::nlohmann_json libcurl)
 
 add_executable(database_test database_test.cpp)
-target_link_libraries(database_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+target_link_libraries(database_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 add_executable(http_client_test http_client_test.cpp)
-target_link_libraries(http_client_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+target_link_libraries(http_client_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 add_executable(orchestrator_test orchestrator_test.cpp)
-target_link_libraries(orchestrator_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+target_link_libraries(orchestrator_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 add_executable(tool_executor_test tool_executor_test.cpp)
-target_link_libraries(tool_executor_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+target_link_libraries(tool_executor_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 add_executable(command_handler_test command_handler_test.cpp)
-target_link_libraries(command_handler_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+target_link_libraries(command_handler_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 add_executable(completion_test completion_test.cpp)
-target_link_libraries(completion_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+target_link_libraries(completion_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 add_executable(ui_test ui_test.cpp)
-target_link_libraries(ui_test GTest::gtest_main sentinel_lib nlohmann_json::nlohmann_json)
+target_link_libraries(ui_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 include(GoogleTest)
 gtest_discover_tests(sqlite_test)

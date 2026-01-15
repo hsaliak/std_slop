@@ -24,7 +24,7 @@ Capabilities and knowledge are shared across sessions:
 The /switch [ID] command updates the internal session pointer. The next prompt reconstruction uses history from the new ID.
 
 ### Persistence
-The ledger is stored in sentinel.db and persists across restarts. Resume a session by providing its ID at startup.
+The ledger is stored in slop.db and persists across restarts. Resume a session by providing its ID at startup.
 
 ## Summary
 

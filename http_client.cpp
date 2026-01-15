@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-namespace sentinel {
+namespace slop {
 
 HttpClient::HttpClient() {
   curl_global_init(CURL_GLOBAL_ALL);
@@ -141,4 +141,4 @@ absl::StatusOr<std::string> HttpClient::Get(const std::string& url,
   return response_string;
 }
 
-}  // namespace sentinel
+}  // namespace slop

@@ -5,7 +5,7 @@
 #include "absl/strings/strip.h"
 #include "absl/strings/match.h"
 
-namespace sentinel {
+namespace slop {
 
 CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id, std::vector<std::string>& active_skills, std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups) {
     std::string trimmed = std::string(absl::StripLeadingAsciiWhitespace(input));
@@ -139,4 +139,4 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
     return Result::UNKNOWN;
 }
 
-}  // namespace sentinel
+}  // namespace slop

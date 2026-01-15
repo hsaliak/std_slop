@@ -5,7 +5,7 @@
 #include <set>
 #include "absl/strings/match.h"
 
-namespace sentinel {
+namespace slop {
 
 Orchestrator::Orchestrator(Database* db, HttpClient* http_client)
     : db_(db), http_client_(http_client) {}
@@ -212,4 +212,4 @@ absl::StatusOr<Orchestrator::ToolCall> Orchestrator::ParseToolCall(const Databas
     return tc;
 }
 
-}  // namespace sentinel
+}  // namespace slop

@@ -1,5 +1,5 @@
-#ifndef SENTINEL_SQL_ORCHESTRATOR_H_
-#define SENTINEL_SQL_ORCHESTRATOR_H_
+#ifndef SLOP_SQL_ORCHESTRATOR_H_
+#define SLOP_SQL_ORCHESTRATOR_H_
 
 #include <string>
 #include <vector>
@@ -8,7 +8,7 @@
 #include <nlohmann/json.hpp>
 #include "absl/status/statusor.h"
 
-namespace sentinel {
+namespace slop {
 
 class Orchestrator {
  public:
@@ -46,6 +46,6 @@ class Orchestrator {
   std::vector<std::string> last_selected_groups_;
 };
 
-}  // namespace sentinel
+}  // namespace slop
 
-#endif  // SENTINEL_SQL_ORCHESTRATOR_H_
+#endif  // SLOP_SQL_ORCHESTRATOR_H_

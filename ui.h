@@ -1,17 +1,17 @@
-#ifndef SENTINEL_SQL_UI_H_
-#define SENTINEL_SQL_UI_H_
+#ifndef SLOP_SQL_UI_H_
+#define SLOP_SQL_UI_H_
 
 #include "absl/status/status.h"
 
 #include <string>
 #include "database.h"
 
-namespace sentinel {
+namespace slop {
 
 std::string OpenInEditor(const std::string& initial_content = "");
-absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_id, int limit = 5, const std::vector<std::string>& selected_groups = {});
+absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit = 5, const std::vector<std::string>& selected_groups = {});
 absl::Status PrintJsonAsTable(const std::string& json_str);
 
-} // namespace sentinel
+} // namespace slop
 
-#endif // SENTINEL_SQL_UI_H_
+#endif // SLOP_SQL_UI_H_

@@ -3,13 +3,13 @@
 #include <nlohmann/json.hpp>
 
 TEST(DatabaseTest, InitWorks) {
-    sentinel::Database db;
+    slop::Database db;
     auto status = db.Init(":memory:");
     EXPECT_TRUE(status.ok()) << status.message();
 }
 
 TEST(DatabaseTest, TablesExist) {
-    sentinel::Database db;
+    slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
     // Check if tables exist by trying to insert/select
@@ -18,7 +18,7 @@ TEST(DatabaseTest, TablesExist) {
 }
 
 TEST(DatabaseTest, FTS5Works) {
-    sentinel::Database db;
+    slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
     EXPECT_TRUE(db.Execute("INSERT INTO code_search (path, content) VALUES ('main.cpp', 'int main() {}')").ok());
@@ -27,7 +27,7 @@ TEST(DatabaseTest, FTS5Works) {
 }
 
 TEST(DatabaseTest, MessagePersistence) {
-    sentinel::Database db;
+    slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
@@ -48,10 +48,10 @@ TEST(DatabaseTest, MessagePersistence) {
 }
 
 TEST(DatabaseTest, SkillsPersistence) {
-    sentinel::Database db;
+    slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    sentinel::Database::Skill skill = {1, "expert", "Expert skill", "PATCH", "[]"};
+    slop::Database::Skill skill = {1, "expert", "Expert skill", "PATCH", "[]"};
     ASSERT_TRUE(db.RegisterSkill(skill).ok());
     
     auto skills = db.GetSkills();
@@ -62,7 +62,7 @@ TEST(DatabaseTest, SkillsPersistence) {
 }
 
 TEST(DatabaseTest, GroupSearchWorks) {
-    sentinel::Database db;
+    slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
     ASSERT_TRUE(db.IndexGroup("g1", "the quick brown fox").ok());
@@ -75,26 +75,26 @@ TEST(DatabaseTest, GroupSearchWorks) {
 }
 
 TEST(DatabaseTest, ContextSettingsPersistence) {
-    sentinel::Database db;
+    slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    ASSERT_TRUE(db.SetContextMode("s1", sentinel::Database::ContextMode::FTS_RANKED, 15).ok());
+    ASSERT_TRUE(db.SetContextMode("s1", slop::Database::ContextMode::FTS_RANKED, 15).ok());
     
     auto settings = db.GetContextSettings("s1");
     ASSERT_TRUE(settings.ok());
-    EXPECT_EQ(settings->mode, sentinel::Database::ContextMode::FTS_RANKED);
+    EXPECT_EQ(settings->mode, slop::Database::ContextMode::FTS_RANKED);
     EXPECT_EQ(settings->size, 15);
 }
 
 TEST(DatabaseTest, GenericQuery) {
-    sentinel::Database db;
+    slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    auto res = db.Query("SELECT 42 as answer, 'sentinel' as name");
+    auto res = db.Query("SELECT 42 as answer, 'slop' as name");
     ASSERT_TRUE(res.ok());
     
     nlohmann::json j = nlohmann::json::parse(*res);
     ASSERT_EQ(j.size(), 1);
     EXPECT_EQ(j[0]["answer"], 42);
-    EXPECT_EQ(j[0]["name"], "sentinel");
+    EXPECT_EQ(j[0]["name"], "slop");
 }

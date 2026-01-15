@@ -1,5 +1,5 @@
-#ifndef SENTINEL_SQL_DATABASE_H_
-#define SENTINEL_SQL_DATABASE_H_
+#ifndef SLOP_SQL_DATABASE_H_
+#define SLOP_SQL_DATABASE_H_
 
 #include <sqlite3.h>
 #include <string>
@@ -8,7 +8,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-namespace sentinel {
+namespace slop {
 
 class Database {
  public:
@@ -94,6 +94,6 @@ class Database {
   std::unique_ptr<sqlite3, SqliteDeleter> db_;
 };
 
-}  // namespace sentinel
+}  // namespace slop
 
-#endif  // SENTINEL_SQL_DATABASE_H_
+#endif  // SLOP_SQL_DATABASE_H_

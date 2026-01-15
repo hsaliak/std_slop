@@ -1,5 +1,5 @@
-#ifndef SENTINEL_SQL_HTTP_CLIENT_H_
-#define SENTINEL_SQL_HTTP_CLIENT_H_
+#ifndef SLOP_SQL_HTTP_CLIENT_H_
+#define SLOP_SQL_HTTP_CLIENT_H_
 
 #include <string>
 #include <vector>
@@ -8,7 +8,7 @@
 
 #include <atomic>
 
-namespace sentinel {
+namespace slop {
 
 class HttpClient {
  public:
@@ -37,6 +37,6 @@ class HttpClient {
   std::atomic<bool> abort_requested_{false};
 };
 
-}  // namespace sentinel
+}  // namespace slop
 
-#endif  // SENTINEL_SQL_HTTP_CLIENT_H_
+#endif  // SLOP_SQL_HTTP_CLIENT_H_

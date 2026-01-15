@@ -2,7 +2,7 @@
 #include "database.h"
 #include <gtest/gtest.h>
 
-namespace sentinel {
+namespace slop {
 
 class OrchestratorTest : public ::testing::Test {
  protected:
@@ -265,4 +265,4 @@ TEST_F(OrchestratorTest, ParseToolCallOpenAI) {
     EXPECT_EQ(tc->args["key"], "val");
 }
 
-}  // namespace sentinel
+}  // namespace slop

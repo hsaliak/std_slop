@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace sentinel {
+namespace slop {
 
 TEST(UiTest, PrintJsonAsTableEmpty) {
     std::string empty_json = "[]";
@@ -38,4 +38,4 @@ TEST(UiTest, PrintJsonAsTableInvalid) {
     EXPECT_FALSE(status.ok());
 }
 
-} // namespace sentinel
+} // namespace slop

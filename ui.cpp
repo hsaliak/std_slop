@@ -6,13 +6,13 @@
 #include <iomanip>
 #include "absl/status/status.h"
 
-namespace sentinel {
+namespace slop {
 
 std::string OpenInEditor(const std::string& initial_content) {
     const char* editor = std::getenv("EDITOR");
     if (!editor) editor = "vi";
     
-    std::string tmp_path = "/tmp/sentinel_edit.txt";
+    std::string tmp_path = "/tmp/slop_edit.txt";
     { 
         std::ofstream out(tmp_path);
         if (!initial_content.empty()) out << initial_content;
@@ -106,7 +106,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
     return absl::OkStatus();
 }
 
-absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_id, int limit, const std::vector<std::string>& selected_groups) {
+absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit, const std::vector<std::string>& selected_groups) {
     auto history_or = db.GetConversationHistory(session_id);
     if (!history_or.ok()) return history_or.status();
 
@@ -146,4 +146,4 @@ absl::Status DisplayHistory(sentinel::Database& db, const std::string& session_i
     return absl::OkStatus();
 }
 
-} // namespace sentinel
+} // namespace slop

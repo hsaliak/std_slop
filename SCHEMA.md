@@ -1,6 +1,6 @@
-# Attempt1 Database Schema
+# std::slop Database Schema
 
-This document describes the SQLite schema used by Attempt1 to persist history, tools, skills, and indexed code.
+This document describes the SQLite schema used by std::slop to persist history, tools, skills, and indexed code.
 
 ## Tables
 

@@ -9,7 +9,7 @@
 
 #include <filesystem>
 
-namespace sentinel {
+namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
   if (name == "read_file") {
@@ -103,4 +103,4 @@ absl::StatusOr<std::string> ToolExecutor::QueryDb(const std::string& sql) {
     return db_->Query(sql);
 }
 
-}  // namespace sentinel
+}  // namespace slop

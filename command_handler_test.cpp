@@ -1,7 +1,7 @@
 #include "command_handler.h"
 #include <gtest/gtest.h>
 
-namespace sentinel {
+namespace slop {
 
 class CommandHandlerTest : public ::testing::Test {
  protected:
@@ -68,4 +68,4 @@ TEST_F(CommandHandlerTest, DetectsQuitExit) {
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
-}  // namespace sentinel
+}  // namespace slop

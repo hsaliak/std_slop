@@ -1,6 +1,6 @@
-# Attempt1
+# std::slop
 
-Attempt1 is a C++17 AI coding agent driven by a persistent SQLite ledger for session management and transparency.
+std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for session management and transparency.
 
 ## Features
 
@@ -38,7 +38,7 @@ Attempt1 is a C++17 AI coding agent driven by a persistent SQLite ledger for ses
 ```bash
 mkdir build && cd build
 cmake ..
-make Attempt1
+make std::slop
 ```
 
 ### 2. Authentication
@@ -53,7 +53,7 @@ export OPENAI_API_KEY="key"
 ### 3. Run
 
 ```bash
-./Attempt1 [session_id]
+./std::slop [session_id]
 ```
 
 ## Command Reference

@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <nlohmann/json.hpp>
 
-namespace sentinel {
+namespace slop {
 
 TEST(HttpClientTest, PostInit) {
     HttpClient client;
@@ -17,4 +17,4 @@ TEST(HttpClientTest, GetError) {
     EXPECT_FALSE(res.ok());
 }
 
-}  // namespace sentinel
+}  // namespace slop

@@ -1,12 +1,12 @@
-#ifndef SENTINEL_SQL_TOOL_EXECUTOR_H_
-#define SENTINEL_SQL_TOOL_EXECUTOR_H_
+#ifndef SLOP_SQL_TOOL_EXECUTOR_H_
+#define SLOP_SQL_TOOL_EXECUTOR_H_
 
 #include <string>
 #include <nlohmann/json.hpp>
 #include "absl/status/statusor.h"
 #include "database.h"
 
-namespace sentinel {
+namespace slop {
 
 class ToolExecutor {
  public:
@@ -25,6 +25,6 @@ class ToolExecutor {
   absl::StatusOr<std::string> QueryDb(const std::string& sql);
 };
 
-}  // namespace sentinel
+}  // namespace slop
 
-#endif  // SENTINEL_SQL_TOOL_EXECUTOR_H_
+#endif  // SLOP_SQL_TOOL_EXECUTOR_H_

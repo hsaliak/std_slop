@@ -11,7 +11,7 @@
 
 using json = nlohmann::json;
 
-namespace sentinel {
+namespace slop {
 
 static json global_commands;
 
@@ -79,7 +79,7 @@ char* command_generator(const char* text, int state) {
     return nullptr;
 }
 
-char** sentinel_completion(const char* text, int start, int end) {
+char** slop_completion(const char* text, int start, int end) {
     if (rl_line_buffer && rl_line_buffer[0] == '/') {
         rl_attempted_completion_over = 1;
         return rl_completion_matches(text, command_generator);
@@ -97,8 +97,8 @@ void InitCompletion(const std::string& config_path) {
         return;
     }
 
-    rl_attempted_completion_function = sentinel_completion;
+    rl_attempted_completion_function = slop_completion;
     rl_completer_word_break_characters = (char*)" \t\n\"\\'`@$><=;|&{(";
 }
 
-} // namespace sentinel
+} // namespace slop

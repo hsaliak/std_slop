@@ -1,5 +1,5 @@
-#ifndef SENTINEL_SQL_COMMAND_HANDLER_H_
-#define SENTINEL_SQL_COMMAND_HANDLER_H_
+#ifndef SLOP_SQL_COMMAND_HANDLER_H_
+#define SLOP_SQL_COMMAND_HANDLER_H_
 
 #include <string>
 #include <vector>
@@ -7,7 +7,7 @@
 #include "database.h"
 #include "ui.h"
 
-namespace sentinel {
+namespace slop {
 
 class CommandHandler {
  public:
@@ -26,6 +26,6 @@ class CommandHandler {
   Database* db_;
 };
 
-}  // namespace sentinel
+}  // namespace slop
 
-#endif  // SENTINEL_SQL_COMMAND_HANDLER_H_
+#endif  // SLOP_SQL_COMMAND_HANDLER_H_

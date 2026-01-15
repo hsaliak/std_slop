@@ -1,13 +1,13 @@
-#ifndef SENTINEL_COMPLETION_H_
-#define SENTINEL_COMPLETION_H_
+#ifndef SLOP_COMPLETION_H_
+#define SLOP_COMPLETION_H_
 
 #include <string>
 
-namespace sentinel {
+namespace slop {
 
 // Initialize readline completions from a JSON file.
 void InitCompletion(const std::string& config_path);
 
-} // namespace sentinel
+} // namespace slop
 
-#endif // SENTINEL_COMPLETION_H_
+#endif // SLOP_COMPLETION_H_

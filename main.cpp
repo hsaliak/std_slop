@@ -19,7 +19,7 @@
 #include <readline/history.h>
 #endif
 
-namespace sentinel { }
+namespace slop { }
 
 void ShowUsage(const char* prog_name) {
     std::cout << "Usage: " << prog_name << " [session_id] [options]\n"
@@ -32,7 +32,7 @@ void ShowUsage(const char* prog_name) {
 }
 
 void ShowHelp() {
-    std::cout << "\n--- Attempt1 Help ---\n"
+    std::cout << "\n--- std::slop Help ---\n"
               << "Core Commands:\n"
               << "  /help                - Show this help message\n"
               << "  /edit                - Open $EDITOR to compose a long message\n"
@@ -72,32 +72,32 @@ int main(int argc, char** argv) {
     }
 
     std::string model_name;
-    sentinel::Orchestrator::Provider provider;
+    slop::Orchestrator::Provider provider;
     std::string base_url;
     std::vector<std::string> headers = {"Content-Type: application/json"};
 
     if (openai_key) {
-        provider = sentinel::Orchestrator::Provider::OPENAI;
+        provider = slop::Orchestrator::Provider::OPENAI;
         model_name = env_model ? env_model : "gpt-4o";
         base_url = openai_base ? openai_base : "https://api.openai.com/v1";
         headers.push_back("Authorization: Bearer " + std::string(openai_key));
     } else {
-        provider = sentinel::Orchestrator::Provider::GEMINI;
+        provider = slop::Orchestrator::Provider::GEMINI;
         model_name = env_model ? env_model : "gemini-3-flash-preview";
         base_url = "https://generativelanguage.googleapis.com/v1beta";
     }
 
-    sentinel::Database db;
-    if (!db.Init("sentinel.db").ok()) return 1;
+    slop::Database db;
+    if (!db.Init("slop.db").ok()) return 1;
 
-    sentinel::HttpClient http_client;
-    sentinel::Orchestrator orchestrator(&db, &http_client);
+    slop::HttpClient http_client;
+    slop::Orchestrator orchestrator(&db, &http_client);
     orchestrator.SetProvider(provider);
     orchestrator.SetModel(model_name);
-    sentinel::ToolExecutor tool_executor(&db);
+    slop::ToolExecutor tool_executor(&db);
 
     // Register default tools - NO BACKSLASHES in these raw strings!
-    std::vector<sentinel::Database::Tool> default_tools = {
+    std::vector<slop::Database::Tool> default_tools = {
         {"read_file", "Read the contents of a file.", R"({"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]})", true},
         {"write_file", "Write content to a file.", R"({"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]})", true},
         {"execute_bash", "Run a bash command.", R"({"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]})", true},
@@ -114,12 +114,16 @@ int main(int argc, char** argv) {
     std::vector<std::string> active_skills = {"chat"};
 
 #ifdef HAVE_READLINE
-    sentinel::InitCompletion("commands.json");
+    slop::InitCompletion("commands.json");
 #endif
 
-    std::cout << "Attempt1 Ready (" << (provider == sentinel::Orchestrator::Provider::OPENAI ? "OpenAI" : "Gemini") << "). Type '/help' for commands." << std::endl;
+    std::cout << "=======================================\n"
+              << "»  std::slop  »  [ v0.1.0 ]\n"
+              << "=======================================" << std::endl;
 
-    sentinel::CommandHandler command_handler(&db);
+    std::cout << "Ready (" << (provider == slop::Orchestrator::Provider::OPENAI ? "OpenAI" : "Gemini") << "). Type '/help' for commands." << std::endl;
+
+    slop::CommandHandler command_handler(&db);
 
     while (true) {
         std::string input;
@@ -127,7 +131,7 @@ int main(int argc, char** argv) {
         
         std::string context_indicator = "[Full]";
         auto settings_or = db.GetContextSettings(session_id);
-        if (settings_or.ok() && settings_or->mode == sentinel::Database::ContextMode::FTS_RANKED) {
+        if (settings_or.ok() && settings_or->mode == slop::Database::ContextMode::FTS_RANKED) {
             context_indicator = "[FTS: " + std::to_string(settings_or->size) + "]";
         }
 
@@ -146,7 +150,7 @@ int main(int argc, char** argv) {
 
         if (input[0] == '/') {
             auto res = command_handler.Handle(input, session_id, active_skills, ShowHelp, orchestrator.GetLastSelectedGroups());
-            if (res != sentinel::CommandHandler::Result::PROCEED_TO_LLM) continue;
+            if (res != slop::CommandHandler::Result::PROCEED_TO_LLM) continue;
         }
 
         std::string group_id = std::to_string(absl::GetCurrentTimeNanos());
@@ -159,7 +163,7 @@ int main(int argc, char** argv) {
             if (!prompt_payload.ok()) break;
 
             std::cout << "Thinking..." << std::flush;
-            std::string url = (provider == sentinel::Orchestrator::Provider::GEMINI)
+            std::string url = (provider == slop::Orchestrator::Provider::GEMINI)
                 ? base_url + "/models/" + model_name + ":generateContent" + (google_key ? "?key=" + std::string(google_key) : "")
                 : base_url + "/chat/completions";
 
@@ -191,7 +195,7 @@ int main(int argc, char** argv) {
                 std::string out = exec_res.ok() ? *exec_res : "Error: " + std::string(exec_res.status().message());
                 
                 nlohmann::json t_resp;
-                if (provider == sentinel::Orchestrator::Provider::GEMINI) {
+                if (provider == slop::Orchestrator::Provider::GEMINI) {
                     t_resp = {{"functionResponse", {{"name", tc.name}, {"response", {{"content", out}}}}}};
                 } else {
                     t_resp = {{"role", "tool"}, {"tool_call_id", tc.id}, {"content", out}};
