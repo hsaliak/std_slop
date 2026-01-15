@@ -1,0 +1,19 @@
+# Build artifacts
+build/
+bin/
+lib/
+
+# Local database
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Temporary/Swap files
+*.swp
+*.swo
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/

@@ -1,0 +1,34 @@
+{
+  "/help": {},
+  "/edit": {},
+  "/undo": {},
+  "/exit": {},
+  "/quit": {},
+  "/context": {
+    "show": {},
+    "drop": {},
+    "build": {},
+    "rebuild": {}
+  },
+  "/message": {
+    "list": {},
+    "view": {},
+    "remove": {},
+    "drop": {}
+  },
+  "/low-context-mode": {
+    "on": {},
+    "off": {}
+  },
+  "/skills": {},
+  "/skill": {
+    "activate": {},
+    "view": {},
+    "add": {}
+  },
+  "/sessions": {},
+  "/switch": {},
+  "/model": {},
+  "/stats": {},
+  "/schema": {}
+}
