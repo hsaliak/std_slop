@@ -56,6 +56,10 @@ export OPENAI_API_KEY="key"
 ./std::slop [session_id]
 ```
 
+## Security
+
+**Caution:** This agent can execute shell commands and modify your file system. It is highly recommended to run this project in a sandboxed environment such as **bubblewrap** or **Docker** to prevent accidental or malicious damage to your system.
+
 ## Command Reference
 
 ### Context and History
