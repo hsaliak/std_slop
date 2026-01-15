@@ -43,6 +43,23 @@ class Database {
   absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id, bool include_dropped = false);
   absl::StatusOr<std::vector<Message>> GetMessagesByGroups(const std::vector<std::string>& group_ids);
 
+  struct Usage {
+    std::string session_id;
+    std::string model;
+    int prompt_tokens;
+    int completion_tokens;
+    int total_tokens;
+    std::string created_at;
+  };
+
+  absl::Status RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens, int completion_tokens);
+  struct TotalUsage {
+    int prompt_tokens;
+    int completion_tokens;
+    int total_tokens;
+  };
+  absl::StatusOr<TotalUsage> GetTotalUsage(const std::string& session_id = "");
+
   struct Tool {
     std::string name;
     std::string description;
@@ -58,10 +75,10 @@ class Database {
     std::string name;
     std::string description;
     std::string system_prompt_patch;
-    std::string required_tools; // JSON array of tool names
   };
 
   absl::Status RegisterSkill(const Skill& skill);
+  absl::Status DeleteSkill(const std::string& name_or_id);
   absl::StatusOr<std::vector<Skill>> GetSkills();
 
   // Context Mode Settings
@@ -88,6 +105,8 @@ class Database {
   using UniqueStmt = std::unique_ptr<sqlite3_stmt, StmtDeleter>;
 
  private:
+  absl::Status RegisterDefaultTools();
+
   struct SqliteDeleter {
     void operator()(sqlite3* db) const { if (db) sqlite3_close(db); }
   };

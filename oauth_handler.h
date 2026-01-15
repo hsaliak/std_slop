@@ -1,0 +1,54 @@
+#ifndef SLOP_SQL_OAUTH_HANDLER_H_
+#define SLOP_SQL_OAUTH_HANDLER_H_
+
+#include <string>
+#include <vector>
+#include <memory>
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "http_client.h"
+
+namespace slop {
+
+struct OAuthTokens {
+  std::string access_token;
+  std::string refresh_token;
+  long long expiry_time = 0; // Epoch time in seconds
+  std::string project_id;
+};
+
+class OAuthHandler {
+ public:
+  explicit OAuthHandler(HttpClient* http_client);
+
+  absl::Status StartLoginFlow();
+  absl::StatusOr<std::string> GetValidToken();
+  absl::StatusOr<std::string> GetProjectId();
+  absl::Status ProvisionProject();
+
+  void SetProjectId(const std::string& project_id) { manual_project_id_ = project_id; }
+  bool IsEnabled() const { return enabled_; }
+  void SetEnabled(bool enabled) { enabled_ = enabled; }
+
+ private:
+  absl::Status LoadTokens();
+  absl::Status SaveTokens(const OAuthTokens& tokens);
+  absl::Status RefreshToken();
+  std::string GetGcpProjectFromGcloud();
+  absl::StatusOr<std::string> DiscoverProjectId(const std::string& access_token);
+
+  struct FdDeleter {
+    void operator()(int* fd) const;
+  };
+  using ScopedFd = std::unique_ptr<int, FdDeleter>;
+
+  HttpClient* http_client_;
+  OAuthTokens tokens_;
+  bool enabled_ = false;
+  std::string token_path_;
+  std::string manual_project_id_;
+};
+
+} // namespace slop
+
+#endif // SLOP_SQL_OAUTH_HANDLER_H_

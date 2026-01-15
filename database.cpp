@@ -1,6 +1,10 @@
 #include "database.h"
+#include <sqlite3.h>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include "absl/strings/substitute.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/numbers.h"
 
 namespace slop {
 
@@ -35,14 +39,23 @@ absl::Status Database::Init(const std::string& db_path) {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
         description TEXT,
-        system_prompt_patch TEXT,
-        required_tools TEXT
+        system_prompt_patch TEXT
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         context_mode TEXT DEFAULT 'FULL',
         context_size INTEGER DEFAULT 5
+    );
+
+    CREATE TABLE IF NOT EXISTS usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        model TEXT,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        total_tokens INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(path, content);
@@ -53,7 +66,36 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)Execute("ALTER TABLE sessions ADD COLUMN context_mode TEXT DEFAULT 'FULL'");
   (void)Execute("ALTER TABLE sessions ADD COLUMN context_size INTEGER DEFAULT 5");
 
-  return Execute(schema);
+  absl::Status s = Execute(schema);
+  if (!s.ok()) return s;
+
+  s = RegisterDefaultTools();
+  if (!s.ok()) return s;
+
+  return absl::OkStatus();
+}
+
+absl::Status Database::RegisterDefaultTools() {
+    std::vector<Tool> default_tools = {
+        {"read_file", "Read the content of a file from the local filesystem.",
+         R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})", true},
+        {"write_file", "Write content to a file in the local filesystem.",
+         R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})", true},
+        {"execute_bash", "Execute a bash command on the local system.",
+         R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", true},
+        {"search_code", "Search for code snippets in the indexed codebase.",
+         R"({"type":"object","properties":{"query":{"type":"string"}},"required":["query"]})", true},
+        {"index_directory", "Index all files in a directory recursively for code search.",
+         R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})", true},
+        {"query_db", "Query the local SQLite database using SQL.",
+         R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true}
+    };
+
+    for (const auto& t : default_tools) {
+        absl::Status s = RegisterTool(t);
+        if (!s.ok()) return s;
+    }
+    return absl::OkStatus();
 }
 
 absl::Status Database::AppendMessage(const std::string& session_id,
@@ -149,6 +191,37 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(con
     return messages;
 }
 
+absl::Status Database::RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens, int completion_tokens) {
+  const char* sql = "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)";
+  sqlite3_stmt* raw_stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+  UniqueStmt stmt(raw_stmt);
+  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 2, model.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 3, prompt_tokens);
+  sqlite3_bind_int(stmt.get(), 4, completion_tokens);
+  sqlite3_bind_int(stmt.get(), 5, prompt_tokens + completion_tokens);
+  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& session_id) {
+  std::string sql = "SELECT SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens) FROM usage";
+  if (!session_id.empty()) {
+    sql += " WHERE session_id = ?";
+  }
+  sqlite3_stmt* raw_stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.get(), sql.c_str(), -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+  UniqueStmt stmt(raw_stmt);
+  if (!session_id.empty()) {
+    sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+  }
+  if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+    return TotalUsage{sqlite3_column_int(stmt.get(), 0), sqlite3_column_int(stmt.get(), 1), sqlite3_column_int(stmt.get(), 2)};
+  }
+  return TotalUsage{0, 0, 0};
+}
+
 absl::Status Database::RegisterTool(const Tool& tool) {
   const char* sql = "INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?)";
   sqlite3_stmt* raw_stmt = nullptr;
@@ -180,34 +253,71 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 }
 
 absl::Status Database::RegisterSkill(const Skill& skill) {
-  const char* sql = "INSERT INTO skills (name, description, system_prompt_patch, required_tools) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET description=excluded.description, system_prompt_patch=excluded.system_prompt_patch, required_tools=excluded.required_tools";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, skill.name.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 2, skill.description.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 3, skill.system_prompt_patch.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 4, skill.required_tools.c_str(), -1, SQLITE_TRANSIENT);
-  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
-  return absl::OkStatus();
+    const char* sql = "INSERT INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET description=excluded.description, system_prompt_patch=excluded.system_prompt_patch";
+    UniqueStmt stmt;
+    sqlite3_stmt* raw_stmt;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
+        return absl::InternalError(sqlite3_errmsg(db_.get()));
+    }
+    stmt.reset(raw_stmt);
+
+    sqlite3_bind_text(stmt.get(), 1, skill.name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 2, skill.description.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 3, skill.system_prompt_patch.c_str(), -1, SQLITE_TRANSIENT);
+
+    if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
+        return absl::InternalError(sqlite3_errmsg(db_.get()));
+    }
+    return absl::OkStatus();
+}
+
+absl::Status Database::DeleteSkill(const std::string& name_or_id) {
+    int id;
+    const char* sql;
+    if (absl::SimpleAtoi(name_or_id, &id)) {
+        sql = "DELETE FROM skills WHERE id = ?";
+    } else {
+        sql = "DELETE FROM skills WHERE name = ?";
+    }
+
+    UniqueStmt stmt;
+    sqlite3_stmt* raw_stmt;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
+        return absl::InternalError(sqlite3_errmsg(db_.get()));
+    }
+    stmt.reset(raw_stmt);
+
+    if (absl::SimpleAtoi(name_or_id, &id)) {
+        sqlite3_bind_int(stmt.get(), 1, id);
+    } else {
+        sqlite3_bind_text(stmt.get(), 1, name_or_id.c_str(), -1, SQLITE_TRANSIENT);
+    }
+
+    if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
+        return absl::InternalError(sqlite3_errmsg(db_.get()));
+    }
+    return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
-  const char* sql = "SELECT id, name, description, system_prompt_patch, required_tools FROM skills";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  std::vector<Skill> skills;
-  while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-    Skill skill;
-    skill.id = sqlite3_column_int(stmt.get(), 0);
-    skill.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
-    skill.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
-    skill.system_prompt_patch = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
-    skill.required_tools = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 4));
-    skills.push_back(std::move(skill));
-  }
-  return skills;
+    const char* sql = "SELECT id, name, description, system_prompt_patch FROM skills";
+    UniqueStmt stmt;
+    sqlite3_stmt* raw_stmt;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
+        return absl::InternalError(sqlite3_errmsg(db_.get()));
+    }
+    stmt.reset(raw_stmt);
+
+    std::vector<Skill> skills;
+    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+        Skill skill;
+        skill.id = sqlite3_column_int(stmt.get(), 0);
+        skill.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
+        skill.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
+        skill.system_prompt_patch = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
+        skills.push_back(std::move(skill));
+    }
+    return skills;
 }
 
 absl::Status Database::SetContextMode(const std::string& session_id, ContextMode mode, int size) {

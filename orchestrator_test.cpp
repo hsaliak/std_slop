@@ -32,7 +32,7 @@ TEST_F(OrchestratorTest, AssemblePromptBasic) {
 TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
     Orchestrator orchestrator(&db, &http);
     
-    Database::Skill skill = {1, "test_skill", "A test skill", "SYSTEM_PATCH", "[]"};
+    Database::Skill skill = {1, "test_skill", "A test skill", "SYSTEM_PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill).ok());
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
@@ -107,7 +107,12 @@ TEST_F(OrchestratorTest, AssemblePromptWithTools) {
     nlohmann::json prompt = *result;
     ASSERT_TRUE(prompt.contains("tools"));
     ASSERT_TRUE(prompt["tools"][0].contains("function_declarations"));
-    EXPECT_EQ(prompt["tools"][0]["function_declarations"][0]["name"], "test_tool");
+    
+    bool found = false;
+    for (const auto& decl : prompt["tools"][0]["function_declarations"]) {
+        if (decl["name"] == "test_tool") { found = true; break; }
+    }
+    EXPECT_TRUE(found);
 }
 
 TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
@@ -123,8 +128,11 @@ TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
     nlohmann::json prompt = *result;
     EXPECT_EQ(prompt["model"], "gpt-4o");
     ASSERT_TRUE(prompt.contains("messages"));
-    EXPECT_EQ(prompt["messages"][0]["role"], "user");
-    EXPECT_EQ(prompt["messages"][0]["content"], "Hello");
+    // First message is the default system prompt
+    EXPECT_EQ(prompt["messages"][0]["role"], "system");
+    // Second message is the user prompt
+    EXPECT_EQ(prompt["messages"][1]["role"], "user");
+    EXPECT_EQ(prompt["messages"][1]["content"], "Hello");
 }
 
 TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
@@ -219,8 +227,14 @@ TEST_F(OrchestratorTest, SkipsMalformedTools) {
     
     // For Gemini format
     auto& decls = prompt["tools"][0]["function_declarations"];
-    EXPECT_EQ(decls.size(), 1);
-    EXPECT_EQ(decls[0]["name"], "valid");
+    bool found_valid = false;
+    bool found_invalid = false;
+    for (const auto& d : decls) {
+        if (d["name"] == "valid") found_valid = true;
+        if (d["name"] == "invalid") found_invalid = true;
+    }
+    EXPECT_TRUE(found_valid);
+    EXPECT_FALSE(found_invalid);
 
     // Test for OpenAI
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
@@ -228,8 +242,15 @@ TEST_F(OrchestratorTest, SkipsMalformedTools) {
     ASSERT_TRUE(result.ok());
     prompt = *result;
     ASSERT_TRUE(prompt.contains("tools"));
-    EXPECT_EQ(prompt["tools"].size(), 1);
-    EXPECT_EQ(prompt["tools"][0]["function"]["name"], "valid");
+    
+    found_valid = false;
+    found_invalid = false;
+    for (const auto& d : prompt["tools"]) {
+        if (d["function"]["name"] == "valid") found_valid = true;
+        if (d["function"]["name"] == "invalid") found_invalid = true;
+    }
+    EXPECT_TRUE(found_valid);
+    EXPECT_FALSE(found_invalid);
 }
 
 TEST_F(OrchestratorTest, ParseToolCallGemini) {
@@ -263,6 +284,89 @@ TEST_F(OrchestratorTest, ParseToolCallOpenAI) {
     EXPECT_EQ(tc->name, "test_tool");
     EXPECT_EQ(tc->id, "call_123");
     EXPECT_EQ(tc->args["key"], "val");
+}
+
+TEST_F(OrchestratorTest, GcaPayloadWrapping) {
+    Orchestrator orchestrator(&db, &http);
+    orchestrator.SetModel("gemini-3-flash-preview");
+    orchestrator.SetGcaMode(true);
+    orchestrator.SetProjectId("test-proj");
+    
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+    
+    auto result = orchestrator.AssemblePrompt("s1");
+    ASSERT_TRUE(result.ok());
+    
+    nlohmann::json prompt = *result;
+    EXPECT_EQ(prompt["model"], "gemini-3-flash-preview");
+    EXPECT_EQ(prompt["project"], "test-proj");
+    ASSERT_TRUE(prompt.contains("user_prompt_id"));
+    ASSERT_TRUE(prompt.contains("request"));
+    EXPECT_EQ(prompt["request"]["contents"][0]["parts"][0]["text"], "Hello");
+    EXPECT_EQ(prompt["request"]["session_id"], "s1");
+}
+
+TEST_F(OrchestratorTest, GcaResponseUnwrapping) {
+    Orchestrator orchestrator(&db, &http);
+    orchestrator.SetGcaMode(true);
+    
+    std::string mock_gca_response = R"({
+        "response": {
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Hello from GCA"}]
+                }
+            }]
+        }
+    })";
+    
+    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_gca_response).ok());
+    
+    auto history = db.GetConversationHistory("s1");
+    ASSERT_TRUE(history.ok());
+    ASSERT_EQ(history->size(), 1);
+    EXPECT_EQ((*history)[0].content, "Hello from GCA");
+}
+
+TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
+    Orchestrator orchestrator(&db, &http);
+    orchestrator.SetModel("test-gemini");
+    
+    std::string mock_response = R"({
+        "candidates": [{"content": {"parts": [{"text": "Hello"}]}}],
+        "usageMetadata": {
+            "promptTokenCount": 10,
+            "candidatesTokenCount": 5
+        }
+    })";
+    
+    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    
+    auto usage = db.GetTotalUsage("s1");
+    ASSERT_TRUE(usage.ok());
+    EXPECT_EQ(usage->prompt_tokens, 10);
+    EXPECT_EQ(usage->completion_tokens, 5);
+}
+
+TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
+    Orchestrator orchestrator(&db, &http);
+    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
+    orchestrator.SetModel("test-openai");
+    
+    std::string mock_response = R"({
+        "choices": [{"message": {"role": "assistant", "content": "Hello"}}],
+        "usage": {
+            "prompt_tokens": 20,
+            "completion_tokens": 10
+        }
+    })";
+    
+    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    
+    auto usage = db.GetTotalUsage("s1");
+    ASSERT_TRUE(usage.ok());
+    EXPECT_EQ(usage->prompt_tokens, 20);
+    EXPECT_EQ(usage->completion_tokens, 10);
 }
 
 }  // namespace slop

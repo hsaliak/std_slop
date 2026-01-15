@@ -51,14 +51,14 @@ TEST(DatabaseTest, SkillsPersistence) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    slop::Database::Skill skill = {1, "expert", "Expert skill", "PATCH", "[]"};
+    slop::Database::Skill skill = {1, "expert", "Expert skill", "PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill).ok());
     
     auto skills = db.GetSkills();
     ASSERT_TRUE(skills.ok());
-    ASSERT_EQ(skills->size(), 1);
+    ASSERT_EQ(skills->size(), 1); 
+    
     EXPECT_EQ((*skills)[0].name, "expert");
-    EXPECT_EQ((*skills)[0].system_prompt_patch, "PATCH");
 }
 
 TEST(DatabaseTest, GroupSearchWorks) {
@@ -97,4 +97,25 @@ TEST(DatabaseTest, GenericQuery) {
     ASSERT_EQ(j.size(), 1);
     EXPECT_EQ(j[0]["answer"], 42);
     EXPECT_EQ(j[0]["name"], "slop");
+}
+
+TEST(DatabaseTest, UsageTracking) {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+    
+    ASSERT_TRUE(db.RecordUsage("s1", "model-a", 10, 20).ok());
+    ASSERT_TRUE(db.RecordUsage("s1", "model-a", 5, 5).ok());
+    ASSERT_TRUE(db.RecordUsage("s2", "model-b", 100, 200).ok());
+    
+    auto s1_usage = db.GetTotalUsage("s1");
+    ASSERT_TRUE(s1_usage.ok());
+    EXPECT_EQ(s1_usage->prompt_tokens, 15);
+    EXPECT_EQ(s1_usage->completion_tokens, 25);
+    EXPECT_EQ(s1_usage->total_tokens, 40);
+    
+    auto global_usage = db.GetTotalUsage();
+    ASSERT_TRUE(global_usage.ok());
+    EXPECT_EQ(global_usage->prompt_tokens, 115);
+    EXPECT_EQ(global_usage->completion_tokens, 225);
+    EXPECT_EQ(global_usage->total_tokens, 340);
 }

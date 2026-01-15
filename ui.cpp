@@ -4,9 +4,26 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 #include <iomanip>
+#include <readline/readline.h>
+#include <readline/history.h>
 #include "absl/status/status.h"
 
 namespace slop {
+
+void SetupTerminal() {
+    // Readline initialization
+}
+
+std::string ReadLine(const std::string& prompt, const std::string& session_id) {
+    char* buf = readline(prompt.c_str());
+    if (!buf) return "/exit";
+    std::string line(buf);
+    free(buf);
+    if (!line.empty()) {
+        add_history(line.c_str());
+    }
+    return line;
+}
 
 std::string OpenInEditor(const std::string& initial_content) {
     const char* editor = std::getenv("EDITOR");

@@ -83,7 +83,7 @@ if(NOT READLINE_FOUND)
     endif()
 endif()
 
-add_library(slop_lib STATIC database.cpp http_client.cpp orchestrator.cpp tool_executor.cpp command_handler.cpp ui.cpp completion.cpp)
+add_library(slop_lib STATIC database.cpp http_client.cpp orchestrator.cpp tool_executor.cpp command_handler.cpp ui.cpp oauth_handler.cpp)
 target_link_libraries(slop_lib absl::status absl::statusor sqlite3 libcurl_static nlohmann_json::nlohmann_json absl::strings absl::time)
 
 # On macOS, static libcurl needs these frameworks
@@ -98,10 +98,20 @@ if(READLINE_FOUND)
 endif()
 
 add_executable(std_slop main.cpp)
-target_link_libraries(std_slop slop_lib nlohmann_json::nlohmann_json absl::time)
+target_link_libraries(std_slop slop_lib nlohmann_json::nlohmann_json absl::time absl::flags absl::flags_parse absl::flags_usage)
 
-# Copy commands.json to build directory
-configure_file(commands.json ${CMAKE_BINARY_DIR}/commands.json COPYONLY)
+# Generate system_prompt_data.h from system_prompt.md at compile time
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/system_prompt.md")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/system_prompt.md" SYSTEM_PROMPT_CONTENTS)
+    # Create the header file. We use a long unique delimiter for the raw string literal.
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/system_prompt_data.h"
+        "namespace slop {\n"
+        "static const char* kBuiltinSystemPrompt = R\"PROMPT(\n${SYSTEM_PROMPT_CONTENTS}\n)PROMPT\";\n"
+        "}\n"
+    )
+    target_include_directories(slop_lib PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_compile_definitions(slop_lib PRIVATE HAVE_SYSTEM_PROMPT_H)
+endif()
 
 enable_testing()
 
@@ -126,11 +136,11 @@ target_link_libraries(tool_executor_test GTest::gtest_main slop_lib nlohmann_jso
 add_executable(command_handler_test command_handler_test.cpp)
 target_link_libraries(command_handler_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
-add_executable(completion_test completion_test.cpp)
-target_link_libraries(completion_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
-
 add_executable(ui_test ui_test.cpp)
 target_link_libraries(ui_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
+
+add_executable(oauth_handler_test oauth_handler_test.cpp)
+target_link_libraries(oauth_handler_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
 include(GoogleTest)
 gtest_discover_tests(sqlite_test)
@@ -140,5 +150,5 @@ gtest_discover_tests(http_client_test)
 gtest_discover_tests(orchestrator_test)
 gtest_discover_tests(tool_executor_test)
 gtest_discover_tests(command_handler_test)
-add_test(NAME completion_test COMMAND completion_test)
 gtest_discover_tests(ui_test)
+gtest_discover_tests(oauth_handler_test)
