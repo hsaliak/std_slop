@@ -1,4 +1,4 @@
-# Attempt1 Session Architecture
+# std::slop  Session Architecture
 
 Sessions are implemented as a partitioned ledger in SQLite. Every interaction is tagged with a session_id.
 
