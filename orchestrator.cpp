@@ -18,6 +18,29 @@ Orchestrator::Orchestrator(Database* db, HttpClient* http_client)
     : db_(db), http_client_(http_client), throttle_(0) {}
 
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills) {
+  const char* kStateManagementInstructions = R"(
+---STATE MANAGEMENT INSTRUCTIONS---
+1. Response Requirement: You must include a ---STATE--- block at the end of every response.
+2. Format:
+---STATE---
+Goal: [Short description of current task]
+Context: [Active files/classes being edited]
+Resolved: [List of things finished this session]
+Technical Anchors: [Ports, IPs, constant values]
+---END STATE---
+3. Self-Correction: If history contradicts the current State, prioritize the evidence and update the State.
+)";
+
+  const char* kFtsInterpretation = R"(
+[CONTEXT INTERPRETATION GUIDE: FTS MODE]
+The messages below are non-sequential fragments retrieved via keyword relevance. They have chronological gaps. Treat the --STATE-- block as the source of truth for the project timeline and current status. Use these message fragments only as "evidence" for specific code snippets or past error logs.
+)";
+
+  const char* kFullInterpretation = R"(
+[CONTEXT INTERPRETATION GUIDE: FULL MODE]
+The messages below represent the most recent N exchanges. They are sequential, but older context has been truncated. Use the --STATE-- block to recover architectural decisions and variables defined in the history that has fallen out of this window.
+)";
+
   auto settings_or = db_->GetContextSettings(session_id);
   if (!settings_or.ok()) return settings_or.status();
   
@@ -173,6 +196,24 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   }
 
   if (!system_instruction.empty() && system_instruction.back() != '\n') system_instruction += "\n";
+
+  // Inject State Management Instructions
+  system_instruction += kStateManagementInstructions;
+  system_instruction += "\n";
+
+  // Inject Global Anchor (Session State)
+  auto state_or = db_->GetSessionState(session_id);
+  if (state_or.ok() && !state_or->empty()) {
+      system_instruction += *state_or + "\n";
+  }
+
+  // Inject Interpretation Guide
+  if (settings_or->mode == Database::ContextMode::FTS_RANKED) {
+      system_instruction += kFtsInterpretation;
+  } else {
+      system_instruction += kFullInterpretation;
+  }
+  system_instruction += "\n";
 
   auto skills_or = db_->GetSkills();
   if (skills_or.ok()) {
@@ -389,7 +430,23 @@ absl::Status Orchestrator::ProcessResponse(const std::string& session_id, const 
           auto& parts = (*target)["candidates"][0]["content"]["parts"];
           for (const auto& part : parts) {
               if (part.contains("functionCall")) status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call", group_id);
-              else if (part.contains("text")) status = db_->AppendMessage(session_id, "assistant", part["text"], "", "completed", group_id);
+              else if (part.contains("text")) {
+                  std::string text = part["text"];
+                  status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id);
+                  
+                  // Extract State
+                  size_t start_pos = text.find("---STATE---");
+                  if (start_pos != std::string::npos) {
+                      size_t end_pos = text.find("---END STATE---", start_pos);
+                      std::string state_blob;
+                      if (end_pos != std::string::npos) {
+                          state_blob = text.substr(start_pos, end_pos - start_pos + 15); // Include marker
+                      } else {
+                          state_blob = text.substr(start_pos);
+                      }
+                      (void)db_->SetSessionState(session_id, state_blob);
+                  }
+              }
           }
       }
   } else {
@@ -403,7 +460,23 @@ absl::Status Orchestrator::ProcessResponse(const std::string& session_id, const 
       if (j.contains("choices") && !j["choices"].empty()) {
           auto& msg = j["choices"][0]["message"];
           if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) status = db_->AppendMessage(session_id, "assistant", msg.dump(), msg["tool_calls"][0]["id"].get<std::string>() + "|" + msg["tool_calls"][0]["function"]["name"].get<std::string>(), "tool_call", group_id);
-          else if (msg.contains("content") && !msg["content"].is_null()) status = db_->AppendMessage(session_id, "assistant", msg["content"], "", "completed", group_id);
+          else if (msg.contains("content") && !msg["content"].is_null()) {
+              std::string text = msg["content"];
+              status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id);
+
+              // Extract State
+              size_t start_pos = text.find("---STATE---");
+              if (start_pos != std::string::npos) {
+                  size_t end_pos = text.find("---END STATE---", start_pos);
+                  std::string state_blob;
+                  if (end_pos != std::string::npos) {
+                      state_blob = text.substr(start_pos, end_pos - start_pos + 15); // Include marker
+                  } else {
+                      state_blob = text.substr(start_pos);
+                  }
+                  (void)db_->SetSessionState(session_id, state_blob);
+              }
+          }
       }
   }
 

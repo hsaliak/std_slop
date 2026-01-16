@@ -1,0 +1,5 @@
+# Standard Bazel options
+build --cxxopt=-std=c++17
+build --features=-use_header_modules
+build --macos_minimum_os=10.15
+test --test_output=errors

@@ -1,0 +1,142 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+genrule(
+    name = "generate_system_prompt",
+    srcs = ["system_prompt.md"],
+    outs = ["system_prompt_data.h"],
+    cmd = "echo 'namespace slop {' > $@ && " +
+          "echo 'static const char* kBuiltinSystemPrompt = R\"PROMPT(' >> $@ && " +
+          "cat $< >> $@ && " +
+          "echo ')PROMPT\";' >> $@ && " +
+          "echo '}' >> $@ ",
+)
+
+cc_library(
+    name = "sqlite3",
+    srcs = ["sqlite3.c"],
+    hdrs = ["sqlite3.h"],
+    copts = [
+        "-DSQLITE_ENABLE_COLUMN_METADATA",
+        "-DSQLITE_ENABLE_FTS5",
+    ],
+)
+
+cc_library(
+    name = "slop_lib",
+    srcs = [
+        "command_handler.cpp",
+        "database.cpp",
+        "http_client.cpp",
+        "oauth_handler.cpp",
+        "orchestrator.cpp",
+        "tool_executor.cpp",
+        "ui.cpp",
+    ],
+    hdrs = [
+        "command_handler.h",
+        "database.h",
+        "http_client.h",
+        "oauth_handler.h",
+        "orchestrator.h",
+        "tool_executor.h",
+        "ui.h",
+        "system_prompt_data.h",
+    ],
+    copts = [
+        "-fno-exceptions",
+        "-DSQLITE_ENABLE_COLUMN_METADATA",
+        "-DSQLITE_ENABLE_FTS5",
+    ],
+    defines = [
+        "HAVE_SYSTEM_PROMPT_H",
+        "HAVE_READLINE",
+    ],
+    linkopts = ["-lreadline"],
+    deps = [
+        ":sqlite3",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@curl//:curl",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_binary(
+    name = "std_slop",
+    srcs = ["main.cpp"],
+    copts = ["-fno-exceptions"],
+    deps = [
+        ":slop_lib",
+        ":sqlite3",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Tests
+[
+    cc_test(
+        name = test_name,
+        srcs = [test_name + ".cpp"],
+        copts = [
+            "-fno-exceptions",
+            "-DSQLITE_ENABLE_COLUMN_METADATA",
+            "-DSQLITE_ENABLE_FTS5",
+        ],
+        deps = [
+            ":slop_lib",
+            ":sqlite3",
+            "@googletest//:gtest_main",
+            "@nlohmann_json//:json",
+            "@abseil-cpp//absl/status",
+        ],
+    )
+    for test_name in [
+        "database_test",
+        "http_client_test",
+        "orchestrator_test",
+        "tool_executor_test",
+        "command_handler_test",
+        "ui_test",
+        "oauth_handler_test",
+        "input_parsing_test",
+    ]
+]
+
+cc_test(
+    name = "sqlite_test",
+    srcs = ["sqlite_test.cpp"],
+    copts = [
+        "-fno-exceptions",
+        "-DSQLITE_ENABLE_COLUMN_METADATA",
+        "-DSQLITE_ENABLE_FTS5",
+    ],
+    deps = [
+        ":sqlite3",
+        "@googletest//:gtest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "deps_test",
+    srcs = ["deps_test.cpp"],
+    copts = [
+        "-fno-exceptions",
+        "-DSQLITE_ENABLE_COLUMN_METADATA",
+        "-DSQLITE_ENABLE_FTS5",
+    ],
+    deps = [
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+        "@curl//:curl",
+    ],
+)
+

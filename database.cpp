@@ -61,6 +61,12 @@ absl::Status Database::Init(const std::string& db_path) {
     );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS group_search USING fts5(group_id UNINDEXED, content);
+    
+    CREATE TABLE IF NOT EXISTS session_state (
+        session_id TEXT PRIMARY KEY,
+        state_blob TEXT,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   )";
 
   // Migration: Add context columns to sessions if they don't exist
@@ -410,6 +416,29 @@ absl::StatusOr<std::vector<std::string>> Database::SearchGroups(const std::strin
     results.push_back(reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0)));
   }
   return results;
+}
+
+absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
+  const char* sql = "INSERT OR REPLACE INTO session_state (session_id, state_blob, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)";
+  sqlite3_stmt* raw_stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+  UniqueStmt stmt(raw_stmt);
+  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 2, state_blob.c_str(), -1, SQLITE_TRANSIENT);
+  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> Database::GetSessionState(const std::string& session_id) {
+  const char* sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
+  sqlite3_stmt* raw_stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+  UniqueStmt stmt(raw_stmt);
+  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+  if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+    return reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0));
+  }
+  return "";
 }
 
 absl::StatusOr<std::string> Database::Query(const std::string& sql) {

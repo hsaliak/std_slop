@@ -26,16 +26,14 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 ### Prerequisites
 
 - C++17 compiler (Clang or GCC).
-- CMake 3.16+.
-- SQLite3, libcurl, and OpenSSL development headers.
+- Bazel 8.x (Bazelisk recommended).
+- `readline` development headers.
 - `git` (optional, for enhanced code search).
 
 ### Build
 
 ```bash
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
+bazel build //...
 ```
 
 ## Usage
@@ -52,7 +50,7 @@ Or use command-line flags: `--google_api_key`, `--openai_api_key`.
 ### 3. Run
 
 ```bash
-./std_slop [session_id]
+bazel run //:std_slop -- [session_id]
 ```
 
 ## Security

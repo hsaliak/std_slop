@@ -65,6 +65,28 @@ A more advanced mode designed to retain relevant information from across the ent
     -   **Complexity**: Harder to debug why a specific piece of context was included or excluded.
     -   **Dependency**: heavily relies on the quality of the search query (the user's last prompt). If the prompt is vague, retrieval quality suffers.
 
+## 3. Self-Managed State Tracking (Long-term RAM)
+
+To complement the retrieval strategies, `std_slop` implements a self-managed state tracking mechanism. This allows the LLM to maintain a persistent "Global Anchor" of technical truth, architectural decisions, and project progress that survives even when specific messages fall out of the context window.
+
+### The "Context Layers" Approach
+
+When building the prompt, the Orchestrator assembles multiple layers of context:
+
+1.  **System Prompt**: The hard-coded base instructions for the assistant.
+2.  **State Management Instructions**: Guidance for the LLM on how to interpret and update the state block.
+3.  **Global Anchor (`--STATE--`)**: The persistent state blob retrieved from the `session_state` table.
+4.  **Evidence Interpretation Guide**: A mode-specific fragment (FTS or FULL) instructing the LLM on how to treat the following conversation history.
+5.  **Evidence (Conversation History)**: The messages retrieved via FULL or FTS_RANKED modes.
+
+### State Persistence and Extraction
+
+The state is managed autonomously by the LLM:
+-   **Extraction**: At the end of every response, the LLM is required to include a `---STATE---` block. The `Orchestrator` parses this block from the response and saves it to the `session_state` table in the database.
+-   **Injection**: Before every new prompt, the `Orchestrator` retrieves the latest state for the session and injects it as the "Global Anchor."
+
+This creates a "Long-term RAM" that is actively rewritten and curated by the LLM itself, ensuring that critical information (active files, variable names, resolved issues) is never lost to truncation or retrieval noise.
+
 ## Current State & Future Work
 
 Currently, `FTS_RANKED` uses a simple BM25 search on the raw message content.

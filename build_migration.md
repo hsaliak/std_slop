@@ -1,36 +1,37 @@
-# Bazel Migration Plan
+# Bazel Migration Status (COMPLETED)
 
-This document outlines the step-by-step process for porting the `std_slop` project from CMake to the Bazel build system.
+This document tracks the historical porting of the `std_slop` project from CMake to Bazel 8.x.
 
-## Phase 1: Environment Setup
-1.  **Define Workspace**: Create a `MODULE.bazel` (or `WORKSPACE`) file.
-2.  **External Dependencies**: Setup Bazel modules or archives for:
-    *   Abseil-cpp
-    *   GoogleTest
-    *   nlohmann_json
-3.  **System Libraries**: Define `cc_library` wrappers for system-provided `sqlite3` and `libcurl`.
+## Completed Steps
 
-## Phase 2: Dependency Mapping
-1.  **Abseil Targets**: Map `absl::status`, `absl::strings`, and `absl::statusor` to their respective `@com_google_absl` targets.
-2.  **JSON**: Map to `@nlohmann_json//:json`.
-3.  **Third Party**: Create a `third_party/` directory to manage build rules for non-Bazel native dependencies.
+### Phase 1: Environment Setup
+- Successfully transitioned from **CMake** to **Bazel 8.x** using **Bzlmod**.
+- Configured `.bazelversion` to `8.0.0` (minimum baseline).
+- Relaxed Bazel version requirement via `bazel_compatibility` in `MODULE.bazel`.
+- Configured `.bazelrc` with `-std=c++17` and `--macos_minimum_os=10.15` (for `std::filesystem` support).
+- Excluded all **CMake** artifacts via `.bazelignore`.
 
-## Phase 3: Core Library Transition (`slop_lib`)
-1.  **Target Definition**: Create a `cc_library` for `slop_lib`.
-2.  **Source Management**: Transition from the "Unity build" pattern in CMake to explicit `srcs` and `hdrs` lists in Bazel to improve build incrementality and cache hits.
-3.  **Include Paths**: Configure `includes = ["."]`.
+### Phase 2: Dependency Mapping
+- Mapped Abseil, GoogleTest, and nlohmann_json via BCR modules.
+- Managed `curl` via BCR.
+- **SQLite3**: Built from source (amalgamation) in `BUILD.bazel` to ensure `SQLITE_ENABLE_FTS5` and `SQLITE_ENABLE_COLUMN_METADATA` are enabled, replacing the previous **CMake** FetchContent setup.
 
-## Phase 4: Binary and Test Targets
-1.  **Main Binary**: Define a `cc_binary` for `std_slop`.
-2.  **Tests**: Define individual `cc_test` targets for:
-    *   `database_test`
-    *   `tool_executor_test`
-    *   `orchestrator_test`
-    *   `command_handler_test`
-    *   (And others identified in CMakeLists.txt)
-3.  **Test Runner**: Use `@com_google_googletest//:gtest_main` for automatic test discovery.
+### Phase 3: Core Library Transition (`slop_lib`)
+- Defined `cc_library` for `slop_lib` with explicit source and header lists.
+- Transitioned from **CMake** Unity build to incremental Bazel compilation.
+- Configured system prompt generation via `genrule`.
 
-## Phase 5: Verification & Cleanup
-1.  **Full Build**: Execute `bazel build //...`.
-2.  **Test Suite**: Execute `bazel test //...`.
-3.  **Refinement**: Set appropriate target visibility and remove any redundant CMake-specific artifacts.
+### Phase 4: Binary and Test Targets
+- Defined `cc_binary` for `std_slop`.
+- Defined all `cc_test` targets.
+- Linked `readline` via `linkopts`.
+
+### Phase 5: Verification & Cleanup
+- Verified build: `bazel build //...` (Passed).
+- Verified tests: `bazel test //...` (Passed).
+- Removed `CMakeLists.txt`, `generate_coverage.sh`, and the `build/` directory.
+
+## Usage
+- Build: `bazel build //...`
+- Test: `bazel test //...`
+- Run: `bazel run //:std_slop -- [session_id]`

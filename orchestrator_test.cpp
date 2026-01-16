@@ -369,6 +369,39 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
     EXPECT_EQ(usage->completion_tokens, 10);
 }
 
+TEST_F(OrchestratorTest, SelfManagedStateTracking) {
+    Orchestrator orchestrator(&db, &http);
+    orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
+    
+    std::string state_content = "Goal: Fix tests\nContext: orchestrator_test.cpp";
+    std::string mock_response = "I have updated the code.\n---STATE---\n" + state_content + "\n---END STATE---";
+    
+    nlohmann::json gemini_resp = {
+        {"candidates", {{
+            {"content", {
+                {"parts", {{{"text", mock_response}}}}
+            }}
+        }}}
+    };
+
+    ASSERT_TRUE(orchestrator.ProcessResponse("s1", gemini_resp.dump()).ok());
+    
+    // Verify state is in DB
+    auto state_or = db.GetSessionState("s1");
+    ASSERT_TRUE(state_or.ok());
+    EXPECT_TRUE(state_or->find(state_content) != std::string::npos);
+    EXPECT_TRUE(state_or->find("---STATE---") != std::string::npos);
+
+    // Verify state is injected in prompt
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "What is next?").ok());
+    auto prompt_or = orchestrator.AssemblePrompt("s1");
+    ASSERT_TRUE(prompt_or.ok());
+    
+    std::string sys_instr = (*prompt_or)["system_instruction"]["parts"][0]["text"];
+    EXPECT_TRUE(sys_instr.find("---STATE MANAGEMENT INSTRUCTIONS---") != std::string::npos);
+    EXPECT_TRUE(sys_instr.find(state_content) != std::string::npos);
+    EXPECT_TRUE(sys_instr.find("[CONTEXT INTERPRETATION GUIDE: FULL MODE]") != std::string::npos);
+}
 
 
 TEST_F(OrchestratorTest, AssemblePromptWithHeaders) {

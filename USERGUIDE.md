@@ -19,15 +19,13 @@ Welcome to **std::slop**, a rinky dink SQL-backed AI coding agent. This guide wi
 
 ### Installation
 Ensure you have the prerequisites installed:
-- CMake 3.10+
+- Bazel 8.x
 - C++17 compiler (GCC or Clang)
-- `libcurl` and `readline` development headers
+- `readline` development headers
 
 Build the project:
 ```bash
-mkdir build && cd build
-cmake ..
-make std_slop
+bazel build //...
 ```
 
 ### Authentication
@@ -42,14 +40,14 @@ export OPENAI_API_KEY="your_openai_key"
 
 **Command-line Flags:**
 ```bash
-./std_slop --google_api_key="your_key"
-./std_slop --openai_api_key="your_key"
+bazel run //:std_slop -- --google_api_key="your_key"
+bazel run //:std_slop -- --openai_api_key="your_key"
 ```
 
 ### Running the Agent
-Start a session by running the executable. You can optionally provide a session ID:
+Start a session by running the executable via Bazel. You can optionally provide a session ID:
 ```bash
-./std_slop my_project_session
+bazel run //:std_slop -- my_project_session
 ```
 
 ---
