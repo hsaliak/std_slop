@@ -65,6 +65,22 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
         }
         return Result::HANDLED;
     
+    } else if (cmd == "/undo") {
+        auto gid_or = db_->GetLastGroupId(session_id);
+        if (gid_or.ok()) {
+            std::string gid = *gid_or;
+            log_status(db_->Execute("DELETE FROM messages WHERE group_id = '" + gid + "'"));
+            std::cout << "Undid last interaction (Group ID: " + gid + ")" << std::endl;
+            if (orchestrator_) {
+                auto status = orchestrator_->RebuildContext(session_id);
+                if (status.ok()) std::cout << "Context rebuilt." << std::endl;
+                else std::cerr << "Error rebuilding context: " << status.message() << std::endl;
+            }
+        } else {
+            std::cout << "Nothing to undo." << std::endl;
+        }
+        return Result::HANDLED;
+
     } else if (cmd == "/window") {
         int n = args.empty() ? 0 : std::atoi(args.c_str());
         log_status(db_->SetContextWindow(session_id, n));

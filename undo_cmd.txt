@@ -1,0 +1,15 @@
+    } else if (cmd == "/undo") {
+        auto gid_or = db_->GetLastGroupId(session_id);
+        if (gid_or.ok()) {
+            std::string gid = *gid_or;
+            log_status(db_->Execute("DELETE FROM messages WHERE group_id = '" + gid + "'"));
+            std::cout << "Undid last interaction (Group ID: " << gid << ")" << std::endl;
+            if (orchestrator_) {
+                auto status = orchestrator_->RebuildContext(session_id);
+                if (status.ok()) std::cout << "Context rebuilt." << std::endl;
+                else std::cerr << "Error rebuilding context: " << status.message() << std::endl;
+            }
+        } else {
+            std::cout << "Nothing to undo." << std::endl;
+        }
+        return Result::HANDLED;

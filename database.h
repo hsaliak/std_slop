@@ -96,6 +96,8 @@ class Database {
 
   absl::StatusOr<std::string> Query(const std::string& sql);
 
+  absl::StatusOr<std::string> GetLastGroupId(const std::string& session_id);
+
   sqlite3* GetRawDb() const { return db_.get(); }
 
   struct StmtDeleter {

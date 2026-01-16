@@ -45,12 +45,33 @@ The state is managed autonomously by the LLM:
 
 This creates a "Long-term RAM" that is actively rewritten and curated by the LLM itself, ensuring that critical information (active files, technical anchors, resolved issues) is preserved even if the original messages that defined them have been truncated.
 
+### State Format
+```
 ---STATE---
 Goal: [Short description of current task]
 Context: [Active files/classes being edited]
 Resolved: [List of things finished this session]
 Technical Anchors: [Ports, IPs, constant values]
 ---END STATE---
+```
+
+## 3. Manual Context Intervention
+
+Users have several tools to manually prune or repair the context:
+
+### The `/undo` Command
+The `/undo` command is a high-level shortcut for:
+1. Identifying the most recent message group (`group_id`).
+2. Deleting all messages in that group from the database.
+3. Triggering a context rebuild.
+
+This is the primary way to "roll back" an interaction that went wrong or to retry a prompt with different instructions.
+
+### The `/message remove <GID>` Command
+For more granular control, users can remove any specific message group by its ID. This is useful for removing "noise" from the middle of a history that might be confusing the LLM.
+
+### The `/context rebuild` Command
+Since the `---STATE---` block is derived from the *last* assistant message, removing messages can leave the persistent state out of sync with the now-current history. `/context rebuild` asks the LLM to look at the *entire current window* and generate a new, accurate `---STATE---` block.
 
 ## Evolution: Why we removed FTS-Ranked Mode
 
@@ -62,9 +83,10 @@ Earlier versions of `std_slop` included a `FTS_RANKED` mode that used hybrid ret
 
 The current strategy prioritizes **coherence** (sequential history) and **authoritative summary** (the state block) over autonomous retrieval.
 
-## Commands
+## Commands Reference
 
 - `/context window <N>`: Set the size of the rolling window (number of interaction groups). Use 0 for full history.
 - `/context show`: Display the exact assembled context that will be sent to the LLM.
-- `/context rebuild`: Rebuilds the session state (---STATE--- anchor) from the current context window history. Use this if the state becomes corrupted or out of sync.
+- `/context rebuild`: Rebuilds the session state (---STATE--- anchor) from the current context window history.
+- `/undo`: Shortcut to remove the last interaction and rebuild state.
 - `/message remove <GID>`: Permanently **deletes** a specific message group from the database.

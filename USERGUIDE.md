@@ -68,7 +68,7 @@ Interactions are grouped by a `group_id`. A typical group contains:
 3. Tool execution results
 4. Assistant's final response
 
-Commands like `/message remove` operate on these atomic groups.
+Commands like `/message remove` or `/undo` operate on these atomic groups.
 
 ---
 
@@ -87,6 +87,7 @@ Commands like `/message remove` operate on these atomic groups.
 - `/stats`: View message counts and token usage for the current session.
 
 ### History & Context
+- `/undo`: Remove the last interaction (user prompt and assistant response) and rebuild the context. Useful for correcting mistakes or retrying a prompt.
 - `/context`: Show context status and the currently assembled prompt.
 - `/context window <N>`: Set the rolling window size (N groups). Use 0 for full history.
 - `/window <N>`: Alias for `/context window <N>`.
@@ -117,19 +118,19 @@ Skills are specialized instructions or "personas" you can activate.
 
 ### Managing Skills
 - `/skill list`: See all available and active skills.
-- `/skill show <name>`: Display the details of a specific skill.
+- `/skill show <name|id>`: Display the details of a specific skill.
 - `/skill add`: Create a new skill. It will open your editor with a template:
     ```yaml
     #name: expert_coder
     #description: Focuses on C++ best practices
     #patch: You are an expert C++ developer. Always use C++17 and avoid exceptions.
     ```
-- `/skill edit <name>`: Modify an existing skill.
-- `/skill delete <name>`: Remove a skill from the database.
+- `/skill edit <name|id>`: Modify an existing skill.
+- `/skill delete <name|id>`: Remove a skill from the database.
 
 ### Activating Skills
-- `/skill activate <name>`: Add a skill to the current session. You can have multiple active skills.
-- `/skill deactivate <name>`: Remove a skill from the current session.
+- `/skill activate <name|id>`: Add a skill to the current session. You can have multiple active skills.
+- `/skill deactivate <name|id>`: Remove a skill from the current session.
 
 ---
 

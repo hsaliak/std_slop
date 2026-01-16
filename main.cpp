@@ -40,6 +40,7 @@ void ShowHelp() {
             << "  /message list [N]      List last N messages\n"
             << "  /message show <GID>    View full content of a group\n"
             << "  /message remove <GID>  Delete a message group\n"
+            << "  /undo                  Remove last message and rebuild context\n"
             << "  /context               Show context status and assembled prompt\n"
             << "  /context window <N>    Set context to a rolling window of last N groups (0 for full)\n"
             << "  /context rebuild       Rebuild session state from conversation history\n"

@@ -166,19 +166,18 @@ absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
 
 absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(const std::vector<std::string>& group_ids) {
     if (group_ids.empty()) return std::vector<Message>();
-    
-    std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id FROM messages WHERE group_id IN (";
+    std::string placeholders;
     for (size_t i = 0; i < group_ids.size(); ++i) {
-        sql += "?";
-        if (i < group_ids.size() - 1) sql += ", ";
+        placeholders += (i == 0 ? "?" : ", ?");
     }
-    sql += ") ORDER BY created_at ASC";
-
+    std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id FROM messages WHERE group_id IN (" + placeholders + ") ORDER BY created_at ASC";
+    
     sqlite3_stmt* raw_stmt = nullptr;
-    if (sqlite3_prepare_v2(db_.get(), sql.c_str(), -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+    int rc = sqlite3_prepare_v2(db_.get(), sql.c_str(), -1, &raw_stmt, nullptr);
     UniqueStmt stmt(raw_stmt);
+    if (rc != SQLITE_OK) return absl::InternalError("Prepare error");
 
-    for (int i = 0; i < (int)group_ids.size(); ++i) {
+    for (int i = 0; i < group_ids.size(); ++i) {
         sqlite3_bind_text(stmt.get(), i + 1, group_ids[i].c_str(), -1, SQLITE_TRANSIENT);
     }
 
@@ -257,10 +256,14 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
   if (!session_id.empty()) {
     sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
   }
+
+  TotalUsage usage = {0, 0, 0};
   if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-    return TotalUsage{sqlite3_column_int(stmt.get(), 0), sqlite3_column_int(stmt.get(), 1), sqlite3_column_int(stmt.get(), 2)};
+    usage.prompt_tokens = sqlite3_column_int(stmt.get(), 0);
+    usage.completion_tokens = sqlite3_column_int(stmt.get(), 1);
+    usage.total_tokens = sqlite3_column_int(stmt.get(), 2);
   }
-  return TotalUsage{0, 0, 0};
+  return usage;
 }
 
 absl::Status Database::RegisterTool(const Tool& tool) {
@@ -288,123 +291,95 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
     tool.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
     tool.json_schema = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
     tool.is_enabled = sqlite3_column_int(stmt.get(), 3) != 0;
-    tools.push_back(std::move(tool));
+    tools.push_back(tool);
   }
   return tools;
 }
 
 absl::Status Database::RegisterSkill(const Skill& skill) {
-    const char* sql = "INSERT INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET description=excluded.description, system_prompt_patch=excluded.system_prompt_patch";
-    UniqueStmt stmt;
-    sqlite3_stmt* raw_stmt;
-    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
-        return absl::InternalError(sqlite3_errmsg(db_.get()));
-    }
-    stmt.reset(raw_stmt);
-
-    sqlite3_bind_text(stmt.get(), 1, skill.name.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt.get(), 2, skill.description.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt.get(), 3, skill.system_prompt_patch.c_str(), -1, SQLITE_TRANSIENT);
-
-    if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
-        return absl::InternalError(sqlite3_errmsg(db_.get()));
-    }
-    return absl::OkStatus();
+  const char* sql = "INSERT OR REPLACE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)";
+  sqlite3_stmt* raw_stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+  UniqueStmt stmt(raw_stmt);
+  sqlite3_bind_text(stmt.get(), 1, skill.name.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 2, skill.description.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 3, skill.system_prompt_patch.c_str(), -1, SQLITE_TRANSIENT);
+  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
+  return absl::OkStatus();
 }
 
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
-    int id;
-    const char* sql;
-    if (absl::SimpleAtoi(name_or_id, &id)) {
-        sql = "DELETE FROM skills WHERE id = ?";
-    } else {
-        sql = "DELETE FROM skills WHERE name = ?";
-    }
-
-    UniqueStmt stmt;
-    sqlite3_stmt* raw_stmt;
-    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
-        return absl::InternalError(sqlite3_errmsg(db_.get()));
-    }
-    stmt.reset(raw_stmt);
-
-    if (absl::SimpleAtoi(name_or_id, &id)) {
-        sqlite3_bind_int(stmt.get(), 1, id);
-    } else {
-        sqlite3_bind_text(stmt.get(), 1, name_or_id.c_str(), -1, SQLITE_TRANSIENT);
-    }
-
-    if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
-        return absl::InternalError(sqlite3_errmsg(db_.get()));
-    }
+    const char* sql = "DELETE FROM skills WHERE name = ? OR id = ?";
+    sqlite3_stmt* raw_stmt = nullptr;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+    UniqueStmt stmt(raw_stmt);
+    sqlite3_bind_text(stmt.get(), 1, name_or_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 2, name_or_id.c_str(), -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
     return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
-    const char* sql = "SELECT id, name, description, system_prompt_patch FROM skills";
-    UniqueStmt stmt;
-    sqlite3_stmt* raw_stmt;
-    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) {
-        return absl::InternalError(sqlite3_errmsg(db_.get()));
-    }
-    stmt.reset(raw_stmt);
-
-    std::vector<Skill> skills;
-    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-        Skill skill;
-        skill.id = sqlite3_column_int(stmt.get(), 0);
-        skill.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
-        skill.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
-        skill.system_prompt_patch = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
-        skills.push_back(std::move(skill));
-    }
-    return skills;
+  const char* sql = "SELECT id, name, description, system_prompt_patch FROM skills";
+  sqlite3_stmt* raw_stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+  UniqueStmt stmt(raw_stmt);
+  std::vector<Skill> skills;
+  while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+    Skill skill;
+    skill.id = sqlite3_column_int(stmt.get(), 0);
+    skill.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1));
+    skill.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 2));
+    skill.system_prompt_patch = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 3));
+    skills.push_back(skill);
+  }
+  return skills;
 }
 
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
-  const char* sql = "INSERT INTO sessions (id, context_size) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET context_size = excluded.context_size";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 2, size);
-  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
-  return absl::OkStatus();
+    const char* sql = "INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?)";
+    sqlite3_stmt* raw_stmt = nullptr;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+    UniqueStmt stmt(raw_stmt);
+    sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt.get(), 2, size);
+    if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
+    return absl::OkStatus();
 }
 
 absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
-  const char* sql = "SELECT context_size FROM sessions WHERE id = ?";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
-  if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-    int size = sqlite3_column_int(stmt.get(), 0);
-    return ContextSettings{size};
-  }
-  return ContextSettings{5};
+    const char* sql = "SELECT context_size FROM sessions WHERE id = ?";
+    sqlite3_stmt* raw_stmt = nullptr;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+    UniqueStmt stmt(raw_stmt);
+    sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+        return ContextSettings{sqlite3_column_int(stmt.get(), 0)};
+    }
+    return ContextSettings{5}; // Default
 }
+
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
-  const char* sql = "INSERT OR REPLACE INTO session_state (session_id, state_blob, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 2, state_blob.c_str(), -1, SQLITE_TRANSIENT);
-  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
-  return absl::OkStatus();
+    const char* sql = "INSERT OR REPLACE INTO session_state (session_id, state_blob, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)";
+    sqlite3_stmt* raw_stmt = nullptr;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+    UniqueStmt stmt(raw_stmt);
+    sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 2, state_blob.c_str(), -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
+    return absl::OkStatus();
 }
 
 absl::StatusOr<std::string> Database::GetSessionState(const std::string& session_id) {
-  const char* sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
-  if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-    return reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0));
-  }
-  return "";
+    const char* sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
+    sqlite3_stmt* raw_stmt = nullptr;
+    if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+    UniqueStmt stmt(raw_stmt);
+    sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+        return std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0)));
+    }
+    return absl::NotFoundError("Session state not found");
 }
 
 absl::StatusOr<std::string> Database::Query(const std::string& sql) {
@@ -426,6 +401,19 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql) {
     results.push_back(row);
   }
   return results.dump(2);
+}
+
+absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_id) {
+  const char* sql = "SELECT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL ORDER BY id DESC LIMIT 1";
+  sqlite3_stmt* raw_stmt = nullptr;
+  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
+  UniqueStmt stmt(raw_stmt);
+  sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
+  if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+      const char* gid = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0));
+      return gid ? std::string(gid) : "";
+  }
+  return absl::NotFoundError("No messages found for this session");
 }
 
 absl::Status Database::Execute(const std::string& sql) {

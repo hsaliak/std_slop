@@ -123,4 +123,35 @@ TEST_F(CommandHandlerTest, HandlesThrottle) {
     EXPECT_EQ(orchestrator.GetThrottle(), 5);
 }
 
+
+TEST_F(CommandHandlerTest, HandlesUndo) {
+    CommandHandler handler(&db);
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+
+    // Append two message groups
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "msg1", "", "completed", "g1").ok());
+    ASSERT_TRUE(db.AppendMessage(sid, "assistant", "resp1", "", "completed", "g1").ok());
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "msg2", "", "completed", "g2").ok());
+    ASSERT_TRUE(db.AppendMessage(sid, "assistant", "resp2", "", "completed", "g2").ok());
+
+    // Verify both groups exist
+    auto history = db.GetConversationHistory(sid);
+    ASSERT_TRUE(history.ok());
+    EXPECT_EQ(history->size(), 4);
+
+    // Undo last interaction
+    std::string input = "/undo";
+    auto res = handler.Handle(input, sid, active_skills, [](){});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+
+    // Verify g2 is gone, g1 remains
+    history = db.GetConversationHistory(sid);
+    ASSERT_TRUE(history.ok());
+    EXPECT_EQ(history->size(), 2);
+    for (const auto& msg : *history) {
+        EXPECT_EQ(msg.group_id, "g1");
+    }
+}
+
 }  // namespace slop
