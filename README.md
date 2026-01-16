@@ -95,3 +95,4 @@ Or use command-line flags: `--google_api_key`, `--openai_api_key`.
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
+- Avoid threading and async primitives, if they must be used, use absl based primitives with std::thread. Any threading workflow requires tsan tests.

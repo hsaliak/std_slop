@@ -131,7 +131,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     for (size_t i = start; i < history_or->size(); ++i) {
         const auto& msg = (*history_or)[i];
         if (msg.role == "user") {
-            std::cout << "\n[User]> " << msg.content << std::endl;
+            std::cout << "\n[User (GID: " << msg.group_id << ")]> " << msg.content << std::endl;
         } else if (msg.role == "assistant") {
             if (msg.status == "tool_call") {
                  std::cout << "[Assistant (Tool Call)]> " << msg.content << std::endl;
@@ -170,6 +170,11 @@ void DisplayAssembledContext(const std::string& json_str) {
     if (j.is_discarded()) {
         std::cout << "Error parsing assembled context." << std::endl;
         return;
+    }
+
+    // Unwrapping for GCA mode if necessary
+    if (j.contains("request") && j["request"].is_object()) {
+        j = j["request"];
     }
 
     std::cout << "\n\033[1;36m=== ASSEMBLED CONTEXT SENT TO LLM ===\033[0m\n" << std::endl;

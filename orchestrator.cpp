@@ -120,6 +120,30 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
       auto hist_or = db_->GetConversationHistory(session_id, false);
       if (!hist_or.ok()) return hist_or.status();
       history = std::move(*hist_or);
+
+      if (settings_or->size > 0 && !history.empty()) {
+          // Identify all distinct group_ids in reverse order to find the last N groups
+          std::vector<std::string> chron_groups;
+          std::set<std::string> seen;
+          for (auto it = history.rbegin(); it != history.rend(); ++it) {
+              if (seen.find(it->group_id) == seen.end()) {
+                  chron_groups.push_back(it->group_id);
+                  seen.insert(it->group_id);
+              }
+          }
+          
+          size_t limit = static_cast<size_t>(settings_or->size);
+          if (chron_groups.size() > limit) {
+              std::set<std::string> keep_groups(chron_groups.begin(), chron_groups.begin() + limit);
+              std::vector<Database::Message> filtered;
+              for (const auto& m : history) {
+                  if (keep_groups.count(m.group_id)) {
+                      filtered.push_back(m);
+                  }
+              }
+              history = std::move(filtered);
+          }
+      }
       
       std::set<std::string> groups;
       for (const auto& m : history) groups.insert(m.group_id);

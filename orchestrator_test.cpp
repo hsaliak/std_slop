@@ -427,4 +427,26 @@ TEST_F(OrchestratorTest, AssembleOpenAIPromptWithHeaders) {
     EXPECT_TRUE(last_content.find("### CURRENT REQUEST") != std::string::npos);
 }
 
+
+TEST_F(OrchestratorTest, AssemblePromptRollingWindow) {
+    Orchestrator orchestrator(&db, &http);
+    
+    // Create 3 groups of messages with alternating roles to prevent merging
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "msg1", "", "completed", "g1").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "msg2", "", "completed", "g2").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "msg3", "", "completed", "g3").ok());
+    
+    // Set rolling window to 2
+    ASSERT_TRUE(db.SetContextMode("s1", Database::ContextMode::FULL, 2).ok());
+    
+    auto result = orchestrator.AssemblePrompt("s1", {});
+    ASSERT_TRUE(result.ok());
+    
+    nlohmann::json prompt = *result;
+    // Should only contain g2 and g3
+    ASSERT_EQ(prompt["contents"].size(), 2);
+    EXPECT_TRUE(prompt["contents"][0]["parts"][0]["text"].get<std::string>().find("msg2") != std::string::npos);
+    EXPECT_TRUE(prompt["contents"][1]["parts"][0]["text"].get<std::string>().find("msg3") != std::string::npos);
+}
+
 }  // namespace slop

@@ -41,11 +41,11 @@ void ShowHelp() {
             << "  /message view <GID>    View full content of a group\n"
             << "  /message remove <GID>  Delete a message group\n"
             << "  /message drop <GID>    Mark a message group as 'dropped' (ignored by context)\n"
-            << "  /context show          Show currently active conversation context\n"
+            << "  /context show          Show currently active conversation context\n" << "  /context full [N]      Set context to a rolling window of last N groups\n"
             << "  /context drop          Drop all messages in the current session from context\n"
             << "  /context build [N]     Re-enable the last N groups into context\n"
             << "  /context-mode fts <N>  Use FTS-ranked context (BM25 + Recency) with top N groups\n"
-            << "  /context-mode full     Use all messages in the session (default)\n"
+            << "  /context-mode full [N] Use rolling window of N groups (N=0 for all messages)\n"
             << "  /skill <subcommand>    Manage skills:\n"
             << "      list                 List all available skills\n"
             << "      activate <ID|Name>   Set the active skill for the current session\n"
@@ -172,7 +172,11 @@ int main(int argc, char** argv) {
       if (context_settings->mode == slop::Database::ContextMode::FTS_RANKED) {
         absl::StrAppend(&prompt_str, "[FTS: ", context_settings->size, "]");
       } else {
-        absl::StrAppend(&prompt_str, "[FULL]");
+        if (context_settings->size > 0) {
+            absl::StrAppend(&prompt_str, "[FULL: ", context_settings->size, "]");
+        } else {
+            absl::StrAppend(&prompt_str, "[FULL]");
+        }
       }
     }
     if (!active_skills.empty()) {

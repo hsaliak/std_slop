@@ -61,7 +61,12 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
         std::vector<std::string> sub_parts = absl::StrSplit(args, absl::MaxSplits(' ', 1));
         std::string sub_cmd = sub_parts[0];
         std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-        if (sub_cmd == "drop") {
+        if (sub_cmd == "full") {
+            int n = sub_args.empty() ? 0 : std::atoi(sub_args.c_str());
+            log_status(db_->SetContextMode(session_id, Database::ContextMode::FULL, n));
+            if (n > 0) std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
+            else std::cout << "Full Context Mode (infinite buffer)." << std::endl;
+        } else if (sub_cmd == "drop") {
             log_status(db_->Execute("UPDATE messages SET status = 'dropped' WHERE session_id = '" + session_id + "'"));
         } else if (sub_cmd == "build") {
             auto settings = db_->GetContextSettings(session_id);
@@ -100,8 +105,10 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             log_status(db_->SetContextMode(session_id, Database::ContextMode::FTS_RANKED, n));
             std::cout << "FTS-Ranked Context Mode (Size: " << n << " groups)" << std::endl;
         } else if (sub_parts[0] == "full") {
-            log_status(db_->SetContextMode(session_id, Database::ContextMode::FULL, -1));
-            std::cout << "Full Context Mode enabled." << std::endl;
+            int n = (sub_parts.size() > 1) ? std::atoi(sub_parts[1].c_str()) : 0;
+            log_status(db_->SetContextMode(session_id, Database::ContextMode::FULL, n));
+            if (n > 0) std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
+            else std::cout << "Full Context Mode (infinite buffer)." << std::endl;
         }
         else {
             auto s = db_->GetContextSettings(session_id);

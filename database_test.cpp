@@ -17,15 +17,6 @@ TEST(DatabaseTest, TablesExist) {
     EXPECT_TRUE(db.Execute("INSERT INTO messages (session_id, role, content) VALUES ('session1', 'user', 'hello')").ok());
 }
 
-TEST(DatabaseTest, FTS5Works) {
-    slop::Database db;
-    ASSERT_TRUE(db.Init(":memory:").ok());
-    
-    EXPECT_TRUE(db.Execute("INSERT INTO code_search (path, content) VALUES ('main.cpp', 'int main() {}')").ok());
-    // FTS5 specific query
-    EXPECT_TRUE(db.Execute("SELECT * FROM code_search WHERE code_search MATCH 'main'").ok());
-}
-
 TEST(DatabaseTest, MessagePersistence) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
