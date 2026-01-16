@@ -58,7 +58,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                     OpenInEditor(out);
                 }
             }
-        } else if (sub_cmd == "remove" || sub_cmd == "drop") {
+        } else if (sub_cmd == "remove") {
             // Hard delete the message group
             log_status(db_->Execute("DELETE FROM messages WHERE group_id = '" + sub_args + "'"));
             std::cout << "Message group " << sub_args << " deleted." << std::endl;

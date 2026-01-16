@@ -97,6 +97,30 @@ Technical Anchors: [Ports, IPs, constant values]
 
   if (!system_instruction.empty() && system_instruction.back() != '\n') system_instruction += "\n";
 
+  // Inject Available Tools
+  auto tools_or = db_->GetEnabledTools();
+  if (tools_or.ok() && !tools_or->empty()) {
+      system_instruction += "\n---AVAILABLE TOOLS---\n";
+      system_instruction += "You have access to the following tools. Use them to fulfill the user's request.\n";
+      for (const auto& t : *tools_or) {
+          system_instruction += "- " + t.name + ": " + t.description + "\n";
+      }
+  }
+
+  // Inject Active Skills/Personas
+  auto all_skills_or = db_->GetSkills();
+  if (all_skills_or.ok() && !active_skills.empty()) {
+      system_instruction += "\n---ACTIVE PERSONAS & SKILLS---\n";
+      for (const auto& skill : *all_skills_or) {
+          for (const auto& active_name : active_skills) {
+              if (skill.name == active_name) {
+                  system_instruction += "### Skill: " + skill.name + "\n";
+                  system_instruction += skill.system_prompt_patch + "\n";
+              }
+          }
+      }
+  }
+
   // Inject History Guidelines
   system_instruction += kHistoryInstructions;
   system_instruction += "\n";
@@ -104,18 +128,8 @@ Technical Anchors: [Ports, IPs, constant values]
   // Inject Global Anchor (Session State)
   auto state_or = db_->GetSessionState(session_id);
   if (state_or.ok() && !state_or->empty()) {
+      system_instruction += "---GLOBAL STATE (ANCHOR)---\n";
       system_instruction += *state_or + "\n";
-  }
-
-  auto skills_or = db_->GetSkills();
-  if (skills_or.ok()) {
-      for (const auto& skill : *skills_or) {
-          for (const auto& active_name : active_skills) {
-              if (skill.name == active_name) {
-                  system_instruction += skill.system_prompt_patch + "\n";
-              }
-          }
-      }
   }
 
   auto truncate_tool_result = [&](const std::string& content) -> std::string {
@@ -162,7 +176,6 @@ Technical Anchors: [Ports, IPs, constant values]
       if (!system_instruction.empty()) payload["system_instruction"] = {{"parts", {{{"text", system_instruction}}}}};
       
       nlohmann::json f_decls = nlohmann::json::array();
-      auto tools_or = db_->GetEnabledTools();
       if (tools_or.ok()) {
           for (const auto& t : *tools_or) {
               auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
@@ -199,7 +212,6 @@ Technical Anchors: [Ports, IPs, constant values]
       payload = {{"model", model_}, {"messages", messages}};
       
       nlohmann::json tools = nlohmann::json::array();
-      auto tools_or = db_->GetEnabledTools();
       if (tools_or.ok()) {
           for (const auto& t : *tools_or) {
               auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);

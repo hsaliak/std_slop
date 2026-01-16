@@ -40,7 +40,6 @@ void ShowHelp() {
             << "  /message list [N]      List last N messages\n"
             << "  /message view <GID>    View full content of a group\n"
             << "  /message remove <GID>  Delete a message group\n"
-            << "  /message drop <GID>    Mark a message group as 'dropped' (ignored by context)\n"
             << "  /context show          Show currently active conversation context\n"
             << "  /context window <N>    Set context to a rolling window of last N groups (0 for full)\n"
             << "  /context drop          Drop all messages in the current session from context\n"

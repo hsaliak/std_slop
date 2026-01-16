@@ -74,6 +74,8 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 
 - `/context build <N>`: Restores the context window to the last N groups.
 
-- `/message drop <GID>`: Permanently **deletes** a specific message group from the database.
+- `/message remove <GID>`: Permanently **deletes** a specific message group from the database.
+
+
 
 

@@ -68,7 +68,7 @@ Interactions are grouped by a `group_id`. A typical group contains:
 3. Tool execution results
 4. Assistant's final response
 
-Commands like `/message drop` operate on these atomic groups.
+Commands like `/message remove` operate on these atomic groups.
 
 ---
 
@@ -93,7 +93,7 @@ Commands like `/message drop` operate on these atomic groups.
 - `/context build [N]`: Quickly restore the context window to the last N groups.
 - `/message list [N]`: Show a summary of the last N interaction groups (GIDs and user prompts).
 - `/message view <GID>`: View the full content of a specific message group in your editor.
-- `/message drop <GID>`: Permanently **delete** a message group from the database.
+- `/message remove <GID>`: Permanently **delete** a message group from the database.
 
 ---
 
