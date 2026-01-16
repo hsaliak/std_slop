@@ -1,6 +1,6 @@
 # std::slop Database Schema
 
-This document describes the SQLite schema used by std::slop to persist history, tools, skills, indexed code, and usage statistics.
+This document describes the SQLite schema used by std::slop to persist history, tools, skills, and usage statistics.
 
 ## Tables
 
@@ -44,8 +44,7 @@ Persists user settings for each conversation session.
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | id | TEXT | Primary Key. Session ID. |
-| context_mode | TEXT | `FULL` or `FTS_RANKED`. |
-| context_size | INTEGER | Number of groups to retrieve in ranked mode. |
+| context_size | INTEGER | Size of the sequential rolling window (number of groups). |
 
 ### 5. usage
 Tracks token usage for cost and performance monitoring.
@@ -60,14 +59,14 @@ Tracks token usage for cost and performance monitoring.
 | total_tokens | INTEGER | Sum of prompt and completion tokens. |
 | created_at | DATETIME | Timestamp of the interaction. |
 
-### 6. group_search (Virtual Table)
-
-FTS5 table for weighted hybrid RRF context retrieval.
+### 6. session_state
+Stores the persistent self-managed state block.
 
 | Column | Type | Description |
 | :--- | :--- | :--- |
-| group_id | TEXT | Unindexed group identifier. |
-| content | TEXT | Concatenated text of all messages in group. |
+| session_id | TEXT | Primary Key. Session ID. |
+| state_blob | TEXT | The persistent `---STATE---` block. |
+| last_updated | TIMESTAMP | Timestamp of last update. |
 
 ## SQL Initialization
 ```sql
@@ -98,7 +97,6 @@ CREATE TABLE IF NOT EXISTS skills (
 
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
-    context_mode TEXT DEFAULT 'FULL',
     context_size INTEGER DEFAULT 5
 );
 
@@ -112,5 +110,9 @@ CREATE TABLE IF NOT EXISTS usage (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS group_search USING fts5(group_id UNINDEXED, content);
+CREATE TABLE IF NOT EXISTS session_state (
+    session_id TEXT PRIMARY KEY,
+    state_blob TEXT,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```

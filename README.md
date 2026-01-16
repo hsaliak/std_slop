@@ -7,7 +7,8 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 - **Ledger-Driven**: All interactions, tool calls, and system changes are stored in SQLite.
 - **Dual API**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs.
 - **Context Control**: Manage memory via group-based drop and rebuild commands.
-- **Hybrid Retrieval**: Weighted Reciprocal Rank Fusion (RRF) for conversation history (combining FTS5 keyword relevance and chronological recency).
+- **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
+- **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
 - **Tool Execution**: Autonomous local file system and shell operations.
@@ -16,8 +17,8 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 
 ## Architecture
 
-- **Storage**: SQLite3 (Ledger, Tools, Skills, group_search).
-- **Orchestrator**: Unified logic for prompt assembly, RRF ranking, and response processing.
+- **Storage**: SQLite3 (Ledger, Tools, Skills, State).
+- **Orchestrator**: Unified logic for prompt assembly and response processing.
 - **Execution**: Secure tool execution engine.
 - **Network**: Asynchronous HTTP client with automatic exponential backoff for 429/5xx errors.
 
@@ -63,9 +64,8 @@ bazel run //:std_slop -- [session_id]
 
 - `/context show`: Show the exact assembled prompt being sent to the LLM, including structural headers.
 - `/context drop`: Hide all messages from current context for this session.
-- `/context build [N]`: Reactivate last N interaction groups (Full mode only).
-- `/context-mode fts <N>`: Enable hybrid FTS-Ranked retrieval (top N groups).
-- `/context-mode full`: Sequential context (standard conversation).
+- `/context build [N]`: Reactivate last N interaction groups.
+- `/context window <N>`: Set the size of the rolling window (0 for full history).
 
 ### Models and Settings
 

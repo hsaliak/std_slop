@@ -82,15 +82,10 @@ class Database {
   absl::Status DeleteSkill(const std::string& name_or_id);
   absl::StatusOr<std::vector<Skill>> GetSkills();
 
-  // Context Mode Settings
-  enum class ContextMode { FULL, FTS_RANKED };
-  absl::Status SetContextMode(const std::string& session_id, ContextMode mode, int size);
-  struct ContextSettings { ContextMode mode; int size; };
+  // Context Settings
+  absl::Status SetContextWindow(const std::string& session_id, int size);
+  struct ContextSettings { int size; };
   absl::StatusOr<ContextSettings> GetContextSettings(const std::string& session_id);
-
-  // Group-level Search (FTS5)
-  absl::Status IndexGroup(const std::string& group_id, const std::string& content);
-  absl::StatusOr<std::vector<std::string>> SearchGroups(const std::string& query, int limit);
 
   // Session State Management
   absl::Status SetSessionState(const std::string& session_id, const std::string& state_blob);

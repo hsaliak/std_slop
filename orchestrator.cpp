@@ -18,160 +18,60 @@ Orchestrator::Orchestrator(Database* db, HttpClient* http_client)
     : db_(db), http_client_(http_client), throttle_(0) {}
 
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills) {
-  const char* kStateManagementInstructions = R"(
----STATE MANAGEMENT INSTRUCTIONS---
-1. Response Requirement: You must include a ---STATE--- block at the end of every response.
-2. Format:
----STATE---
+  const char* kHistoryInstructions = R"(
+---CONVERSATION HISTORY GUIDELINES---
+1. The following messages are sequential and chronological.
+2. Every response MUST include a ---STATE--- block at the end to summarize technical progress.
+3. Use the ---STATE--- block from the history as the authoritative source for project goals and technical anchors.
+---STATE FORMAT---
 Goal: [Short description of current task]
 Context: [Active files/classes being edited]
 Resolved: [List of things finished this session]
 Technical Anchors: [Ports, IPs, constant values]
 ---END STATE---
-3. Self-Correction: If history contradicts the current State, prioritize the evidence and update the State.
-)";
-
-  const char* kFtsInterpretation = R"(
-[CONTEXT INTERPRETATION GUIDE: FTS MODE]
-The messages below are non-sequential fragments retrieved via keyword relevance. They have chronological gaps. Treat the --STATE-- block as the source of truth for the project timeline and current status. Use these message fragments only as "evidence" for specific code snippets or past error logs.
-)";
-
-  const char* kFullInterpretation = R"(
-[CONTEXT INTERPRETATION GUIDE: FULL MODE]
-The messages below represent the most recent N exchanges. They are sequential, but older context has been truncated. Use the --STATE-- block to recover architectural decisions and variables defined in the history that has fallen out of this window.
 )";
 
   auto settings_or = db_->GetContextSettings(session_id);
   if (!settings_or.ok()) return settings_or.status();
   
-  std::vector<Database::Message> history;
-  if (settings_or->mode == Database::ContextMode::FTS_RANKED) {
-      // For RRF, we need to consider ALL groups in this session, even dropped ones.
-      auto all_history_or = db_->GetConversationHistory(session_id, true);
-      if (!all_history_or.ok()) return all_history_or.status();
+  if (settings_or->size == -1) {
+      last_selected_groups_.clear();
+      return nlohmann::json({{"contents", nlohmann::json::array()}});
+  }
 
-      // Hybrid Retrieval via RRF
-      std::string last_user_query;
-      for (auto it = all_history_or->rbegin(); it != all_history_or->rend(); ++it) {
-          if (it->role == "user") { last_user_query = it->content; break; }
-      }
+  auto hist_or = db_->GetConversationHistory(session_id, false);
+  if (!hist_or.ok()) return hist_or.status();
+  std::vector<Database::Message> history = std::move(*hist_or);
 
-      std::vector<std::string> fts_ranked;
-      if (!last_user_query.empty()) {
-          auto res = db_->SearchGroups(last_user_query, 20);
-          if (res.ok()) fts_ranked = *res;
-      }
-
-      // Recency Ranking
-      std::vector<std::string> recency_ranked;
+  if (settings_or->size > 0 && !history.empty()) {
+      // Identify all distinct group_ids in reverse order to find the last N groups
+      std::vector<std::string> chron_groups;
       std::set<std::string> seen;
-      std::set<std::string> fts_set(fts_ranked.begin(), fts_ranked.end());
-
-      for (auto it = all_history_or->rbegin(); it != all_history_or->rend(); ++it) {
+      for (auto it = history.rbegin(); it != history.rend(); ++it) {
           if (seen.find(it->group_id) == seen.end()) {
-              // Subset Rule: If search found items, we only care about the recency of those specific items.
-              // Fallback: If search found nothing, we use global recency so the LLM has some context.
-              if (fts_ranked.empty() || fts_set.count(it->group_id)) {
-                  recency_ranked.push_back(it->group_id);
-                  if (recency_ranked.size() >= 20) break;
-              }
+              chron_groups.push_back(it->group_id);
               seen.insert(it->group_id);
           }
       }
-
-      // Reciprocal Rank Fusion (RRF): Merges two ranked lists into one final score.
-      // We use a constant k=60 to normalize the impact of high-ranking items.
-      std::map<std::string, float> scores;
-      float k = 60.0f;
-      float weight_bm25 = 1.5f;   // BM25 (FTS) is 50% more important than recency.
-      float weight_recency = 1.0f;
-
-      // Calculate scores: Score = sum( weight / (k + rank) )
-      for (size_t i = 0; i < fts_ranked.size(); ++i) {
-          scores[fts_ranked[i]] += weight_bm25 * (1.0f / (k + (float)i + 1.0f));
-      }
-      for (size_t i = 0; i < recency_ranked.size(); ++i) {
-          scores[recency_ranked[i]] += weight_recency * (1.0f / (k + (float)i + 1.0f));
-      }
-
-      // Sort groups by descending RRF score
-      std::vector<std::pair<std::string, float>> sorted(scores.begin(), scores.end());
-      std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b){ return a.second > b.second; });
-
-      std::vector<std::string> top_groups;
-      for (size_t i = 0; i < (size_t)settings_or->size && i < sorted.size(); ++i) {
-          top_groups.push_back(sorted[i].first);
-      }
-
-      // Always include the current group being formed (the very last one)
-      if (!all_history_or->empty()) {
-          std::string current_gid = all_history_or->back().group_id;
-          bool included = false;
-          for (const auto& g : top_groups) if (g == current_gid) included = true;
-          if (!included) top_groups.push_back(current_gid);
-      }
-
-      // Always include ALL system messages from the session history
-      std::set<std::string> system_gids;
-      for (const auto& m : *all_history_or) {
-          if (m.role == "system") {
-              system_gids.insert(m.group_id);
-          }
-      }
-      for (const auto& gid : system_gids) {
-          bool included = false;
-          for (const auto& g : top_groups) if (g == gid) included = true;
-          if (!included) top_groups.push_back(gid);
-      }
-
-      // Re-sort top_groups by their chronological order in all_history_or
-      std::map<std::string, int> chron_order;
-      for (const auto& m : *all_history_or) {
-          if (chron_order.find(m.group_id) == chron_order.end()) {
-              chron_order[m.group_id] = chron_order.size();
-          }
-      }
-      std::sort(top_groups.begin(), top_groups.end(), [&](const std::string& a, const std::string& b){
-          return chron_order[a] < chron_order[b];
-      });
-
-      auto filtered_or = db_->GetMessagesByGroups(top_groups);
-      if (!filtered_or.ok()) return filtered_or.status();
-      history = std::move(*filtered_or);
-      last_selected_groups_ = top_groups;
-  } else {
-      auto hist_or = db_->GetConversationHistory(session_id, false);
-      if (!hist_or.ok()) return hist_or.status();
-      history = std::move(*hist_or);
-
-      if (settings_or->size > 0 && !history.empty()) {
-          // Identify all distinct group_ids in reverse order to find the last N groups
-          std::vector<std::string> chron_groups;
-          std::set<std::string> seen;
-          for (auto it = history.rbegin(); it != history.rend(); ++it) {
-              if (seen.find(it->group_id) == seen.end()) {
-                  chron_groups.push_back(it->group_id);
-                  seen.insert(it->group_id);
-              }
-          }
-          
-          size_t limit = static_cast<size_t>(settings_or->size);
-          if (chron_groups.size() > limit) {
-              std::set<std::string> keep_groups(chron_groups.begin(), chron_groups.begin() + limit);
-              std::vector<Database::Message> filtered;
-              for (const auto& m : history) {
-                  if (keep_groups.count(m.group_id)) {
-                      filtered.push_back(m);
-                  }
-              }
-              history = std::move(filtered);
-          }
-      }
       
-      std::set<std::string> groups;
-      for (const auto& m : history) groups.insert(m.group_id);
-      last_selected_groups_ = std::vector<std::string>(groups.begin(), groups.end());
+      size_t limit = static_cast<size_t>(settings_or->size);
+      if (chron_groups.size() > limit) {
+          std::set<std::string> keep_groups;
+          for (size_t i = 0; i < limit; ++i) keep_groups.insert(chron_groups[i]);
+          
+          std::vector<Database::Message> filtered;
+          for (const auto& m : history) {
+              if (keep_groups.count(m.group_id)) {
+                  filtered.push_back(m);
+              }
+          }
+          history = std::move(filtered);
+      }
   }
+
+  std::set<std::string> groups;
+  for (const auto& m : history) groups.insert(m.group_id);
+  last_selected_groups_ = std::vector<std::string>(groups.begin(), groups.end());
 
   std::string system_instruction;
 #ifdef HAVE_SYSTEM_PROMPT_H
@@ -197,8 +97,8 @@ The messages below represent the most recent N exchanges. They are sequential, b
 
   if (!system_instruction.empty() && system_instruction.back() != '\n') system_instruction += "\n";
 
-  // Inject State Management Instructions
-  system_instruction += kStateManagementInstructions;
+  // Inject History Guidelines
+  system_instruction += kHistoryInstructions;
   system_instruction += "\n";
 
   // Inject Global Anchor (Session State)
@@ -206,14 +106,6 @@ The messages below represent the most recent N exchanges. They are sequential, b
   if (state_or.ok() && !state_or->empty()) {
       system_instruction += *state_or + "\n";
   }
-
-  // Inject Interpretation Guide
-  if (settings_or->mode == Database::ContextMode::FTS_RANKED) {
-      system_instruction += kFtsInterpretation;
-  } else {
-      system_instruction += kFullInterpretation;
-  }
-  system_instruction += "\n";
 
   auto skills_or = db_->GetSkills();
   if (skills_or.ok()) {
@@ -240,9 +132,7 @@ The messages below represent the most recent N exchanges. They are sequential, b
           const auto& msg = history[i];
           std::string display_content = msg.content;
           if (i == 0) {
-              display_content = (settings_or->mode == Database::ContextMode::FTS_RANKED) ? 
-                  "--- BEGIN RELEVANT CONTEXT SNIPPETS ---\n" + display_content :
-                  "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
+              display_content = "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
           }
           if (i == history.size() - 1 && msg.role == "user" && i > 0) {
               display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
@@ -287,9 +177,7 @@ The messages below represent the most recent N exchanges. They are sequential, b
           const auto& msg = history[i];
           std::string display_content = msg.content;
           if (i == 0) {
-              display_content = (settings_or->mode == Database::ContextMode::FTS_RANKED) ? 
-                  "--- BEGIN RELEVANT CONTEXT SNIPPETS ---\n" + display_content :
-                  "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
+              display_content = "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
           }
           if (i == history.size() - 1 && msg.role == "user" && i > 0) {
               display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
@@ -480,15 +368,6 @@ absl::Status Orchestrator::ProcessResponse(const std::string& session_id, const 
       }
   }
 
-  // Auto-index the group after any modification
-  if (status.ok() && !group_id.empty()) {
-      auto hist = db_->GetConversationHistory(session_id);
-      if (hist.ok()) {
-          std::string content;
-          for (const auto& m : *hist) if (m.group_id == group_id) content += m.content + " ";
-          (void)db_->IndexGroup(group_id, content);
-      }
-  }
   return status;
 }
 

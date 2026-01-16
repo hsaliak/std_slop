@@ -48,9 +48,9 @@ TEST_F(CommandHandlerTest, HandlesCommandWithWhitespace) {
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
-TEST_F(CommandHandlerTest, HandlesContextModeFts) {
+TEST_F(CommandHandlerTest, HandlesContextWindow) {
     CommandHandler handler(&db);
-    std::string input = "/context-mode fts 10";
+    std::string input = "/context window 10";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
     auto res = handler.Handle(input, sid, active_skills, [](){});
@@ -58,7 +58,6 @@ TEST_F(CommandHandlerTest, HandlesContextModeFts) {
     
     auto settings = db.GetContextSettings("s1");
     EXPECT_TRUE(settings.ok());
-    EXPECT_EQ(settings->mode, Database::ContextMode::FTS_RANKED);
     EXPECT_EQ(settings->size, 10);
 }
 

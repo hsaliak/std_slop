@@ -46,7 +46,6 @@ absl::Status Database::Init(const std::string& db_path) {
 
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
-        context_mode TEXT DEFAULT 'FULL',
         context_size INTEGER DEFAULT 5
     );
 
@@ -59,8 +58,6 @@ absl::Status Database::Init(const std::string& db_path) {
         total_tokens INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-
-    CREATE VIRTUAL TABLE IF NOT EXISTS group_search USING fts5(group_id UNINDEXED, content);
     
     CREATE TABLE IF NOT EXISTS session_state (
         session_id TEXT PRIMARY KEY,
@@ -69,8 +66,7 @@ absl::Status Database::Init(const std::string& db_path) {
     );
   )";
 
-  // Migration: Add context columns to sessions if they don't exist
-  (void)Execute("ALTER TABLE sessions ADD COLUMN context_mode TEXT DEFAULT 'FULL'");
+  // Migration: Ensure context_size column exists
   (void)Execute("ALTER TABLE sessions ADD COLUMN context_size INTEGER DEFAULT 5");
 
   absl::Status s = Execute(schema);
@@ -365,57 +361,28 @@ absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
     return skills;
 }
 
-absl::Status Database::SetContextMode(const std::string& session_id, ContextMode mode, int size) {
-  const char* sql = "INSERT INTO sessions (id, context_mode, context_size) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET context_mode = excluded.context_mode, context_size = excluded.context_size";
+absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
+  const char* sql = "INSERT INTO sessions (id, context_size) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET context_size = excluded.context_size";
   sqlite3_stmt* raw_stmt = nullptr;
   if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
   UniqueStmt stmt(raw_stmt);
   sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
-  std::string mode_str = (mode == ContextMode::FULL) ? "FULL" : "FTS_RANKED";
-  sqlite3_bind_text(stmt.get(), 2, mode_str.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 3, size);
+  sqlite3_bind_int(stmt.get(), 2, size);
   if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
   return absl::OkStatus();
 }
 
 absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
-  const char* sql = "SELECT context_mode, context_size FROM sessions WHERE id = ?";
+  const char* sql = "SELECT context_size FROM sessions WHERE id = ?";
   sqlite3_stmt* raw_stmt = nullptr;
   if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
   UniqueStmt stmt(raw_stmt);
   sqlite3_bind_text(stmt.get(), 1, session_id.c_str(), -1, SQLITE_TRANSIENT);
   if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-    std::string mode_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0));
-    int size = sqlite3_column_int(stmt.get(), 1);
-    ContextMode mode = (mode_str == "FTS_RANKED") ? ContextMode::FTS_RANKED : ContextMode::FULL;
-    return ContextSettings{mode, size};
+    int size = sqlite3_column_int(stmt.get(), 0);
+    return ContextSettings{size};
   }
-  return ContextSettings{ContextMode::FULL, 5};
-}
-
-absl::Status Database::IndexGroup(const std::string& group_id, const std::string& content) {
-  const char* sql = "INSERT OR REPLACE INTO group_search (group_id, content) VALUES (?, ?)";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, group_id.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 2, content.c_str(), -1, SQLITE_TRANSIENT);
-  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
-  return absl::OkStatus();
-}
-
-absl::StatusOr<std::vector<std::string>> Database::SearchGroups(const std::string& query, int limit) {
-  const char* sql = "SELECT group_id FROM group_search WHERE content MATCH ? ORDER BY rank LIMIT ?";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, query.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 2, limit);
-  std::vector<std::string> results;
-  while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-    results.push_back(reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0)));
-  }
-  return results;
+  return ContextSettings{5};
 }
 
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {

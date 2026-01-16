@@ -68,7 +68,7 @@ Interactions are grouped by a `group_id`. A typical group contains:
 3. Tool execution results
 4. Assistant's final response
 
-Commands like `/undo` operate on these atomic groups.
+Commands like `/message drop` operate on these atomic groups.
 
 ---
 
@@ -88,25 +88,26 @@ Commands like `/undo` operate on these atomic groups.
 
 ### History & Context
 - `/context show`: Display the messages currently being sent to the LLM.
-- `/context drop`: Hide all previous messages from the LLM (they remain in the DB).
-- `/context build [N]`: Re-enable the last N message groups.
-- `/message list [N]`: Show the last N message groups with their IDs.
+- `/context drop`: Hide all previous messages from the LLM (they remain in the DB). Use `/context build` to restore.
+- `/context window <N>`: Set the rolling window size (N groups). Use 0 for full history.
+- `/context build [N]`: Quickly restore the context window to the last N groups.
+- `/message list [N]`: Show a summary of the last N interaction groups (GIDs and user prompts).
 - `/message view <GID>`: View the full content of a specific message group in your editor.
-- `/undo`: Quickly "forget" the last interaction group.
+- `/message drop <GID>`: Permanently **delete** a message group from the database.
 
 ---
 
 ## Context Management
 
-`std::slop` supports two context modes:
+`std::slop` uses a **Sequential Rolling Window** to manage the LLM's context.
 
-### Full Context (Default)
-Sends the entire conversation history of the current session to the LLM. 
-- **Enable**: `/context-mode full`
+### Windowing
+By default, the agent sends a rolling window of the last few interactions. You can adjust this:
+- `/context window <N>`: Sets the window to the last N groups.
+- `/context window 0`: Disables windowing and sends the full session history.
 
-### FTS-Ranked Context
-Uses a hybrid search (BM25 + Recency) to find the most relevant message groups for your current query. This is useful for very long conversations that exceed the LLM's context window.
-- **Enable**: `/context-mode fts <N>` (where N is the number of groups to retrieve). Usually 5 is a sweet spot.
+### Context Persistence (State)
+Critical information (project goals, technical anchors) is automatically preserved in a persistent `---STATE---` block that survives windowing. This "Long-term RAM" is managed autonomously by the LLM.
 
 ---
 

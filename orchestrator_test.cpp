@@ -398,9 +398,8 @@ TEST_F(OrchestratorTest, SelfManagedStateTracking) {
     ASSERT_TRUE(prompt_or.ok());
     
     std::string sys_instr = (*prompt_or)["system_instruction"]["parts"][0]["text"];
-    EXPECT_TRUE(sys_instr.find("---STATE MANAGEMENT INSTRUCTIONS---") != std::string::npos);
+    EXPECT_TRUE(sys_instr.find("---CONVERSATION HISTORY GUIDELINES---") != std::string::npos);
     EXPECT_TRUE(sys_instr.find(state_content) != std::string::npos);
-    EXPECT_TRUE(sys_instr.find("[CONTEXT INTERPRETATION GUIDE: FULL MODE]") != std::string::npos);
 }
 
 
@@ -470,7 +469,7 @@ TEST_F(OrchestratorTest, AssemblePromptRollingWindow) {
     ASSERT_TRUE(db.AppendMessage("s1", "user", "msg3", "", "completed", "g3").ok());
     
     // Set rolling window to 2
-    ASSERT_TRUE(db.SetContextMode("s1", Database::ContextMode::FULL, 2).ok());
+    ASSERT_TRUE(db.SetContextWindow("s1", 2).ok());
     
     auto result = orchestrator.AssemblePrompt("s1", {});
     ASSERT_TRUE(result.ok());

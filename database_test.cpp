@@ -52,28 +52,14 @@ TEST(DatabaseTest, SkillsPersistence) {
     EXPECT_EQ((*skills)[0].name, "expert");
 }
 
-TEST(DatabaseTest, GroupSearchWorks) {
-    slop::Database db;
-    ASSERT_TRUE(db.Init(":memory:").ok());
-    
-    ASSERT_TRUE(db.IndexGroup("g1", "the quick brown fox").ok());
-    ASSERT_TRUE(db.IndexGroup("g2", "jumps over the lazy dog").ok());
-    
-    auto results = db.SearchGroups("fox", 10);
-    ASSERT_TRUE(results.ok());
-    ASSERT_EQ(results->size(), 1);
-    EXPECT_EQ((*results)[0], "g1");
-}
-
 TEST(DatabaseTest, ContextSettingsPersistence) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    ASSERT_TRUE(db.SetContextMode("s1", slop::Database::ContextMode::FTS_RANKED, 15).ok());
+    ASSERT_TRUE(db.SetContextWindow("s1", 15).ok());
     
     auto settings = db.GetContextSettings("s1");
     ASSERT_TRUE(settings.ok());
-    EXPECT_EQ(settings->mode, slop::Database::ContextMode::FTS_RANKED);
     EXPECT_EQ(settings->size, 15);
 }
 

@@ -6,6 +6,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/substitute.h"
 #include "orchestrator.h"
 #include "oauth_handler.h"
 
@@ -39,7 +40,13 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
         std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
         if (sub_cmd == "list") {
             int n = sub_args.empty() ? 10 : std::atoi(sub_args.c_str());
-            auto res = db_->Query("SELECT group_id, role, substr(content, 1, 50) as preview, status FROM messages WHERE session_id = '" + session_id + "' ORDER BY created_at DESC LIMIT " + std::to_string(n));
+            // Group by group_id and show the first 'user' message as the prompt
+            std::string sql = absl::Substitute(
+                "SELECT group_id, content as prompt FROM messages "
+                "WHERE session_id = '$0' AND role = 'user' "
+                "GROUP BY group_id ORDER BY created_at DESC LIMIT $1",
+                session_id, n);
+            auto res = db_->Query(sql);
             if (res.ok()) log_status(PrintJsonAsTable(*res));
         } else if (sub_cmd == "view") {
             auto res = db_->Query("SELECT role, content FROM messages WHERE group_id = '" + sub_args + "' ORDER BY created_at ASC");
@@ -51,39 +58,31 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                     OpenInEditor(out);
                 }
             }
-        } else if (sub_cmd == "remove") {
+        } else if (sub_cmd == "remove" || sub_cmd == "drop") {
+            // Hard delete the message group
             log_status(db_->Execute("DELETE FROM messages WHERE group_id = '" + sub_args + "'"));
-        } else if (sub_cmd == "drop") {
-            log_status(db_->Execute("UPDATE messages SET status = 'dropped' WHERE group_id = '" + sub_args + "'"));
+            std::cout << "Message group " << sub_args << " deleted." << std::endl;
         }
         return Result::HANDLED;
     } else if (cmd == "/context") {
         std::vector<std::string> sub_parts = absl::StrSplit(args, absl::MaxSplits(' ', 1));
         std::string sub_cmd = sub_parts[0];
         std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-        if (sub_cmd == "full") {
+        if (sub_cmd == "window") {
             int n = sub_args.empty() ? 0 : std::atoi(sub_args.c_str());
-            log_status(db_->SetContextMode(session_id, Database::ContextMode::FULL, n));
+            log_status(db_->SetContextWindow(session_id, n));
             if (n > 0) std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
-            else std::cout << "Full Context Mode (infinite buffer)." << std::endl;
+            else if (n == 0) std::cout << "Full Context Mode (infinite buffer)." << std::endl;
+            else std::cout << "Context Hidden (None)." << std::endl;
         } else if (sub_cmd == "drop") {
-            log_status(db_->Execute("UPDATE messages SET status = 'dropped' WHERE session_id = '" + session_id + "'"));
+            // Set window size to -1 to hide all context
+            log_status(db_->SetContextWindow(session_id, -1));
+            std::cout << "Context dropped (hidden). Use /context build or /context window to restore." << std::endl;
         } else if (sub_cmd == "build") {
-            auto settings = db_->GetContextSettings(session_id);
-            if (settings.ok() && settings->mode == Database::ContextMode::FTS_RANKED) {
-                std::cout << "[Warning] Session is in FTS mode. Manual context building is ignored in this mode." << std::endl;
-                std::cout << "Context will be dynamically retrieved based on relevance to your next query." << std::endl;
-                std::cout << "Switch to full mode using: /context-mode full" << std::endl;
-            }
             int n = sub_args.empty() ? 5 : std::atoi(sub_args.c_str());
-            std::string sub = "SELECT DISTINCT group_id FROM messages WHERE session_id = '" + session_id + "' ORDER BY created_at DESC LIMIT " + std::to_string(n);
-            log_status(db_->Execute("UPDATE messages SET status = 'completed' WHERE group_id IN (" + sub + ")"));
+            log_status(db_->SetContextWindow(session_id, n));
+            std::cout << "Context restored to last " << n << " groups." << std::endl;
         } else if (sub_cmd == "show") {
-            auto settings = db_->GetContextSettings(session_id);
-            if (settings.ok() && settings->mode == Database::ContextMode::FTS_RANKED) {
-                std::cout << "[Note] Session is in FTS (Ranked) mode. Context is generated dynamically per-query." << std::endl;
-                std::cout << "Showing the assembled prompt based on the most recent user query (if any):" << std::endl;
-            }
             if (orchestrator_) {
                 auto prompt_or = orchestrator_->AssemblePrompt(session_id, active_skills);
                 if (prompt_or.ok()) {
@@ -95,25 +94,14 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             } else {
                 log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
             }
-        }
-        return Result::HANDLED;
-    } else if (cmd == "/context-mode") {
-        std::vector<std::string> sub_parts = absl::StrSplit(args, absl::MaxSplits(' ', 1));
-        if (sub_parts[0] == "fts") {
-            int n = (sub_parts.size() > 1) ? std::atoi(sub_parts[1].c_str()) : 5;
-            if (n < 1) n = 1;
-            log_status(db_->SetContextMode(session_id, Database::ContextMode::FTS_RANKED, n));
-            std::cout << "FTS-Ranked Context Mode (Size: " << n << " groups)" << std::endl;
-        } else if (sub_parts[0] == "full") {
-            int n = (sub_parts.size() > 1) ? std::atoi(sub_parts[1].c_str()) : 0;
-            log_status(db_->SetContextMode(session_id, Database::ContextMode::FULL, n));
-            if (n > 0) std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
-            else std::cout << "Full Context Mode (infinite buffer)." << std::endl;
-        }
-        else {
+        } else {
             auto s = db_->GetContextSettings(session_id);
-            if (s.ok()) std::cout << "Current Mode: " << (s->mode == Database::ContextMode::FTS_RANKED ? "FTS_RANKED" : "FULL") << " (Size: " << s->size << ")" << std::endl;
-            std::cout << "Usage: /context-mode fts <N> | full" << std::endl;
+            if (s.ok()) {
+                if (s->size > 0) std::cout << "Current Context: Rolling window of last " << s->size << " groups." << std::endl;
+                else if (s->size == 0) std::cout << "Current Context: Full history." << std::endl;
+                else std::cout << "Current Context: None (Hidden)." << std::endl;
+            }
+            std::cout << "Usage: /context [window <N>|drop|build <N>|show]" << std::endl;
         }
         return Result::HANDLED;
     } else if (cmd == "/skill") {
@@ -295,15 +283,6 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             session_id = args; 
             std::cout << "Switched to: " << session_id << std::endl; 
             log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
-        }
-        return Result::HANDLED;
-    } else if (cmd == "/undo") {
-        auto gid_res = db_->Query("SELECT group_id FROM messages WHERE session_id = '" + session_id + "' AND status != 'dropped' ORDER BY created_at DESC LIMIT 1");
-        if (gid_res.ok()) {
-            auto j = nlohmann::json::parse(*gid_res, nullptr, false);
-            if (!j.is_discarded() && !j.empty()) {
-                log_status(db_->Execute("UPDATE messages SET status = 'dropped' WHERE group_id = '" + j[0]["group_id"].get<std::string>() + "'"));
-            }
         }
         return Result::HANDLED;
     } else if (cmd == "/stats") {
