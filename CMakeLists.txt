@@ -142,6 +142,9 @@ target_link_libraries(ui_test GTest::gtest_main slop_lib nlohmann_json::nlohmann
 add_executable(oauth_handler_test oauth_handler_test.cpp)
 target_link_libraries(oauth_handler_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
 
+add_executable(input_parsing_test input_parsing_test.cpp)
+target_link_libraries(input_parsing_test GTest::gtest_main slop_lib nlohmann_json::nlohmann_json)
+
 include(GoogleTest)
 gtest_discover_tests(sqlite_test)
 gtest_discover_tests(deps_test)
@@ -152,3 +155,4 @@ gtest_discover_tests(tool_executor_test)
 gtest_discover_tests(command_handler_test)
 gtest_discover_tests(ui_test)
 gtest_discover_tests(oauth_handler_test)
+gtest_discover_tests(input_parsing_test)
