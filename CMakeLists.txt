@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 project(std_slop)
 
 if(POLICY CMP0135)
@@ -15,6 +15,11 @@ FetchContent_Declare(
 # For Windows: Do not override the internal /MT flag with /MD
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
+# Optimize Abseil build
+set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
+set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
   absl
   URL https://github.com/abseil/abseil-cpp/archive/refs/heads/master.zip
@@ -29,6 +34,9 @@ FetchContent_Declare(
   nlohmann_json
   URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip
 )
+
+# JSON options
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 
 # curl options to keep it light and STATIC
 set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
@@ -84,6 +92,7 @@ if(NOT READLINE_FOUND)
 endif()
 
 add_library(slop_lib STATIC database.cpp http_client.cpp orchestrator.cpp tool_executor.cpp command_handler.cpp ui.cpp oauth_handler.cpp)
+set_target_properties(slop_lib PROPERTIES UNITY_BUILD ON)
 target_link_libraries(slop_lib absl::status absl::statusor sqlite3 libcurl_static nlohmann_json::nlohmann_json absl::strings absl::time)
 
 # On macOS, static libcurl needs these frameworks
@@ -156,3 +165,35 @@ gtest_discover_tests(command_handler_test)
 gtest_discover_tests(ui_test)
 gtest_discover_tests(oauth_handler_test)
 gtest_discover_tests(input_parsing_test)
+
+# Precompiled Headers optimization
+set(STL_PCH_HEADERS
+    <iostream>
+    <string>
+    <vector>
+    <memory>
+)
+set(EXT_PCH_HEADERS
+    <nlohmann/json.hpp>
+    <absl/status/status.h>
+    <absl/status/statusor.h>
+)
+
+target_precompile_headers(slop_lib PRIVATE ${STL_PCH_HEADERS} ${EXT_PCH_HEADERS})
+target_precompile_headers(std_slop PRIVATE ${STL_PCH_HEADERS} ${EXT_PCH_HEADERS})
+
+# sqlite_test uses absl
+target_precompile_headers(sqlite_test PRIVATE ${STL_PCH_HEADERS} <absl/status/status.h> <gtest/gtest.h>)
+
+# deps_test doesn't use absl status
+target_precompile_headers(deps_test PRIVATE ${STL_PCH_HEADERS} <nlohmann/json.hpp> <gtest/gtest.h>)
+
+# Other tests link slop_lib and use everything
+set(SLOP_TEST_TARGETS 
+    database_test http_client_test orchestrator_test 
+    tool_executor_test command_handler_test ui_test oauth_handler_test input_parsing_test
+)
+
+foreach(TGT ${SLOP_TEST_TARGETS})
+    target_precompile_headers(${TGT} PRIVATE ${STL_PCH_HEADERS} ${EXT_PCH_HEADERS} <gtest/gtest.h>)
+endforeach()
