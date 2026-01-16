@@ -111,3 +111,4 @@ Or use command-line flags: `--google_api_key`, `--openai_api_key`.
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr exclusively.
+- Threading: Threading and `std::future` are to be avoided. If threading is absolutely necessary, only Abseil threading primitives are allowed.

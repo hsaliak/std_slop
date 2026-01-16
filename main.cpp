@@ -3,7 +3,6 @@
 #include <vector>
 #include <cstdlib>
 #include <thread>
-#include <future>
 #include <iomanip>
 #include <chrono>
 #include "database.h"
@@ -206,7 +205,6 @@ int main(int argc, char** argv) {
       if (!url.empty() && url.back() == '/') url.pop_back();
 
       std::vector<std::string> current_headers = headers;
-      std::string count_api_key = (provider == slop::Orchestrator::Provider::GEMINI) ? google_key : openai_key;
 
       if (provider == slop::Orchestrator::Provider::GEMINI) {
         if (google_auth) {
@@ -214,7 +212,6 @@ int main(int argc, char** argv) {
           auto token_or = oauth_handler->GetValidToken();
           if (token_or.ok()) {
               current_headers.push_back("Authorization: Bearer " + *token_or);
-              count_api_key = *token_or;
           }
         }
         else {
@@ -224,36 +221,35 @@ int main(int argc, char** argv) {
         url = absl::StrCat(url, "/chat/completions");
       }
 
-      // Thinking... UI with Timer
-      auto start_time = absl::Now();
+      // Thinking... UI
       std::string skill_suffix;
       if (!active_skills.empty()) {
           skill_suffix = " [" + absl::StrJoin(active_skills, ", ") + "]";
       }
       std::cout << "Thinking" << skill_suffix << "... " << std::flush;
-      
-      auto token_count_future = std::async(std::launch::async, [&]() {
-          return orchestrator.CountTokens(*prompt_or, count_api_key);
-      });
 
-      auto future = std::async(std::launch::async, [&]() {
-        return http_client.Post(url, prompt_or->dump(), current_headers);
-      });
+      absl::StatusOr<std::string> response_or;
+      int retry_count = 0;
+      int max_retries = 5;
+      long backoff_ms = 2000;
 
-      int context_tokens = -1;
-      while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
-        if (context_tokens == -1 && token_count_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-            auto count_res = token_count_future.get();
-            if (count_res.ok()) context_tokens = *count_res;
-            else context_tokens = 0;
+      while (retry_count <= max_retries) {
+        response_or = http_client.Post(url, prompt_or->dump(), current_headers);
+        if (response_or.ok()) break;
+
+        if (absl::IsResourceExhausted(response_or.status())) {
+          if (retry_count < max_retries) {
+            std::cout << "\rRate limit hit. Retrying in " << (backoff_ms / 1000) << "s... (Attempt " << (retry_count + 1) << "/" << max_retries << ")" << std::flush;
+            std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
+            backoff_ms *= 2;
+            retry_count++;
+            std::cout << "\rThinking" << skill_suffix << "... " << std::string(50, ' ') << "\rThinking" << skill_suffix << "... " << std::flush;
+            continue;
+          }
         }
-
-        double elapsed = absl::ToDoubleSeconds(absl::Now() - start_time);
-        std::string token_info = (context_tokens >= 0) ? "[context: " + std::to_string(context_tokens) + " tokens] " : "";
-        std::cout << "\r" << token_info << "Thinking" << skill_suffix << "... (" << std::fixed << std::setprecision(1) << elapsed << "s)" << std::flush;
+        break;
       }
 
-      auto response_or = future.get();
       // Clear the "Thinking..." line
       std::cout << "\r" << std::string(100, ' ') << "\r" << std::flush;
 
@@ -287,16 +283,21 @@ int main(int argc, char** argv) {
           std::string display_res = tool_res.ok() ? *tool_res : "Error: " + std::string(tool_res.status().message());
           std::cout << "[Tool Result]: " << (display_res.size() > 500 ? display_res.substr(0, 500) + "..." : display_res) << "\n" << std::endl;
           
+          std::string logged_res = display_res;
+          if (logged_res.size() > 512) {
+              logged_res = logged_res.substr(0, 512) + "\n... [Tool result truncated to 512 chars for database and context efficiency] ...";
+          }
+
           if (provider == slop::Orchestrator::Provider::GEMINI) {
               nlohmann::json tool_msg = {
                   {"functionResponse", {
                       {"name", tc_or->name},
-                      {"response", {{"content", display_res}}}
+                      {"response", {{"content", logged_res}}}
                   }}
               };
               (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc_or->name, "completed", group_id);
           } else {
-              nlohmann::json tool_msg = {{"content", display_res}};
+              nlohmann::json tool_msg = {{"content", logged_res}};
               (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc_or->id + "|" + tc_or->name, "completed", group_id);
           }
 
