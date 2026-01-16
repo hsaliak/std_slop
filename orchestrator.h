@@ -33,6 +33,9 @@ class Orchestrator {
   // Assembler: Builds the prompt for the current provider from the database state.
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills = {});
 
+  // Counts tokens in the given payload.
+  absl::StatusOr<int> CountTokens(const nlohmann::json& payload, const std::string& api_key = "");
+
   // Fetches available models from the provider.
   absl::StatusOr<std::vector<std::string>> GetModels(const std::string& api_key = "");
 

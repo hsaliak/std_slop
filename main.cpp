@@ -206,12 +206,15 @@ int main(int argc, char** argv) {
       if (!url.empty() && url.back() == '/') url.pop_back();
 
       std::vector<std::string> current_headers = headers;
+      std::string count_api_key = (provider == slop::Orchestrator::Provider::GEMINI) ? google_key : openai_key;
+
       if (provider == slop::Orchestrator::Provider::GEMINI) {
         if (google_auth) {
           url = absl::StrCat(url, ":generateContent");
           auto token_or = oauth_handler->GetValidToken();
           if (token_or.ok()) {
               current_headers.push_back("Authorization: Bearer " + *token_or);
+              count_api_key = *token_or;
           }
         }
         else {
@@ -229,18 +232,30 @@ int main(int argc, char** argv) {
       }
       std::cout << "Thinking" << skill_suffix << "... " << std::flush;
       
+      auto token_count_future = std::async(std::launch::async, [&]() {
+          return orchestrator.CountTokens(*prompt_or, count_api_key);
+      });
+
       auto future = std::async(std::launch::async, [&]() {
         return http_client.Post(url, prompt_or->dump(), current_headers);
       });
 
+      int context_tokens = -1;
       while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+        if (context_tokens == -1 && token_count_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            auto count_res = token_count_future.get();
+            if (count_res.ok()) context_tokens = *count_res;
+            else context_tokens = 0;
+        }
+
         double elapsed = absl::ToDoubleSeconds(absl::Now() - start_time);
-        std::cout << "\rThinking" << skill_suffix << "... (" << std::fixed << std::setprecision(1) << elapsed << "s)" << std::flush;
+        std::string token_info = (context_tokens > 0) ? " [" + std::to_string(context_tokens) + " tokens]" : "";
+        std::cout << "\rThinking" << skill_suffix << token_info << "... (" << std::fixed << std::setprecision(1) << elapsed << "s)" << std::flush;
       }
 
       auto response_or = future.get();
       // Clear the "Thinking..." line
-      std::cout << "\r" << std::string(80, ' ') << "\r" << std::flush;
+      std::cout << "\r" << std::string(100, ' ') << "\r" << std::flush;
 
       if (!response_or.ok()) {
         std::cerr << "HTTP Error: " << response_or.status().message() << " (URL: " << url << ")" << std::endl;

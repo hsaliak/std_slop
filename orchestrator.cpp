@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
 #ifdef HAVE_SYSTEM_PROMPT_H
 #include "system_prompt_data.h"
@@ -232,6 +233,46 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
           
             return payload;
           }
+
+absl::StatusOr<int> Orchestrator::CountTokens(const nlohmann::json& payload, const std::string& api_key) {
+    if (provider_ == Provider::GEMINI) {
+        std::string url;
+        std::vector<std::string> headers = {"Content-Type: application/json"};
+        
+        nlohmann::json count_payload = payload;
+        // countTokens expects contents, tools, system_instruction directly if not wrapped.
+        if (gca_mode_) {
+            url = "https://cloudcode-pa.googleapis.com/v1internal/models/" + model_ + ":countTokens";
+            if (!api_key.empty()) {
+                headers.push_back("Authorization: Bearer " + api_key);
+            }
+            if (count_payload.contains("request")) {
+                count_payload = count_payload["request"];
+            }
+        } else {
+            url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_ + ":countTokens?key=" + api_key;
+        }
+
+        auto resp_or = http_client_->Post(url, count_payload.dump(), headers);
+        if (!resp_or.ok()) return resp_or.status();
+
+        auto j = nlohmann::json::parse(*resp_or, nullptr, false);
+        if (j.is_discarded()) return absl::InternalError("Failed to parse countTokens response");
+        if (j.contains("totalTokens")) return j["totalTokens"].get<int>();
+        return 0;
+    } else {
+        // Simple estimation for OpenAI: characters / 4
+        std::string full_text;
+        if (payload.contains("messages")) {
+            for (const auto& m : payload["messages"]) {
+                if (m.contains("content") && m["content"].is_string()) {
+                    full_text += m["content"].get<std::string>();
+                }
+            }
+        }
+        return (int)(full_text.size() / 4);
+    }
+}
 
 absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::string& api_key) {
     std::string url;
