@@ -1,6 +1,7 @@
 #include "ui.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <filesystem>
 #include <nlohmann/json.hpp>
 #include <iomanip>
@@ -43,6 +44,28 @@ std::string OpenInEditor(const std::string& initial_content) {
     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     std::filesystem::remove(tmp_path);
     return content;
+}
+
+void SmartDisplay(const std::string& content) {
+    const char* editor = std::getenv("EDITOR");
+    if (!editor || std::string(editor).empty()) {
+        std::cout << content << std::endl;
+        return;
+    }
+
+    std::string tmp_path = "/tmp/slop_view.txt";
+    { 
+        std::ofstream out(tmp_path);
+        out << content;
+    }
+
+    std::string cmd = std::string(editor) + " " + tmp_path;
+    int res = std::system(cmd.c_str());
+    std::filesystem::remove(tmp_path);
+
+    if (res != 0) {
+        std::cout << content << std::endl;
+    }
 }
 
 absl::Status PrintJsonAsTable(const std::string& json_str) {
@@ -163,13 +186,10 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     return absl::OkStatus();
 }
 
-
-
-void DisplayAssembledContext(const std::string& json_str) {
+std::string FormatAssembledContext(const std::string& json_str) {
     auto j = nlohmann::json::parse(json_str, nullptr, false);
     if (j.is_discarded()) {
-        std::cout << "Error parsing assembled context." << std::endl;
-        return;
+        return "Error parsing assembled context.";
     }
 
     // Unwrapping for GCA mode if necessary
@@ -177,62 +197,68 @@ void DisplayAssembledContext(const std::string& json_str) {
         j = j["request"];
     }
 
-    std::cout << "\n=== ASSEMBLED CONTEXT SENT TO LLM ===\n" << std::endl;
+    std::stringstream ss;
+    ss << "\n=== ASSEMBLED CONTEXT SENT TO LLM ===\n" << std::endl;
 
     if (j.contains("system_instruction")) {
-        std::cout << "[SYSTEM INSTRUCTION]" << std::endl;
+        ss << "[SYSTEM INSTRUCTION]" << std::endl;
         if (j["system_instruction"].contains("parts")) {
             for (const auto& part : j["system_instruction"]["parts"]) {
-                if (part.contains("text")) std::cout << part["text"].get<std::string>() << std::endl;
+                if (part.contains("text")) ss << part["text"].get<std::string>() << std::endl;
             }
         }
-        std::cout << "------------------------------------------" << std::endl;
+        ss << "------------------------------------------" << std::endl;
     }
 
     if (j.contains("contents")) {
         // Gemini
         for (const auto& item : j["contents"]) {
             std::string role = item["role"];
-            if (role == "user") std::cout << "[USER]" << std::endl;
-            else if (role == "model") std::cout << "[ASSISTANT]" << std::endl;
-            else if (role == "function") std::cout << "[FUNCTION RESPONSE]" << std::endl;
-            else std::cout << "[" << role << "]" << std::endl;
+            if (role == "user") ss << "[USER]" << std::endl;
+            else if (role == "model") ss << "[ASSISTANT]" << std::endl;
+            else if (role == "function") ss << "[FUNCTION RESPONSE]" << std::endl;
+            else ss << "[" << role << "]" << std::endl;
 
             for (const auto& part : item["parts"]) {
                 if (part.contains("text")) {
-                    std::cout << part["text"].get<std::string>() << std::endl;
+                    ss << part["text"].get<std::string>() << std::endl;
                 } else if (part.contains("functionCall")) {
-                    std::cout << "CALL: " << part["functionCall"].dump(2) << std::endl;
+                    ss << "CALL: " << part["functionCall"].dump(2) << std::endl;
                 } else if (part.contains("functionResponse")) {
-                    std::cout << "RESPONSE: " << part["functionResponse"].dump(2) << std::endl;
+                    ss << "RESPONSE: " << part["functionResponse"].dump(2) << std::endl;
                 }
             }
-            std::cout << "------------------------------------------" << std::endl;
+            ss << "------------------------------------------" << std::endl;
         }
     } else if (j.contains("messages")) {
         // OpenAI
         for (const auto& msg : j["messages"]) {
             std::string role = msg["role"];
-            if (role == "user") std::cout << "[USER]" << std::endl;
-            else if (role == "assistant") std::cout << "[ASSISTANT]" << std::endl;
-            else if (role == "system") std::cout << "[SYSTEM]" << std::endl;
-            else if (role == "tool") std::cout << "[TOOL RESPONSE]" << std::endl;
-            else std::cout << "[" << role << "]" << std::endl;
+            if (role == "user") ss << "[USER]" << std::endl;
+            else if (role == "assistant") ss << "[ASSISTANT]" << std::endl;
+            else if (role == "system") ss << "[SYSTEM]" << std::endl;
+            else if (role == "tool") ss << "[TOOL RESPONSE]" << std::endl;
+            else ss << "[" << role << "]" << std::endl;
 
             if (msg.contains("content") && msg["content"].is_string()) {
-                std::cout << msg["content"].get<std::string>() << std::endl;
+                ss << msg["content"].get<std::string>() << std::endl;
             }
             if (msg.contains("tool_calls")) {
-                std::cout << "TOOL CALLS: " << msg["tool_calls"].dump(2) << std::endl;
+                ss << "TOOL CALLS: " << msg["tool_calls"].dump(2) << std::endl;
             }
             if (msg.contains("name")) {
-                std::cout << "(Name: " << msg["name"].get<std::string>() << ")" << std::endl;
+                ss << "(Name: " << msg["name"].get<std::string>() << ")" << std::endl;
             }
-            std::cout << "------------------------------------------" << std::endl;
+            ss << "------------------------------------------" << std::endl;
         }
     }
     
-    std::cout << "=== END OF ASSEMBLED CONTEXT ===\n" << std::endl;
+    ss << "=== END OF ASSEMBLED CONTEXT ===\n" << std::endl;
+    return ss.str();
+}
+
+void DisplayAssembledContext(const std::string& json_str) {
+    SmartDisplay(FormatAssembledContext(json_str));
 }
 
 } // namespace slop

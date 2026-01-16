@@ -55,7 +55,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                 if (!j.is_discarded() && !j.empty()) {
                     std::string out;
                     for (const auto& m : j) out += "[" + m["role"].get<std::string>() + "]:\n" + m["content"].get<std::string>() + "\n\n";
-                    OpenInEditor(out);
+                    SmartDisplay(out);
                 }
             }
         } else if (sub_cmd == "remove") {
@@ -133,7 +133,8 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             if (t_or.ok()) {
                 for (const auto& t : *t_or) {
                     if (t.name == sub_args) {
-                        std::cout << "Name: " << t.name << "\nDescription: " << t.description << "\nSchema: " << t.json_schema << std::endl;
+                        std::string out = "Name: " + t.name + "\nDescription: " + t.description + "\nSchema: " + t.json_schema;
+                        SmartDisplay(out);
                         break;
                     }
                 }
@@ -277,7 +278,8 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                         if (absl::SimpleAtoi(sub_args, &id) && s.id == id) match = true;
                     }
                     if (match) {
-                        std::cout << "ID: " << s.id << "\nName: " << s.name << "\nDescription: " << s.description << "\nPatch:\n" << s.system_prompt_patch << std::endl;
+                        std::string out = "ID: " + std::to_string(s.id) + "\nName: " + s.name + "\nDescription: " + s.description + "\nPatch:\n" + s.system_prompt_patch;
+                        SmartDisplay(out);
                         return Result::HANDLED;
                     }
                 }

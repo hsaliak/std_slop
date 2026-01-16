@@ -13,6 +13,14 @@ std::string ReadLine(const std::string& prompt, const std::string& session_id);
 std::string OpenInEditor(const std::string& initial_content = "");
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit = 5, const std::vector<std::string>& selected_groups = {});
 absl::Status PrintJsonAsTable(const std::string& json_str);
+
+// Formats the context JSON into a human-readable string.
+std::string FormatAssembledContext(const std::string& json_str);
+
+// Tries to display content in $EDITOR, falls back to stdout.
+void SmartDisplay(const std::string& content);
+
+// Convenience wrapper for FormatAssembledContext + SmartDisplay.
 void DisplayAssembledContext(const std::string& json_str);
 
 } // namespace slop

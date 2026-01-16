@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <sstream>
+#include <cstdlib>
 
 namespace slop {
 
@@ -36,6 +37,37 @@ TEST(UiTest, PrintJsonAsTableInvalid) {
     std::string invalid_json = "{not json}";
     auto status = PrintJsonAsTable(invalid_json);
     EXPECT_FALSE(status.ok());
+}
+
+TEST(UiTest, FormatAssembledContextOpenAI) {
+    std::string json = R"({
+        "messages": [
+            {"role": "system", "content": "You are a helper."},
+            {"role": "user", "content": "Hello!"}
+        ]
+    })";
+    std::string formatted = FormatAssembledContext(json);
+    EXPECT_TRUE(formatted.find("[SYSTEM]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("You are a helper.") != std::string::npos);
+    EXPECT_TRUE(formatted.find("[USER]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("Hello!") != std::string::npos);
+}
+
+TEST(UiTest, SmartDisplayFallback) {
+    // Force EDITOR to be empty
+    const char* old_editor = std::getenv("EDITOR");
+    unsetenv("EDITOR");
+
+    std::string test_content = "fallback content test";
+    std::stringstream buffer;
+    std::streambuf* old_cout = std::cout.rdbuf(buffer.rdbuf());
+
+    SmartDisplay(test_content);
+
+    std::cout.rdbuf(old_cout);
+    if (old_editor) setenv("EDITOR", old_editor, 1);
+
+    EXPECT_TRUE(buffer.str().find(test_content) != std::string::npos);
 }
 
 } // namespace slop
