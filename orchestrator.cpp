@@ -161,6 +161,13 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
       }
   }
 
+  auto truncate_tool_result = [&](const std::string& content) -> std::string {
+      if (content.size() > 512) {
+          return content.substr(0, 512) + "\n... [Tool result truncated for context efficiency] ...";
+      }
+      return content;
+  };
+
   nlohmann::json payload;
   if (provider_ == Provider::GEMINI) {
       nlohmann::json contents = nlohmann::json::array();
@@ -169,8 +176,15 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
           std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
           nlohmann::json part;
           auto j = nlohmann::json::parse(msg.content, nullptr, false);
-          if (!j.is_discarded() && (j.contains("functionCall") || j.contains("functionResponse"))) part = j;
+          
+          if (!j.is_discarded() && j.contains("functionResponse")) {
+              std::string truncated = truncate_tool_result(j["functionResponse"]["response"]["content"].get<std::string>());
+              j["functionResponse"]["response"]["content"] = truncated;
+              part = j;
+          }
+          else if (!j.is_discarded() && j.contains("functionCall")) part = j;
           else part = {{"text", msg.content}};
+
           if (!contents.empty() && contents.back()["role"] == role) contents.back()["parts"].push_back(part);
           else contents.push_back({{"role", role}, {"parts", {part}}});
       }
@@ -200,7 +214,10 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
           auto j = nlohmann::json::parse(msg.content, nullptr, false);
           if (!j.is_discarded()) {
               if (j.contains("tool_calls")) { msg_obj["tool_calls"] = j["tool_calls"]; msg_obj["content"] = nullptr; }
-              else if (msg.role == "tool" && j.contains("content")) { msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); msg_obj["content"] = j["content"]; }
+              else if (msg.role == "tool" && j.contains("content")) { 
+                  msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
+                  msg_obj["content"] = truncate_tool_result(j["content"].get<std::string>());
+              }
               else msg_obj["content"] = msg.content;
           } else msg_obj["content"] = msg.content;
           if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") messages.back()["content"] = messages.back()["content"].get<std::string>() + "\n" + msg_obj["content"].get<std::string>();
