@@ -119,3 +119,26 @@ TEST(DatabaseTest, UsageTracking) {
     EXPECT_EQ(global_usage->completion_tokens, 225);
     EXPECT_EQ(global_usage->total_tokens, 340);
 }
+
+TEST(DatabaseTest, UpdateMessageStatusWorks) {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+    
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+    auto history = db.GetConversationHistory("s1");
+    ASSERT_TRUE(history.ok());
+    ASSERT_EQ(history->size(), 1);
+    int msg_id = (*history)[0].id;
+    EXPECT_EQ((*history)[0].status, "completed");
+    
+    ASSERT_TRUE(db.UpdateMessageStatus(msg_id, "dropped").ok());
+    
+    auto history2 = db.GetConversationHistory("s1", true);
+    ASSERT_TRUE(history2.ok());
+    ASSERT_EQ(history2->size(), 1);
+    EXPECT_EQ((*history2)[0].status, "dropped");
+    
+    auto history3 = db.GetConversationHistory("s1", false);
+    ASSERT_TRUE(history3.ok());
+    EXPECT_EQ(history3->size(), 0);
+}

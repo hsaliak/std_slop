@@ -64,11 +64,32 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
         if (sub_cmd == "drop") {
             log_status(db_->Execute("UPDATE messages SET status = 'dropped' WHERE session_id = '" + session_id + "'"));
         } else if (sub_cmd == "build") {
+            auto settings = db_->GetContextSettings(session_id);
+            if (settings.ok() && settings->mode == Database::ContextMode::FTS_RANKED) {
+                std::cout << "[1;33m[Warning] Session is in FTS mode. Manual context building is ignored in this mode.[0m" << std::endl;
+                std::cout << "Context will be dynamically retrieved based on relevance to your next query." << std::endl;
+                std::cout << "Switch to full mode using: /context-mode full" << std::endl;
+            }
             int n = sub_args.empty() ? 5 : std::atoi(sub_args.c_str());
             std::string sub = "SELECT DISTINCT group_id FROM messages WHERE session_id = '" + session_id + "' ORDER BY created_at DESC LIMIT " + std::to_string(n);
             log_status(db_->Execute("UPDATE messages SET status = 'completed' WHERE group_id IN (" + sub + ")"));
         } else if (sub_cmd == "show") {
-            log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
+            auto settings = db_->GetContextSettings(session_id);
+            if (settings.ok() && settings->mode == Database::ContextMode::FTS_RANKED) {
+                std::cout << "\033[1;36m[Note] Session is in FTS (Ranked) mode. Context is generated dynamically per-query.\033[0m" << std::endl;
+                std::cout << "Showing the assembled prompt based on the most recent user query (if any):" << std::endl;
+            }
+            if (orchestrator_) {
+                auto prompt_or = orchestrator_->AssemblePrompt(session_id, active_skills);
+                if (prompt_or.ok()) {
+                    DisplayAssembledContext(prompt_or->dump());
+                } else {
+                    std::cerr << "Error assembling prompt: " << prompt_or.status().message() << std::endl;
+                    log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
+                }
+            } else {
+                log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
+            }
         }
         return Result::HANDLED;
     } else if (cmd == "/context-mode") {

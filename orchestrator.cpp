@@ -171,7 +171,17 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   nlohmann::json payload;
   if (provider_ == Provider::GEMINI) {
       nlohmann::json contents = nlohmann::json::array();
-      for (const auto& msg : history) {
+      for (size_t i = 0; i < history.size(); ++i) {
+          const auto& msg = history[i];
+          std::string display_content = msg.content;
+          if (i == 0) {
+              display_content = (settings_or->mode == Database::ContextMode::FTS_RANKED) ? 
+                  "--- BEGIN RELEVANT CONTEXT SNIPPETS ---\n" + display_content :
+                  "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
+          }
+          if (i == history.size() - 1 && msg.role == "user" && i > 0) {
+              display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
+          }
           if (msg.role == "system") { system_instruction += msg.content + "\n"; continue; }
           std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
           nlohmann::json part;
@@ -183,7 +193,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
               part = j;
           }
           else if (!j.is_discarded() && j.contains("functionCall")) part = j;
-          else part = {{"text", msg.content}};
+          else part = {{"text", display_content}};
 
           if (!contents.empty() && contents.back()["role"] == role) contents.back()["parts"].push_back(part);
           else contents.push_back({{"role", role}, {"parts", {part}}});
@@ -208,7 +218,17 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   } else {
       nlohmann::json messages = nlohmann::json::array();
       if (!system_instruction.empty()) messages.push_back({{"role", "system"}, {"content", system_instruction}});
-      for (const auto& msg : history) {
+      for (size_t i = 0; i < history.size(); ++i) {
+          const auto& msg = history[i];
+          std::string display_content = msg.content;
+          if (i == 0) {
+              display_content = (settings_or->mode == Database::ContextMode::FTS_RANKED) ? 
+                  "--- BEGIN RELEVANT CONTEXT SNIPPETS ---\n" + display_content :
+                  "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
+          }
+          if (i == history.size() - 1 && msg.role == "user" && i > 0) {
+              display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
+          }
           if (msg.role == "system") { messages.push_back({{"role", "system"}, {"content", msg.content}}); continue; }
           nlohmann::json msg_obj = {{"role", msg.role}};
           auto j = nlohmann::json::parse(msg.content, nullptr, false);
@@ -218,8 +238,8 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
                   msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
                   msg_obj["content"] = truncate_tool_result(j["content"].get<std::string>());
               }
-              else msg_obj["content"] = msg.content;
-          } else msg_obj["content"] = msg.content;
+              else msg_obj["content"] = display_content;
+          } else msg_obj["content"] = display_content;
           if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") messages.back()["content"] = messages.back()["content"].get<std::string>() + "\n" + msg_obj["content"].get<std::string>();
           else messages.push_back(msg_obj);
       }
@@ -389,6 +409,12 @@ absl::StatusOr<Orchestrator::ToolCall> Orchestrator::ParseToolCall(const Databas
         tc.args = nlohmann::json::parse(first["function"]["arguments"].get<std::string>(), nullptr, false);
     }
     return tc;
+}
+
+
+int Orchestrator::CountTokens(const nlohmann::json& prompt) {
+    // Basic estimation: ~4 characters per token
+    return prompt.dump().length() / 4;
 }
 
 }  // namespace slop

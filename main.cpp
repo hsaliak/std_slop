@@ -200,6 +200,7 @@ int main(int argc, char** argv) {
         std::cerr << "Prompt Error: " << prompt_or.status().message() << std::endl;
         break;
       }
+      int context_tokens = orchestrator.CountTokens(*prompt_or);
 
       std::string url = base_url;
       if (!url.empty() && url.back() == '/') url.pop_back();
@@ -226,7 +227,7 @@ int main(int argc, char** argv) {
       if (!active_skills.empty()) {
           skill_suffix = " [" + absl::StrJoin(active_skills, ", ") + "]";
       }
-      std::cout << "Thinking" << skill_suffix << "... " << std::flush;
+      std::cout << "[context: " << context_tokens << " tokens] Thinking" << skill_suffix << "... " << std::flush;
 
       absl::StatusOr<std::string> response_or;
       int retry_count = 0;

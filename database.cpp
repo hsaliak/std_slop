@@ -16,6 +16,8 @@ absl::Status Database::Init(const std::string& db_path) {
     return absl::InternalError("Failed to open database: " + std::string(sqlite3_errmsg(db_.get())));
   }
 
+  sqlite3_exec(db_.get(), "DROP TABLE IF EXISTS code_search;", nullptr, nullptr, nullptr);
+
   const char* schema = R"(
     CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +60,6 @@ absl::Status Database::Init(const std::string& db_path) {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(path, content);
     CREATE VIRTUAL TABLE IF NOT EXISTS group_search USING fts5(group_id UNINDEXED, content);
   )";
 
@@ -77,16 +78,38 @@ absl::Status Database::Init(const std::string& db_path) {
 
 absl::Status Database::RegisterDefaultTools() {
     std::vector<Tool> default_tools = {
-        {"read_file", "Read the content of a file from the local filesystem.",
+        {"grep_tool", "Search for a pattern in the codebase using grep. Delegates to git_grep_tool if available in a git repository. Returns matching lines with context.",
+         R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":"integer","description":"Number of lines of context to show around matches"}},"required":["pattern"]})", true},
+        {"git_grep_tool", "Comprehensive search using git grep. Optimized for git repositories, honors .gitignore, and can search history.",
+         R"({
+           "type": "object",
+           "properties": {
+             "pattern": {"type": "string", "description": "The pattern to search for."},
+             "patterns": {"type": "array", "items": {"type": "string"}, "description": "Multiple patterns to search for (using -e)."},
+             "all_match": {"type": "boolean", "default": false, "description": "Limit matches to files that match all patterns."},
+             "path": {"type": "string", "description": "Limit search to specific path or file pattern."},
+             "case_insensitive": {"type": "boolean", "default": false},
+             "line_number": {"type": "boolean", "default": true},
+             "count": {"type": "boolean", "default": false, "description": "Count occurrences per file."},
+             "context": {"type": "integer", "default": 0, "description": "Show n lines of context."},
+             "after": {"type": "integer", "default": 0, "description": "Show n lines after match."},
+             "before": {"type": "integer", "default": 0, "description": "Show n lines before match."},
+             "show_function": {"type": "boolean", "default": false, "description": "Show function/method context."},
+             "files_with_matches": {"type": "boolean", "default": false, "description": "Only show file names."},
+             "word_regexp": {"type": "boolean", "default": false, "description": "Match whole words only."},
+             "pcre": {"type": "boolean", "default": false, "description": "Use Perl-compatible regular expressions."},
+             "branch": {"type": "string", "description": "Search in a specific branch, tag, or commit."},
+             "cached": {"type": "boolean", "default": false, "description": "Search in the staging area (index) instead of working tree."}
+           }
+         })", true},
+        {"read_file", "Read the content of a file from the local filesystem. Returns content with line numbers.",
          R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})", true},
         {"write_file", "Write content to a file in the local filesystem.",
          R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})", true},
         {"execute_bash", "Execute a bash command on the local system.",
          R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", true},
-        {"search_code", "Search for code snippets in the indexed codebase.",
+        {"search_code", "Search for code snippets in the codebase using grep.",
          R"({"type":"object","properties":{"query":{"type":"string"}},"required":["query"]})", true},
-        {"index_directory", "Index all files in a directory recursively for code search.",
-         R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})", true},
         {"query_db", "Query the local SQLite database using SQL.",
          R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true}
     };
@@ -123,6 +146,22 @@ absl::Status Database::AppendMessage(const std::string& session_id,
   return absl::OkStatus();
 }
 
+
+absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
+  const char* sql = "UPDATE messages SET status = ? WHERE id = ?";
+  sqlite3_stmt* raw_stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr);
+  UniqueStmt stmt(raw_stmt);
+  if (rc != SQLITE_OK) return absl::InternalError("Prepare error: " + std::string(sqlite3_errmsg(db_.get())));
+
+  sqlite3_bind_text(stmt.get(), 1, status.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 2, id);
+
+  if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
+    return absl::InternalError("Execute error: " + std::string(sqlite3_errmsg(db_.get())));
+  }
+  return absl::OkStatus();
+}
 absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(const std::string& session_id, bool include_dropped) {
   std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id FROM messages WHERE session_id = ?";
   if (!include_dropped) {
@@ -369,30 +408,6 @@ absl::StatusOr<std::vector<std::string>> Database::SearchGroups(const std::strin
   std::vector<std::string> results;
   while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
     results.push_back(reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0)));
-  }
-  return results;
-}
-
-absl::Status Database::IndexFile(const std::string& path, const std::string& content) {
-  const char* sql = "INSERT OR REPLACE INTO code_search (path, content) VALUES (?, ?)";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, path.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 2, content.c_str(), -1, SQLITE_TRANSIENT);
-  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error");
-  return absl::OkStatus();
-}
-
-absl::StatusOr<std::vector<std::pair<std::string, std::string>>> Database::SearchCode(const std::string& query) {
-  const char* sql = "SELECT path, content FROM code_search WHERE code_search MATCH ? ORDER BY rank";
-  sqlite3_stmt* raw_stmt = nullptr;
-  if (sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr) != SQLITE_OK) return absl::InternalError("Prepare error");
-  UniqueStmt stmt(raw_stmt);
-  sqlite3_bind_text(stmt.get(), 1, query.c_str(), -1, SQLITE_TRANSIENT);
-  std::vector<std::pair<std::string, std::string>> results;
-  while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-    results.push_back({reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0)), reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1))});
   }
   return results;
 }

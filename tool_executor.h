@@ -17,14 +17,14 @@ class ToolExecutor {
  private:
   Database* db_;
 
-  absl::StatusOr<std::string> ReadFile(const std::string& path);
+  absl::StatusOr<std::string> Grep(const std::string& pattern, const std::string& path, int context);
+  absl::StatusOr<std::string> ReadFile(const std::string& path, bool add_line_numbers = false);
   absl::StatusOr<std::string> WriteFile(const std::string& path, const std::string& content);
   absl::StatusOr<std::string> ExecuteBash(const std::string& command);
   absl::StatusOr<std::string> SearchCode(const std::string& query);
-  absl::StatusOr<std::string> IndexDirectory(const std::string& path);
-  absl::StatusOr<std::string> QueryDb(const std::string& sql);
+  absl::StatusOr<std::string> GitGrep(const nlohmann::json& args);
 };
 
-}  // namespace slop
+} // namespace slop
 
-#endif  // SLOP_SQL_TOOL_EXECUTOR_H_
+#endif // SLOP_SQL_TOOL_EXECUTOR_H_

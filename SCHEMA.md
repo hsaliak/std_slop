@@ -60,15 +60,8 @@ Tracks token usage for cost and performance monitoring.
 | total_tokens | INTEGER | Sum of prompt and completion tokens. |
 | created_at | DATETIME | Timestamp of the interaction. |
 
-### 6. code_search (Virtual Table)
-FTS5 table for full-text code search.
+### 6. group_search (Virtual Table)
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| path | TEXT | File path. |
-| content | TEXT | File content. |
-
-### 7. group_search (Virtual Table)
 FTS5 table for weighted hybrid RRF context retrieval.
 
 | Column | Type | Description |
@@ -119,6 +112,5 @@ CREATE TABLE IF NOT EXISTS usage (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(path, content);
 CREATE VIRTUAL TABLE IF NOT EXISTS group_search USING fts5(group_id UNINDEXED, content);
 ```

@@ -39,6 +39,7 @@ class Database {
                              const std::string& tool_call_id = "",
                              const std::string& status = "completed",
                              const std::string& group_id = "");
+  absl::Status UpdateMessageStatus(int id, const std::string& status);
 
   absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id, bool include_dropped = false);
   absl::StatusOr<std::vector<Message>> GetMessagesByGroups(const std::vector<std::string>& group_ids);
@@ -91,9 +92,6 @@ class Database {
   absl::Status IndexGroup(const std::string& group_id, const std::string& content);
   absl::StatusOr<std::vector<std::string>> SearchGroups(const std::string& query, int limit);
 
-  // FTS5 Code Search
-  absl::Status IndexFile(const std::string& path, const std::string& content);
-  absl::StatusOr<std::vector<std::pair<std::string, std::string>>> SearchCode(const std::string& query);
 
   absl::StatusOr<std::string> Query(const std::string& sql);
 

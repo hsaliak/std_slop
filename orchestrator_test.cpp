@@ -132,7 +132,7 @@ TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
     EXPECT_EQ(prompt["messages"][0]["role"], "system");
     // Second message is the user prompt
     EXPECT_EQ(prompt["messages"][1]["role"], "user");
-    EXPECT_EQ(prompt["messages"][1]["content"], "Hello");
+    EXPECT_TRUE(prompt["messages"][1]["content"].get<std::string>().find("Hello") != std::string::npos);
 }
 
 TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
@@ -302,7 +302,7 @@ TEST_F(OrchestratorTest, GcaPayloadWrapping) {
     EXPECT_EQ(prompt["project"], "test-proj");
     ASSERT_TRUE(prompt.contains("user_prompt_id"));
     ASSERT_TRUE(prompt.contains("request"));
-    EXPECT_EQ(prompt["request"]["contents"][0]["parts"][0]["text"], "Hello");
+    EXPECT_TRUE(prompt["request"]["contents"][0]["parts"][0]["text"].get<std::string>().find("Hello") != std::string::npos);
     EXPECT_EQ(prompt["request"]["session_id"], "s1");
 }
 
@@ -367,6 +367,64 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
     ASSERT_TRUE(usage.ok());
     EXPECT_EQ(usage->prompt_tokens, 20);
     EXPECT_EQ(usage->completion_tokens, 10);
+}
+
+
+
+TEST_F(OrchestratorTest, AssemblePromptWithHeaders) {
+    Orchestrator orchestrator(&db, &http);
+    
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Hi!").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "What's the weather?").ok());
+    
+    auto result = orchestrator.AssemblePrompt("s1", {});
+    ASSERT_TRUE(result.ok());
+    
+    nlohmann::json prompt = *result;
+    ASSERT_EQ(prompt["contents"].size(), 3);
+    
+    // Check first message header
+    std::string first_content = prompt["contents"][0]["parts"][0]["text"];
+    EXPECT_TRUE(first_content.find("--- BEGIN CONVERSATION HISTORY ---") != std::string::npos);
+    EXPECT_TRUE(first_content.find("Hello") != std::string::npos);
+    
+    // Check second message (assistant)
+    EXPECT_EQ(prompt["contents"][1]["parts"][0]["text"], "Hi!");
+    
+    // Check third message (user) header and boundary
+    std::string third_content = prompt["contents"][2]["parts"][0]["text"];
+    EXPECT_TRUE(third_content.find("--- END OF HISTORY ---") != std::string::npos);
+    EXPECT_TRUE(third_content.find("### CURRENT REQUEST") != std::string::npos);
+    EXPECT_TRUE(third_content.find("What's the weather?") != std::string::npos);
+}
+
+TEST_F(OrchestratorTest, AssembleOpenAIPromptWithHeaders) {
+    Orchestrator orchestrator(&db, &http);
+    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
+    
+    ASSERT_TRUE(db.AppendMessage("s2", "user", "Hello").ok());
+    ASSERT_TRUE(db.AppendMessage("s2", "assistant", "Hi!").ok());
+    ASSERT_TRUE(db.AppendMessage("s2", "user", "What's the weather?").ok());
+    
+    auto result = orchestrator.AssemblePrompt("s2", {});
+    ASSERT_TRUE(result.ok());
+    
+    nlohmann::json prompt = *result;
+    nlohmann::json messages = prompt["messages"];
+    
+    // index 0 is system instruction
+    // index 1 is first user message
+    std::string first_content = messages[1]["content"];
+    EXPECT_TRUE(first_content.find("--- BEGIN CONVERSATION HISTORY ---") != std::string::npos);
+    
+    // index 2 is assistant
+    EXPECT_EQ(messages[2]["content"], "Hi!");
+    
+    // index 3 is last user message
+    std::string last_content = messages[3]["content"];
+    EXPECT_TRUE(last_content.find("--- END OF HISTORY ---") != std::string::npos);
+    EXPECT_TRUE(last_content.find("### CURRENT REQUEST") != std::string::npos);
 }
 
 }  // namespace slop

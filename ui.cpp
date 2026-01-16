@@ -163,4 +163,71 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     return absl::OkStatus();
 }
 
+
+
+void DisplayAssembledContext(const std::string& json_str) {
+    auto j = nlohmann::json::parse(json_str, nullptr, false);
+    if (j.is_discarded()) {
+        std::cout << "Error parsing assembled context." << std::endl;
+        return;
+    }
+
+    std::cout << "\n\033[1;36m=== ASSEMBLED CONTEXT SENT TO LLM ===\033[0m\n" << std::endl;
+
+    if (j.contains("system_instruction")) {
+        std::cout << "\033[1;33m[SYSTEM INSTRUCTION]\033[0m" << std::endl;
+        if (j["system_instruction"].contains("parts")) {
+            for (const auto& part : j["system_instruction"]["parts"]) {
+                if (part.contains("text")) std::cout << part["text"].get<std::string>() << std::endl;
+            }
+        }
+        std::cout << "\033[1;30m------------------------------------------\033[0m" << std::endl;
+    }
+
+    if (j.contains("contents")) {
+        // Gemini
+        for (const auto& item : j["contents"]) {
+            std::string role = item["role"];
+            if (role == "user") std::cout << "\033[1;32m[USER]\033[0m" << std::endl;
+            else if (role == "model") std::cout << "\033[1;34m[ASSISTANT]\033[0m" << std::endl;
+            else if (role == "function") std::cout << "\033[1;35m[FUNCTION RESPONSE]\033[0m" << std::endl;
+            else std::cout << "\033[1;35m[" << role << "]\033[0m" << std::endl;
+
+            for (const auto& part : item["parts"]) {
+                if (part.contains("text")) {
+                    std::cout << part["text"].get<std::string>() << std::endl;
+                } else if (part.contains("functionCall")) {
+                    std::cout << "\033[1;35mCALL:\033[0m " << part["functionCall"].dump(2) << std::endl;
+                } else if (part.contains("functionResponse")) {
+                    std::cout << "\033[1;35mRESPONSE:\033[0m " << part["functionResponse"].dump(2) << std::endl;
+                }
+            }
+            std::cout << "\033[1;30m------------------------------------------\033[0m" << std::endl;
+        }
+    } else if (j.contains("messages")) {
+        // OpenAI
+        for (const auto& msg : j["messages"]) {
+            std::string role = msg["role"];
+            if (role == "user") std::cout << "\033[1;32m[USER]\033[0m" << std::endl;
+            else if (role == "assistant") std::cout << "\033[1;34m[ASSISTANT]\033[0m" << std::endl;
+            else if (role == "system") std::cout << "\033[1;33m[SYSTEM]\033[0m" << std::endl;
+            else if (role == "tool") std::cout << "\033[1;35m[TOOL RESPONSE]\033[0m" << std::endl;
+            else std::cout << "\033[1;35m[" << role << "]\033[0m" << std::endl;
+
+            if (msg.contains("content") && msg["content"].is_string()) {
+                std::cout << msg["content"].get<std::string>() << std::endl;
+            }
+            if (msg.contains("tool_calls")) {
+                std::cout << "\033[1;35mTOOL CALLS:\033[0m " << msg["tool_calls"].dump(2) << std::endl;
+            }
+            if (msg.contains("name")) {
+                std::cout << "\033[1;30m(Name: " << msg["name"].get<std::string>() << ")\033[0m" << std::endl;
+            }
+            std::cout << "\033[1;30m------------------------------------------\033[0m" << std::endl;
+        }
+    }
+    
+    std::cout << "\033[1;36m=== END OF ASSEMBLED CONTEXT ===\033[0m\n" << std::endl;
+}
+
 } // namespace slop
