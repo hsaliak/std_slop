@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unistd.h>
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "http_client.h"
@@ -37,10 +38,29 @@ class OAuthHandler {
   std::string GetGcpProjectFromGcloud();
   absl::StatusOr<std::string> DiscoverProjectId(const std::string& access_token);
 
-  struct FdDeleter {
-    void operator()(int* fd) const;
+  // RAII wrapper for file descriptors to avoid raw new/delete and ensure closing.
+  class ScopedFd {
+   public:
+    explicit ScopedFd(int fd) : fd_(fd) {}
+    ~ScopedFd() { if (fd_ >= 0) close(fd_); }
+    int operator*() const { return fd_; }
+    int get() const { return fd_; }
+    
+    ScopedFd(const ScopedFd&) = delete;
+    ScopedFd& operator=(const ScopedFd&) = delete;
+    ScopedFd(ScopedFd&& other) noexcept : fd_(other.fd_) { other.fd_ = -1; }
+    ScopedFd& operator=(ScopedFd&& other) noexcept {
+      if (this != &other) {
+        if (fd_ >= 0) close(fd_);
+        fd_ = other.fd_;
+        other.fd_ = -1;
+      }
+      return *this;
+    }
+
+   private:
+    int fd_;
   };
-  using ScopedFd = std::unique_ptr<int, FdDeleter>;
 
   HttpClient* http_client_;
   OAuthTokens tokens_;

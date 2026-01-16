@@ -43,6 +43,7 @@ cc_library(
         "system_prompt_data.h",
     ],
     copts = [
+        "-std=c++17",
         "-fno-exceptions",
         "-DSQLITE_ENABLE_COLUMN_METADATA",
         "-DSQLITE_ENABLE_FTS5",
@@ -66,7 +67,10 @@ cc_library(
 cc_binary(
     name = "std_slop",
     srcs = ["main.cpp"],
-    copts = ["-fno-exceptions"],
+    copts = [
+        "-std=c++17",
+        "-fno-exceptions",
+    ],
     deps = [
         ":slop_lib",
         ":sqlite3",
@@ -85,6 +89,7 @@ cc_binary(
         name = test_name,
         srcs = [test_name + ".cpp"],
         copts = [
+            "-std=c++17",
             "-fno-exceptions",
             "-DSQLITE_ENABLE_COLUMN_METADATA",
             "-DSQLITE_ENABLE_FTS5",
@@ -114,6 +119,7 @@ cc_test(
     name = "sqlite_test",
     srcs = ["sqlite_test.cpp"],
     copts = [
+        "-std=c++17",
         "-fno-exceptions",
         "-DSQLITE_ENABLE_COLUMN_METADATA",
         "-DSQLITE_ENABLE_FTS5",
@@ -130,6 +136,7 @@ cc_test(
     name = "deps_test",
     srcs = ["deps_test.cpp"],
     copts = [
+        "-std=c++17",
         "-fno-exceptions",
         "-DSQLITE_ENABLE_COLUMN_METADATA",
         "-DSQLITE_ENABLE_FTS5",
@@ -140,4 +147,3 @@ cc_test(
         "@curl//:curl",
     ],
 )
-

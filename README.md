@@ -46,7 +46,7 @@ export GOOGLE_API_KEY="key"
 export OPENAI_API_KEY="key"
 ```
 
-Or use command-line flags: `--google_api_key`, `--openai_api_key`.
+Or use command-line flags: `--google_api_key`, `--openai_api_key`. If no keys are provided, the agent will attempt an OAuth login flow for Google Gemini.
 
 ### 3. Run
 
@@ -81,6 +81,7 @@ bazel run //:std_slop -- [session_id]
 - `/exec <command>`  Run a shell command and view output in a pager.
 - `/edit`            Open `$EDITOR` for multi-line input.
 - `/stats /usage`    Show session usage statistics.
+- `/schema`          Show the SQLite database schema.
 
 ## Built-in Tools
 
@@ -89,6 +90,7 @@ bazel run //:std_slop -- [session_id]
 | `read_file` | Read local file contents with automatic line numbering. |
 | `write_file` | Create or overwrite local files. |
 | `grep_tool` | Search for patterns with context (delegates to `git grep` when possible). |
+| `git_grep_tool` | Advanced git-based search with support for branches and history. |
 | `search_code` | Live codebase search using optimized grep logic. |
 | `execute_bash` | Run arbitrary shell commands. |
 | `query_db` | Query the session ledger using SQL. |

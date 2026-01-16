@@ -37,13 +37,6 @@ std::string GenerateState() {
 
 } // namespace
 
-void OAuthHandler::FdDeleter::operator()(int* fd) const {
-  if (fd) {
-    if (*fd >= 0) close(*fd);
-    delete fd;
-  }
-}
-
 OAuthHandler::OAuthHandler(HttpClient* http_client) : http_client_(http_client) {
   std::string home = GetHomeDir();
   if (!home.empty()) {
@@ -93,7 +86,7 @@ absl::Status OAuthHandler::SaveTokens(const OAuthTokens& tokens) {
 absl::Status OAuthHandler::StartLoginFlow() {
   int raw_server_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (raw_server_fd < 0) return absl::InternalError("Failed to create socket");
-  ScopedFd server_fd(new int(raw_server_fd));
+  ScopedFd server_fd(raw_server_fd);
 
   struct sockaddr_in address;
   address.sin_family = AF_INET;
@@ -133,7 +126,7 @@ absl::Status OAuthHandler::StartLoginFlow() {
   if (raw_new_socket < 0) {
     return absl::InternalError("Failed to accept connection");
   }
-  ScopedFd new_socket(new int(raw_new_socket));
+  ScopedFd new_socket(raw_new_socket);
 
   char buffer[4096] = {0};
   (void)read(*new_socket, buffer, 4096);
@@ -206,7 +199,9 @@ absl::StatusOr<std::string> OAuthHandler::GetValidToken() {
 }
 
 absl::Status OAuthHandler::RefreshToken() {
-  if (tokens_.refresh_token.empty()) return absl::UnauthenticatedError("No refresh token");
+  if (tokens_.refresh_token.empty()) {
+    return StartLoginFlow();
+  }
 
   std::string token_url = "https://oauth2.googleapis.com/token";
   std::string body = "refresh_token=" + tokens_.refresh_token +
@@ -218,7 +213,7 @@ absl::Status OAuthHandler::RefreshToken() {
   if (!res.ok()) return res.status();
 
   auto j = nlohmann::json::parse(*res, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse refresh token response");
+  if (j.is_discarded()) return absl::InternalError("Failed to parse refresh response");
 
   tokens_.access_token = j.value("access_token", "");
   tokens_.expiry_time = absl::ToUnixSeconds(absl::Now()) + j.value("expires_in", 3600);
@@ -226,166 +221,75 @@ absl::Status OAuthHandler::RefreshToken() {
   return SaveTokens(tokens_);
 }
 
-std::string OAuthHandler::GetGcpProjectFromGcloud() {
-  FILE* pipe = popen("gcloud config get-value project 2>/dev/null", "r");
-  if (!pipe) return "";
-  char buffer[128];
-  std::string result = "";
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    result += buffer;
+absl::StatusOr<std::string> OAuthHandler::GetProjectId() {
+  if (!manual_project_id_.empty()) return manual_project_id_;
+  if (!tokens_.project_id.empty()) return tokens_.project_id;
+  
+  auto token = GetValidToken();
+  if (!token.ok()) return token.status();
+
+  auto disc = DiscoverProjectId(*token);
+  if (disc.ok()) {
+    tokens_.project_id = *disc;
+    (void)SaveTokens(tokens_);
+    return *disc;
   }
-  pclose(pipe);
-  return std::string(absl::StripAsciiWhitespace(result));
+
+  return absl::NotFoundError("No project ID found. Use --project_id to specify one.");
+}
+
+std::string OAuthHandler::GetGcpProjectFromGcloud() {
+  std::array<char, 128> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("gcloud config get-value project 2>/dev/null", "r"), pclose);
+  if (!pipe) return "";
+  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+    result += buffer.data();
+  }
+  // Trim result
+  result.erase(result.find_last_not_of(" \n\r\t") + 1);
+  return result;
+}
+
+absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& access_token) {
+  // 1. Try gcloud
+  std::string gcloud_project = GetGcpProjectFromGcloud();
+  if (!gcloud_project.empty()) return gcloud_project;
+
+  // 2. List projects via API
+  std::string url = "https://cloudresourcemanager.googleapis.com/v1/projects";
+  auto res = http_client_->Get(url, {"Authorization: Bearer " + access_token});
+  if (res.ok()) {
+    auto j = nlohmann::json::parse(*res, nullptr, false);
+    if (!j.is_discarded() && j.contains("projects") && !j["projects"].empty()) {
+      return j["projects"][0].value("projectId", "");
+    }
+  }
+
+  return absl::NotFoundError("Could not discover project ID");
 }
 
 absl::Status OAuthHandler::ProvisionProject() {
-  auto token_or = GetValidToken();
-  if (!token_or.ok()) return token_or.status();
+  auto project_id_res = GetProjectId();
+  if (!project_id_res.ok()) return project_id_res.status();
+  std::string project_id = *project_id_res;
 
-  std::vector<std::string> headers = {
-    "Authorization: Bearer " + *token_or,
-    "Content-Type: application/json",
-    "User-Agent: google-api-nodejs-client/9.15.1",
-    "X-Goog-Api-Client: gl-node/22.17.0"
-  };
+  auto token_res = GetValidToken();
+  if (!token_res.ok()) return token_res.status();
+  std::string token = *token_res;
 
-  std::string base_url = "https://cloudcode-pa.googleapis.com/v1internal";
+  // Enable Generative Language API
+  std::cout << "Ensuring Generative Language API is enabled for project: " << project_id << "..." << std::endl;
+  std::string enable_url = "https://serviceusage.googleapis.com/v1/projects/" + project_id + "/services/generativelanguage.googleapis.com:enable";
+  auto res = http_client_->Post(enable_url, "", {"Authorization: Bearer " + token});
   
-  // Resolve project preference: Flag > Env > gcloud
-  std::string preferred_project = manual_project_id_;
-  if (preferred_project.empty()) {
-    const char* env_proj = std::getenv("GOOGLE_CLOUD_PROJECT");
-    if (!env_proj) env_proj = std::getenv("GOOGLE_CLOUD_PROJECT_ID");
-    if (env_proj) preferred_project = env_proj;
-  }
-  if (preferred_project.empty()) {
-    preferred_project = GetGcpProjectFromGcloud();
+  if (res.ok()) {
+    std::cout << "Generative Language API checked/enabled." << std::endl;
+  } else {
+    std::cerr << "Warning: Failed to enable Generative Language API: " << res.status() << std::endl;
   }
 
-  nlohmann::json load_req = {
-    {"metadata", {
-      {"ideType", "IDE_UNSPECIFIED"},
-      {"platform", "PLATFORM_UNSPECIFIED"},
-      {"pluginType", "GEMINI"},
-      {"duetProject", preferred_project}
-    }}
-  };
-  if (!preferred_project.empty()) {
-    load_req["cloudaicompanionProject"] = preferred_project;
-  }
-
-  auto res = http_client_->Post(base_url + ":loadCodeAssist", load_req.dump(), headers);
-  if (!res.ok()) return res.status();
-
-  auto j = nlohmann::json::parse(*res, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse loadCodeAssist response");
-
-  std::string tier_id = "free";
-  if (j.contains("allowedTiers") && j["allowedTiers"].is_array()) {
-    for (const auto& t : j["allowedTiers"]) {
-      if (t.value("isDefault", false)) {
-        tier_id = t.value("id", "free");
-        break;
-      }
-    }
-  }
-
-  if (j.contains("currentTier")) {
-    tier_id = j["currentTier"].value("id", tier_id);
-    if (j.contains("cloudaicompanionProject") && j["cloudaicompanionProject"].is_string()) {
-      std::string discovered = j["cloudaicompanionProject"];
-      if (tier_id == "free") {
-        if (!manual_project_id_.empty() && manual_project_id_ != discovered) {
-          std::cout << "Note: Google Cloud Free Tier requires using the managed project " << discovered 
-                    << " (ignoring manual override " << manual_project_id_ << ")." << std::endl;
-        }
-        tokens_.project_id = discovered;
-        return SaveTokens(tokens_);
-      } else {
-        if (manual_project_id_.empty()) {
-          tokens_.project_id = discovered;
-          return SaveTokens(tokens_);
-        } else {
-          std::cout << "Discovered managed project " << discovered << " but using manual override " << manual_project_id_ << std::endl;
-          return absl::OkStatus();
-        }
-      }
-    }
-    
-    if (!preferred_project.empty()) {
-      if (manual_project_id_.empty()) {
-        tokens_.project_id = preferred_project;
-        (void)SaveTokens(tokens_);
-      }
-      return absl::OkStatus();
-    }
-  }
-
-  std::cout << "Onboarding user to Gemini Cloud Code Assist (Tier: " << tier_id << ")..." << std::endl;
-  nlohmann::json onboard_req = {
-    {"tierId", tier_id},
-    {"metadata", {
-      {"ideType", "IDE_UNSPECIFIED"},
-      {"platform", "PLATFORM_UNSPECIFIED"},
-      {"pluginType", "GEMINI"}
-    }}
-  };
-  if (tier_id != "free" && !preferred_project.empty()) {
-    onboard_req["cloudaicompanionProject"] = preferred_project;
-    onboard_req["metadata"]["duetProject"] = preferred_project;
-  }
-
-  res = http_client_->Post(base_url + ":onboardUser", onboard_req.dump(), headers);
-  if (!res.ok()) return res.status();
-
-  j = nlohmann::json::parse(*res, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse onboardUser response");
-
-  // Handle LRO
-  while (j.contains("done") && !j["done"].get<bool>()) {
-    std::string op_name = j["name"];
-    std::cout << "Provisioning project... (polling " << op_name << ")" << std::endl;
-    absl::SleepFor(absl::Seconds(5));
-    res = http_client_->Get("https://cloudcode-pa.googleapis.com/v1internal/" + op_name, headers);
-    if (!res.ok()) return res.status();
-    j = nlohmann::json::parse(*res, nullptr, false);
-    if (j.is_discarded()) return absl::InternalError("Failed to parse operation response");
-  }
-
-  if (j.contains("response") && j["response"].contains("cloudaicompanionProject") && 
-      j["response"]["cloudaicompanionProject"].contains("id")) {
-    std::string discovered = j["response"]["cloudaicompanionProject"]["id"];
-    if (manual_project_id_.empty() || tier_id == "free") {
-      if (tier_id == "free" && !manual_project_id_.empty() && manual_project_id_ != discovered) {
-        std::cout << "Note: Google Cloud Free Tier requires using the managed project " << discovered 
-                  << " (ignoring manual override " << manual_project_id_ << ")." << std::endl;
-      }
-      tokens_.project_id = discovered;
-      return SaveTokens(tokens_);
-    } else {
-      std::cout << "Provisioned managed project " << discovered << " but using manual override " << manual_project_id_ << std::endl;
-      return absl::OkStatus();
-    }
-  }
-
-  if (!preferred_project.empty()) {
-    if (manual_project_id_.empty()) {
-      tokens_.project_id = preferred_project;
-      (void)SaveTokens(tokens_);
-    }
-    return absl::OkStatus();
-  }
-
-  return absl::NotFoundError("Could not discover or provision a Google Cloud project.");
-}
-
-absl::StatusOr<std::string> OAuthHandler::GetProjectId() {
-  if (!manual_project_id_.empty()) return manual_project_id_;
-  if (tokens_.project_id.empty()) {
-    auto status = ProvisionProject();
-    if (!status.ok()) return status;
-  }
-  return tokens_.project_id;
+  return absl::OkStatus();
 }
 
 } // namespace slop
