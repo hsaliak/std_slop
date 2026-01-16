@@ -249,8 +249,8 @@ int main(int argc, char** argv) {
         }
 
         double elapsed = absl::ToDoubleSeconds(absl::Now() - start_time);
-        std::string token_info = (context_tokens > 0) ? " [" + std::to_string(context_tokens) + " tokens]" : "";
-        std::cout << "\rThinking" << skill_suffix << token_info << "... (" << std::fixed << std::setprecision(1) << elapsed << "s)" << std::flush;
+        std::string token_info = (context_tokens >= 0) ? "[context: " + std::to_string(context_tokens) + " tokens] " : "";
+        std::cout << "\r" << token_info << "Thinking" << skill_suffix << "... (" << std::fixed << std::setprecision(1) << elapsed << "s)" << std::flush;
       }
 
       auto response_or = future.get();
