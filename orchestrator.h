@@ -30,29 +30,40 @@ class Orchestrator {
   void SetThrottle(int seconds) { throttle_ = seconds; }
   int GetThrottle() const { return throttle_; }
 
-  // Assembler: Builds the prompt for the current provider from the database state.
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills = {});
-  int CountTokens(const nlohmann::json& prompt);
-
-  // Fetches available models from the provider.
-  absl::StatusOr<std::vector<std::string>> GetModels(const std::string& api_key = "");
-
-  // Fetches Gemini user quota information.
-  absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
-
-  // Processes the LLM response, potentially updating the DB or identifying tool calls.
   absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json, const std::string& group_id = "");
+  
+  // Rebuilds the session state (---STATE--- anchor) from the current window's history.
+  absl::Status RebuildContext(const std::string& session_id);
 
   struct ToolCall {
     std::string name;
-    std::string id;
+    std::string id; // For OpenAI
     nlohmann::json args;
   };
   absl::StatusOr<ToolCall> ParseToolCall(const Database::Message& msg);
 
+  absl::StatusOr<std::vector<std::string>> GetModels(const std::string& api_key);
+  absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
+
+  int CountTokens(const nlohmann::json& prompt);
+
   std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
 
+  // Exposed for rebuilding and testing
+  absl::StatusOr<std::vector<Database::Message>> GetRelevantHistory(const std::string& session_id, int window_size);
+
  private:
+  static constexpr int kMaxToolResultContext = 8192;
+
+  // Helper methods for AssemblePrompt
+  std::string BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills);
+  nlohmann::json FormatGeminiPayload(const std::string& system_instruction, const std::vector<Database::Message>& history);
+  nlohmann::json FormatOpenAIPayload(const std::string& system_instruction, const std::vector<Database::Message>& history);
+  
+  // Truncates content for context efficiency with metadata
+  std::string SmarterTruncate(const std::string& content, size_t limit);
+
   Database* db_;
   HttpClient* http_client_;
   Provider provider_ = Provider::GEMINI;

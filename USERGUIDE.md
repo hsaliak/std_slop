@@ -82,17 +82,17 @@ Commands like `/message remove` operate on these atomic groups.
 - `/throttle [N]`: Sets a delay (in seconds) between iterations of the agent's tool execution loop. Use `/throttle` without arguments to see the current value.
 
 ### Session Management
-- `/sessions`: List all sessions stored in the database.
-- `/switch <session_id>`: Switch to a different session history.
+- `/session`: List all sessions stored in the database.
+- `/session <session_id>`: Switch to a different session. Use this to start a fresh interaction or pivot to a different task while keeping currently active skills and throttles.
 - `/stats`: View message counts and token usage for the current session.
 
 ### History & Context
-- `/context show`: Display the messages currently being sent to the LLM.
-- `/context drop`: Hide all previous messages from the LLM (they remain in the DB). Use `/context build` to restore.
+- `/context`: Show context status and the currently assembled prompt.
 - `/context window <N>`: Set the rolling window size (N groups). Use 0 for full history.
-- `/context build [N]`: Quickly restore the context window to the last N groups.
+- `/window <N>`: Alias for `/context window <N>`.
+- `/context rebuild`: Rebuild the persistent state (---STATE--- anchor) from the current context window history.
 - `/message list [N]`: Show a summary of the last N interaction groups (GIDs and user prompts).
-- `/message view <GID>`: View the full content of a specific message group in your editor.
+- `/message show <GID>`: View the full content of a specific message group in your editor.
 - `/message remove <GID>`: Permanently **delete** a message group from the database.
 
 ---
@@ -117,6 +117,7 @@ Skills are specialized instructions or "personas" you can activate.
 
 ### Managing Skills
 - `/skill list`: See all available and active skills.
+- `/skill show <name>`: Display the details of a specific skill.
 - `/skill add`: Create a new skill. It will open your editor with a template:
     ```yaml
     #name: expert_coder
@@ -168,3 +169,8 @@ You can switch models on the fly:
 
 ## Security Tip
 Always run `std::slop` in a directory you are comfortable with it modifying, or better yet, in a containerized environment.
+
+
+### Tool Management
+- `/tool list`: List all enabled tools.
+- `/tool show <name>`: Display the JSON schema and description of a specific tool.

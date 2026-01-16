@@ -48,7 +48,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                 session_id, n);
             auto res = db_->Query(sql);
             if (res.ok()) log_status(PrintJsonAsTable(*res));
-        } else if (sub_cmd == "view") {
+        } else if (sub_cmd == "view" || sub_cmd == "show") {
             auto res = db_->Query("SELECT role, content FROM messages WHERE group_id = '" + sub_args + "' ORDER BY created_at ASC");
             if (res.ok()) {
                 auto j = nlohmann::json::parse(*res, nullptr, false);
@@ -64,6 +64,14 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             std::cout << "Message group " << sub_args << " deleted." << std::endl;
         }
         return Result::HANDLED;
+    
+    } else if (cmd == "/window") {
+        int n = args.empty() ? 0 : std::atoi(args.c_str());
+        log_status(db_->SetContextWindow(session_id, n));
+        if (n > 0) std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
+        else if (n == 0) std::cout << "Full Context Mode (infinite buffer)." << std::endl;
+        else std::cout << "Context Hidden (None)." << std::endl;
+        return Result::HANDLED;
     } else if (cmd == "/context") {
         std::vector<std::string> sub_parts = absl::StrSplit(args, absl::MaxSplits(' ', 1));
         std::string sub_cmd = sub_parts[0];
@@ -74,14 +82,12 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             if (n > 0) std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
             else if (n == 0) std::cout << "Full Context Mode (infinite buffer)." << std::endl;
             else std::cout << "Context Hidden (None)." << std::endl;
-        } else if (sub_cmd == "drop") {
-            // Set window size to -1 to hide all context
-            log_status(db_->SetContextWindow(session_id, -1));
-            std::cout << "Context dropped (hidden). Use /context build or /context window to restore." << std::endl;
-        } else if (sub_cmd == "build") {
-            int n = sub_args.empty() ? 5 : std::atoi(sub_args.c_str());
-            log_status(db_->SetContextWindow(session_id, n));
-            std::cout << "Context restored to last " << n << " groups." << std::endl;
+        } else if (sub_cmd == "rebuild") {
+            if (orchestrator_) {
+                auto status = orchestrator_->RebuildContext(session_id); if (status.ok()) std::cout << "Context rebuilt from history." << std::endl; else std::cerr << "Error: " << status.message() << std::endl;
+            } else {
+                std::cerr << "Orchestrator not available for rebuilding context." << std::endl;
+            }
         } else if (sub_cmd == "show") {
             if (orchestrator_) {
                 auto prompt_or = orchestrator_->AssemblePrompt(session_id, active_skills);
@@ -101,7 +107,39 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                 else if (s->size == 0) std::cout << "Current Context: Full history." << std::endl;
                 else std::cout << "Current Context: None (Hidden)." << std::endl;
             }
-            std::cout << "Usage: /context [window <N>|drop|build <N>|show]" << std::endl;
+            if (orchestrator_) {
+                auto prompt_or = orchestrator_->AssemblePrompt(session_id, active_skills);
+                if (prompt_or.ok()) {
+                    DisplayAssembledContext(prompt_or->dump());
+                }
+            }
+            std::cout << "Usage: /context [window <N>|rebuild|show]" << std::endl;
+        }
+        return Result::HANDLED;
+    
+    } else if (cmd == "/tool") {
+        std::vector<std::string> sub_parts = absl::StrSplit(args, absl::MaxSplits(' ', 1));
+        std::string sub_cmd = sub_parts[0];
+        std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
+        if (sub_cmd == "list") {
+            auto t_or = db_->GetEnabledTools();
+            if (t_or.ok()) {
+                for (const auto& t : *t_or) {
+                    std::cout << "- " << t.name << ": " << t.description << std::endl;
+                }
+            }
+        } else if (sub_cmd == "show") {
+            auto t_or = db_->GetEnabledTools();
+            if (t_or.ok()) {
+                for (const auto& t : *t_or) {
+                    if (t.name == sub_args) {
+                        std::cout << "Name: " << t.name << "\nDescription: " << t.description << "\nSchema: " << t.json_schema << std::endl;
+                        break;
+                    }
+                }
+            }
+        } else {
+            std::cout << "Usage: /tool [list|show <name>]" << std::endl;
         }
         return Result::HANDLED;
     } else if (cmd == "/skill") {
@@ -224,7 +262,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             
             log_status(db_->RegisterSkill(news));
             std::cout << "Skill '" << news.name << "' saved." << std::endl;
-        } else if (sub_cmd == "view") {
+        } else if (sub_cmd == "view" || sub_cmd == "show") {
             if (sub_args.empty()) {
                 std::cout << "Usage: /skill view <name|id>" << std::endl;
                 return Result::HANDLED;
@@ -271,17 +309,17 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             log_status(db_->DeleteSkill(target));
             std::cout << "Skill deleted." << std::endl;
         } else {
-            std::cout << "Unknown skill subcommand: " << sub_cmd << "\nUsage: /skill [activate|add|edit|view|delete]" << std::endl;
+            std::cout << "Unknown skill subcommand: " << sub_cmd << "\nUsage: /skill [activate|add|edit|show|delete|list]" << std::endl;
         }
         return Result::HANDLED;
-    } else if (cmd == "/sessions") {
-        auto res = db_->Query("SELECT DISTINCT session_id FROM messages");
-        if (res.ok()) log_status(PrintJsonAsTable(*res));
-        return Result::HANDLED;
-    } else if (cmd == "/switch") {
-        if (!args.empty()) { 
-            session_id = args; 
-            std::cout << "Switched to: " << session_id << std::endl; 
+    
+    } else if (cmd == "/session") {
+        if (args.empty()) {
+            auto res = db_->Query("SELECT DISTINCT session_id FROM messages");
+            if (res.ok()) log_status(PrintJsonAsTable(*res));
+        } else {
+            session_id = args;
+            std::cout << "Switched to: " << session_id << std::endl;
             log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
         }
         return Result::HANDLED;

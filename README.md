@@ -6,7 +6,7 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 
 - **Ledger-Driven**: All interactions, tool calls, and system changes are stored in SQLite.
 - **Dual API**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs.
-- **Context Control**: Manage memory via group-based drop and rebuild commands.
+- **Context Control**: Manage memory via group-based rebuild commands.
 - **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
@@ -60,20 +60,26 @@ bazel run //:std_slop -- [session_id]
 
 ## Command Reference
 
-### Context and History
+### Session and Context
+- `/session [ID]`    List all sessions or switch to a specific one.
+- `/context`         Show context status and assembled prompt.
+- `/context window <N>` Set size of rolling window (0 for full history).
+- `/window <N>`      Alias for `/context window <N>`.
+- `/context rebuild` Rebuild session state from conversation history.
 
-- `/context show`: Show the exact assembled prompt being sent to the LLM, including structural headers.
-- `/context drop`: Hide all messages from current context for this session.
-- `/context build [N]`: Reactivate last N interaction groups.
-- `/context window <N>`: Set the size of the rolling window (0 for full history).
+### Skills and Tools
+- `/skill list`      List available skills.
+- `/skill show <ID>` Display details of a skill.
+- `/tool list`       List enabled tools.
+- `/tool show <name>` Show tool schema and description.
 
 ### Models and Settings
-
-- `/models`: List available models from the provider.
-- `/model <name>`: Switch the active LLM model.
-- `/throttle [N]`: Set or show request throttle (seconds) for agentic loops.
-- `/exec <command>`: Run a shell command and view output in a pager.
-- `/edit`: Open `$EDITOR` for multi-line input.
+- `/models`          List available models from the provider.
+- `/model <name>`    Switch the active LLM model.
+- `/throttle [N]`    Set or show request throttle (seconds) for agentic loops.
+- `/exec <command>`  Run a shell command and view output in a pager.
+- `/edit`            Open `$EDITOR` for multi-line input.
+- `/stats /usage`    Show session usage statistics.
 
 ## Built-in Tools
 

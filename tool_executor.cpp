@@ -12,13 +12,18 @@
 namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
+  auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
+      return "---TOOL_RESULT: " + tool_name + "---\n" + content + "\n---END_RESULT---";
+  };
+
+  absl::StatusOr<std::string> result;
   if (name == "read_file") {
     if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
-    return ReadFile(args["path"], true);
+    result = ReadFile(args["path"], true);
   } else if (name == "write_file") {
     if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
     if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' argument");
-    return WriteFile(args["path"], args["content"]);
+    result = WriteFile(args["path"], args["content"]);
   } else if (name == "grep_tool") {
     if (!args.contains("pattern")) return absl::InvalidArgumentError("Missing 'pattern' argument");
     
@@ -29,29 +34,35 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
     if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
         auto git_res = GitGrep(args);
-        // If git grep succeeded and found something, return it.
-        // Otherwise fall back to standard grep (might be an untracked file).
         if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
-            return git_res;
+            result = git_res;
+        } else {
+            result = Grep(args["pattern"], path, context);
         }
+    } else {
+        result = Grep(args["pattern"], path, context);
     }
-
-    return Grep(args["pattern"], path, context);
   } else if (name == "git_grep_tool") {
-    return GitGrep(args);
+    result = GitGrep(args);
   } else if (name == "execute_bash") {
     if (!args.contains("command")) return absl::InvalidArgumentError("Missing 'command' argument");
-    return ExecuteBash(args["command"]);
+    result = ExecuteBash(args["command"]);
   } else if (name == "search_code") {
     if (!args.contains("query")) return absl::InvalidArgumentError("Missing 'query' argument");
     nlohmann::json grep_args = args;
     grep_args["pattern"] = args["query"];
-    return Execute("grep_tool", grep_args);
+    result = Execute("grep_tool", grep_args);
   } else if (name == "query_db") {
     if (!args.contains("sql")) return absl::InvalidArgumentError("Missing 'sql' argument");
-    return db_->Query(args["sql"]);
+    result = db_->Query(args["sql"]);
+  } else {
+    return absl::NotFoundError("Tool not found: " + name);
   }
-  return absl::NotFoundError("Tool not found: " + name);
+
+  if (!result.ok()) {
+      return wrap_result(name, "Error: " + result.status().ToString());
+  }
+  return wrap_result(name, *result);
 }
 
 absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, bool add_line_numbers) {

@@ -119,3 +119,4 @@ TEST(DatabaseTest, UpdateMessageStatusWorks) {
     ASSERT_TRUE(history3.ok());
     EXPECT_EQ(history3->size(), 0);
 }
+

@@ -481,4 +481,31 @@ TEST_F(OrchestratorTest, AssemblePromptRollingWindow) {
     EXPECT_TRUE(prompt["contents"][1]["parts"][0]["text"].get<std::string>().find("msg3") != std::string::npos);
 }
 
+
+TEST_F(OrchestratorTest, RebuildContext) {
+    Orchestrator orchestrator(&db, &http);
+    std::string sid = "s_rebuild";
+    
+    // 1. Set an initial state
+    ASSERT_TRUE(db.SetSessionState(sid, "Initial State").ok());
+    
+    // 2. Add history with a newer state
+    std::string state_content = "Goal: Build a rocket\nContext: Rocket lab\nResolved: Propulsion\nTechnical Anchors: Gravity=9.8";
+    std::string mock_assistant_response = "I have updated the plan.\n---STATE---\n" + state_content + "\n---END STATE---";
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "What is the plan?").ok());
+    ASSERT_TRUE(db.AppendMessage(sid, "assistant", mock_assistant_response).ok());
+    
+    // 3. Manually corrupt/change the session state in the DB to simulate it being out of sync
+    ASSERT_TRUE(db.SetSessionState(sid, "Corrupted State").ok());
+    
+    // 4. Run rebuild
+    ASSERT_TRUE(orchestrator.RebuildContext(sid).ok());
+    
+    // 5. Verify state is restored from history
+    auto state_or = db.GetSessionState(sid);
+    ASSERT_TRUE(state_or.ok());
+    EXPECT_TRUE(state_or->find("---STATE---") != std::string::npos);
+    EXPECT_TRUE(state_or->find("Build a rocket") != std::string::npos);
+}
+
 }  // namespace slop

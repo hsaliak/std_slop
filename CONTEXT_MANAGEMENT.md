@@ -64,18 +64,7 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 
 ## Commands
 
-
-
-- `/context window <N>`: Set the size of the rolling window (number of interaction groups). Use 0 for full history, -1 for no history.
-
+- `/context window <N>`: Set the size of the rolling window (number of interaction groups). Use 0 for full history.
 - `/context show`: Display the exact assembled context that will be sent to the LLM.
-
-- `/context drop`: Hides all conversation history from the context window (sets window to -1). Non-destructive.
-
-- `/context build <N>`: Restores the context window to the last N groups.
-
+- `/context rebuild`: Rebuilds the session state (---STATE--- anchor) from the current context window history. Use this if the state becomes corrupted or out of sync.
 - `/message remove <GID>`: Permanently **deletes** a specific message group from the database.
-
-
-
-

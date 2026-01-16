@@ -38,29 +38,30 @@ void ShowHelp() {
             << "  Use --helpfull to see all available command-line flags.\n\n"
             << "Slash Commands:\n"
             << "  /message list [N]      List last N messages\n"
-            << "  /message view <GID>    View full content of a group\n"
+            << "  /message show <GID>    View full content of a group\n"
             << "  /message remove <GID>  Delete a message group\n"
-            << "  /context show          Show currently active conversation context\n"
+            << "  /context               Show context status and assembled prompt\n"
             << "  /context window <N>    Set context to a rolling window of last N groups (0 for full)\n"
-            << "  /context drop          Drop all messages in the current session from context\n"
-            << "  /context build [N]     Re-enable the last N groups into context\n"
-            << "  /skill <subcommand>    Manage skills:\n"
-            << "      list                 List all available skills\n"
-            << "      activate <ID|Name>   Set the active skill for the current session\n"
-            << "      deactivate <ID|Name> Disable an active skill\n"
-            << "      add                  Create a new skill using your $EDITOR\n"
-            << "      edit <ID|Name>       Modify an existing skill using your $EDITOR\n"
-            << "      view <ID|Name>       Display the details of a skill\n"
-            << "      delete <ID|Name>     Remove a skill from the database\n"
-            << "  /sessions              List all unique session IDs in the DB\n"
-            << "  /switch <ID>           Switch to a different session\n"
+            << "  /context rebuild       Rebuild session state from conversation history\n"
+            << "  /window <N>            Alias for /context window <N>\n"
+            << "  /session               List all unique session IDs in the DB\n"
+            << "  /session <ID>          Switch to a different session\n"
+            << "  /skill list            List all available skills\n"
+            << "  /skill show <ID|Name>  Display the details of a skill\n"
+            << "  /skill activate <ID|Name> Set active skill\n"
+            << "  /skill deactivate <ID|Name> Disable active skill\n"
+            << "  /skill add             Create new skill\n"
+            << "  /skill edit <ID|Name>  Modify existing skill\n"
+            << "  /skill delete <ID|Name> Remove skill\n"
+            << "  /tool list             List available tools\n"
+            << "  /tool show <name>      Show tool details\n"
             << "  /stats /usage          Show session usage statistics\n"
             << "  /schema                Show current database schema\n"
-            << "  /models                List available models from the provider\n"
-            << "  /model <name>          Change the active model\n"
-            << "  /throttle [N]          Set or show request throttle (seconds) for agentic loops\n"
-            << "  /exec <command>        Execute a shell command and pipe through a pager\n"
-            << "  /edit                  Open the last input in your EDITOR\n"
+            << "  /models                List available models\n"
+            << "  /model <name>          Change active model\n"
+            << "  /throttle [N]          Set/show request throttle\n"
+            << "  /exec <command>        Execute shell command\n"
+            << "  /edit                  Open last input in EDITOR\n"
             << "  /exit /quit            Exit the program\n"
             << std::endl;
 }
@@ -284,9 +285,6 @@ int main(int argc, char** argv) {
           std::cout << "[Tool Result]: " << (display_res.size() > 500 ? display_res.substr(0, 500) + "..." : display_res) << "\n" << std::endl;
           
           std::string logged_res = display_res;
-          if (logged_res.size() > 512) {
-              logged_res = logged_res.substr(0, 512) + "\n... [Tool result truncated to 512 chars for database and context efficiency] ...";
-          }
 
           if (provider == slop::Orchestrator::Provider::GEMINI) {
               nlohmann::json tool_msg = {

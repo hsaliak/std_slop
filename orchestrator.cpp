@@ -7,6 +7,7 @@
 #include <sstream>
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/substitute.h"
 
 #ifdef HAVE_SYSTEM_PROMPT_H
 #include "system_prompt_data.h"
@@ -18,6 +19,43 @@ Orchestrator::Orchestrator(Database* db, HttpClient* http_client)
     : db_(db), http_client_(http_client), throttle_(0) {}
 
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills) {
+  // 1. Check for 'Dropped' context state
+  auto settings_or = db_->GetContextSettings(session_id);
+  if (!settings_or.ok()) return settings_or.status();
+  if (settings_or->size == -1) {
+      last_selected_groups_.clear();
+      return nlohmann::json({{"contents", nlohmann::json::array()}});
+  }
+
+  // 2. Fetch and window conversation history
+  auto history_or = GetRelevantHistory(session_id, settings_or->size);
+  if (!history_or.ok()) return history_or.status();
+  
+  // 3. Assemble top-level system instructions (character, tools, state)
+  std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
+
+  // 4. Format for specific provider
+  if (provider_ == Provider::GEMINI) {
+      auto payload = FormatGeminiPayload(system_instruction, *history_or);
+      
+      // Handle GCA wrapping if enabled
+      if (gca_mode_) {
+          nlohmann::json wrapped;
+          wrapped["model"] = model_;
+          wrapped["project"] = project_id_;
+          wrapped["user_prompt_id"] = std::to_string(absl::GetCurrentTimeNanos());
+          nlohmann::json inner_request = payload;
+          inner_request["session_id"] = session_id;
+          wrapped["request"] = inner_request;
+          return wrapped;
+      }
+      return payload;
+  } else {
+      return FormatOpenAIPayload(system_instruction, *history_or);
+  }
+}
+
+std::string Orchestrator::BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills) {
   const char* kHistoryInstructions = R"(
 ---CONVERSATION HISTORY GUIDELINES---
 1. The following messages are sequential and chronological.
@@ -30,48 +68,6 @@ Resolved: [List of things finished this session]
 Technical Anchors: [Ports, IPs, constant values]
 ---END STATE---
 )";
-
-  auto settings_or = db_->GetContextSettings(session_id);
-  if (!settings_or.ok()) return settings_or.status();
-  
-  if (settings_or->size == -1) {
-      last_selected_groups_.clear();
-      return nlohmann::json({{"contents", nlohmann::json::array()}});
-  }
-
-  auto hist_or = db_->GetConversationHistory(session_id, false);
-  if (!hist_or.ok()) return hist_or.status();
-  std::vector<Database::Message> history = std::move(*hist_or);
-
-  if (settings_or->size > 0 && !history.empty()) {
-      // Identify all distinct group_ids in reverse order to find the last N groups
-      std::vector<std::string> chron_groups;
-      std::set<std::string> seen;
-      for (auto it = history.rbegin(); it != history.rend(); ++it) {
-          if (seen.find(it->group_id) == seen.end()) {
-              chron_groups.push_back(it->group_id);
-              seen.insert(it->group_id);
-          }
-      }
-      
-      size_t limit = static_cast<size_t>(settings_or->size);
-      if (chron_groups.size() > limit) {
-          std::set<std::string> keep_groups;
-          for (size_t i = 0; i < limit; ++i) keep_groups.insert(chron_groups[i]);
-          
-          std::vector<Database::Message> filtered;
-          for (const auto& m : history) {
-              if (keep_groups.count(m.group_id)) {
-                  filtered.push_back(m);
-              }
-          }
-          history = std::move(filtered);
-      }
-  }
-
-  std::set<std::string> groups;
-  for (const auto& m : history) groups.insert(m.group_id);
-  last_selected_groups_ = std::vector<std::string>(groups.begin(), groups.end());
 
   std::string system_instruction;
 #ifdef HAVE_SYSTEM_PROMPT_H
@@ -97,7 +93,7 @@ Technical Anchors: [Ports, IPs, constant values]
 
   if (!system_instruction.empty() && system_instruction.back() != '\n') system_instruction += "\n";
 
-  // Inject Available Tools
+  // Inject Available Tools (for character awareness, even if function declarations exist)
   auto tools_or = db_->GetEnabledTools();
   if (tools_or.ok() && !tools_or->empty()) {
       system_instruction += "\n---AVAILABLE TOOLS---\n";
@@ -132,109 +128,179 @@ Technical Anchors: [Ports, IPs, constant values]
       system_instruction += *state_or + "\n";
   }
 
-  auto truncate_tool_result = [&](const std::string& content) -> std::string {
-      if (content.size() > 512) {
-          return content.substr(0, 512) + "\n... [Tool result truncated for context efficiency] ...";
-      }
-      return content;
-  };
+  return system_instruction;
+}
 
+absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(const std::string& session_id, int window_size) {
+  auto hist_or = db_->GetConversationHistory(session_id, false);
+  if (!hist_or.ok()) return hist_or.status();
+  std::vector<Database::Message> history = std::move(*hist_or);
+
+  if (window_size > 0 && !history.empty()) {
+      // Find the last N distinct group_ids
+      std::vector<std::string> chron_groups;
+      std::set<std::string> seen;
+      for (auto it = history.rbegin(); it != history.rend(); ++it) {
+          if (seen.find(it->group_id) == seen.end()) {
+              chron_groups.push_back(it->group_id);
+              seen.insert(it->group_id);
+          }
+      }
+      
+      size_t limit = static_cast<size_t>(window_size);
+      if (chron_groups.size() > limit) {
+          std::set<std::string> keep_groups;
+          for (size_t i = 0; i < limit; ++i) keep_groups.insert(chron_groups[i]);
+          
+          std::vector<Database::Message> filtered;
+          for (const auto& m : history) {
+              if (keep_groups.count(m.group_id)) filtered.push_back(m);
+          }
+          history = std::move(filtered);
+      }
+  }
+
+  // Update selection tracking for UI/Debug purposes
+  std::set<std::string> group_ids;
+  for (const auto& m : history) group_ids.insert(m.group_id);
+  last_selected_groups_ = std::vector<std::string>(group_ids.begin(), group_ids.end());
+
+  return history;
+}
+
+std::string Orchestrator::SmarterTruncate(const std::string& content, size_t limit) {
+    if (content.size() <= limit) return content;
+    
+    std::string truncated = content.substr(0, limit);
+    std::string metadata = absl::Substitute(
+        "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...",
+        limit, content.size());
+    return truncated + metadata;
+}
+
+// Gemini API uses a "contents" array where each entry has a "role" and an array of "parts".
+// Strict requirements:
+// 1. Roles must be 'user' or 'model'.
+// 2. Consecutive turns with the same role are FORBIDDEN (must be merged into parts).
+// 3. Tool results use the role 'function' and must follow a 'model' turn.
+// 4. System instructions are sent in a separate top-level object.
+nlohmann::json Orchestrator::FormatGeminiPayload(const std::string& system_instruction, const std::vector<Database::Message>& history) {
   nlohmann::json payload;
-  if (provider_ == Provider::GEMINI) {
-      nlohmann::json contents = nlohmann::json::array();
-      for (size_t i = 0; i < history.size(); ++i) {
-          const auto& msg = history[i];
-          std::string display_content = msg.content;
-          if (i == 0) {
-              display_content = "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
-          }
-          if (i == history.size() - 1 && msg.role == "user" && i > 0) {
-              display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
-          }
-          if (msg.role == "system") { system_instruction += msg.content + "\n"; continue; }
-          std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
-          nlohmann::json part;
-          auto j = nlohmann::json::parse(msg.content, nullptr, false);
-          
-          if (!j.is_discarded() && j.contains("functionResponse")) {
-              std::string truncated = truncate_tool_result(j["functionResponse"]["response"]["content"].get<std::string>());
-              j["functionResponse"]["response"]["content"] = truncated;
-              part = j;
-          }
-          else if (!j.is_discarded() && j.contains("functionCall")) part = j;
-          else part = {{"text", display_content}};
+  nlohmann::json contents = nlohmann::json::array();
+  
+  for (size_t i = 0; i < history.size(); ++i) {
+      const auto& msg = history[i];
+      std::string display_content = msg.content;
 
-          if (!contents.empty() && contents.back()["role"] == role) contents.back()["parts"].push_back(part);
-          else contents.push_back({{"role", role}, {"parts", {part}}});
+      // Add structural markers to the very first message and the current request
+      if (i == 0) display_content = "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
+      if (i == history.size() - 1 && msg.role == "user" && i > 0) {
+          display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
       }
-      nlohmann::json valid_contents = nlohmann::json::array();
-      for (const auto& c : contents) {
-          if (c["role"] == "function" && (valid_contents.empty() || valid_contents.back()["role"] != "model")) continue;
-          valid_contents.push_back(c);
-      }
-      payload["contents"] = valid_contents;
-      if (!system_instruction.empty()) payload["system_instruction"] = {{"parts", {{{"text", system_instruction}}}}};
+
+      // Skip system messages in the history block (they were moved to system_instruction)
+      if (msg.role == "system") continue; 
+
+      std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
+      nlohmann::json part;
+      auto j = nlohmann::json::parse(msg.content, nullptr, false);
       
-      nlohmann::json f_decls = nlohmann::json::array();
-      if (tools_or.ok()) {
-          for (const auto& t : *tools_or) {
-              auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
-              if (!schema.is_discarded()) f_decls.push_back({{"name", t.name}, {"description", t.description}, {"parameters", schema}});
+      // Handle Tool Response Truncation
+      if (!j.is_discarded() && j.contains("functionResponse")) {
+          std::string raw_content = j["functionResponse"]["response"]["content"].get<std::string>();
+          j["functionResponse"]["response"]["content"] = SmarterTruncate(raw_content, kMaxToolResultContext);
+          part = j;
+      }
+      else if (!j.is_discarded() && j.contains("functionCall")) part = j;
+      else part = {{"text", display_content}};
+
+      // Group consecutive messages with same role (Gemini requirement)
+      if (!contents.empty() && contents.back()["role"] == role) contents.back()["parts"].push_back(part);
+      else contents.push_back({{"role", role}, {"parts", {part}}});
+  }
+
+  // Filter out any trailing function turns that don't have a preceding model turn (Gemini requirement)
+  nlohmann::json valid_contents = nlohmann::json::array();
+  for (const auto& c : contents) {
+      if (c["role"] == "function" && (valid_contents.empty() || valid_contents.back()["role"] != "model")) continue;
+      valid_contents.push_back(c);
+  }
+
+  payload["contents"] = valid_contents;
+  if (!system_instruction.empty()) payload["system_instruction"] = {{"parts", {{{"text", system_instruction}}}}};
+  
+  // Inject function declarations
+  nlohmann::json f_decls = nlohmann::json::array();
+  auto tools_or = db_->GetEnabledTools();
+  if (tools_or.ok()) {
+      for (const auto& t : *tools_or) {
+          auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
+          if (!schema.is_discarded()) f_decls.push_back({{"name", t.name}, {"description", t.description}, {"parameters", schema}});
+      }
+  }
+  if (!f_decls.empty()) payload["tools"] = {{{"function_declarations", f_decls}}};
+  
+  return payload;
+}
+
+// OpenAI API uses a flat "messages" array.
+// Characteritics:
+// 1. Roles are 'system', 'user', 'assistant', and 'tool'.
+// 2. Tool results must include a 'tool_call_id'.
+// 3. System instruction is simply the first message in the array.
+nlohmann::json Orchestrator::FormatOpenAIPayload(const std::string& system_instruction, const std::vector<Database::Message>& history) {
+  nlohmann::json messages = nlohmann::json::array();
+  if (!system_instruction.empty()) messages.push_back({{"role", "system"}, {"content", system_instruction}});
+
+  for (size_t i = 0; i < history.size(); ++i) {
+      const auto& msg = history[i];
+      std::string display_content = msg.content;
+
+      if (i == 0) display_content = "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
+      if (i == history.size() - 1 && msg.role == "user" && i > 0) {
+          display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
+      }
+
+      if (msg.role == "system") continue;
+
+      nlohmann::json msg_obj = {{"role", msg.role}};
+      auto j = nlohmann::json::parse(msg.content, nullptr, false);
+      if (!j.is_discarded()) {
+          if (j.contains("tool_calls")) {
+              msg_obj["tool_calls"] = j["tool_calls"];
+              msg_obj["content"] = nullptr;
+          }
+          else if (msg.role == "tool" && j.contains("content")) { 
+              msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
+              msg_obj["content"] = SmarterTruncate(j["content"].get<std::string>(), kMaxToolResultContext);
+          }
+          else msg_obj["content"] = display_content;
+      } else msg_obj["content"] = display_content;
+
+      // OpenAI Merge User Turns
+      if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") {
+          messages.back()["content"] = messages.back()["content"].get<std::string>() + "\n" + msg_obj["content"].get<std::string>();
+      } else {
+          messages.push_back(msg_obj);
+      }
+  }
+
+  nlohmann::json payload = {{"model", model_}, {"messages", messages}};
+  
+  nlohmann::json tools = nlohmann::json::array();
+  auto tools_or = db_->GetEnabledTools();
+  if (tools_or.ok()) {
+      for (const auto& t : *tools_or) {
+          auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
+          if (!schema.is_discarded()) {
+              tools.push_back({{"type", "function"}, {"function", {{"name", t.name}, {"description", t.description}, {"parameters", schema}}}});
           }
       }
-      if (!f_decls.empty()) payload["tools"] = {{{"function_declarations", f_decls}}};
-  } else {
-      nlohmann::json messages = nlohmann::json::array();
-      if (!system_instruction.empty()) messages.push_back({{"role", "system"}, {"content", system_instruction}});
-      for (size_t i = 0; i < history.size(); ++i) {
-          const auto& msg = history[i];
-          std::string display_content = msg.content;
-          if (i == 0) {
-              display_content = "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
-          }
-          if (i == history.size() - 1 && msg.role == "user" && i > 0) {
-              display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
-          }
-          if (msg.role == "system") { messages.push_back({{"role", "system"}, {"content", msg.content}}); continue; }
-          nlohmann::json msg_obj = {{"role", msg.role}};
-          auto j = nlohmann::json::parse(msg.content, nullptr, false);
-          if (!j.is_discarded()) {
-              if (j.contains("tool_calls")) { msg_obj["tool_calls"] = j["tool_calls"]; msg_obj["content"] = nullptr; }
-              else if (msg.role == "tool" && j.contains("content")) { 
-                  msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
-                  msg_obj["content"] = truncate_tool_result(j["content"].get<std::string>());
-              }
-              else msg_obj["content"] = display_content;
-          } else msg_obj["content"] = display_content;
-          if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") messages.back()["content"] = messages.back()["content"].get<std::string>() + "\n" + msg_obj["content"].get<std::string>();
-          else messages.push_back(msg_obj);
-      }
-      payload = {{"model", model_}, {"messages", messages}};
-      
-      nlohmann::json tools = nlohmann::json::array();
-      if (tools_or.ok()) {
-          for (const auto& t : *tools_or) {
-              auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
-              if (!schema.is_discarded()) tools.push_back({{"type", "function"}, {"function", {{"name", t.name}, {"description", t.description}, {"parameters", schema}}}});
-          }
-      }
-      if (!tools.empty()) payload["tools"] = tools;
-    }
-          
-            if (gca_mode_ && provider_ == Provider::GEMINI) {
-              nlohmann::json wrapped;
-              wrapped["model"] = model_;
-              wrapped["project"] = project_id_;
-              wrapped["user_prompt_id"] = std::to_string(absl::GetCurrentTimeNanos());
-              
-              nlohmann::json inner_request = payload;
-              inner_request["session_id"] = session_id;
-              wrapped["request"] = inner_request;
-              return wrapped;
-            }
-          
-            return payload;
-          }
+  }
+  if (!tools.empty()) payload["tools"] = tools;
+  
+  return payload;
+}
 
 
 absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::string& api_key) {
@@ -405,4 +471,30 @@ int Orchestrator::CountTokens(const nlohmann::json& prompt) {
     return prompt.dump().length() / 4;
 }
 
+
+absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
+  auto settings_or = db_->GetContextSettings(session_id);
+  if (!settings_or.ok()) return settings_or.status();
+  
+  auto history_or = GetRelevantHistory(session_id, settings_or->size);
+  if (!history_or.ok()) return history_or.status();
+  
+  const auto& history = *history_or;
+  for (auto it = history.rbegin(); it != history.rend(); ++it) {
+      if (it->role == "assistant" || it->role == "model") {
+          size_t start_pos = it->content.find("---STATE---");
+          if (start_pos != std::string::npos) {
+              size_t end_pos = it->content.find("---END STATE---", start_pos);
+              std::string state_blob;
+              if (end_pos != std::string::npos) {
+                  state_blob = it->content.substr(start_pos, end_pos - start_pos + 15);
+              } else {
+                  state_blob = it->content.substr(start_pos);
+              }
+              return db_->SetSessionState(session_id, state_blob);
+          }
+      }
+  }
+  return absl::NotFoundError("No state block found in current context window.");
+}
 }  // namespace slop

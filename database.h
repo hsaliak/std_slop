@@ -84,7 +84,9 @@ class Database {
 
   // Context Settings
   absl::Status SetContextWindow(const std::string& session_id, int size);
-  struct ContextSettings { int size; };
+  struct ContextSettings { 
+      int size;
+  };
   absl::StatusOr<ContextSettings> GetContextSettings(const std::string& session_id);
 
   // Session State Management

@@ -15,10 +15,12 @@ TEST(ToolExecutorTest, ReadWriteFile) {
     
     auto write_res = executor.Execute("write_file", {{"path", test_file}, {"content", content}});
     ASSERT_TRUE(write_res.ok());
+    EXPECT_TRUE(write_res->find("---TOOL_RESULT: write_file---") != std::string::npos);
     
     auto read_res = executor.Execute("read_file", {{"path", test_file}});
     ASSERT_TRUE(read_res.ok());
-    EXPECT_EQ(*read_res, "1: " + content + "\n");
+    EXPECT_TRUE(read_res->find("---TOOL_RESULT: read_file---") != std::string::npos);
+    EXPECT_TRUE(read_res->find("1: " + content) != std::string::npos);
     
     std::filesystem::remove(test_file);
 }
@@ -30,7 +32,8 @@ TEST(ToolExecutorTest, ExecuteBash) {
     
     auto res = executor.Execute("execute_bash", {{"command", "echo 'slop'"}});
     ASSERT_TRUE(res.ok());
-    EXPECT_EQ(*res, "slop\n");
+    EXPECT_TRUE(res->find("---TOOL_RESULT: execute_bash---") != std::string::npos);
+    EXPECT_TRUE(res->find("slop") != std::string::npos);
 }
 
 TEST(ToolExecutorTest, ToolNotFound) {

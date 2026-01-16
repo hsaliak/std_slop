@@ -29,7 +29,7 @@ TEST_F(InputParsingTest, SquareBracesInNormalInput) {
 TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
     CommandHandler handler(&db, nullptr, nullptr, "", "");
     // Many commands just take the rest of the line as args
-    std::string input = "/switch session[1]";
+    std::string input = "/session session[1]";
     auto result = handler.Handle(input, session_id, active_skills, [](){}, {});
     
     EXPECT_EQ(result, CommandHandler::Result::HANDLED);
@@ -39,7 +39,7 @@ TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
 TEST_F(InputParsingTest, SingleQuotesInCommandArgs) {
     CommandHandler handler(&db, nullptr, nullptr, "", "");
     // This tests if the manual SQL construction fails or is vulnerable
-    std::string input = "/switch session' OR '1'='1";
+    std::string input = "/session session' OR '1'='1";
     auto result = handler.Handle(input, session_id, active_skills, [](){}, {});
     
     EXPECT_EQ(result, CommandHandler::Result::HANDLED);
