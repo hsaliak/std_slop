@@ -17,4 +17,19 @@ TEST(HttpClientTest, GetError) {
     EXPECT_FALSE(res.ok());
 }
 
+TEST(HttpClientTest, HttpsSupport) {
+    // Check if libcurl has SSL support enabled
+    curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
+    ASSERT_NE(info, nullptr);
+    EXPECT_TRUE(info->features & CURL_VERSION_SSL) << "libcurl was built without SSL support";
+
+    HttpClient client;
+    auto res = client.Get("https://www.google.com", {});
+    // If protocol is unsupported, it will return an InternalError with "Unsupported protocol"
+    if (!res.ok()) {
+        EXPECT_FALSE(res.status().message().find("Unsupported protocol") != std::string::npos) 
+            << "HTTPS protocol is not supported in the current libcurl build: " << res.status().message();
+    }
+}
+
 }  // namespace slop
