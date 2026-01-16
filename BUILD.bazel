@@ -106,6 +106,7 @@ cc_binary(
         "ui_test",
         "oauth_handler_test",
         "input_parsing_test",
+        "system_info_test",
     ]
 ]
 

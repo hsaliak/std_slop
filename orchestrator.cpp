@@ -80,7 +80,7 @@ Technical Anchors: [Ports, IPs, constant values]
       std::string line;
       bool in_patch = false;
       while (std::getline(ss, line)) {
-          if (absl::StartsWith(line, "#patch:")) {
+          if (absl::StartsWith(line, "#patch:") || absl::StartsWith(line, "#purpose:")) {
               in_patch = true;
               continue;
           }
