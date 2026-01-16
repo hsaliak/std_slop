@@ -2,4 +2,6 @@
 build --cxxopt=-std=c++17
 build --features=-use_header_modules
 build --macos_minimum_os=10.15
+build --@curl//:http_only=False
+build --@curl//:use_mbedtls=True
 test --test_output=errors
