@@ -22,22 +22,11 @@ bazel run //:std_slop
 ```
 If no API keys are found, the CLI defaults to Google OAuth. It automatically discovers your project ID using the authoritative `loadCodeAssist` endpoint.
 
-### Authentication
-To authenticate, run the unified script:
+To authenticate, run the provided script:
 ```bash
-./slop_auth.sh [gemini|antigravity]
+./slop_auth.sh
 ```
-The script will provide a URL for you to visit. After authorizing, paste the **full redirect URL** back into the script.
-
-#### Standard Gemini OAuth
-1. Run `./slop_auth.sh gemini`
-2. Run the app: `bazel run //:std_slop`
-
-#### Antigravity (Internal GCA) OAuth
-To use internal Google Code Assist features and preview models:
-1. Run `./slop_auth.sh antigravity`
-2. Run the app with the flag: `bazel run //:std_slop -- --antigravity`
-   * In this mode, the app uses the internal endpoint and enables GCA-specific payload wrapping.
+The script will provide a URL for you to visit. After authorizing, paste the **full redirect URL** back into the script, and it will automatically extract the tokens and save them to `~/.config/slop/token.json`.
 
 
 ### For OpenAI:
@@ -75,7 +64,7 @@ If no session name is provided, it defaults to `default_session`.
 - `/message show <GID>`: View the full content (including tool calls/responses) of a specific group.
 - `/message remove <GID>`: Hard delete a specific message group from history.
 - `/undo`: Delete the very last interaction group and rebuild the session context.
-- `/edit`: Open your last input in your system `$EDITOR` (e.g., vim, nano) and resend it after saving.
+- `/edit`: Open your last input in your system `$EDITOR` (e.g., vims, nano) and resend it after saving.
 
 ### Context Control
 - `/context`: Show current context settings and the fully assembled prompt that would be sent to the LLM.

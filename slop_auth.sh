@@ -2,26 +2,13 @@
 
 # slop_auth.sh - Unified authentication script for std::slop
 
-MODE=${1:-gemini}
-
-if [ "$MODE" == "antigravity" ]; then
-    CLIENT_ID="1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-    CLIENT_SECRET="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"
-    REDIRECT_URI="http://localhost:51121/oauth-callback"
-    SCOPE="https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cclog https://www.googleapis.com/auth/experimentsandconfigs"
-    TOKEN_FILE="$HOME/.config/slop/antigravity_token.json"
-    DESCRIPTION="ANTIGRAVITY (Internal GCA)"
-elif [ "$MODE" == "gemini" ]; then
-    CLIENT_ID="681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
-    CLIENT_SECRET="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"
-    REDIRECT_URI="http://localhost"
-    SCOPE="https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
-    TOKEN_FILE="$HOME/.config/slop/token.json"
-    DESCRIPTION="Standard Gemini OAuth"
-else
-    echo "Usage: $0 [gemini|antigravity]"
-    exit 1
-fi
+CLIENT_ID="681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+CLIENT_SECRET="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"
+REDIRECT_URI="http://localhost"
+SCOPE="https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
+TOKEN_FILE="$HOME/.config/slop/token.json"
+DESCRIPTION="Standard Gemini OAuth"
+TOKEN_URL="https://oauth2.googleapis.com/token"
 
 TOKEN_DIR=$(dirname "$TOKEN_FILE")
 mkdir -p "$TOKEN_DIR"
@@ -42,11 +29,7 @@ echo ""
 echo "$AUTH_URL"
 echo ""
 echo "1. Authorize the application in your browser."
-if [ "$MODE" == "antigravity" ]; then
-    echo "2. You will be redirected to localhost:51121 (which will fail to load)."
-else
-    echo "2. You will be redirected to localhost (which will fail to load)."
-fi
+echo "2. You will be redirected to localhost (which will fail to load)."
 echo "3. Copy the FULL URL from your browser's address bar and paste it below."
 echo ""
 read -p "Enter redirect URL: " URL
@@ -61,7 +44,7 @@ fi
 
 echo "Exchanging code for tokens..."
 
-RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
+RESPONSE=$(curl -s -X POST $TOKEN_URL \
     -d "code=$CODE" \
     -d "client_id=$CLIENT_ID" \
     -d "client_secret=$CLIENT_SECRET" \

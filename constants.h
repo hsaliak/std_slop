@@ -11,6 +11,11 @@ constexpr char kCloudResourceManagerBaseUrl[] = "https://cloudresourcemanager.go
 constexpr char kServiceUsageBaseUrl[] = "https://serviceusage.googleapis.com/v1";
 constexpr char kGoogleOAuthTokenUrl[] = "https://oauth2.googleapis.com/token";
 
+// GCA / Antigravity Headers
+constexpr char kGcaUserAgent[] = "antigravity/1.11.5 darwin/arm64";
+constexpr char kGcaApiClient[] = "google-cloud-sdk vscode_cloudshelleditor/0.1";
+constexpr char kGcaClientMetadata[] = "{\"ideType\":\"IDE_UNSPECIFIED\",\"platform\":\"PLATFORM_UNSPECIFIED\",\"pluginType\":\"GEMINI\"}";
+
 // OpenAI Endpoints
 constexpr char kOpenAIBaseUrl[] = "https://api.openai.com/v1";
 

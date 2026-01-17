@@ -9,11 +9,6 @@
 
 namespace slop {
 
-enum class OAuthMode {
-  GEMINI,
-  ANTIGRAVITY
-};
-
 struct OAuthTokens {
   std::string access_token;
   std::string refresh_token;
@@ -23,7 +18,7 @@ struct OAuthTokens {
 
 class OAuthHandler {
  public:
-  explicit OAuthHandler(HttpClient* http_client, OAuthMode mode = OAuthMode::GEMINI);
+  explicit OAuthHandler(HttpClient* http_client);
 
   absl::StatusOr<std::string> GetValidToken();
   absl::StatusOr<std::string> GetProjectId();
@@ -34,7 +29,6 @@ class OAuthHandler {
   void SetEnabled(bool enabled) { enabled_ = enabled; }
   
   std::string GetTokenPath() const { return token_path_; }
-  OAuthMode GetMode() const { return mode_; }
 
  protected:
   std::string token_path_;
@@ -50,7 +44,6 @@ class OAuthHandler {
   OAuthTokens tokens_;
   bool enabled_ = false;
   std::string manual_project_id_;
-  OAuthMode mode_;
 };
 
 } // namespace slop
