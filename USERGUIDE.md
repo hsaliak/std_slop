@@ -45,7 +45,6 @@ If no session name is provided, it defaults to `default_session`.
 
 - **Session**: A isolated conversation history with its own settings and token usage tracking.
 - **Group (GID)**: Every interaction (user prompt + assistant response + tool executions) is grouped under a unique `group_id`. This allows for atomic operations like `/undo`.
-- `/commit-vibe`: Create a git commit where the message includes the last Vibe ID, the original prompt, and the current `---STATE---` blob.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
