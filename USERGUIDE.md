@@ -122,6 +122,16 @@ Skills are system prompt patches that define a persona or set of constraints (e.
 - `/skill activate <name|id>`: Enable a skill for the current session.
 - `/skill deactivate <name|id>`: Disable a skill for the current session.
 
+You can typically prompt the LLM to create a skill for you. For example, you could create a skill to write code suited for this project with the following prompt:
+
+> "Add a skill c++_expert based on the C++ guidance in README.md and add it to slop.db as a skill."
+
+The LLM will then introspect the README, `slop.db`, its schema, and inject the skill. You can then view the skill and activate it for subsequent prompting.
+
+A useful skill to add is that of a **Planner**. A planner suggests an implementation plan for a task step-by-step without writing code. Once you have such a skill, you can activate it before a task, iterate on the plan, and then deactivate it (or switch to a coding-specific skill) to carry out the changes.
+
+Finally, you can export these skills through database introspection into the format of your choice, and import them.
+
 ---
 
 ## Tool Execution
