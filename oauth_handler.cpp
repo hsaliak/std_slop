@@ -1,4 +1,7 @@
 #include "oauth_handler.h"
+#include "constants.h"
+
+#include <netinet/in.h>
 
 #include <fstream>
 #include <iostream>
@@ -6,6 +9,7 @@
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include <nlohmann/json.hpp>
 
@@ -100,7 +104,7 @@ absl::Status OAuthHandler::RefreshToken() {
   std::string client_id = (mode_ == OAuthMode::ANTIGRAVITY) ? kAntigravityClientId : kGeminiClientId;
   std::string client_secret = (mode_ == OAuthMode::ANTIGRAVITY) ? kAntigravityClientSecret : kGeminiClientSecret;
 
-  std::string token_url = "https://oauth2.googleapis.com/token";
+  std::string token_url = kGoogleOAuthTokenUrl;
   std::string body = "refresh_token=" + tokens_.refresh_token +
                      "&client_id=" + client_id +
                      "&client_secret=" + client_secret +
@@ -153,8 +157,8 @@ std::string OAuthHandler::GetGcpProjectFromGcloud() {
 absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& access_token) {
   // 1. Try loadCodeAssist (the authoritative way for GCA / Managed Project)
   std::string base_discovery_url = (mode_ == OAuthMode::ANTIGRAVITY) 
-      ? "https://daily-cloudcode-pa.sandbox.googleapis.com"
-      : "https://cloudcode-pa.googleapis.com";
+      ? kCloudCodeSandboxBaseUrl
+      : kCloudCodeBaseUrl;
   std::string gca_url = base_discovery_url + "/v1internal:loadCodeAssist";
   
   // GCA identification headers
@@ -209,7 +213,7 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
   if (!gcloud_project.empty()) return gcloud_project;
 
   // 5. Fallback to listing projects
-  std::string url = "https://cloudresourcemanager.googleapis.com/v1/projects";
+  std::string url = absl::StrCat(kCloudResourceManagerBaseUrl, "/projects");
   auto res = http_client_->Get(url, {"Authorization: Bearer " + access_token});
   if (res.ok()) {
     auto j = nlohmann::json::parse(*res, nullptr, false);
@@ -230,7 +234,7 @@ absl::Status OAuthHandler::ProvisionProject() {
   if (!token_res.ok()) return token_res.status();
   std::string token = *token_res;
 
-  std::string enable_url = "https://serviceusage.googleapis.com/v1/projects/" + project_id + "/services/generativelanguage.googleapis.com:enable";
+  std::string enable_url = absl::StrCat(kServiceUsageBaseUrl, "/projects/", project_id, "/services/generativelanguage.googleapis.com:enable");
   (void)http_client_->Post(enable_url, "", {"Authorization: Bearer " + token});
   
   return absl::OkStatus();

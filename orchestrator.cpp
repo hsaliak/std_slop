@@ -1,4 +1,5 @@
 #include "orchestrator.h"
+#include "constants.h"
 #include <iostream>
 #include <map>
 #include <algorithm>
@@ -316,14 +317,14 @@ absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::stri
             // For public Gemini API, if we have an OAuth token (starts with ya29 or similar), 
             // use Authorization header. If it's a short key, use query param.
             if (!api_key.empty() && api_key.length() > 50) {
-                url = "https://generativelanguage.googleapis.com/v1beta/models";
+                url = absl::StrCat(kPublicGeminiBaseUrl, "/models");
                 headers.push_back("Authorization: Bearer " + api_key);
             } else {
-                url = "https://generativelanguage.googleapis.com/v1beta/models?key=" + api_key;
+                url = absl::StrCat(kPublicGeminiBaseUrl, "/models?key=", api_key);
             }
         }
     } else {
-        url = "https://api.openai.com/v1/models";
+        url = absl::StrCat(kOpenAIBaseUrl, "/models");
         headers.push_back("Authorization: Bearer " + api_key);
     }
 

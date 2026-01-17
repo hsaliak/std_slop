@@ -12,6 +12,7 @@
 #include "command_handler.h"
 #include "ui.h"
 #include "oauth_handler.h"
+#include "constants.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/match.h"
@@ -129,22 +130,22 @@ int main(int argc, char** argv) {
   if (antigravity) {
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-3-flash-preview");
-    base_url = "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal";
+    base_url = absl::StrCat(slop::kCloudCodeSandboxBaseUrl, "/v1internal");
     orchestrator.SetGcaMode(true);
   } else if (google_auth) {
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-2.0-flash");
-    base_url = "https://cloudcode-pa.googleapis.com/v1internal";
+    base_url = absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal");
     orchestrator.SetGcaMode(true);
   } else if (!openai_key.empty()) {
     provider = slop::Orchestrator::Provider::OPENAI;
     orchestrator.SetModel(!model.empty() ? model : "gpt-4o");
-    base_url = !openai_base_url.empty() ? openai_base_url : "https://api.openai.com/v1";
+    base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
     headers.push_back("Authorization: Bearer " + openai_key);
   } else {
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-2.0-flash");
-    base_url = "https://generativelanguage.googleapis.com/v1beta";
+    base_url = slop::kPublicGeminiBaseUrl;
   }
   orchestrator.SetProvider(provider);
   orchestrator.SetBaseUrl(base_url);
