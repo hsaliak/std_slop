@@ -12,8 +12,13 @@
 namespace slop {
 
 namespace {
-const char* kClientId = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
-const char* kClientSecret = "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"; 
+// Gemini Public
+const char* kGeminiClientId = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
+const char* kGeminiClientSecret = "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"; 
+
+// Antigravity Internal
+const char* kAntigravityClientId = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
+const char* kAntigravityClientSecret = "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";
 
 std::string GetHomeDir() {
   const char* home = std::getenv("HOME");
@@ -21,17 +26,22 @@ std::string GetHomeDir() {
 }
 } // namespace
 
-OAuthHandler::OAuthHandler(HttpClient* http_client) : http_client_(http_client) {
+OAuthHandler::OAuthHandler(HttpClient* http_client, OAuthMode mode) 
+    : http_client_(http_client), mode_(mode) {
   std::string home = GetHomeDir();
   if (!home.empty()) {
-    token_path_ = home + "/.config/slop/token.json";
+    std::string filename = (mode == OAuthMode::ANTIGRAVITY) ? "antigravity_token.json" : "token.json";
+    token_path_ = home + "/.config/slop/" + filename;
   }
 }
 
 absl::Status OAuthHandler::LoadTokens() {
   if (token_path_.empty()) return absl::NotFoundError("No home directory found");
   std::ifstream f(token_path_);
-  if (!f.is_open()) return absl::NotFoundError("Token file not found. Please run ./gemini_auth.sh");
+  if (!f.is_open()) {
+      std::string script = (mode_ == OAuthMode::ANTIGRAVITY) ? "./antigravity_auth.sh" : "./gemini_auth.sh";
+      return absl::NotFoundError("Token file not found. Please run " + script);
+  }
   
   std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   auto j = nlohmann::json::parse(content, nullptr, false);
@@ -83,18 +93,23 @@ absl::StatusOr<std::string> OAuthHandler::GetValidToken() {
 
 absl::Status OAuthHandler::RefreshToken() {
   if (tokens_.refresh_token.empty()) {
-    return absl::UnauthenticatedError("No refresh token available. Please run ./gemini_auth.sh");
+      std::string script = (mode_ == OAuthMode::ANTIGRAVITY) ? "./antigravity_auth.sh" : "./gemini_auth.sh";
+      return absl::UnauthenticatedError("No refresh token available. Please run " + script);
   }
+
+  std::string client_id = (mode_ == OAuthMode::ANTIGRAVITY) ? kAntigravityClientId : kGeminiClientId;
+  std::string client_secret = (mode_ == OAuthMode::ANTIGRAVITY) ? kAntigravityClientSecret : kGeminiClientSecret;
 
   std::string token_url = "https://oauth2.googleapis.com/token";
   std::string body = "refresh_token=" + tokens_.refresh_token +
-                     "&client_id=" + std::string(kClientId) +
-                     "&client_secret=" + std::string(kClientSecret) +
+                     "&client_id=" + client_id +
+                     "&client_secret=" + client_secret +
                      "&grant_type=refresh_token";
 
   auto res = http_client_->Post(token_url, body, {"Content-Type: application/x-www-form-urlencoded"});
   if (!res.ok()) {
-      return absl::UnauthenticatedError("Token refresh failed. Please run ./gemini_auth.sh");
+      std::string script = (mode_ == OAuthMode::ANTIGRAVITY) ? "./antigravity_auth.sh" : "./gemini_auth.sh";
+      return absl::UnauthenticatedError("Token refresh failed. Please run " + script);
   }
 
   auto j = nlohmann::json::parse(*res, nullptr, false);
@@ -137,11 +152,17 @@ std::string OAuthHandler::GetGcpProjectFromGcloud() {
 
 absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& access_token) {
   // 1. Try loadCodeAssist (the authoritative way for GCA / Managed Project)
-  // We try this first because it may return a managed project ID even if 
-  // GOOGLE_CLOUD_PROJECT is set, which is what the user wants for preview models.
   std::string gca_url = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+  
+  // GCA identification headers
+  std::vector<std::string> headers = {
+      "Authorization: Bearer " + access_token,
+      "Content-Type: application/json",
+      "X-Goog-Api-Client: google-cloud-sdk vscode_cloudshelleditor/0.1",
+      "Client-Metadata: {\"ideType\":\"IDE_UNSPECIFIED\",\"platform\":\"PLATFORM_UNSPECIFIED\",\"pluginType\":\"GEMINI\"}"
+  };
+
   nlohmann::json gca_req = {
-      {"cloudaicompanionProject", nullptr},
       {"metadata", {
           {"ideType", "IDE_UNSPECIFIED"},
           {"platform", "PLATFORM_UNSPECIFIED"},
@@ -149,7 +170,6 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
       }}
   };
   
-  // Also pass current env project if available to help discovery
   const char* env_p = std::getenv("GOOGLE_CLOUD_PROJECT");
   if (!env_p) env_p = std::getenv("GOOGLE_CLOUD_PROJECT_ID");
   if (env_p) {
@@ -157,22 +177,35 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
       gca_req["metadata"]["duetProject"] = env_p;
   }
 
-  auto gca_res = http_client_->Post(gca_url, gca_req.dump(), {"Authorization: Bearer " + access_token});
+  auto gca_res = http_client_->Post(gca_url, gca_req.dump(), headers);
   if (gca_res.ok()) {
     auto j = nlohmann::json::parse(*gca_res, nullptr, false);
     if (!j.is_discarded() && j.contains("cloudaicompanionProject") && !j["cloudaicompanionProject"].is_null()) {
-      return j["cloudaicompanionProject"].get<std::string>();
+      auto& proj = j["cloudaicompanionProject"];
+      if (proj.is_string()) {
+          std::string pid = proj.get<std::string>();
+          if (!pid.empty()) return pid;
+      }
+      if (proj.is_object() && proj.contains("id")) {
+          std::string pid = proj["id"].get<std::string>();
+          if (!pid.empty()) return pid;
+      }
     }
   }
 
-  // 2. Try env var fallback
+  // 2. Fallback for Antigravity mode specifically
+  if (mode_ == OAuthMode::ANTIGRAVITY) {
+      return std::string("rising-fact-p41fc");
+  }
+
+  // 3. Try env var fallback
   if (env_p) return std::string(env_p);
 
-  // 3. Try gcloud config
+  // 4. Try gcloud config
   std::string gcloud_project = GetGcpProjectFromGcloud();
   if (!gcloud_project.empty()) return gcloud_project;
 
-  // 4. Fallback to listing projects
+  // 5. Fallback to listing projects
   std::string url = "https://cloudresourcemanager.googleapis.com/v1/projects";
   auto res = http_client_->Get(url, {"Authorization: Bearer " + access_token});
   if (res.ok()) {

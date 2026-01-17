@@ -22,11 +22,22 @@ bazel run //:std_slop
 ```
 If no API keys are found, the CLI defaults to Google OAuth. It automatically discovers your project ID using the authoritative `loadCodeAssist` endpoint.
 
-To authenticate, run the provided script:
+### Authentication
+To authenticate, run the unified script:
 ```bash
-./gemini_auth.sh
+./slop_auth.sh [gemini|antigravity]
 ```
-The script will provide a URL for you to visit. After authorizing, paste the **full redirect URL** back into the script, and it will automatically extract the tokens and save them to `~/.config/slop/token.json`.
+The script will provide a URL for you to visit. After authorizing, paste the **full redirect URL** back into the script.
+
+#### Standard Gemini OAuth
+1. Run `./slop_auth.sh gemini`
+2. Run the app: `bazel run //:std_slop`
+
+#### Antigravity (Internal GCA) OAuth
+To use internal Google Code Assist features and preview models:
+1. Run `./slop_auth.sh antigravity`
+2. Run the app with the flag: `bazel run //:std_slop -- --antigravity`
+   * In this mode, the app uses the internal endpoint and enables GCA-specific payload wrapping.
 
 
 ### For OpenAI:

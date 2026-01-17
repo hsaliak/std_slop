@@ -24,53 +24,57 @@
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
 ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
+ABSL_FLAG(bool, antigravity, false, "Use Antigravity (Internal GCA) mode and OAuth");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
 ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_MODEL env vars)");
 ABSL_FLAG(std::string, google_api_key, "", "Google API key (overrides GOOGLE_API_KEY env var)");
 ABSL_FLAG(std::string, openai_api_key, "", "OpenAI API key (overrides OPENAI_API_KEY env var)");
 ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL (overrides OPENAI_BASE_URL env var)");
 
+std::string GetHelpText() {
+  return "std::slop - The SQL-backed LLM CLI\n\n"
+         "Usage:\n"
+         "  std_slop [session_id] [options]\n\n"
+         "Options:\n"
+         "  Use --helpfull to see all available command-line flags.\n\n"
+         "Slash Commands:\n"
+         "  /message list [N]      List last N messages\n"
+         "  /message show <GID>    View full content of a group\n"
+         "  /message remove <GID>  Delete a message group\n"
+         "  /undo                  Remove last message and rebuild context\n"
+         "  /commit-vibe           Create a git commit with vibe ID, prompt, and state\n"
+         "  /context               Show context status and assembled prompt\n"
+         "  /context window <N>    Set context to a rolling window of last N groups (0 for full)\n"
+         "  /context rebuild       Rebuild session state from conversation history\n"
+         "  /window <N>            Alias for /context window <N>\n"
+         "  /session               List all unique session names in the DB\n"
+         "  /session <name>        Switch to or create a new session named <name>\n"
+         "  /session remove <name> Delete a session and all its data\n"
+         "  /skill list            List all available skills\n"
+         "  /skill show <ID|Name>  Display the details of a skill\n"
+         "  /skill activate <ID|Name> Set active skill\n"
+         "  /skill deactivate <ID|Name> Disable active skill\n"
+         "  /skill add             Create new skill\n"
+         "  /skill edit <ID|Name>  Modify existing skill\n"
+         "  /skill delete <ID|Name> Remove skill\n"
+         "  /tool list             List available tools\n"
+         "  /tool show <name>      Show tool details\n"
+         "  /stats /usage          Show session usage statistics\n"
+         "  /schema                Show current database schema\n"
+         "  /models                List available models\n"
+         "  /model <name>          Change active model\n"
+         "  /throttle [N]          Set/show request throttle\n"
+         "  /exec <command>        Execute shell command\n"
+         "  /edit                  Open last input in EDITOR\n"
+         "  /exit /quit            Exit the program\n";
+}
+
 void ShowHelp() {
-  std::cout << "std::slop - The SQL-backed LLM CLI\n\n"
-            << "Usage:\n"
-            << "  std_slop [session_id] [options]\n\n"
-            << "Options:\n"
-            << "  Use --helpfull to see all available command-line flags.\n\n"
-            << "Slash Commands:\n"
-            << "  /message list [N]      List last N messages\n"
-            << "  /message show <GID>    View full content of a group\n"
-            << "  /message remove <GID>  Delete a message group\n"
-            << "  /undo                  Remove last message and rebuild context\n"
-            << "  /commit-vibe           Create a git commit with vibe ID, prompt, and state\n"
-            << "  /context               Show context status and assembled prompt\n"
-            << "  /context window <N>    Set context to a rolling window of last N groups (0 for full)\n"
-            << "  /context rebuild       Rebuild session state from conversation history\n"
-            << "  /window <N>            Alias for /context window <N>\n"
-            << "  /session               List all unique session names in the DB\n"
-            << "  /session <name>        Switch to or create a new session named <name>\n"
-            << "  /session remove <name> Delete a session and all its data\n"
-            << "  /skill list            List all available skills\n"
-            << "  /skill show <ID|Name>  Display the details of a skill\n"
-            << "  /skill activate <ID|Name> Set active skill\n"
-            << "  /skill deactivate <ID|Name> Disable active skill\n"
-            << "  /skill add             Create new skill\n"
-            << "  /skill edit <ID|Name>  Modify existing skill\n"
-            << "  /skill delete <ID|Name> Remove skill\n"
-            << "  /tool list             List available tools\n"
-            << "  /tool show <name>      Show tool details\n"
-            << "  /stats /usage          Show session usage statistics\n"
-            << "  /schema                Show current database schema\n"
-            << "  /models                List available models\n"
-            << "  /model <name>          Change active model\n"
-            << "  /throttle [N]          Set/show request throttle\n"
-            << "  /exec <command>        Execute shell command\n"
-            << "  /edit                  Open last input in EDITOR\n"
-            << "  /exit /quit            Exit the program\n"
-            << std::endl;
+  std::cout << GetHelpText() << std::endl;
 }
 
 int main(int argc, char** argv) {
-  absl::SetProgramUsageMessage("std::slop - The SQL-backed LLM CLI\nUsage: std_slop [session_id] [options]");
+  absl::SetProgramUsageMessage(GetHelpText());
   std::vector<char*> positional_args = absl::ParseCommandLine(argc, argv);
 
   std::string session_id = "default_session";
@@ -80,6 +84,7 @@ int main(int argc, char** argv) {
 
   std::string db_path = absl::GetFlag(FLAGS_db);
   bool google_auth = absl::GetFlag(FLAGS_google_oauth);
+  bool antigravity = absl::GetFlag(FLAGS_antigravity);
   std::string manual_project_id = absl::GetFlag(FLAGS_project);
   std::string flag_model = absl::GetFlag(FLAGS_model);
   std::string flag_google_api_key = absl::GetFlag(FLAGS_google_api_key);
@@ -102,7 +107,7 @@ int main(int argc, char** argv) {
       else if (env_openai) model = env_openai;
   }
 
-  if (!google_auth && google_key.empty() && openai_key.empty()) {
+  if (!google_auth && !antigravity && google_key.empty() && openai_key.empty()) {
     google_auth = true;
     std::cout << "No API keys found. Defaulting to Google OAuth mode." << std::endl;
   }
@@ -121,11 +126,15 @@ int main(int argc, char** argv) {
   slop::Orchestrator::Provider provider;
   std::vector<std::string> headers = {"Content-Type: application/json"};
 
-  if (google_auth) {
+  if (antigravity) {
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-3-flash-preview");
     base_url = "https://cloudcode-pa.googleapis.com/v1internal";
     orchestrator.SetGcaMode(true);
+  } else if (google_auth) {
+    provider = slop::Orchestrator::Provider::GEMINI;
+    orchestrator.SetModel(!model.empty() ? model : "gemini-2.0-flash");
+    base_url = "https://generativelanguage.googleapis.com/v1beta";
   } else if (!openai_key.empty()) {
     provider = slop::Orchestrator::Provider::OPENAI;
     orchestrator.SetModel(!model.empty() ? model : "gpt-4o");
@@ -139,15 +148,16 @@ int main(int argc, char** argv) {
   orchestrator.SetProvider(provider);
 
   std::unique_ptr<slop::OAuthHandler> oauth_handler;
-  if (google_auth) {
-    oauth_handler = std::make_unique<slop::OAuthHandler>(&http_client);
+  if (google_auth || antigravity) {
+    slop::OAuthMode oauth_mode = antigravity ? slop::OAuthMode::ANTIGRAVITY : slop::OAuthMode::GEMINI;
+    oauth_handler = std::make_unique<slop::OAuthHandler>(&http_client, oauth_mode);
     if (!manual_project_id.empty()) {
       oauth_handler->SetProjectId(manual_project_id);
     }
     oauth_handler->SetEnabled(true);
     auto token_or = oauth_handler->GetValidToken();
     if (!token_or.ok()) {
-      if (absl::IsUnauthenticated(token_or.status())) {
+      if (absl::IsUnauthenticated(token_or.status()) || absl::IsNotFound(token_or.status())) {
           std::cout << "Google OAuth: " << token_or.status().message() << std::endl;
       } else {
           std::cerr << "OAuth Error: " << token_or.status().message() << std::endl;
@@ -166,7 +176,8 @@ int main(int argc, char** argv) {
   slop::SetupTerminal();
   
   std::cout << "std::slop - Session: " << session_id << " [" << orchestrator.GetModel() << "]" << std::endl;
-  if (google_auth) std::cout << "Mode: Google OAuth" << std::endl;
+  if (antigravity) std::cout << "Mode: Antigravity (Internal GCA)" << std::endl;
+  else if (google_auth) std::cout << "Mode: Google OAuth" << std::endl;
   else if (!openai_key.empty()) std::cout << "Mode: OpenAI" << std::endl;
   else std::cout << "Mode: Google Gemini (API Key)" << std::endl;
   std::cout << "Type /help for commands.\n" << std::endl;
