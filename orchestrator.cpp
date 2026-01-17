@@ -1,3 +1,4 @@
+#include "git_helper.h"
 #include "orchestrator.h"
 #include <iostream>
 #include <map>
@@ -16,7 +17,15 @@
 namespace slop {
 
 Orchestrator::Orchestrator(Database* db, HttpClient* http_client)
-    : db_(db), http_client_(http_client), throttle_(0) {}
+    : db_(db), http_client_(http_client), throttle_(0) {
+  auto throttle_or = db_->GetGlobalSetting("throttle");
+  if (throttle_or.ok()) {
+    int val = 0;
+    if (absl::SimpleAtoi(*throttle_or, &val)) {
+      throttle_ = val;
+    }
+  }
+}
 
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills) {
   // 1. Check for 'Dropped' context state
@@ -497,4 +506,53 @@ absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
   }
   return absl::NotFoundError("No state block found in current context window.");
 }
+
+
+absl::Status Orchestrator::FinalizeInteraction(const std::string& session_id, const std::string& group_id) {
+    auto enabled_or = db_->GetGlobalSetting("prompt_ledger_enabled");
+    if (!enabled_or.ok() || *enabled_or != "true") return absl::OkStatus();
+
+    if (!GitHelper::IsGitRepo()) return absl::OkStatus();
+
+    auto has_changes = GitHelper::HasChanges();
+    if (has_changes.ok() && *has_changes) {
+        std::string prompt = "AI interaction " + group_id;
+        auto messages_or = db_->GetMessagesByGroups({group_id});
+        if (messages_or.ok()) {
+            for (const auto& m : *messages_or) {
+                if (m.role == "user") {
+                    prompt = m.content;
+                    break;
+                }
+            }
+        }
+        return GitHelper::CommitGroup(group_id, prompt);
+    }
+    return absl::OkStatus();
+}
+
+absl::Status Orchestrator::UndoLastGroup(const std::string& session_id) {
+    auto gid_or = db_->GetLastGroupId(session_id);
+    if (!gid_or.ok()) return absl::NotFoundError("Nothing to undo.");
+    
+    std::string gid = *gid_or;
+
+    auto enabled_or = db_->GetGlobalSetting("prompt_ledger_enabled");
+    if (enabled_or.ok() && *enabled_or == "true" && GitHelper::IsGitRepo()) {
+        (void)GitHelper::UndoCommit(gid);
+    }
+
+    return db_->Execute("DELETE FROM messages WHERE group_id = '" + gid + "'");
+}
+
+void Orchestrator::SetThrottle(int seconds) {
+    throttle_ = seconds;
+    (void)db_->SetGlobalSetting("throttle", std::to_string(seconds));
+}
+
 }  // namespace slop
+namespace slop {
+std::string GenerateGroupId() {
+    return std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+}
+}

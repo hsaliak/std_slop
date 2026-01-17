@@ -27,12 +27,15 @@ class Orchestrator {
   void SetGcaMode(bool enabled) { gca_mode_ = enabled; }
   void SetProjectId(const std::string& project_id) { project_id_ = project_id; }
 
-  void SetThrottle(int seconds) { throttle_ = seconds; }
+  void SetThrottle(int seconds);
   int GetThrottle() const { return throttle_; }
 
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills = {});
   absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json, const std::string& group_id = "");
   
+  absl::Status FinalizeInteraction(const std::string& session_id, const std::string& group_id);
+  absl::Status UndoLastGroup(const std::string& session_id);
+
   // Rebuilds the session state (---STATE--- anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);
 
@@ -77,3 +80,6 @@ class Orchestrator {
 }  // namespace slop
 
 #endif  // SLOP_SQL_ORCHESTRATOR_H_
+namespace slop {
+  std::string GenerateGroupId();
+}

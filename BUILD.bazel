@@ -26,6 +26,7 @@ cc_library(
     srcs = [
         "command_handler.cpp",
         "database.cpp",
+        "git_helper.cpp",
         "http_client.cpp",
         "oauth_handler.cpp",
         "orchestrator.cpp",
@@ -35,6 +36,7 @@ cc_library(
     hdrs = [
         "command_handler.h",
         "database.h",
+        "git_helper.h",
         "http_client.h",
         "oauth_handler.h",
         "orchestrator.h",
@@ -112,6 +114,7 @@ cc_binary(
         "oauth_handler_test",
         "input_parsing_test",
         "system_info_test",
+        "prompt_ledger_test",
     ]
 ]
 

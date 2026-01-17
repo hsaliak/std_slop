@@ -59,6 +59,7 @@ absl::Status Database::Init(const std::string& db_path) {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     
+    CREATE TABLE IF NOT EXISTS global_settings (key TEXT PRIMARY KEY, value TEXT);
     CREATE TABLE IF NOT EXISTS session_state (
         session_id TEXT PRIMARY KEY,
         state_blob TEXT,
@@ -491,6 +492,36 @@ absl::Status Database::Execute(const std::string& sql) {
     return absl::InternalError("SQL error: " + error);
   }
   return absl::OkStatus();
+}
+
+
+absl::Status Database::SetGlobalSetting(const std::string& key, const std::string& value) {
+  const char* sql = "INSERT OR REPLACE INTO global_settings (key, value) VALUES (?, ?)";
+  sqlite3_stmt* raw_stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr);
+  UniqueStmt stmt(raw_stmt);
+  if (rc != SQLITE_OK) return absl::InternalError("Prepare error: " + std::string(sqlite3_errmsg(db_.get())));
+
+  sqlite3_bind_text(stmt.get(), 1, key.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 2, value.c_str(), -1, SQLITE_TRANSIENT);
+
+  if (sqlite3_step(stmt.get()) != SQLITE_DONE) return absl::InternalError("Execute error: " + std::string(sqlite3_errmsg(db_.get())));
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> Database::GetGlobalSetting(const std::string& key) {
+  const char* sql = "SELECT value FROM global_settings WHERE key = ?";
+  sqlite3_stmt* raw_stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_.get(), sql, -1, &raw_stmt, nullptr);
+  UniqueStmt stmt(raw_stmt);
+  if (rc != SQLITE_OK) return absl::InternalError("Prepare error: " + std::string(sqlite3_errmsg(db_.get())));
+
+  sqlite3_bind_text(stmt.get(), 1, key.c_str(), -1, SQLITE_TRANSIENT);
+
+  if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+    return std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 0)));
+  }
+  return absl::NotFoundError("Setting not found: " + key);
 }
 
 }  // namespace slop
