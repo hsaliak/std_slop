@@ -61,7 +61,7 @@ bazel run //:std_slop -- [session_id]
 ## Command Reference
 
 ### Session and Context
-- `/session [ID]`    List all sessions or switch to a specific one.
+- `/session [ID]`    List all sessions or switch to/create a specific one.
 - `/undo`            Remove last interaction and rebuild context.
 - `/context`         Show context status and assembled prompt.
 - `/context window <N>` Set size of rolling window (0 for full history).

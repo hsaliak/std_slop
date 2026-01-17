@@ -46,7 +46,7 @@ void ShowHelp() {
             << "  /context rebuild       Rebuild session state from conversation history\n"
             << "  /window <N>            Alias for /context window <N>\n"
             << "  /session               List all unique session IDs in the DB\n"
-            << "  /session <ID>          Switch to a different session\n"
+            << "  /session <ID>          Switch to or create a new session named <ID>\n"
             << "  /skill list            List all available skills\n"
             << "  /skill show <ID|Name>  Display the details of a skill\n"
             << "  /skill activate <ID|Name> Set active skill\n"
