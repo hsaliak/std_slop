@@ -34,4 +34,4 @@ This document tracks the historical porting of the `std_slop` project from CMake
 ## Usage
 - Build: `bazel build //...`
 - Test: `bazel test //...`
-- Run: `bazel run //:std_slop -- [session_id]`
+- Run: `bazel run //:std_slop -- [session_name]`

@@ -49,9 +49,9 @@ bazel run //:std_slop -- --openai_api_key="your_key"
 ```
 
 ### Running the Agent
-Start a session by running the executable via Bazel. You can provide a session ID to resume or categorize your work:
+Start a session by running the executable via Bazel. You can provide a session name to resume or categorize your work:
 ```bash
-bazel run //:std_slop -- [session_id]
+bazel run //:std_slop -- [session_name]
 ```
 
 ---
@@ -83,7 +83,7 @@ Interactions are grouped by a `group_id`. A group typically encompasses a user p
 
 ### Session Management
 - `/session`: List all existing sessions.
-- `/session <id>`: Switch to or create a new session named `<id>`. If the session does not exist, it will be created after the first call to the LLM.
+- `/session <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
 - `/stats` (or `/usage`): View message stats and Gemini user quota (if OAuth is active).
 
 ### History & Context

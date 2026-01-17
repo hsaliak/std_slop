@@ -28,16 +28,16 @@ While history is isolated, certain configurations are global or preserved in mem
 ## Mechanics
 
 ### Switching Sessions
-The `/session [ID]` command updates the internal session pointer. 
-- **Creation**: If the session ID does not exist, it will be implicitly created upon the first message sent to the LLM (when the first record is written to the ledger).
+The `/session [name]` command updates the internal session pointer. 
+- **Creation**: If the session name does not exist, it will be implicitly created upon the first message sent to the LLM (when the first record is written to the ledger).
 - **What Changes**: The history retrieved for prompt assembly and the session-specific "Global Anchor" state.
 - **What Stays**: Your currently activated skills and any `/throttle` settings. This allows you to quickly pivot to a new "thread" or project without re-configuring your preferred persona or agentic behavior.
 
 ### Starting fresh
-To completely clear your context for a new task, simply `/session` to a new ID (e.g., `/session project_part_2`). This is the recommended way to start fresh.
+To completely clear your context for a new task, simply `/session` to a new name (e.g., `/session project_part_2`). This is the recommended way to start fresh.
 
 ### Persistence
-The ledger is stored in `slop.db` and persists across restarts. Resume a session by providing its ID at startup or via `/session`.
+The ledger is stored in `slop.db` and persists across restarts. Resume a session by providing its name at startup or via `/session`.
 
 ## Summary
 
