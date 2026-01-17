@@ -152,7 +152,10 @@ std::string OAuthHandler::GetGcpProjectFromGcloud() {
 
 absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& access_token) {
   // 1. Try loadCodeAssist (the authoritative way for GCA / Managed Project)
-  std::string gca_url = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+  std::string base_discovery_url = (mode_ == OAuthMode::ANTIGRAVITY) 
+      ? "https://daily-cloudcode-pa.sandbox.googleapis.com"
+      : "https://cloudcode-pa.googleapis.com";
+  std::string gca_url = base_discovery_url + "/v1internal:loadCodeAssist";
   
   // GCA identification headers
   std::vector<std::string> headers = {

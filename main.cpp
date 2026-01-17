@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
   if (antigravity) {
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-3-flash-preview");
-    base_url = "https://cloudcode-pa.googleapis.com/v1internal";
+    base_url = "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal";
     orchestrator.SetGcaMode(true);
   } else if (google_auth) {
     provider = slop::Orchestrator::Provider::GEMINI;
@@ -147,6 +147,7 @@ int main(int argc, char** argv) {
     base_url = "https://generativelanguage.googleapis.com/v1beta";
   }
   orchestrator.SetProvider(provider);
+  orchestrator.SetBaseUrl(base_url);
 
   std::unique_ptr<slop::OAuthHandler> oauth_handler;
   if (google_auth || antigravity) {

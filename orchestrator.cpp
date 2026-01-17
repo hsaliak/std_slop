@@ -308,7 +308,7 @@ absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::stri
     std::vector<std::string> headers = {"Content-Type: application/json"};
     if (provider_ == Provider::GEMINI) {
         if (gca_mode_) {
-            url = "https://cloudcode-pa.googleapis.com/v1internal/models";
+            url = base_url_ + "/models";
             if (!api_key.empty()) {
                 headers.push_back("Authorization: Bearer " + api_key);
             }
@@ -366,7 +366,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
         return absl::FailedPreconditionError("Project ID is not set.");
     }
 
-    std::string url = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
+    std::string url = base_url_ + ":retrieveUserQuota";
     std::vector<std::string> headers = {
         "Content-Type: application/json",
         "Authorization: Bearer " + oauth_token

@@ -26,6 +26,7 @@ class Orchestrator {
 
   void SetGcaMode(bool enabled) { gca_mode_ = enabled; }
   void SetProjectId(const std::string& project_id) { project_id_ = project_id; }
+  void SetBaseUrl(const std::string& url) { base_url_ = url; }
 
   void SetThrottle(int seconds) { throttle_ = seconds; }
   int GetThrottle() const { return throttle_; }
@@ -70,6 +71,7 @@ class Orchestrator {
   std::string model_;
   bool gca_mode_ = false;
   std::string project_id_;
+  std::string base_url_;
   int throttle_ = 0;
   std::vector<std::string> last_selected_groups_;
 };
