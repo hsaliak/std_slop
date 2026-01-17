@@ -16,11 +16,18 @@ You need an API key for either Google Gemini or OpenAI.
 ```bash
 export GOOGLE_API_KEY="your_api_key"
 ```
-Or use Google Cloud ADC:
+Or use Google OAuth (recommended):
 ```bash
-gcloud auth application-default login
-bazel run //:std_slop -- --google_oauth --project your-project-id
+bazel run //:std_slop
 ```
+If no API keys are found, the CLI defaults to Google OAuth. It automatically discovers your project ID using the authoritative `loadCodeAssist` endpoint.
+
+To authenticate, run the provided script:
+```bash
+./gemini_auth.sh
+```
+The script will provide a URL for you to visit. After authorizing, paste the **full redirect URL** back into the script, and it will automatically extract the tokens and save them to `~/.config/slop/token.json`.
+
 
 ### For OpenAI:
 ```bash

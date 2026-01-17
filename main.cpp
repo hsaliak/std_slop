@@ -23,7 +23,7 @@
 #include "absl/flags/usage.h"
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
-ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication (internal only)");
+ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
 ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_MODEL env vars)");
 ABSL_FLAG(std::string, google_api_key, "", "Google API key (overrides GOOGLE_API_KEY env var)");
@@ -103,8 +103,8 @@ int main(int argc, char** argv) {
   }
 
   if (!google_auth && google_key.empty() && openai_key.empty()) {
-    std::cerr << "Error: No authentication method configured. Set GOOGLE_API_KEY, OPENAI_API_KEY, or use flags." << std::endl;
-    return 1;
+    google_auth = true;
+    std::cout << "No API keys found. Defaulting to Google OAuth mode." << std::endl;
   }
 
   slop::Database db;
@@ -147,7 +147,11 @@ int main(int argc, char** argv) {
     oauth_handler->SetEnabled(true);
     auto token_or = oauth_handler->GetValidToken();
     if (!token_or.ok()) {
-      std::cerr << "OAuth Error: " << token_or.status().message() << std::endl;
+      if (absl::IsUnauthenticated(token_or.status())) {
+          std::cout << "Google OAuth: " << token_or.status().message() << std::endl;
+      } else {
+          std::cerr << "OAuth Error: " << token_or.status().message() << std::endl;
+      }
     }
     auto proj_or = oauth_handler->GetProjectId();
     if (proj_or.ok()) {
@@ -162,7 +166,7 @@ int main(int argc, char** argv) {
   slop::SetupTerminal();
   
   std::cout << "std::slop - Session: " << session_id << " [" << orchestrator.GetModel() << "]" << std::endl;
-  if (google_auth) std::cout << "Mode: Google OAuth (Internal)" << std::endl;
+  if (google_auth) std::cout << "Mode: Google OAuth" << std::endl;
   else if (!openai_key.empty()) std::cout << "Mode: OpenAI" << std::endl;
   else std::cout << "Mode: Google Gemini (API Key)" << std::endl;
   std::cout << "Type /help for commands.\n" << std::endl;
@@ -217,7 +221,12 @@ int main(int argc, char** argv) {
               url = absl::StrCat(url, "/models/", orchestrator.GetModel(), ":generateContent");
           }
           auto token_or = oauth_handler->GetValidToken();
-          if (token_or.ok()) current_headers.push_back("Authorization: Bearer " + *token_or);
+          if (token_or.ok()) {
+              current_headers.push_back("Authorization: Bearer " + *token_or);
+          } else {
+              std::cerr << "OAuth Error: " << token_or.status().message() << std::endl;
+              break;
+          }
         }
         else {
           url = absl::StrCat(url, "/models/", orchestrator.GetModel(), ":generateContent?key=", !google_key.empty() ? google_key : "");
