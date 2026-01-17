@@ -516,17 +516,35 @@ absl::Status Orchestrator::FinalizeInteraction(const std::string& session_id, co
 
     auto has_changes = GitHelper::HasChanges();
     if (has_changes.ok() && *has_changes) {
-        std::string prompt = "AI interaction " + group_id;
+        std::string user_prompt = "AI interaction " + group_id;
         auto messages_or = db_->GetMessagesByGroups({group_id});
         if (messages_or.ok()) {
             for (const auto& m : *messages_or) {
                 if (m.role == "user") {
-                    prompt = m.content;
+                    user_prompt = m.content;
                     break;
                 }
             }
         }
-        return GitHelper::CommitGroup(group_id, prompt);
+
+        std::string truncated_prompt = user_prompt;
+        if (truncated_prompt.size() > 500) {
+            truncated_prompt = truncated_prompt.substr(0, 500) + "...";
+        }
+
+        std::string state_block = "";
+        auto state_or = db_->GetSessionState(session_id);
+        if (state_or.ok()) {
+            state_block = *state_or;
+        }
+
+        std::string full_message = absl::StrCat(
+            "vibe_id: ", group_id, "\n\n",
+            "Prompt:\n", truncated_prompt, "\n\n",
+            "Session State:\n", state_block
+        );
+
+        return GitHelper::CommitGroup(group_id, full_message);
     }
     return absl::OkStatus();
 }

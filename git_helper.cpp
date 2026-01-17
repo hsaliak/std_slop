@@ -4,6 +4,7 @@
 #include <array>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
 
@@ -40,17 +41,20 @@ absl::StatusOr<bool> GitHelper::HasChanges() {
     return !absl::StripAsciiWhitespace(out).empty();
 }
 
-absl::Status GitHelper::CommitGroup(const std::string& group_id, const std::string& prompt) {
+absl::Status GitHelper::CommitGroup(const std::string& group_id, const std::string& message) {
     if (ExecStatus("git add .") != 0) return absl::InternalError("git add failed");
     
-    // Sanitize prompt for commit message: remove quotes and newlines
-    std::string sanitized_prompt = prompt;
-    for (char &c : sanitized_prompt) {
-        if (c == '"' || c == '\'' || c == '\n' || c == '\r') c = ' ';
-    }
+    std::string temp_filename = ".slop_commit_msg_" + group_id;
+    std::ofstream ofs(temp_filename);
+    if (!ofs) return absl::InternalError("Failed to create temp file for commit message");
+    ofs << message;
+    ofs.close();
 
-    std::string cmd = absl::StrFormat("git commit -m \"vibe_id: %s\" -m \"Prompt: %s\"", group_id, sanitized_prompt);
-    if (ExecStatus(cmd) != 0) return absl::InternalError("git commit failed");
+    std::string cmd = "git commit -F " + temp_filename;
+    int res = ExecStatus(cmd);
+    std::remove(temp_filename.c_str());
+
+    if (res != 0) return absl::InternalError("git commit failed");
     
     return absl::OkStatus();
 }
