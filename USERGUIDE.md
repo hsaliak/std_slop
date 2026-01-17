@@ -75,6 +75,8 @@ If no session name is provided, it defaults to `default_session`.
 
 #### Example Skills
 
+it's likely that you can ask std::slop to read this file (url or local) and add these skills to your database.
+
 **planner**
 - **Description**: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.
 - **System Prompt Patch**:
