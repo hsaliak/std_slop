@@ -29,7 +29,7 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 - C++17 compiler (Clang or GCC).
 - Bazel 8.x (Bazelisk recommended).
 - `readline` development headers.
-- `git` (optional, for enhanced code search).
+- **Git**: Git is central to the workflow of `std::slop`. The tool has a hard reliance on its features for code exploration, state tracking, and change management. **Repositories that use `std::slop` must be valid git repositories.**
 
 ### Build
 
