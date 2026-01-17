@@ -43,7 +43,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
           nlohmann::json wrapped;
           wrapped["model"] = model_;
           wrapped["project"] = project_id_;
-          wrapped["user_prompt_id"] = std::to_string(absl::GetCurrentTimeNanos());
+          wrapped["user_prompt_id"] = std::to_string(absl::ToUnixNanos(absl::Now()));
           nlohmann::json inner_request = payload;
           inner_request["session_id"] = session_id;
           wrapped["request"] = inner_request;

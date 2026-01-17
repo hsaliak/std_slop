@@ -336,9 +336,25 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             auto res = db_->Query("SELECT DISTINCT session_id FROM messages");
             if (res.ok()) log_status(PrintJsonAsTable(*res));
         } else {
-            session_id = args;
-            std::cout << "Switched to: " << session_id << std::endl;
-            log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
+            std::vector<std::string> sub_parts = absl::StrSplit(args, absl::MaxSplits(' ', 1));
+            if (sub_parts[0] == "remove" && sub_parts.size() > 1) {
+                std::string target = sub_parts[1];
+                auto status = db_->DeleteSession(target);
+                if (status.ok()) {
+                    std::cout << "Session '" << target << "' removed successfully." << std::endl;
+                    if (session_id == target) {
+                        session_id = "default_session";
+                        std::cout << "Switched to: " << session_id << std::endl;
+                        if (orchestrator_) (void)orchestrator_->RebuildContext(session_id);
+                    }
+                } else {
+                    std::cerr << "Error removing session: " << status.message() << std::endl;
+                }
+            } else {
+                session_id = args;
+                std::cout << "Switched to: " << session_id << std::endl;
+                log_status(DisplayHistory(*db_, session_id, 20, selected_groups));
+            }
         }
         return Result::HANDLED;
     } else if (cmd == "/stats") {
@@ -352,11 +368,11 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
             auto token_or = oauth_handler_->GetValidToken();
             if (token_or.ok()) {
                 auto quota_or = orchestrator_->GetQuota(*token_or);
-                if (quota_or.ok()) {
+                if (quota_or.ok() && quota_or->is_object()) {
                     std::cout << "\n--- Gemini User Quota ---" << std::endl;
                     nlohmann::json table = nlohmann::json::array();
-                    if (quota_or->contains("buckets")) {
-                        for (const auto& b : (*quota_or)["buckets"]) {
+                    if (quota_or->contains("buckets") && (*quota_or)["buckets"].is_array()) {
+                        for (const auto& b : (*quota_or)["buckets"]) { if (!b.is_object()) continue;
                             nlohmann::json row;
                             row["Model ID"] = b.value("modelId", "N/A");
                             row["Remaining Amount"] = b.value("remainingAmount", "N/A");

@@ -120,3 +120,49 @@ TEST(DatabaseTest, UpdateMessageStatusWorks) {
     EXPECT_EQ(history3->size(), 0);
 }
 
+TEST(DatabaseTest, DeleteSessionWorks) {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+    
+    std::string sid = "test_session";
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "hi").ok());
+    ASSERT_TRUE(db.RecordUsage(sid, "model", 10, 10).ok());
+    ASSERT_TRUE(db.SetContextWindow(sid, 10).ok());
+    ASSERT_TRUE(db.SetSessionState(sid, "state").ok());
+    
+    // Verify data exists
+    auto history = db.GetConversationHistory(sid);
+    ASSERT_TRUE(history.ok());
+    EXPECT_EQ(history->size(), 1);
+    
+    auto usage = db.GetTotalUsage(sid);
+    ASSERT_TRUE(usage.ok());
+    EXPECT_EQ(usage->total_tokens, 20);
+    
+    auto settings = db.GetContextSettings(sid);
+    ASSERT_TRUE(settings.ok());
+    EXPECT_EQ(settings->size, 10);
+    
+    auto state = db.GetSessionState(sid);
+    ASSERT_TRUE(state.ok());
+    EXPECT_EQ(*state, "state");
+    
+    // Delete
+    ASSERT_TRUE(db.DeleteSession(sid).ok());
+    
+    // Verify gone
+    history = db.GetConversationHistory(sid);
+    ASSERT_TRUE(history.ok());
+    EXPECT_EQ(history->size(), 0);
+    
+    usage = db.GetTotalUsage(sid);
+    ASSERT_TRUE(usage.ok());
+    EXPECT_EQ(usage->total_tokens, 0);
+    
+    settings = db.GetContextSettings(sid);
+    ASSERT_TRUE(settings.ok());
+    EXPECT_EQ(settings->size, 5); // Should return default if row is gone
+    
+    state = db.GetSessionState(sid);
+    EXPECT_FALSE(state.ok());
+}

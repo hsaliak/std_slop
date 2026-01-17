@@ -154,4 +154,24 @@ TEST_F(CommandHandlerTest, HandlesUndo) {
     }
 }
 
+TEST_F(CommandHandlerTest, HandlesSessionRemove) {
+    CommandHandler handler(&db);
+    std::string sid = "test_sid";
+    std::vector<std::string> active_skills;
+
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "hello").ok());
+    ASSERT_TRUE(db.SetContextWindow(sid, 10).ok());
+
+    std::string input = "/session remove test_sid";
+    auto res = handler.Handle(input, sid, active_skills, [](){});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+
+    // Verify data is gone
+    auto history = db.GetConversationHistory("test_sid");
+    EXPECT_EQ(history->size(), 0);
+
+    // Verify session switched if it was the active one
+    EXPECT_EQ(sid, "default_session");
+}
+
 }  // namespace slop

@@ -1,166 +1,93 @@
 # std::slop User Guide
 
-Welcome to **std::slop**, a persistent SQL-backed AI coding agent. This guide will help you understand how to use the various features of the agent to enhance your development workflow.
+## Overview
+`std::slop` is a high-performance LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
 
----
-
-## Table of Contents
-1. [Getting Started](#getting-started)
-2. [Core Concepts](#core-concepts)
-3. [Commands Reference](#commands-reference)
-4. [Context Management](#context-management)
-5. [Using Skills](#using-skills)
-6. [Tool Execution](#tool-execution)
-7. [Advanced Usage](#advanced-usage)
-
----
-
-## Getting Started
-
-### Installation
-Ensure you have the prerequisites installed:
-- Bazel 8.x
-- C++17 compiler (GCC or Clang)
-- `readline` development headers
-- `git` (optional, for enhanced code search)
-
-Build the project:
+## Installation
+Build using Bazel:
 ```bash
-bazel build //...
+bazel build //:std_slop
 ```
 
-### Authentication
-`std::slop` supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs.
+## Setup
+You need an API key for either Google Gemini or OpenAI.
 
-**1. Google Gemini (OAuth - Recommended):**
-If no API keys are provided, the agent will prompt you to authenticate via a Google Cloud OAuth flow. This allows the agent to check your quota and manage project settings automatically.
-
-**2. API Keys (Environment Variables):**
+### For Gemini:
 ```bash
-export GOOGLE_API_KEY="your_google_key"
-# OR
-export OPENAI_API_KEY="your_openai_key"
+export GOOGLE_API_KEY="your_api_key"
+```
+Or use Google Cloud ADC:
+```bash
+gcloud auth application-default login
+bazel run //:std_slop -- --google_oauth --project your-project-id
 ```
 
-**3. Command-line Flags:**
+### For OpenAI:
 ```bash
-bazel run //:std_slop -- --google_api_key="your_key"
-bazel run //:std_slop -- --openai_api_key="your_key"
+export OPENAI_API_KEY="your_api_key"
 ```
 
-### Running the Agent
+## Running
 Start a session by running the executable via Bazel. You can provide a session name to resume or categorize your work:
 ```bash
 bazel run //:std_slop -- [session_name]
 ```
-
----
+If no session name is provided, it defaults to `default_session`.
 
 ## Core Concepts
 
-### The Ledger (SQLite)
-Everything in `std::slop` is stored in a SQLite database (`slop.db`). This ensures transparency and persistence:
-- **Message History**: Every prompt, tool call, and response.
-- **Tools**: Definitions of the agent's capabilities.
-- **Skills**: Specialized persona instructions.
-- **Usage**: Token consumption tracking.
+- **Session**: A isolated conversation history with its own settings and token usage tracking.
+- **Group (GID)**: Every interaction (user prompt + assistant response + tool executions) is grouped under a unique `group_id`. This allows for atomic operations like `/undo`.
+- **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **State**: The persistent "Long-term RAM" for each session.
+- **Skills**: Persona patches that inject specific instructions into the system prompt.
+- **Tools**: Executable functions (grep, file read, etc.) that the LLM can call.
 
-### Message Groups
-Interactions are grouped by a `group_id`. A group typically encompasses a user prompt, any subsequent tool calls/results, and the assistant's final response. Commands like `/undo` and `/message remove` operate on these atomic units.
-
----
-
-## Commands Reference
-
-### General Commands
-- `/help`: Show available commands and basic usage.
-- `/exit` or `/quit`: Close the session.
-- `/edit`: Opens `$EDITOR` for multi-line prompt input.
-- `/exec <cmd>`: Runs a shell command and pipes output to a pager.
-- `/throttle [N]`: Sets a delay (in seconds) between agent iterations.
-- `/schema`: Displays the SQLite database schema.
+## Slash Commands
 
 ### Session Management
+- `/exit` or `/quit`: Close the session.
 - `/session`: List all existing sessions.
 - `/session <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
-- `/stats` (or `/usage`): View message stats and Gemini user quota (if OAuth is active).
+- `/session remove <name>`: Delete a session and all its associated data (history, usage, state).
 
-### History & Context
-- `/undo`: Removes the last interaction group and rebuilds the context.
-- `/context`: Show current context status and assembled prompt.
-- `/context window <N>` (or `/window <N>`): Set the rolling window size (0 for full history).
-- `/context rebuild`: Force a refresh of the persistent `---STATE---` block from history.
-- `/context show`: Display the exact prompt being sent to the LLM.
-- `/message list [N]`: List the last N interaction groups.
-- `/message show <GID>` (or `view`): View a specific message group in detail.
-- `/message remove <GID>`: Delete a specific message group.
+### Message Operations
+- `/message list [N]`: List the prompts of the last `N` message groups.
+- `/message show <GID>`: View the full content (including tool calls/responses) of a specific group.
+- `/message remove <GID>`: Hard delete a specific message group from history.
+- `/undo`: Delete the very last interaction group and rebuild the session context.
+- `/edit`: Open your last input in your system `$EDITOR` (e.g., vim, nano) and resend it after saving.
 
----
+### Context Control
+- `/context`: Show current context settings and the fully assembled prompt that would be sent to the LLM.
+- `/context window <N>`: Limit the context to the last `N` interaction groups. Set to `0` for infinite history.
+- `/context rebuild`: Force a rebuild of the in-memory session state from the SQL message history. Useful if the database was modified externally.
+- `/window <N>`: Shortcut for `/context window <N>`.
 
-## Context Management
-
-`std::slop` uses a **Sequential Rolling Window** combined with a **Persistent State Anchor**.
-
-### Rolling Window
-The agent maintains a rolling window of recent interactions to keep the prompt size manageable while preserving immediate conversational flow. You can adjust this with `/window <N>`.
-
-### Global Anchor (---STATE---)
-The LLM autonomously maintains a `---STATE---` block at the end of its responses. The Orchestrator extracts this and injects it into every new prompt. This ensures that high-level goals and technical details are never lost, even when they fall out of the rolling window.
-
----
-
-## Using Skills
-
-Skills are system prompt patches that define a persona or set of constraints (e.g., "Expert C++ Developer").
-
-- `/skill list`: List all skills and see which are active.
-- `/skill show <name|id>` (or `view`): Display skill details.
-- `/skill add`: Create a new skill using a template in your editor.
-- `/skill edit <name|id>`: Modify an existing skill.
-- `/skill delete <name|id>`: Remove a skill from the database.
+### Skills (Personas)
+- `/skill list`: List all available and active skills.
+- `/skill show <name|id>`: View the system prompt patch for a skill.
 - `/skill activate <name|id>`: Enable a skill for the current session.
 - `/skill deactivate <name|id>`: Disable a skill for the current session.
+- `/skill add`: Interactive prompt to create a new skill.
+- `/skill edit <name|id>`: Modify an existing skill.
+- `/skill delete <name|id>`: Permanently remove a skill from the database.
 
-You can typically prompt the LLM to create a skill for you. For example, you could create a skill to write code suited for this project with the following prompt:
+### Tools
+- `/tool list`: List all tools currently available to the agent.
+- `/tool show <name>`: View the JSON Schema and description for a tool.
 
-> "Add a skill c++_expert based on the C++ guidance in README.md and add it to slop.db as a skill."
+### Utility & Debugging
+- `/stats` or `/usage`: View token usage for the current session and global totals.
+- `/schema`: Display the SQLite database schema.
+- `/models`: List available models for the current provider.
+- `/model <name>`: Switch the active LLM model (e.g., `gemini-1.5-pro`, `gpt-4o-mini`).
+- `/exec <command>`: Execute a shell command without leaving the CLI.
+- `/query_db`: Direct SQL access to the session ledger.
 
-The LLM will then introspect the README, `slop.db`, its schema, and inject the skill. You can then view the skill and activate it for subsequent prompting.
-
-A useful skill to add is that of a **Planner**. A planner suggests an implementation plan for a task step-by-step without writing code. Once you have such a skill, you can activate it before a task, iterate on the plan, and then deactivate it (or switch to a coding-specific skill) to carry out the changes.
-
-Finally, you can export these skills through database introspection into the format of your choice, and import them.
-
----
-
-## Tool Execution
-
-The agent uses tools to interact with your system.
-
-**Core Tools:**
-- `read_file`: Read local files with line numbers.
-- `write_file`: Create or update files.
-- `grep_tool`: Search patterns (delegates to `git grep` if possible).
-- `git_grep_tool`: Advanced git-based search.
-- `execute_bash`: Run arbitrary shell commands.
-- `search_code`: Simplified interface for codebase searching.
-- `query_db`: Direct SQL access to the session ledger.
-
----
-
-## Advanced Usage
-
-### Inspecting the Database
-Since everything is SQL-backed, you can perform advanced analysis or cleanup:
-- `/exec sqlite3 slop.db "SELECT * FROM usage ORDER BY created_at DESC LIMIT 5"`
-- Use `query_db` to ask the agent to analyze its own performance or token usage.
-
-### Model Switching
-- `/models`: List models supported by your current provider.
-- `/model <name>`: Switch the active model on the fly.
-
----
-
-## Security
-**Caution:** This agent can execute shell commands and modify files. It is highly recommended to run `std::slop` in a sandboxed environment (e.g., Docker or bubblewrap) to prevent accidental damage.
+## Database Schema
+The CLI uses a local SQLite database (default: `slop.db`). You can inspect it directly:
+```bash
+sqlite3 slop.db
+```
+Tables include `messages`, `sessions`, `usage`, `skills`, `tools`, and `session_state`.

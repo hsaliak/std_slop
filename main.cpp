@@ -46,7 +46,8 @@ void ShowHelp() {
             << "  /context rebuild       Rebuild session state from conversation history\n"
             << "  /window <N>            Alias for /context window <N>\n"
             << "  /session               List all unique session names in the DB\n"
-            << "  /session <name>          Switch to or create a new session named <name>\n"
+            << "  /session <name>        Switch to or create a new session named <name>\n"
+            << "  /session remove <name> Delete a session and all its data\n"
             << "  /skill list            List all available skills\n"
             << "  /skill show <ID|Name>  Display the details of a skill\n"
             << "  /skill activate <ID|Name> Set active skill\n"
@@ -159,13 +160,14 @@ int main(int argc, char** argv) {
 
   slop::SetupTerminal();
   
-  std::cout << "std::slop - Session: " << session_id 
-            << " | Model: " << orchestrator.GetModel() 
-            << " (Provider: " << (provider == slop::Orchestrator::Provider::GEMINI ? "Gemini" : "OpenAI") << ")" << std::endl;
-  std::cout << "Type /help for commands, or just start chatting." << std::endl;
+  std::cout << "std::slop - Session: " << session_id << " [" << orchestrator.GetModel() << "]" << std::endl;
+  if (google_auth) std::cout << "Mode: Google OAuth (Internal)" << std::endl;
+  else if (!openai_key.empty()) std::cout << "Mode: OpenAI" << std::endl;
+  else std::cout << "Mode: Google Gemini (API Key)" << std::endl;
+  std::cout << "Type /help for commands.\n" << std::endl;
 
   while (true) {
-    std::string prompt_str;
+    std::string prompt_str = "";
     auto context_settings = db.GetContextSettings(session_id);
     if (context_settings.ok()) {
       if (context_settings->size > 0) {
@@ -198,23 +200,23 @@ int main(int argc, char** argv) {
     while (true) {
       auto prompt_or = orchestrator.AssemblePrompt(session_id, active_skills);
       if (!prompt_or.ok()) {
-        std::cerr << "Prompt Error: " << prompt_or.status().message() << std::endl;
+        std::cerr << "Prompt Assembly Error: " << prompt_or.status().message() << std::endl;
         break;
       }
+
       int context_tokens = orchestrator.CountTokens(*prompt_or);
-
-      std::string url = base_url;
-      if (!url.empty() && url.back() == '/') url.pop_back();
-
       std::vector<std::string> current_headers = headers;
+      std::string url = base_url;
 
       if (provider == slop::Orchestrator::Provider::GEMINI) {
-        if (google_auth) {
-          url = absl::StrCat(url, ":generateContent");
-          auto token_or = oauth_handler->GetValidToken();
-          if (token_or.ok()) {
-              current_headers.push_back("Authorization: Bearer " + *token_or);
+        if (orchestrator.GetProvider() == slop::Orchestrator::Provider::GEMINI && oauth_handler && oauth_handler->IsEnabled()) {
+          if (absl::StrContains(url, "v1internal")) {
+              url = absl::StrCat(url, ":generateContent");
+          } else {
+              url = absl::StrCat(url, "/models/", orchestrator.GetModel(), ":generateContent");
           }
+          auto token_or = oauth_handler->GetValidToken();
+          if (token_or.ok()) current_headers.push_back("Authorization: Bearer " + *token_or);
         }
         else {
           url = absl::StrCat(url, "/models/", orchestrator.GetModel(), ":generateContent?key=", !google_key.empty() ? google_key : "");
@@ -304,10 +306,9 @@ int main(int argc, char** argv) {
           if (orchestrator.GetThrottle() > 0) {
               std::this_thread::sleep_for(std::chrono::seconds(orchestrator.GetThrottle()));
           }
-
         } else {
-            std::cerr << "Failed to parse tool call: " << tc_or.status().message() << std::endl;
-            break;
+          std::cerr << "Tool Parse Error: " << tc_or.status().message() << std::endl;
+          break;
         }
       }
     }

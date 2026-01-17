@@ -93,6 +93,9 @@ class Database {
   absl::Status SetSessionState(const std::string& session_id, const std::string& state_blob);
   absl::StatusOr<std::string> GetSessionState(const std::string& session_id);
 
+  // Session Deletion
+  absl::Status DeleteSession(const std::string& session_id);
+
 
   absl::StatusOr<std::string> Query(const std::string& sql);
 
