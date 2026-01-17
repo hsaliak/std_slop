@@ -96,13 +96,10 @@ class Database {
   // Session Deletion
   absl::Status DeleteSession(const std::string& session_id);
 
+
   absl::StatusOr<std::string> Query(const std::string& sql);
 
   absl::StatusOr<std::string> GetLastGroupId(const std::string& session_id);
-
-  // Global Settings
-  absl::Status SetGlobalSetting(const std::string& key, const std::string& value);
-  absl::StatusOr<std::string> GetGlobalSetting(const std::string& key);
 
   sqlite3* GetRawDb() const { return db_.get(); }
 

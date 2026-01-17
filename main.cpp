@@ -57,8 +57,6 @@ void ShowHelp() {
             << "  /skill delete <ID|Name> Remove skill\n"
             << "  /tool list             List available tools\n"
             << "  /tool show <name>      Show tool details\n"
-            << "  /prompt-ledger [on|off] Toggle git-based prompt tracking\n"
-            << "  /prompt-ledger <GID>   Show git diff for a specific interaction\n"
             << "  /stats /usage          Show session usage statistics\n"
             << "  /schema                Show current database schema\n"
             << "  /models                List available models\n"
@@ -183,12 +181,6 @@ int main(int argc, char** argv) {
     if (!active_skills.empty()) {
       absl::StrAppend(&prompt_str, " [", absl::StrJoin(active_skills, ", "), "]");
     }
-
-    auto pl_val = db.GetGlobalSetting("prompt_ledger_enabled");
-    if (pl_val.ok() && *pl_val == "true") {
-        absl::StrAppend(&prompt_str, " [pl]");
-    }
-
     absl::StrAppend(&prompt_str, " [", orchestrator.GetModel(), "] User> ");
 
     std::string input = slop::ReadLine(prompt_str.c_str(), session_id);
@@ -200,33 +192,126 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    if (input[0] == '/') {
-        std::cerr << "Unknown command: " << input << std::endl;
-        continue;
-    }
+    if (res == slop::CommandHandler::Result::UNKNOWN) continue;
 
-    auto prompt_or = orchestrator.AssemblePrompt(session_id, active_skills);
-    if (!prompt_or.ok()) {
-      std::cerr << "Error assembling prompt: " << prompt_or.status().message() << std::endl;
-      continue;
-    }
+    std::string group_id = std::to_string(absl::ToUnixNanos(absl::Now()));
+    (void)db.AppendMessage(session_id, "user", input, "", "completed", group_id);
 
-    std::string group_id = slop::GenerateGroupId();
-    auto status = db.AppendMessage(session_id, "user", input, "", "completed", group_id);
-    if (!status.ok()) {
-        std::cerr << "Error storing message: " << status.message() << std::endl;
-        continue;
-    }
+    while (true) {
+      auto prompt_or = orchestrator.AssemblePrompt(session_id, active_skills);
+      if (!prompt_or.ok()) {
+        std::cerr << "Prompt Assembly Error: " << prompt_or.status().message() << std::endl;
+        break;
+      }
 
-    // Refresh prompt with the new user message
-    prompt_or = orchestrator.AssemblePrompt(session_id, active_skills);
+      int context_tokens = orchestrator.CountTokens(*prompt_or);
+      std::vector<std::string> current_headers = headers;
+      std::string url = base_url;
 
-    status = orchestrator.ProcessResponse(session_id, prompt_or->dump(), group_id);
-    if (!status.ok()) {
-      std::cerr << "Error: " << status.message() << std::endl;
+      if (provider == slop::Orchestrator::Provider::GEMINI) {
+        if (orchestrator.GetProvider() == slop::Orchestrator::Provider::GEMINI && oauth_handler && oauth_handler->IsEnabled()) {
+          if (absl::StrContains(url, "v1internal")) {
+              url = absl::StrCat(url, ":generateContent");
+          } else {
+              url = absl::StrCat(url, "/models/", orchestrator.GetModel(), ":generateContent");
+          }
+          auto token_or = oauth_handler->GetValidToken();
+          if (token_or.ok()) current_headers.push_back("Authorization: Bearer " + *token_or);
+        }
+        else {
+          url = absl::StrCat(url, "/models/", orchestrator.GetModel(), ":generateContent?key=", !google_key.empty() ? google_key : "");
+        }
+      } else {
+        url = absl::StrCat(url, "/chat/completions");
+      }
+
+      // Thinking... UI
+      std::string skill_suffix;
+      if (!active_skills.empty()) {
+          skill_suffix = " [" + absl::StrJoin(active_skills, ", ") + "]";
+      }
+      std::cout << "[context: " << context_tokens << " tokens] Thinking" << skill_suffix << "... " << std::flush;
+
+      absl::StatusOr<std::string> response_or;
+      int retry_count = 0;
+      int max_retries = 5;
+      long backoff_ms = 2000;
+
+      while (retry_count <= max_retries) {
+        response_or = http_client.Post(url, prompt_or->dump(), current_headers);
+        if (response_or.ok()) break;
+
+        if (absl::IsResourceExhausted(response_or.status())) {
+          if (retry_count < max_retries) {
+            std::cout << "\rRate limit hit. Retrying in " << (backoff_ms / 1000) << "s... (Attempt " << (retry_count + 1) << "/" << max_retries << ")" << std::flush;
+            std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
+            backoff_ms *= 2;
+            retry_count++;
+            std::cout << "\rThinking" << skill_suffix << "... " << std::string(50, ' ') << "\rThinking" << skill_suffix << "... " << std::flush;
+            continue;
+          }
+        }
+        break;
+      }
+
+      // Clear the "Thinking..." line
+      std::cout << "\r" << std::string(100, ' ') << "\r" << std::flush;
+
+      if (!response_or.ok()) {
+        std::cerr << "HTTP Error: " << response_or.status().message() << " (URL: " << url << ")" << std::endl;
+        break;
+      }
+
+      auto process_status = orchestrator.ProcessResponse(session_id, *response_or, group_id);
+      if (!process_status.ok()) {
+        std::cerr << "Response Processing Error: " << process_status.message() << std::endl;
+        break;
+      }
+
+      auto history_or = db.GetConversationHistory(session_id);
+      if (!history_or.ok() || history_or->empty()) break;
+      const auto& last_msg = history_or->back();
+
+      if (last_msg.status == "completed") {
+        std::string skill_str;
+        if (!active_skills.empty()) {
+            skill_str = " (" + absl::StrJoin(active_skills, ", ") + ")";
+        }
+        std::cout << "\n[Assistant" << skill_str << "]: " << last_msg.content << "\n" << std::endl;
+        break; 
+      } else if (last_msg.status == "tool_call") {
+        auto tc_or = orchestrator.ParseToolCall(last_msg);
+        if (tc_or.ok()) {
+          std::cout << "\n[Tool Call]: " << tc_or->name << "(" << tc_or->args.dump() << ")" << std::endl;
+          auto tool_res = tool_executor.Execute(tc_or->name, tc_or->args);
+          std::string display_res = tool_res.ok() ? *tool_res : "Error: " + std::string(tool_res.status().message());
+          std::cout << "[Tool Result]: " << (display_res.size() > 500 ? display_res.substr(0, 500) + "..." : display_res) << "\n" << std::endl;
+          
+          std::string logged_res = display_res;
+
+          if (provider == slop::Orchestrator::Provider::GEMINI) {
+              nlohmann::json tool_msg = {
+                  {"functionResponse", {
+                      {"name", tc_or->name},
+                      {"response", {{"content", logged_res}}}
+                  }}
+              };
+              (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc_or->name, "completed", group_id);
+          } else {
+              nlohmann::json tool_msg = {{"content", logged_res}};
+              (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc_or->id + "|" + tc_or->name, "completed", group_id);
+          }
+
+          // Throttle agentic loop
+          if (orchestrator.GetThrottle() > 0) {
+              std::this_thread::sleep_for(std::chrono::seconds(orchestrator.GetThrottle()));
+          }
+        } else {
+          std::cerr << "Tool Parse Error: " << tc_or.status().message() << std::endl;
+          break;
+        }
+      }
     }
-    
-    orchestrator.FinalizeInteraction(session_id, group_id);
   }
 
   return 0;
