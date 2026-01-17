@@ -18,7 +18,7 @@ constexpr char kGcaClientMetadata[] = "{\"ideType\":\"IDE_UNSPECIFIED\",\"platfo
 
 // OpenAI Endpoints
 // constexpr char kOpenAIBaseUrl[] = "https://api.openai.com/v1";
- constexpr char kOpenAIBaseUrl[] = "https://openrouter.ai/v1";
+ constexpr char kOpenAIBaseUrl[] = "https://openrouter.ai/api/v1";
 } // namespace slop
 
 #endif // SLOP_CONSTANTS_H_
