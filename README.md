@@ -63,7 +63,6 @@ bazel run //:std_slop -- [session_name]
 ### Session and Context
 - `/session [name]`    List all sessions or switch to/create a specific one.
 - `/undo`            Remove last interaction and rebuild context.
-- `/commit-vibe`     Create a git commit with vibe ID, prompt, and state.
 - `/context`         Show context status and assembled prompt.
 - `/context window <N>` Set size of rolling window (0 for full history).
 - `/window <N>`      Alias for `/context window <N>`.

@@ -38,7 +38,6 @@ If no session name is provided, it defaults to `default_session`.
 
 - **Session**: A isolated conversation history with its own settings and token usage tracking.
 - **Group (GID)**: Every interaction (user prompt + assistant response + tool executions) is grouped under a unique `group_id`. This allows for atomic operations like `/undo`.
-- `/commit-vibe`: Create a git commit where the message includes the last Vibe ID, the original prompt, and the current `---STATE---` blob.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
@@ -105,7 +104,6 @@ You MUST adhere to these constraints in every code change:
 - Error Handling: Use absl::Status and absl::StatusOr for all fallible operations.
 - Threading: Avoid threading and async primitives. If necessary, use absl based primitives with std::thread and provide tsan tests.
 - Design: Prefer simple, readable code over complex template metaprogramming or deep inheritance.
-You ALWAYS run all the tests and ensure the affected targets compiles correctly.
 ```
 
 ### Tools
