@@ -313,7 +313,14 @@ absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::stri
                 headers.push_back("Authorization: Bearer " + api_key);
             }
         } else {
-            url = "https://generativelanguage.googleapis.com/v1beta/models?key=" + api_key;
+            // For public Gemini API, if we have an OAuth token (starts with ya29 or similar), 
+            // use Authorization header. If it's a short key, use query param.
+            if (!api_key.empty() && api_key.length() > 50) {
+                url = "https://generativelanguage.googleapis.com/v1beta/models";
+                headers.push_back("Authorization: Bearer " + api_key);
+            } else {
+                url = "https://generativelanguage.googleapis.com/v1beta/models?key=" + api_key;
+            }
         }
     } else {
         url = "https://api.openai.com/v1/models";
@@ -352,6 +359,9 @@ absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::stri
 }
 
 absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_token) {
+    if (!gca_mode_) {
+        return absl::UnimplementedError("Quota reporting is only available in Antigravity/GCA mode.");
+    }
     if (project_id_.empty()) {
         return absl::FailedPreconditionError("Project ID is not set.");
     }

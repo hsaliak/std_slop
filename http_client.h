@@ -13,18 +13,18 @@ namespace slop {
 class HttpClient {
  public:
   HttpClient();
-  ~HttpClient();
+  virtual ~HttpClient();
 
   // Non-copyable
   HttpClient(const HttpClient&) = delete;
   HttpClient& operator=(const HttpClient&) = delete;
 
   // Sends a POST request to the given URL with the provided JSON body and headers.
-  absl::StatusOr<std::string> Post(const std::string& url,
+  virtual absl::StatusOr<std::string> Post(const std::string& url,
                                    const std::string& body,
                                    const std::vector<std::string>& headers);
 
-  absl::StatusOr<std::string> Get(const std::string& url,
+  virtual absl::StatusOr<std::string> Get(const std::string& url,
                                   const std::vector<std::string>& headers);
 
   void Abort() { abort_requested_ = true; }

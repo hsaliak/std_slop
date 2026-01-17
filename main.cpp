@@ -134,7 +134,8 @@ int main(int argc, char** argv) {
   } else if (google_auth) {
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-2.0-flash");
-    base_url = "https://generativelanguage.googleapis.com/v1beta";
+    base_url = "https://cloudcode-pa.googleapis.com/v1internal";
+    orchestrator.SetGcaMode(true);
   } else if (!openai_key.empty()) {
     provider = slop::Orchestrator::Provider::OPENAI;
     orchestrator.SetModel(!model.empty() ? model : "gpt-4o");
@@ -279,7 +280,13 @@ int main(int argc, char** argv) {
       std::cout << "\r" << std::string(100, ' ') << "\r" << std::flush;
 
       if (!response_or.ok()) {
-        std::cerr << "HTTP Error: " << response_or.status().message() << " (URL: " << url << ")" << std::endl;
+        if (absl::IsInternal(response_or.status()) && absl::StrContains(response_or.status().message(), "HTTP error 403")) {
+            std::cerr << "\nHTTP Error 403: Forbidden. Your OAuth token may have insufficient scopes.\n"
+                      << "Please re-run the authentication script:\n"
+                      << "  ./slop_auth.sh " << (antigravity ? "antigravity" : "gemini") << "\n" << std::endl;
+        } else {
+            std::cerr << "HTTP Error: " << response_or.status().message() << " (URL: " << url << ")" << std::endl;
+        }
         break;
       }
 

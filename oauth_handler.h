@@ -36,6 +36,9 @@ class OAuthHandler {
   std::string GetTokenPath() const { return token_path_; }
   OAuthMode GetMode() const { return mode_; }
 
+ protected:
+  std::string token_path_;
+
  private:
   absl::Status LoadTokens();
   absl::Status SaveTokens(const OAuthTokens& tokens);
@@ -46,7 +49,6 @@ class OAuthHandler {
   HttpClient* http_client_;
   OAuthTokens tokens_;
   bool enabled_ = false;
-  std::string token_path_;
   std::string manual_project_id_;
   OAuthMode mode_;
 };
