@@ -73,6 +73,11 @@ If no session name is provided, it defaults to `default_session`.
 - `/skill edit <name|id>`: Modify an existing skill.
 - `/skill delete <name|id>`: Permanently remove a skill from the database.
 
+#### Example Skills
+- **planner**: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.
+- **dba**: Database Administrator specializing in SQLite schema design, optimization, and data integrity.
+- **c++_expert**: Enforces strict adherence to project C++ constraints: C++17, Google Style, no exceptions, RAII/unique_ptr, absl::Status.
+
 ### Tools
 - `/tool list`: List all tools currently available to the agent.
 - `/tool show <name>`: View the JSON Schema and description for a tool.
