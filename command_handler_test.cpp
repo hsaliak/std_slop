@@ -174,4 +174,26 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
     EXPECT_EQ(sid, "default_session");
 }
 
+TEST_F(CommandHandlerTest, HandlesCommitVibeNoHistory) {
+    CommandHandler handler(&db);
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+    std::string input = "/commit-vibe";
+    auto res = handler.Handle(input, sid, active_skills, [](){});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+}
+
+TEST_F(CommandHandlerTest, HandlesCommitVibeWithHistory) {
+    CommandHandler handler(&db);
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+    
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "my prompt", "", "completed", "vibe123").ok());
+    ASSERT_TRUE(db.SetSessionState(sid, "some state").ok());
+    
+    std::string input = "/commit-vibe";
+    auto res = handler.Handle(input, sid, active_skills, [](){});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+}
+
 }  // namespace slop

@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "command_handler.h"
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -81,6 +82,45 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
         }
         return Result::HANDLED;
 
+    } else if (cmd == "/commit-vibe") {
+        auto gid_or = db_->GetLastGroupId(session_id);
+        if (!gid_or.ok() || gid_or->empty()) {
+            std::cerr << "Error: No interaction history found to commit." << std::endl;
+            return Result::HANDLED;
+        }
+        std::string gid = *gid_or;
+
+        auto msgs_or = db_->GetMessagesByGroups({gid});
+        std::string prompt;
+        if (msgs_or.ok()) {
+            for (const auto& m : *msgs_or) {
+                if (m.role == "user") {
+                    prompt = m.content;
+                    break;
+                }
+            }
+        }
+
+        auto state_or = db_->GetSessionState(session_id);
+        std::string state = state_or.ok() ? *state_or : "";
+
+        std::string commit_msg = absl::Substitute(
+            "vibe_id: $0\n\nprompt: $1\n\nstate:\n$2",
+            gid, prompt, state);
+
+        FILE* pipe = popen("git commit -F -", "w");
+        if (!pipe) {
+            std::cerr << "Error: Failed to execute git commit." << std::endl;
+            return Result::HANDLED;
+        }
+        fwrite(commit_msg.c_str(), 1, commit_msg.size(), pipe);
+        int status = pclose(pipe);
+        if (status != 0) {
+            std::cerr << "git commit failed. Ensure you have staged changes." << std::endl;
+        } else {
+            std::cout << "Vibe committed successfully with ID: " << gid << std::endl;
+        }
+        return Result::HANDLED;
     } else if (cmd == "/window") {
         int n = args.empty() ? 0 : std::atoi(args.c_str());
         log_status(db_->SetContextWindow(session_id, n));
