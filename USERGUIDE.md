@@ -10,7 +10,7 @@ bazel build //:std_slop
 ```
 
 ## Setup
-You need an API key for either Google Gemini or OpenAI.
+You need an API key for either Google Gemini or an OpenAI compatible endpoint, like OpenRouter.
 
 ### For Gemini:
 ```bash
@@ -29,7 +29,14 @@ To authenticate, run the provided script:
 The script will provide a URL for you to visit. After authorizing, paste the **full redirect URL** back into the script, and it will automatically extract the tokens and save them to `~/.config/slop/token.json`.
 
 
-### For OpenAI:
+### For OpenAI/OpenRouter:
+We actually _default_ OPENAI_BASE_URL to the openrouter.ai endpoint. 
+So you need to set this to the OpenAI endpoint if you actually want to connect to OpenAI proper.
+```bash
+export OPENAI_BASE_URL=$openrouter_url_path // get it from their website.
+
+Set the key:
+```
 ```bash
 export OPENAI_API_KEY="your_api_key"
 ```

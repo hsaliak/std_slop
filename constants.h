@@ -17,8 +17,8 @@ constexpr char kGcaApiClient[] = "google-cloud-sdk vscode_cloudshelleditor/0.1";
 constexpr char kGcaClientMetadata[] = "{\"ideType\":\"IDE_UNSPECIFIED\",\"platform\":\"PLATFORM_UNSPECIFIED\",\"pluginType\":\"GEMINI\"}";
 
 // OpenAI Endpoints
-constexpr char kOpenAIBaseUrl[] = "https://api.openai.com/v1";
-
+// constexpr char kOpenAIBaseUrl[] = "https://api.openai.com/v1";
+ constexpr char kOpenAIBaseUrl[] = "https://openrouter.ai/v1";
 } // namespace slop
 
 #endif // SLOP_CONSTANTS_H_
