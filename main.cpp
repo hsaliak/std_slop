@@ -41,6 +41,7 @@ void ShowHelp() {
             << "  /message show <GID>    View full content of a group\n"
             << "  /message remove <GID>  Delete a message group\n"
             << "  /undo                  Remove last message and rebuild context\n"
+            << "  /commit-vibe           Create a git commit with vibe ID, prompt, and state\n"
             << "  /context               Show context status and assembled prompt\n"
             << "  /context window <N>    Set context to a rolling window of last N groups (0 for full)\n"
             << "  /context rebuild       Rebuild session state from conversation history\n"
