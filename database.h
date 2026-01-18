@@ -22,6 +22,39 @@ class Database {
   absl::Status Init(const std::string& db_path = ":memory:");
   absl::Status Execute(const std::string& sql);
 
+  struct StmtDeleter {
+    void operator()(sqlite3_stmt* stmt) const { if (stmt) sqlite3_finalize(stmt); }
+  };
+  using UniqueStmt = std::unique_ptr<sqlite3_stmt, StmtDeleter>;
+
+  class Statement {
+   public:
+    Statement(sqlite3* db, const std::string& sql) : db_(db), sql_(sql) {}
+    
+    absl::Status Prepare();
+    absl::Status BindInt(int index, int value);
+    absl::Status BindText(int index, const std::string& value);
+    absl::Status BindNull(int index);
+    
+    absl::StatusOr<bool> Step(); // Returns true if a row is available (SQLITE_ROW)
+    absl::Status Run();      // For operations that don't return rows (SQLITE_DONE)
+
+    int ColumnInt(int index);
+    int64_t ColumnInt64(int index);
+    double ColumnDouble(int index);
+    std::string ColumnText(int index);
+    int ColumnType(int index);
+    const char* ColumnName(int index);
+    int ColumnCount();
+
+   private:
+    sqlite3* db_;
+    std::string sql_;
+    UniqueStmt stmt_;
+  };
+
+  absl::StatusOr<std::unique_ptr<Statement>> Prepare(const std::string& sql);
+
   struct Message {
     int id;
     std::string session_id;
@@ -102,11 +135,6 @@ class Database {
   absl::StatusOr<std::string> GetLastGroupId(const std::string& session_id);
 
   sqlite3* GetRawDb() const { return db_.get(); }
-
-  struct StmtDeleter {
-    void operator()(sqlite3_stmt* stmt) const { if (stmt) sqlite3_finalize(stmt); }
-  };
-  using UniqueStmt = std::unique_ptr<sqlite3_stmt, StmtDeleter>;
 
  private:
   absl::Status RegisterDefaultTools();

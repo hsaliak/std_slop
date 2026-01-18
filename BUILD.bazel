@@ -61,6 +61,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@curl//:curl",
         "@nlohmann_json//:json",
     ],
