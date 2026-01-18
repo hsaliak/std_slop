@@ -315,7 +315,7 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
     if (!skill_info.empty()) {
         label = "Assistant (" + skill_info + ")";
     }
-    PrintBorderedBlock(label, content, ansi::Blue);
+    PrintBorderedBlock(label, content, ansi::Cyan);
     std::cout << std::endl;
 }
 
