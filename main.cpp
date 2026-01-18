@@ -308,10 +308,15 @@ int main(int argc, char** argv) {
             auto calls_or = orchestrator.ParseToolCalls(msg);
             if (calls_or.ok()) {
                 for (const auto& tc : *calls_or) {
-                    std::cout << "\n" << Colorize("[Tool Call]: " + tc.name + "(" + tc.args.dump() + ")", ansi::CyanBg) << std::endl;
+                    std::string call_info = "[Tool Call]: " + tc.name + "(" + tc.args.dump() + ")";
+                    if (call_info.size() > 60) call_info = call_info.substr(0, 57) + "...";
+                    std::cout << "\n" << Colorize(call_info, ansi::CyanBg) << std::endl;
+
                     auto tool_res = tool_executor.Execute(tc.name, tc.args);
                     std::string display_res = tool_res.ok() ? *tool_res : "Error: " + std::string(tool_res.status().message());
-                    std::cout << Colorize("[Tool Result]: " + (display_res.size() > 500 ? display_res.substr(0, 500) + "..." : display_res), ansi::GreyBg) << "\n" << std::endl;
+                    std::string res_info = "[Tool Result]: " + display_res;
+                    if (res_info.size() > 60) res_info = res_info.substr(0, 57) + "...";
+                    std::cout << Colorize(res_info, ansi::GreyBg) << "\n" << std::endl;
 
                     if (provider == slop::Orchestrator::Provider::GEMINI) {
                         nlohmann::json tool_msg = {
