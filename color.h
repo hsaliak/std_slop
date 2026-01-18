@@ -7,6 +7,9 @@ namespace ansi {
     // Reset code
     constexpr const char* Reset = "\033[0m";
 
+    // Text style
+    constexpr const char* Bold = "\033[1m";
+
     // Background colors
     constexpr const char* BlueBg = "\033[44m";      // Blue background
     constexpr const char* CyanBg = "\033[46m";      // Cyan background

@@ -37,15 +37,17 @@ size_t VisibleLength(const std::string& s) {
 void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey) {
     if (width == 0) width = GetTerminalWidth();
     if (width > 100) width = 100;
+    std::string bold_fg = std::string(ansi::Bold) + color_fg;
     std::string line;
     for (size_t i = 0; i < width; ++i) line += "─";
-    std::cout << Colorize(line, "", color_fg) << std::endl;
+    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
 }
 
 void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg) {
     size_t width = GetTerminalWidth();
     if (width > 100) width = 100;
     size_t content_width = width - 4;
+    std::string bold_fg = std::string(ansi::Bold) + color_fg;
 
     // Top border
     std::string top_line = "┌─ [ " + header + " ] ";
@@ -59,7 +61,7 @@ void PrintBorderedBlock(const std::string& header, const std::string& body, cons
         // Truncate if too long (simplified)
         top_line = top_line.substr(0, width - 2) + "┐";
     }
-    std::cout << Colorize(top_line, "", color_fg) << std::endl;
+    std::cout << Colorize(top_line, "", bold_fg.c_str()) << std::endl;
 
     // Body
     std::string wrapped = WrapText(body, content_width);
@@ -69,7 +71,7 @@ void PrintBorderedBlock(const std::string& header, const std::string& body, cons
         while (std::getline(ss, line)) {
             size_t visible = VisibleLength(line);
             std::string padding = (visible < content_width) ? std::string(content_width - visible, ' ') : "";
-            std::cout << Colorize("│ ", "", color_fg) << line << padding << Colorize(" │", "", color_fg) << std::endl;
+            std::cout << Colorize("│ ", "", bold_fg.c_str()) << line << padding << Colorize(" │", "", bold_fg.c_str()) << std::endl;
         }
     }
 
@@ -77,7 +79,7 @@ void PrintBorderedBlock(const std::string& header, const std::string& body, cons
     std::string bottom = "└";
     for (size_t i = 0; i < width - 2; ++i) bottom += "─";
     bottom += "┘";
-    std::cout << Colorize(bottom, "", color_fg) << std::endl;
+    std::cout << Colorize(bottom, "", bold_fg.c_str()) << std::endl;
 }
 } // namespace
 
