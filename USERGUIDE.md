@@ -56,6 +56,7 @@ If no session name is provided, it defaults to `default_session`.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
 - **Tools**: Executable functions (grep, file read, etc.) that the LLM can call.
+- **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 
 ## User Interface
 
@@ -135,7 +136,7 @@ You ALWAYS run all the tests and ensure the affected targets compiles correctly.
 - `/models`: List available models for the current provider.
 - `/model <name>`: Switch the active LLM model (e.g., `gemini-1.5-pro`, `gpt-4o-mini`).
 - `/exec <command>`: Execute a shell command without leaving the CLI.
-- `/query_db`: Direct SQL access to the session ledger.
+- `/query_db`: Direct SQL access to the session ledger. **Note: The agent also uses this tool to retrieve historical context.**
 
 ## Database Schema
 The CLI uses a local SQLite database (default: `slop.db`). You can inspect it directly:

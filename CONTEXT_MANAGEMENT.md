@@ -1,6 +1,6 @@
 # Context Management in std_slop
 
-This document outlines the context management strategy in `std_slop`. We focus on a **Sequential Rolling Window** complemented by **Self-Managed State Tracking**.
+This document outlines the context management strategy in `std_slop`. We focus on a **Sequential Rolling Window** complemented by **Self-Managed State Tracking** and **On-Demand Historical Retrieval**.
 
 The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
 
@@ -22,7 +22,7 @@ The system treats the conversation history as a linear timeline. This ensures th
     - **Simplicity**: Easy to reason about; "what you see is what you get" (the last N exchanges).
     - **Reliability**: Avoids the "hallucination" or confusion that can occur with non-sequential fragments.
 - **Cons**:
-    - **Memory Loss**: Older context falls off the window. This is mitigated by the **State Tracking** described below.
+    - **Memory Loss**: Older context falls off the window. This is mitigated by **State Tracking** and **Historical Retrieval**.
 
 ## 2. Self-Managed State Tracking (Long-term RAM)
 
@@ -55,7 +55,26 @@ Technical Anchors: [Ports, IPs, constant values]
 ---END STATE---
 ```
 
-## 3. Manual Context Intervention
+## 3. Historical Context Retrieval (SQL-based Retrieval)
+
+Unique to `std_slop`, the agent has the capability to query its own message history directly via SQL when the rolling window is insufficient.
+
+### Mechanism
+The agent is instructed to use the `query_db` tool to search the `messages` table. This allows for precision retrieval of old information that has fallen out of the rolling window without bloating the context with irrelevant data.
+
+### Guidelines for the Agent
+- **Recency Bias**: Queries should generally use `ORDER BY id DESC` to find the most relevant recent information.
+- **Data Integrity**: The agent must ignore records where `status = 'dropped'` to avoid retrieving "undone" or invalid history.
+- **Selective Retrieval**: The agent can search by `role`, `content` keywords, or `group_id`.
+
+Example query the agent might use:
+```sql
+SELECT role, content FROM messages 
+WHERE status != 'dropped' AND content LIKE '%refactor plan%' 
+ORDER BY id DESC LIMIT 5;
+```
+
+## 4. Manual Context Intervention
 
 Users have several tools to manually prune or repair the context:
 
@@ -81,7 +100,7 @@ Earlier versions of `std_slop` included a `FTS_RANKED` mode that used hybrid ret
 2.  **Narrative Fragmentation**: Non-sequential retrieval often confused the LLM. If the "middle" of a technical implementation was missing because it didn't match the current keyword, the LLM would hallucinate missing details or repeat work.
 3.  **Complexity vs. Value**: Addressing the noise would have required complex stop-word filtering and query expansion logic. Instead, we chose to **simplify**. By focusing on a sequential window and a robust, LLM-managed `---STATE---` block, we ensure that critical "technical anchors" are preserved without the unpredictability of keyword-based retrieval.
 
-The current strategy prioritizes **coherence** (sequential history) and **authoritative summary** (the state block) over autonomous retrieval.
+The current strategy prioritizes **coherence** (sequential history) and **authoritative summary** (the state block) while allowing for **agent-driven precision retrieval** via SQL.
 
 ## Commands Reference
 

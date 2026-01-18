@@ -8,6 +8,7 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 - **Dual API**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter).
 - **Context Control**: Manage memory via group-based rebuild commands.
 - **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
+- **Historical Context Retrieval**: Unique ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
@@ -95,7 +96,7 @@ bazel run //:std_slop -- [session_name]
 | `git_grep_tool` | Advanced git-based search with support for branches and history. |
 | `search_code` | Live codebase search using optimized grep logic. |
 | `execute_bash` | Run arbitrary shell commands. |
-| `query_db` | Query the session ledger using SQL. |
+| `query_db` | Query the session ledger using SQL. Used for data analysis and **historical context retrieval**. |
 
 ## Project Constraints
 
