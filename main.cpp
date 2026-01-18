@@ -5,6 +5,7 @@
 #include <thread>
 #include <iomanip>
 #include <chrono>
+#include <algorithm>
 #include "database.h"
 #include "orchestrator.h"
 #include "http_client.h"
@@ -13,6 +14,7 @@
 #include "ui.h"
 #include "oauth_handler.h"
 #include "constants.h"
+#include "color.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/match.h"
@@ -167,35 +169,21 @@ int main(int argc, char** argv) {
   slop::CommandHandler cmd_handler(&db, &orchestrator, oauth_handler.get(), google_key, openai_key);
   std::vector<std::string> active_skills;
 
-  slop::SetupTerminal();
-  
-  std::cout << "std::slop - Session: " << session_id << " [" << orchestrator.GetModel() << "]" << std::endl;
-  if (google_auth) std::cout << "Mode: Google OAuth" << std::endl;
-  else if (!openai_key.empty()) std::cout << "Mode: OpenAI" << std::endl;
-  else std::cout << "Mode: Google Gemini (API Key)" << std::endl;
-  std::cout << "Type /help for commands.\n" << std::endl;
+  slop::ShowBanner();
 
   while (true) {
-    std::string prompt_str = "";
-    auto context_settings = db.GetContextSettings(session_id);
-    if (context_settings.ok()) {
-      if (context_settings->size > 0) {
-          absl::StrAppend(&prompt_str, "[WINDOW: ", context_settings->size, "]");
-      } else if (context_settings->size == 0) {
-          absl::StrAppend(&prompt_str, "[FULL]");
-      } else {
-          absl::StrAppend(&prompt_str, "[NONE]");
-      }
-    }
-    if (!active_skills.empty()) {
-      absl::StrAppend(&prompt_str, " [", absl::StrJoin(active_skills, ", "), "]");
-    }
-    absl::StrAppend(&prompt_str, " [", orchestrator.GetModel(), "] User> ");
+    
+    auto settings_or = db.GetContextSettings(session_id);
+    int window_size = settings_or.ok() ? settings_or->size : 0;
+    std::string model_name = orchestrator.GetModel();
+    std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
+    std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
+    std::string prompt = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, "> ");
 
-    std::string input = slop::ReadLine(prompt_str.c_str(), session_id);
+    std::string input = slop::ReadLine(prompt, session_id);
     if (input.empty()) continue;
 
-    auto res = cmd_handler.Handle(input, session_id, active_skills, ShowHelp, orchestrator.GetLastSelectedGroups());
+    auto res = cmd_handler.Handle(input, session_id, active_skills, ShowHelp);
     if (res == slop::CommandHandler::Result::HANDLED) {
       if (input == "/exit" || input == "/quit") break;
       continue;
@@ -297,38 +285,55 @@ int main(int argc, char** argv) {
         if (!active_skills.empty()) {
             skill_str = " (" + absl::StrJoin(active_skills, ", ") + ")";
         }
-        std::cout << "\n[Assistant" << skill_str << "]: " << last_msg.content << "\n" << std::endl;
+        std::cout << "\n" << Colorize("[Assistant" + skill_str + "]: " + last_msg.content, ansi::BlueBg) << "\n" << std::endl;
         break; 
-      } else if (last_msg.status == "tool_call") {
-        auto tc_or = orchestrator.ParseToolCall(last_msg);
-        if (tc_or.ok()) {
-          std::cout << "\n[Tool Call]: " << tc_or->name << "(" << tc_or->args.dump() << ")" << std::endl;
-          auto tool_res = tool_executor.Execute(tc_or->name, tc_or->args);
-          std::string display_res = tool_res.ok() ? *tool_res : "Error: " + std::string(tool_res.status().message());
-          std::cout << "[Tool Result]: " << (display_res.size() > 500 ? display_res.substr(0, 500) + "..." : display_res) << "\n" << std::endl;
-          
-          std::string logged_res = display_res;
+      } else {
+        // Collect ALL pending tool call messages at the end of history
+        std::vector<slop::Database::Message> tool_call_msgs;
+        for (auto it = history_or->rbegin(); it != history_or->rend(); ++it) {
+            if (it->status == "tool_call") {
+                tool_call_msgs.push_back(*it);
+            } else if (it->role == "assistant") {
+                // Skip text parts of the same turn
+                continue;
+            } else {
+                break;
+            }
+        }
+        std::reverse(tool_call_msgs.begin(), tool_call_msgs.end());
 
-          if (provider == slop::Orchestrator::Provider::GEMINI) {
-              nlohmann::json tool_msg = {
-                  {"functionResponse", {
-                      {"name", tc_or->name},
-                      {"response", {{"content", logged_res}}}
-                  }}
-              };
-              (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc_or->name, "completed", group_id);
-          } else {
-              nlohmann::json tool_msg = {{"content", logged_res}};
-              (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc_or->id + "|" + tc_or->name, "completed", group_id);
-          }
+        if (tool_call_msgs.empty()) break;
 
-          // Throttle agentic loop
-          if (orchestrator.GetThrottle() > 0) {
-              std::this_thread::sleep_for(std::chrono::seconds(orchestrator.GetThrottle()));
-          }
-        } else {
-          std::cerr << "Tool Parse Error: " << tc_or.status().message() << std::endl;
-          break;
+        for (const auto& msg : tool_call_msgs) {
+            auto calls_or = orchestrator.ParseToolCalls(msg);
+            if (calls_or.ok()) {
+                for (const auto& tc : *calls_or) {
+                    std::cout << "\n" << Colorize("[Tool Call]: " + tc.name + "(" + tc.args.dump() + ")", ansi::CyanBg) << std::endl;
+                    auto tool_res = tool_executor.Execute(tc.name, tc.args);
+                    std::string display_res = tool_res.ok() ? *tool_res : "Error: " + std::string(tool_res.status().message());
+                    std::cout << Colorize("[Tool Result]: " + (display_res.size() > 500 ? display_res.substr(0, 500) + "..." : display_res), ansi::GreyBg) << "\n" << std::endl;
+
+                    if (provider == slop::Orchestrator::Provider::GEMINI) {
+                        nlohmann::json tool_msg = {
+                            {"functionResponse", {
+                                {"name", tc.name},
+                                {"response", {{"content", display_res}}}
+                            }}
+                        };
+                        (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc.name, "completed", group_id);
+                    } else {
+                        nlohmann::json tool_msg = {{"content", display_res}};
+                        (void)db.AppendMessage(session_id, "tool", tool_msg.dump(), tc.id + "|" + tc.name, "completed", group_id);
+                    }
+                }
+                (void)db.UpdateMessageStatus(msg.id, "handled");
+            } else {
+                std::cerr << "Tool Parse Error: " << calls_or.status().message() << std::endl;
+            }
+        }
+
+        if (orchestrator.GetThrottle() > 0) {
+            std::this_thread::sleep_for(std::chrono::seconds(orchestrator.GetThrottle()));
         }
       }
     }

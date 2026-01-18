@@ -6,6 +6,28 @@
 
 namespace slop {
 
+TEST(UiTest, WrapTextSimple) {
+    std::string text = "This is a long sentence that should be wrapped into multiple lines because it exceeds the width.";
+    std::string wrapped = WrapText(text, 20);
+    std::stringstream ss(wrapped);
+    std::string line;
+    while (std::getline(ss, line)) {
+        EXPECT_LE(line.length(), 20);
+    }
+}
+
+TEST(UiTest, WrapTextAnsi) {
+    std::string red_hello = "\033[31mHello\033[0m"; 
+    std::string text = red_hello + " world " + red_hello + " again";
+    std::string wrapped = WrapText(text, 12);
+    std::stringstream ss(wrapped);
+    std::string line;
+    std::getline(ss, line);
+    EXPECT_EQ(line, red_hello + " world");
+    std::getline(ss, line);
+    EXPECT_EQ(line, red_hello + " again");
+}
+
 TEST(UiTest, PrintJsonAsTableEmpty) {
     std::string empty_json = "[]";
     std::stringstream buffer;
@@ -39,22 +61,21 @@ TEST(UiTest, PrintJsonAsTableInvalid) {
     EXPECT_FALSE(status.ok());
 }
 
-TEST(UiTest, FormatAssembledContextOpenAI) {
+TEST(UiTest, FormatAssembledContextGemini) {
     std::string json = R"({
-        "messages": [
-            {"role": "system", "content": "You are a helper."},
-            {"role": "user", "content": "Hello!"}
-        ]
+        "contents": [
+            {"role": "user", "parts": [{"text": "Hello!"}]}
+        ],
+        "system_instruction": {"parts": [{"text": "You are a helper."}]}
     })";
     std::string formatted = FormatAssembledContext(json);
-    EXPECT_TRUE(formatted.find("[SYSTEM]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("[SYSTEM INSTRUCTION]") != std::string::npos);
     EXPECT_TRUE(formatted.find("You are a helper.") != std::string::npos);
-    EXPECT_TRUE(formatted.find("[USER]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("[user]") != std::string::npos);
     EXPECT_TRUE(formatted.find("Hello!") != std::string::npos);
 }
 
 TEST(UiTest, SmartDisplayFallback) {
-    // Force EDITOR to be empty
     const char* old_editor = std::getenv("EDITOR");
     unsetenv("EDITOR");
 

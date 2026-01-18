@@ -41,6 +41,7 @@ cc_library(
         "tool_executor.h",
         "ui.h",
         "constants.h",
+        "color.h",
         "system_prompt_data.h",
     ],
     copts = [

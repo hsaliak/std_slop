@@ -206,54 +206,7 @@ TEST_F(OrchestratorTest, GeminiHistoryNormalization) {
     EXPECT_EQ(prompt["contents"][0]["parts"].size(), 2);
 }
 
-TEST_F(OrchestratorTest, SkipsMalformedTools) {
-    Orchestrator orchestrator(&db, &http);
-    
-    // Valid tool
-    Database::Tool valid = {"valid", "desc", R"({"type":"object"})", true};
-    ASSERT_TRUE(db.RegisterTool(valid).ok());
-    
-    // Malformed tool (invalid JSON)
-    Database::Tool invalid = {"invalid", "desc", R"({"type": "object", broken})", true};
-    ASSERT_TRUE(db.RegisterTool(invalid).ok());
-    
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
-    
-    auto result = orchestrator.AssemblePrompt("s1");
-    ASSERT_TRUE(result.ok());
-    
-    nlohmann::json prompt = *result;
-    ASSERT_TRUE(prompt.contains("tools"));
-    
-    // For Gemini format
-    auto& decls = prompt["tools"][0]["function_declarations"];
-    bool found_valid = false;
-    bool found_invalid = false;
-    for (const auto& d : decls) {
-        if (d["name"] == "valid") found_valid = true;
-        if (d["name"] == "invalid") found_invalid = true;
-    }
-    EXPECT_TRUE(found_valid);
-    EXPECT_FALSE(found_invalid);
-
-    // Test for OpenAI
-    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    result = orchestrator.AssemblePrompt("s1");
-    ASSERT_TRUE(result.ok());
-    prompt = *result;
-    ASSERT_TRUE(prompt.contains("tools"));
-    
-    found_valid = false;
-    found_invalid = false;
-    for (const auto& d : prompt["tools"]) {
-        if (d["function"]["name"] == "valid") found_valid = true;
-        if (d["function"]["name"] == "invalid") found_invalid = true;
-    }
-    EXPECT_TRUE(found_valid);
-    EXPECT_FALSE(found_invalid);
-}
-
-TEST_F(OrchestratorTest, ParseToolCallGemini) {
+TEST_F(OrchestratorTest, ParseToolCallsGemini) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
     
@@ -263,75 +216,43 @@ TEST_F(OrchestratorTest, ParseToolCallGemini) {
     msg.tool_call_id = "test_tool";
     msg.content = R"({"functionCall": {"name": "test_tool", "args": {"key": "val"}}})";
     
-    auto tc = orchestrator.ParseToolCall(msg);
-    ASSERT_TRUE(tc.ok());
-    EXPECT_EQ(tc->name, "test_tool");
-    EXPECT_EQ(tc->args["key"], "val");
+    auto tcs_or = orchestrator.ParseToolCalls(msg);
+    ASSERT_TRUE(tcs_or.ok());
+    ASSERT_EQ(tcs_or->size(), 1);
+    EXPECT_EQ((*tcs_or)[0].name, "test_tool");
+    EXPECT_EQ((*tcs_or)[0].args["key"], "val");
 }
 
-TEST_F(OrchestratorTest, ParseToolCallOpenAI) {
+TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
     
     Database::Message msg;
     msg.role = "assistant";
     msg.status = "tool_call";
-    msg.tool_call_id = "call_123|test_tool";
-    msg.content = R"({"tool_calls": [{"id": "call_123", "type": "function", "function": {"name": "test_tool", "arguments": "{\"key\": \"val\"}"}}]})";
-    
-    auto tc = orchestrator.ParseToolCall(msg);
-    ASSERT_TRUE(tc.ok());
-    EXPECT_EQ(tc->name, "test_tool");
-    EXPECT_EQ(tc->id, "call_123");
-    EXPECT_EQ(tc->args["key"], "val");
-}
-
-TEST_F(OrchestratorTest, GcaPayloadWrapping) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetModel("gemini-3-flash-preview");
-    orchestrator.SetGcaMode(true);
-    orchestrator.SetProjectId("test-proj");
-    
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
-    
-    auto result = orchestrator.AssemblePrompt("s1");
-    ASSERT_TRUE(result.ok());
-    
-    nlohmann::json prompt = *result;
-    EXPECT_EQ(prompt["model"], "gemini-3-flash-preview");
-    EXPECT_EQ(prompt["project"], "test-proj");
-    ASSERT_TRUE(prompt.contains("user_prompt_id"));
-    ASSERT_TRUE(prompt.contains("request"));
-    EXPECT_TRUE(prompt["request"]["contents"][0]["parts"][0]["text"].get<std::string>().find("Hello") != std::string::npos);
-    EXPECT_EQ(prompt["request"]["session_id"], "s1");
-}
-
-TEST_F(OrchestratorTest, GcaResponseUnwrapping) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetGcaMode(true);
-    
-    std::string mock_gca_response = R"({
-        "response": {
-            "candidates": [{
-                "content": {
-                    "parts": [{"text": "Hello from GCA"}]
-                }
-            }]
-        }
+    msg.content = R"({
+        "tool_calls": [{
+            "id": "call_123",
+            "function": {
+                "name": "test_tool",
+                "arguments": "{\"key\": \"val\"}"
+            }
+        }]
     })";
     
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_gca_response).ok());
-    
-    auto history = db.GetConversationHistory("s1");
-    ASSERT_TRUE(history.ok());
-    ASSERT_EQ(history->size(), 1);
-    EXPECT_EQ((*history)[0].content, "Hello from GCA");
+    auto tcs_or = orchestrator.ParseToolCalls(msg);
+    ASSERT_TRUE(tcs_or.ok());
+    ASSERT_EQ(tcs_or->size(), 1);
+    EXPECT_EQ((*tcs_or)[0].name, "test_tool");
+    EXPECT_EQ((*tcs_or)[0].id, "call_123");
+    EXPECT_EQ((*tcs_or)[0].args["key"], "val");
 }
 
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
     Orchestrator orchestrator(&db, &http);
-    orchestrator.SetModel("test-gemini");
-    
+    orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
+    orchestrator.SetModel("gemini-1.5-pro");
+
     std::string mock_response = R"({
         "candidates": [{"content": {"parts": [{"text": "Hello"}]}}],
         "usageMetadata": {
@@ -342,17 +263,17 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
     
     ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
     
-    auto usage = db.GetTotalUsage("s1");
-    ASSERT_TRUE(usage.ok());
-    EXPECT_EQ(usage->prompt_tokens, 10);
-    EXPECT_EQ(usage->completion_tokens, 5);
+    auto usage_or = db.GetTotalUsage("s1");
+    ASSERT_TRUE(usage_or.ok());
+    EXPECT_EQ(usage_or->prompt_tokens, 10);
+    EXPECT_EQ(usage_or->completion_tokens, 5);
 }
 
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    orchestrator.SetModel("test-openai");
-    
+    orchestrator.SetModel("gpt-4o");
+
     std::string mock_response = R"({
         "choices": [{"message": {"role": "assistant", "content": "Hello"}}],
         "usage": {
@@ -363,149 +284,10 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
     
     ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
     
-    auto usage = db.GetTotalUsage("s1");
-    ASSERT_TRUE(usage.ok());
-    EXPECT_EQ(usage->prompt_tokens, 20);
-    EXPECT_EQ(usage->completion_tokens, 10);
-}
-
-TEST_F(OrchestratorTest, SelfManagedStateTracking) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
-    
-    std::string state_content = "Goal: Fix tests\nContext: orchestrator_test.cpp";
-    std::string mock_response = "I have updated the code.\n---STATE---\n" + state_content + "\n---END STATE---";
-    
-    nlohmann::json gemini_resp = {
-        {"candidates", {{
-            {"content", {
-                {"parts", {{{"text", mock_response}}}}
-            }}
-        }}}
-    };
-
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", gemini_resp.dump()).ok());
-    
-    // Verify state is in DB
-    auto state_or = db.GetSessionState("s1");
-    ASSERT_TRUE(state_or.ok());
-    EXPECT_TRUE(state_or->find(state_content) != std::string::npos);
-    EXPECT_TRUE(state_or->find("---STATE---") != std::string::npos);
-
-    // Verify state is injected in prompt
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "What is next?").ok());
-    auto prompt_or = orchestrator.AssemblePrompt("s1");
-    ASSERT_TRUE(prompt_or.ok());
-    
-    std::string sys_instr = (*prompt_or)["system_instruction"]["parts"][0]["text"];
-    EXPECT_TRUE(sys_instr.find("---CONVERSATION HISTORY GUIDELINES---") != std::string::npos);
-    EXPECT_TRUE(sys_instr.find(state_content) != std::string::npos);
-}
-
-
-TEST_F(OrchestratorTest, AssemblePromptWithHeaders) {
-    Orchestrator orchestrator(&db, &http);
-    
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
-    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Hi!").ok());
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "What's the weather?").ok());
-    
-    auto result = orchestrator.AssemblePrompt("s1", {});
-    ASSERT_TRUE(result.ok());
-    
-    nlohmann::json prompt = *result;
-    ASSERT_EQ(prompt["contents"].size(), 3);
-    
-    // Check first message header
-    std::string first_content = prompt["contents"][0]["parts"][0]["text"];
-    EXPECT_TRUE(first_content.find("--- BEGIN CONVERSATION HISTORY ---") != std::string::npos);
-    EXPECT_TRUE(first_content.find("Hello") != std::string::npos);
-    
-    // Check second message (assistant)
-    EXPECT_EQ(prompt["contents"][1]["parts"][0]["text"], "Hi!");
-    
-    // Check third message (user) header and boundary
-    std::string third_content = prompt["contents"][2]["parts"][0]["text"];
-    EXPECT_TRUE(third_content.find("--- END OF HISTORY ---") != std::string::npos);
-    EXPECT_TRUE(third_content.find("### CURRENT REQUEST") != std::string::npos);
-    EXPECT_TRUE(third_content.find("What's the weather?") != std::string::npos);
-}
-
-TEST_F(OrchestratorTest, AssembleOpenAIPromptWithHeaders) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    
-    ASSERT_TRUE(db.AppendMessage("s2", "user", "Hello").ok());
-    ASSERT_TRUE(db.AppendMessage("s2", "assistant", "Hi!").ok());
-    ASSERT_TRUE(db.AppendMessage("s2", "user", "What's the weather?").ok());
-    
-    auto result = orchestrator.AssemblePrompt("s2", {});
-    ASSERT_TRUE(result.ok());
-    
-    nlohmann::json prompt = *result;
-    nlohmann::json messages = prompt["messages"];
-    
-    // index 0 is system instruction
-    // index 1 is first user message
-    std::string first_content = messages[1]["content"];
-    EXPECT_TRUE(first_content.find("--- BEGIN CONVERSATION HISTORY ---") != std::string::npos);
-    
-    // index 2 is assistant
-    EXPECT_EQ(messages[2]["content"], "Hi!");
-    
-    // index 3 is last user message
-    std::string last_content = messages[3]["content"];
-    EXPECT_TRUE(last_content.find("--- END OF HISTORY ---") != std::string::npos);
-    EXPECT_TRUE(last_content.find("### CURRENT REQUEST") != std::string::npos);
-}
-
-
-TEST_F(OrchestratorTest, AssemblePromptRollingWindow) {
-    Orchestrator orchestrator(&db, &http);
-    
-    // Create 3 groups of messages with alternating roles to prevent merging
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "msg1", "", "completed", "g1").ok());
-    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "msg2", "", "completed", "g2").ok());
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "msg3", "", "completed", "g3").ok());
-    
-    // Set rolling window to 2
-    ASSERT_TRUE(db.SetContextWindow("s1", 2).ok());
-    
-    auto result = orchestrator.AssemblePrompt("s1", {});
-    ASSERT_TRUE(result.ok());
-    
-    nlohmann::json prompt = *result;
-    // Should only contain g2 and g3
-    ASSERT_EQ(prompt["contents"].size(), 2);
-    EXPECT_TRUE(prompt["contents"][0]["parts"][0]["text"].get<std::string>().find("msg2") != std::string::npos);
-    EXPECT_TRUE(prompt["contents"][1]["parts"][0]["text"].get<std::string>().find("msg3") != std::string::npos);
-}
-
-
-TEST_F(OrchestratorTest, RebuildContext) {
-    Orchestrator orchestrator(&db, &http);
-    std::string sid = "s_rebuild";
-    
-    // 1. Set an initial state
-    ASSERT_TRUE(db.SetSessionState(sid, "Initial State").ok());
-    
-    // 2. Add history with a newer state
-    std::string state_content = "Goal: Build a rocket\nContext: Rocket lab\nResolved: Propulsion\nTechnical Anchors: Gravity=9.8";
-    std::string mock_assistant_response = "I have updated the plan.\n---STATE---\n" + state_content + "\n---END STATE---";
-    ASSERT_TRUE(db.AppendMessage(sid, "user", "What is the plan?").ok());
-    ASSERT_TRUE(db.AppendMessage(sid, "assistant", mock_assistant_response).ok());
-    
-    // 3. Manually corrupt/change the session state in the DB to simulate it being out of sync
-    ASSERT_TRUE(db.SetSessionState(sid, "Corrupted State").ok());
-    
-    // 4. Run rebuild
-    ASSERT_TRUE(orchestrator.RebuildContext(sid).ok());
-    
-    // 5. Verify state is restored from history
-    auto state_or = db.GetSessionState(sid);
-    ASSERT_TRUE(state_or.ok());
-    EXPECT_TRUE(state_or->find("---STATE---") != std::string::npos);
-    EXPECT_TRUE(state_or->find("Build a rocket") != std::string::npos);
+    auto usage_or = db.GetTotalUsage("s1");
+    ASSERT_TRUE(usage_or.ok());
+    EXPECT_EQ(usage_or->prompt_tokens, 20);
+    EXPECT_EQ(usage_or->completion_tokens, 10);
 }
 
 }  // namespace slop

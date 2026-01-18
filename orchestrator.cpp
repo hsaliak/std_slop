@@ -381,7 +381,6 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
 
     auto j = nlohmann::json::parse(*resp_or, nullptr, false);
     if (j.is_discarded()) return absl::InternalError("Failed to parse quota response");
-
     return j;
 }
 
@@ -460,20 +459,29 @@ absl::Status Orchestrator::ProcessResponse(const std::string& session_id, const 
   return status;
 }
 
-absl::StatusOr<Orchestrator::ToolCall> Orchestrator::ParseToolCall(const Database::Message& msg) {
+absl::StatusOr<std::vector<Orchestrator::ToolCall>> Orchestrator::ParseToolCalls(const Database::Message& msg) {
     if (msg.status != "tool_call") return absl::InvalidArgumentError("Not a tool call");
     auto j = nlohmann::json::parse(msg.content, nullptr, false);
     if (j.is_discarded()) return absl::InternalError("JSON error");
-    ToolCall tc;
+    
+    std::vector<ToolCall> calls;
     if (provider_ == Provider::GEMINI) {
+        ToolCall tc;
         tc.name = msg.tool_call_id;
         tc.args = (j.contains("functionCall") && j["functionCall"].contains("args")) ? j["functionCall"]["args"] : (j.contains("args") ? j["args"] : nlohmann::json::object());
+        calls.push_back(tc);
     } else {
-        auto& first = j["tool_calls"][0];
-        tc.name = first["function"]["name"]; tc.id = first["id"];
-        tc.args = nlohmann::json::parse(first["function"]["arguments"].get<std::string>(), nullptr, false);
+        if (j.contains("tool_calls")) {
+            for (const auto& call : j["tool_calls"]) {
+                ToolCall tc;
+                tc.name = call["function"]["name"];
+                tc.id = call["id"];
+                tc.args = nlohmann::json::parse(call["function"]["arguments"].get<std::string>(), nullptr, false);
+                calls.push_back(tc);
+            }
+        }
     }
-    return tc;
+    return calls;
 }
 
 

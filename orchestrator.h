@@ -42,7 +42,7 @@ class Orchestrator {
     std::string id; // For OpenAI
     nlohmann::json args;
   };
-  absl::StatusOr<ToolCall> ParseToolCall(const Database::Message& msg);
+  absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
 
   absl::StatusOr<std::vector<std::string>> GetModels(const std::string& api_key);
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
