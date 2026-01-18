@@ -270,23 +270,37 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
     return absl::OkStatus();
 }
 
+void PrintFormattedBlock(const std::string& header, const std::string& body, const char* bg, const char* fg = ansi::White) {
+    size_t width = GetTerminalWidth();
+    if (!header.empty()) {
+        std::cout << FormatLine(header, bg, width, fg) << std::endl;
+    }
+    std::string wrapped = WrapText(body, width);
+    if (wrapped.empty()) return;
+    std::stringstream ss(wrapped);
+    std::string line;
+    while (std::getline(ss, line)) {
+        std::cout << FormatLine(line, bg, width, fg) << std::endl;
+    }
+    std::cout << std::endl;
+}
+
 void PrintAssistantMessage(const std::string& content, const std::string& skill_info) {
     std::string label = "[Assistant]";
     if (!skill_info.empty()) {
         label = "[Assistant (" + skill_info + ")]";
     }
-    std::cout << "\n" << FormatLine(label, ansi::BlueBg) << std::endl;
-    std::cout << WrapText(content, GetTerminalWidth()) << "\n" << std::endl;
+    std::cout << std::endl;
+    PrintFormattedBlock(label, content, ansi::BlueBg);
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
-    std::cout << "\n" << FormatLine("[Tool Call: " + name + "]", ansi::CyanBg, 0, ansi::Black) << std::endl;
-    std::cout << WrapText(args, GetTerminalWidth()) << "\n" << std::endl;
+    std::cout << std::endl;
+    PrintFormattedBlock("[Tool Call: " + name + "]", args, ansi::GreyBg);
 }
 
 void PrintToolResultMessage(const std::string& result) {
-    std::cout << FormatLine("[Tool Result]", ansi::CyanBg, 0, ansi::Black) << std::endl;
-    std::cout << WrapText(result, GetTerminalWidth()) << "\n" << std::endl;
+    PrintFormattedBlock("[Tool Result]", result, ansi::GreyBg);
 }
 
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit, const std::vector<std::string>& selected_groups) {
