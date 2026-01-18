@@ -10,7 +10,7 @@ bazel build //:std_slop
 ```
 
 ## Setup
-You need an API key for either Google Gemini or an OpenAI compatible endpoint, like OpenRouter.
+You need an API key for either Google Gemini or an OpenAI compatible endpoint. By default, `std::slop` uses OpenRouter for OpenAI-compatible models.
 
 ### For Gemini:
 ```bash
@@ -30,13 +30,13 @@ The script will provide a URL for you to visit. After authorizing, paste the **f
 
 
 ### For OpenAI/OpenRouter:
-We actually _default_ OPENAI_BASE_URL to the openrouter.ai endpoint. 
-So you need to set this to the OpenAI endpoint if you actually want to connect to OpenAI proper.
+We default `OPENAI_BASE_URL` to `https://openrouter.ai/api/v1`. 
+To use OpenAI proper or another provider, override it:
 ```bash
-export OPENAI_BASE_URL=$openrouter_url_path // get it from their website.
-
-Set the key:
+export OPENAI_BASE_URL="https://api.openai.com/v1"
 ```
+
+Set your API key:
 ```bash
 export OPENAI_API_KEY="your_api_key"
 ```
@@ -50,12 +50,18 @@ If no session name is provided, it defaults to `default_session`.
 
 ## Core Concepts
 
-- **Session**: A isolated conversation history with its own settings and token usage tracking.
+- **Session**: An isolated conversation history with its own settings and token usage tracking.
 - **Group (GID)**: Every interaction (user prompt + assistant response + tool executions) is grouped under a unique `group_id`. This allows for atomic operations like `/undo`.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
 - **Tools**: Executable functions (grep, file read, etc.) that the LLM can call.
+
+## User Interface
+
+`std::slop` features an enhanced CLI UI designed for readability:
+- **Colors**: Tool headers are displayed in black text on a cyan background. Assistant messages are clearly distinguished.
+- **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter, while providing enough information for the user to follow the agent's progress. Full content is still sent to the LLM when appropriate.
 
 ## Slash Commands
 
@@ -70,7 +76,7 @@ If no session name is provided, it defaults to `default_session`.
 - `/message show <GID>`: View the full content (including tool calls/responses) of a specific group.
 - `/message remove <GID>`: Hard delete a specific message group from history.
 - `/undo`: Delete the very last interaction group and rebuild the session context.
-- `/edit`: Open your last input in your system `$EDITOR` (e.g., vims, nano) and resend it after saving.
+- `/edit`: Open your last input in your system `$EDITOR` (e.g., vim, nano) and resend it after saving.
 
 ### Context Control
 - `/context`: Show current context settings and the fully assembled prompt that would be sent to the LLM.
@@ -88,8 +94,6 @@ If no session name is provided, it defaults to `default_session`.
 - `/skill delete <name|id>`: Permanently remove a skill from the database.
 
 #### Example Skills
-
-it's likely that you can ask std::slop to read this file (url or local) and add these skills to your database.
 
 **planner**
 - **Description**: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.

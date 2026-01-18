@@ -5,12 +5,14 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 ## Features
 
 - **Ledger-Driven**: All interactions, tool calls, and system changes are stored in SQLite.
-- **Dual API**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (really, this means access to openrouter).
+- **Dual API**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter).
 - **Context Control**: Manage memory via group-based rebuild commands.
 - **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
+- **Enhanced UI**: ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions.
+- **Output Truncation**: Smart truncation of tool calls and results to 60 columns to maintain terminal clarity while preserving relevant context.
 - **Tool Execution**: Autonomous local file system and shell operations.
 - **Readline Support**: Command history and line auto-completion.
 - **Skills System**: Inject specialized personas and instructions into the session.
