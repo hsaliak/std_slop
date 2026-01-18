@@ -40,7 +40,7 @@ size_t GetTerminalWidth() {
     return 80;
 }
 
-std::string FormatLine(const std::string& text, const char* color_bg, size_t width) {
+std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
     if (width == 0) width = GetTerminalWidth();
     
     std::string line = text;
@@ -66,7 +66,7 @@ std::string FormatLine(const std::string& text, const char* color_bg, size_t wid
         line += std::string(width - visible_len, " "[0]);
     }
     
-    return Colorize(line, color_bg);
+    return Colorize(line, color_bg, color_fg);
 }
 
 void SetupTerminal() {
@@ -280,12 +280,12 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
-    std::cout << "\n" << FormatLine("[Tool Call: " + name + "]", ansi::GreyBg) << std::endl;
+    std::cout << "\n" << FormatLine("[Tool Call: " + name + "]", ansi::CyanBg, 0, ansi::Black) << std::endl;
     std::cout << WrapText(args, GetTerminalWidth()) << "\n" << std::endl;
 }
 
 void PrintToolResultMessage(const std::string& result) {
-    std::cout << FormatLine("[Tool Result]", ansi::GreyBg) << std::endl;
+    std::cout << FormatLine("[Tool Result]", ansi::CyanBg, 0, ansi::Black) << std::endl;
     std::cout << WrapText(result, GetTerminalWidth()) << "\n" << std::endl;
 }
 

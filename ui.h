@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include "database.h"
+#include "color.h"
 
 namespace slop {
 
@@ -36,8 +37,9 @@ size_t GetTerminalWidth();
  * @param text The text to format.
  * @param color_bg ANSI background color code.
  * @param width Target width (0 to use GetTerminalWidth()).
+ * @param color_fg ANSI foreground color code.
  */
-std::string FormatLine(const std::string& text, const char* color_bg, size_t width = 0);
+std::string FormatLine(const std::string& text, const char* color_bg, size_t width = 0, const char* color_fg = ansi::White);
 
 /**
  * @brief High-level methods for centralized UI message formatting.

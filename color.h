@@ -12,8 +12,9 @@ namespace ansi {
     constexpr const char* CyanBg = "\033[46m";      // Cyan background
     constexpr const char* GreyBg = "\033[100m";     // Grey (bright black) background
 
-    // Foreground (text) color - White
+    // Foreground (text) color
     constexpr const char* White = "\033[37m";
+    constexpr const char* Black = "\033[30m";
 }  // namespace ansi
 
 /**
