@@ -26,7 +26,7 @@ The authentication script handles the standard Gemini OAuth flow.
 | **CLI Flag** | (Default if no key) |
 | **Token File** | `~/.config/slop/token.json` |
 | **API Endpoint** | `v1internal` |
-| **Model Default**| `gemini-2.0-flash` |
+| **Model Default**| `gemini-2.5-flash` |
 | **GCA Wrapping** | Enabled |
 
 **Note**: OAuth utilizes the `v1internal` endpoint. This is required because the Client IDs used for OAuth only carry `cloud-platform` scopes, which are not supported by the public `v1beta` endpoint for standard users.

@@ -11,6 +11,9 @@ bazel-*
 *.db-shm
 *.db-wal
 
+# Logs
+*.log
+
 # Temporary/Swap files
 *.swp
 *.swo
