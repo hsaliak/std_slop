@@ -33,6 +33,7 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
     // we check for high-level strings we know are there.
     EXPECT_TRUE(absl::StrContains(instr, "interactive CLI agent")) << "Missing character definition";
     EXPECT_TRUE(absl::StrContains(instr, "Software Engineering Tasks")) << "Missing workflow definition";
+    EXPECT_TRUE(absl::StrContains(instr, "Context Retrieval")) << "Missing context retrieval instruction";
     EXPECT_TRUE(absl::StrContains(instr, "---AVAILABLE TOOLS---")) << "Missing tools section header";
 }
 

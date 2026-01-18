@@ -77,7 +77,9 @@ Technical Anchors: [Ports, IPs, constant values]
       std::string line;
       bool in_patch = false;
       while (std::getline(ss, line)) {
-          if (absl::StartsWith(line, "#patch:") || absl::StartsWith(line, "#purpose:")) {
+          absl::string_view s = absl::StripLeadingAsciiWhitespace(line);
+          if (absl::StartsWith(s, "#patch:") || absl::StartsWith(s, "#purpose:") ||
+              absl::StartsWith(s, "# patch:") || absl::StartsWith(s, "# purpose:")) {
               in_patch = true;
               continue;
           }
