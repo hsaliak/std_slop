@@ -1,0 +1,16 @@
+Computing main repo mapping: 
+Loading: 
+Loading: 0 packages loaded
+Analyzing: 16 targets (1 packages loaded, 0 targets configured)
+Analyzing: 16 targets (1 packages loaded, 0 targets configured)
+
+ERROR: no such package '@@[unknown repo 'imtui' requested from @@ (did you mean 'imgui'?)]//': The repository '@@[unknown repo 'imtui' requested from @@ (did you mean 'imgui'?)]' could not be resolved: No repository visible as '@imtui' from main repository
+ERROR: /Users/kailashs/Source/std_slop/imtui_example/BUILD.bazel:3:10: no such package '@@[unknown repo 'imtui' requested from @@ (did you mean 'imgui'?)]//': The repository '@@[unknown repo 'imtui' requested from @@ (did you mean 'imgui'?)]' could not be resolved: No repository visible as '@imtui' from main repository and referenced by '//imtui_example:hello_imtui'
+Use --verbose_failures to see the command lines of failed build steps.
+ERROR: Analysis of target '//imtui_example:hello_imtui' failed; build aborted: Analysis failed
+INFO: Elapsed time: 0.109s, Critical Path: 0.00s
+INFO: 1 process: 1 internal.
+ERROR: Build did NOT complete successfully
+//:ui_test                                                            NO STATUS
+
+Executed 0 out of 1 test: 1 was skipped.

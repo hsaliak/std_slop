@@ -1,0 +1,241 @@
+Computing main repo mapping: 
+Loading: 
+Loading: 0 packages loaded
+Analyzing: 9 targets (0 packages loaded, 0 targets configured)
+Analyzing: 9 targets (0 packages loaded, 0 targets configured)
+
+INFO: Analyzed 9 targets (0 packages loaded, 0 targets configured).
+[2 / 21] [Prepa] Linking libslop_lib.a
+[14 / 21] 3 / 9 tests; Testing //:system_info_test; 0s darwin-sandbox ... (7 actions running)
+FAIL: //:tool_executor_test (Exit 1) (see /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/tool_executor_test/test.log)
+INFO: From Testing //:tool_executor_test:
+==================== Test output for //:tool_executor_test:
+Running main() from gmock_main.cc
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from ToolExecutorTest
+[ RUN      ] ToolExecutorTest.ReadWriteFile
+[       OK ] ToolExecutorTest.ReadWriteFile (1 ms)
+[ RUN      ] ToolExecutorTest.ExecuteBash
+[       OK ] ToolExecutorTest.ExecuteBash (9 ms)
+[ RUN      ] ToolExecutorTest.ToolNotFound
+[       OK ] ToolExecutorTest.ToolNotFound (0 ms)
+[ RUN      ] ToolExecutorTest.IndexAndSearch
+fatal: not a git repository (or any of the parent directories): .git
+[       OK ] ToolExecutorTest.IndexAndSearch (37 ms)
+[ RUN      ] ToolExecutorTest.QueryDb
+tool_executor_test.cpp:70: Failure
+Value of: res->find("\"val\": 1") != std::string::npos
+  Actual: false
+Expected: true
+
+[  FAILED  ] ToolExecutorTest.QueryDb (0 ms)
+[ RUN      ] ToolExecutorTest.GrepToolWorks
+fatal: not a git repository (or any of the parent directories): .git
+[       OK ] ToolExecutorTest.GrepToolWorks (38 ms)
+[ RUN      ] ToolExecutorTest.GitGrepToolWorks
+fatal: not a git repository (or any of the parent directories): .git
+[       OK ] ToolExecutorTest.GitGrepToolWorks (49 ms)
+[----------] 7 tests from ToolExecutorTest (137 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (137 ms total)
+[  PASSED  ] 6 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] ToolExecutorTest.QueryDb
+
+ 1 FAILED TEST
+================================================================================
+FAIL: //:command_handler_test (Exit 1) (see /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/command_handler_test/test.log)
+INFO: From Testing //:command_handler_test:
+==================== Test output for //:command_handler_test:
+Running main() from gmock_main.cc
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from CommandHandlerTest
+[ RUN      ] CommandHandlerTest.DetectsCommand
+[       OK ] CommandHandlerTest.DetectsCommand (4 ms)
+[ RUN      ] CommandHandlerTest.IgnoresNormalText
+[       OK ] CommandHandlerTest.IgnoresNormalText (0 ms)
+[ RUN      ] CommandHandlerTest.HandlesUnknownCommand
+[       OK ] CommandHandlerTest.HandlesUnknownCommand (0 ms)
+[ RUN      ] CommandHandlerTest.HandlesCommandWithWhitespace
+[       OK ] CommandHandlerTest.HandlesCommandWithWhitespace (0 ms)
+[ RUN      ] CommandHandlerTest.HandlesContextWindow
+Rolling Window Context: Last 10 interaction groups.
+[       OK ] CommandHandlerTest.HandlesContextWindow (0 ms)
+[ RUN      ] CommandHandlerTest.DetectsQuitExit
+[       OK ] CommandHandlerTest.DetectsQuitExit (0 ms)
+[ RUN      ] CommandHandlerTest.ActivatesSkillByName
+Skill 'test_skill' activated.
+[       OK ] CommandHandlerTest.ActivatesSkillByName (0 ms)
+[ RUN      ] CommandHandlerTest.ActivatesSkillByNumericId
+Skill '1' not found.
+command_handler_test.cpp:102: Failure
+Expected equality of these values:
+  active_skills.size()
+    Which is: 0
+  1
+
+[  FAILED  ] CommandHandlerTest.ActivatesSkillByNumericId (0 ms)
+[ RUN      ] CommandHandlerTest.HandlesThrottle
+Throttle set to: 5ms
+Current throttle: 5ms
+[       OK ] CommandHandlerTest.HandlesThrottle (0 ms)
+[ RUN      ] CommandHandlerTest.HandlesUndo
+Undid last interaction (Group ID: g1)
+command_handler_test.cpp:153: Failure
+Expected equality of these values:
+  msg.group_id
+    Which is: "g2"
+  "g1"
+
+command_handler_test.cpp:153: Failure
+Expected equality of these values:
+  msg.group_id
+    Which is: "g2"
+  "g1"
+
+[  FAILED  ] CommandHandlerTest.HandlesUndo (0 ms)
+[ RUN      ] CommandHandlerTest.HandlesSessionRemove
+Session 'test_sid' removed.
+command_handler_test.cpp:171: Failure
+Expected equality of these values:
+  history->size()
+    Which is: 1
+  0
+
+command_handler_test.cpp:174: Failure
+Expected equality of these values:
+  sid
+    Which is: "test_sid"
+  "default_session"
+
+[  FAILED  ] CommandHandlerTest.HandlesSessionRemove (0 ms)
+[----------] 11 tests from CommandHandlerTest (10 ms total)
+
+[----------] Global test environment tear-down
+[==========] 11 tests from 1 test suite ran. (10 ms total)
+[  PASSED  ] 8 tests.
+[  FAILED  ] 3 tests, listed below:
+[  FAILED  ] CommandHandlerTest.ActivatesSkillByNumericId
+[  FAILED  ] CommandHandlerTest.HandlesUndo
+[  FAILED  ] CommandHandlerTest.HandlesSessionRemove
+
+ 3 FAILED TESTS
+================================================================================
+FAIL: //:input_parsing_test (Exit 1) (see /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/input_parsing_test/test.log)
+[19 / 21] 8 / 9 tests, 3 failed; Testing //:input_parsing_test; 1s darwin-sandbox ... (2 actions running)
+INFO: From Testing //:input_parsing_test:
+==================== Test output for //:input_parsing_test:
+Running main() from gmock_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from InputParsingTest
+[ RUN      ] InputParsingTest.SquareBracesInNormalInput
+[       OK ] InputParsingTest.SquareBracesInNormalInput (1 ms)
+[ RUN      ] InputParsingTest.SquareBracesInCommandArgs
+Current session: test_session
+Usage: /session [list|new <name>|switch <name>|remove <name>]
+input_parsing_test.cpp:36: Failure
+Expected equality of these values:
+  session_id
+    Which is: "test_session"
+  "session[1]"
+
+[  FAILED  ] InputParsingTest.SquareBracesInCommandArgs (0 ms)
+[ RUN      ] InputParsingTest.SingleQuotesInCommandArgs
+Current session: test_session
+Usage: /session [list|new <name>|switch <name>|remove <name>]
+input_parsing_test.cpp:46: Failure
+Expected equality of these values:
+  session_id
+    Which is: "test_session"
+  "session' OR '1'='1"
+
+[  FAILED  ] InputParsingTest.SingleQuotesInCommandArgs (0 ms)
+[ RUN      ] InputParsingTest.MalformedCommand
+[       OK ] InputParsingTest.MalformedCommand (0 ms)
+[----------] 4 tests from InputParsingTest (2 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (3 ms total)
+[  PASSED  ] 2 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] InputParsingTest.SquareBracesInCommandArgs
+[  FAILED  ] InputParsingTest.SingleQuotesInCommandArgs
+
+ 2 FAILED TESTS
+================================================================================
+FAIL: //:database_test (Exit 1) (see /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/database_test/test.log)
+INFO: From Testing //:database_test:
+==================== Test output for //:database_test:
+Running main() from gmock_main.cc
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from DatabaseTest
+[ RUN      ] DatabaseTest.InitWorks
+[       OK ] DatabaseTest.InitWorks (1 ms)
+[ RUN      ] DatabaseTest.TablesExist
+[       OK ] DatabaseTest.TablesExist (0 ms)
+[ RUN      ] DatabaseTest.MessagePersistence
+[       OK ] DatabaseTest.MessagePersistence (0 ms)
+[ RUN      ] DatabaseTest.SkillsPersistence
+[       OK ] DatabaseTest.SkillsPersistence (0 ms)
+[ RUN      ] DatabaseTest.ContextSettingsPersistence
+[       OK ] DatabaseTest.ContextSettingsPersistence (0 ms)
+[ RUN      ] DatabaseTest.GenericQuery
+[       OK ] DatabaseTest.GenericQuery (0 ms)
+[ RUN      ] DatabaseTest.UsageTracking
+[       OK ] DatabaseTest.UsageTracking (0 ms)
+[ RUN      ] DatabaseTest.UpdateMessageStatusWorks
+[       OK ] DatabaseTest.UpdateMessageStatusWorks (1 ms)
+[ RUN      ] DatabaseTest.DeleteSessionWorks
+database_test.cpp:156: Failure
+Expected equality of these values:
+  history->size()
+    Which is: 1
+  0
+
+database_test.cpp:160: Failure
+Expected equality of these values:
+  usage->total_tokens
+    Which is: 20
+  0
+
+database_test.cpp:167: Failure
+Value of: state.ok()
+  Actual: true
+Expected: false
+
+[  FAILED  ] DatabaseTest.DeleteSessionWorks (1 ms)
+[----------] 9 tests from DatabaseTest (7 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (7 ms total)
+[  PASSED  ] 8 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] DatabaseTest.DeleteSessionWorks
+
+ 1 FAILED TEST
+================================================================================
+INFO: Found 9 test targets...
+INFO: Elapsed time: 3.949s, Critical Path: 3.62s
+INFO: 19 processes: 4 action cache hit, 1 internal, 18 darwin-sandbox.
+INFO: Build completed, 4 tests FAILED, 19 total actions
+//:http_client_test                                             (cached) PASSED in 1.2s
+//:oauth_handler_test                                           (cached) PASSED in 1.0s
+//:orchestrator_test                                                     PASSED in 1.0s
+//:system_info_test                                                      PASSED in 0.8s
+//:ui_test                                                               PASSED in 1.3s
+//:command_handler_test                                                  FAILED in 1.5s
+  /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/command_handler_test/test.log
+//:database_test                                                         FAILED in 1.8s
+  /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/database_test/test.log
+//:input_parsing_test                                                    FAILED in 1.6s
+  /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/input_parsing_test/test.log
+//:tool_executor_test                                                    FAILED in 1.2s
+  /private/var/tmp/_bazel_kailashs/99db4ea768af096d4b040886f889832a/execroot/_main/bazel-out/darwin_arm64-fastbuild/testlogs/tool_executor_test/test.log
+
+Executed 7 out of 9 tests: 5 tests pass and 4 fail locally.
+There were tests whose specified size is too big. Use the --test_verbose_timeout_warnings command line option to see which ones these are.

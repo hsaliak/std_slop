@@ -1,4 +1,7 @@
 #include "ui.h"
+#include <algorithm>
+#include <sys/ioctl.h>
+#include <unistd.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -29,6 +32,43 @@ size_t VisibleLength(const std::string& s) {
 }
 } // namespace
 
+size_t GetTerminalWidth() {
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
+        return w.ws_col > 0 ? w.ws_col : 80;
+    }
+    return 80;
+}
+
+std::string FormatLine(const std::string& text, const char* color_bg, size_t width) {
+    if (width == 0) width = GetTerminalWidth();
+    
+    std::string line = text;
+    std::replace(line.begin(), line.end(), "\n"[0], " "[0]);
+    
+    size_t visible_len = VisibleLength(line);
+    if (visible_len > width) {
+        size_t current_visible = 0;
+        size_t i = 0;
+        for (; i < line.length() && current_visible < width - 3; ++i) {
+             if (line[i] == "\033"[0] && i + 1 < line.length() && line[i+1] == "["[0]) {
+                i += 2;
+                while (i < line.length() && (line[i] < 0x40 || line[i] > 0x7E)) i++;
+            } else {
+                current_visible++;
+            }
+        }
+        line = line.substr(0, i) + "...";
+        visible_len = VisibleLength(line);
+    }
+    
+    if (visible_len < width) {
+        line += std::string(width - visible_len, " "[0]);
+    }
+    
+    return Colorize(line, color_bg);
+}
+
 void SetupTerminal() {
     // Readline initialization
 }
@@ -40,6 +80,9 @@ void ShowBanner() {
     std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", ansi::BlueBg) << std::endl;
     std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", ansi::BlueBg) << std::endl;
     std::cout << std::endl;
+    #ifdef SLOP_VERSION
+    std::cout << " std::slop version " << SLOP_VERSION << std::endl;
+    #endif
     std::cout << " Welcome to std::slop - The SQL-backed LLM CLI" << std::endl;
     std::cout << " Type /help for a list of commands." << std::endl;
     std::cout << std::endl;
@@ -195,17 +238,15 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
     auto print_sep = [&]() {
         std::cout << "+";
         for (size_t w : widths) std::cout << std::string(w + 2, '-') << "+";
-        std::cout << "\n";
+        std::cout << std::endl;
     };
 
     print_sep();
     std::cout << "|";
     for (size_t i = 0; i < keys.size(); ++i) {
-        std::string k = keys[i];
-        if (k.length() > widths[i]) k = k.substr(0, widths[i]-1) + "~";
-        std::cout << " " << std::left << std::setw(widths[i]) << k << " |";
+        std::cout << " " << std::left << std::setw(widths[i]) << keys[i] << " |";
     }
-    std::cout << "\n";
+    std::cout << std::endl;
     print_sep();
 
     for (const auto& row : j) {
@@ -219,14 +260,33 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
             } else {
                 val = "";
             }
-            if (val.length() > widths[i]) val = val.substr(0, widths[i]-1) + "~";
+            if (val.length() > widths[i]) val = val.substr(0, widths[i]-3) + "...";
             std::cout << " " << std::left << std::setw(widths[i]) << val << " |";
         }
-        std::cout << "\n";
+        std::cout << std::endl;
     }
     print_sep();
 
     return absl::OkStatus();
+}
+
+void PrintAssistantMessage(const std::string& content, const std::string& skill_info) {
+    std::string label = "[Assistant]";
+    if (!skill_info.empty()) {
+        label = "[Assistant (" + skill_info + ")]";
+    }
+    std::cout << "\n" << FormatLine(label, ansi::BlueBg) << std::endl;
+    std::cout << WrapText(content, GetTerminalWidth()) << "\n" << std::endl;
+}
+
+void PrintToolCallMessage(const std::string& name, const std::string& args) {
+    std::cout << "\n" << FormatLine("[Tool Call: " + name + "]", ansi::GreyBg) << std::endl;
+    std::cout << WrapText(args, GetTerminalWidth()) << "\n" << std::endl;
+}
+
+void PrintToolResultMessage(const std::string& result) {
+    std::cout << FormatLine("[Tool Result]", ansi::GreyBg) << std::endl;
+    std::cout << WrapText(result, GetTerminalWidth()) << "\n" << std::endl;
 }
 
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit, const std::vector<std::string>& selected_groups) {
@@ -240,12 +300,12 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
             std::cout << "\n[User (GID: " << msg.group_id << ")]> " << WrapText(msg.content, 70) << std::endl;
         } else if (msg.role == "assistant") {
             if (msg.status == "tool_call") {
-                 std::cout << Colorize("[Assistant (Tool Call)]> " + WrapText(msg.content, 70), ansi::CyanBg) << std::endl;
+                 PrintToolCallMessage("LLM", msg.content);
             } else {
-                 std::cout << Colorize("[Assistant]> " + WrapText(msg.content, 70), ansi::BlueBg) << std::endl;
+                 PrintAssistantMessage(msg.content);
             }
         } else if (msg.role == "tool") {
-            std::cout << Colorize("[Tool Result]> " + WrapText(msg.content, 70), ansi::GreyBg) << std::endl;
+            PrintToolResultMessage(msg.content);
         } else if (msg.role == "system") {
             std::cout << "[System]> " << WrapText(msg.content, 70) << std::endl;
         }

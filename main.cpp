@@ -281,11 +281,7 @@ int main(int argc, char** argv) {
       const auto& last_msg = history_or->back();
 
       if (last_msg.status == "completed") {
-        std::string skill_str;
-        if (!active_skills.empty()) {
-            skill_str = " (" + absl::StrJoin(active_skills, ", ") + ")";
-        }
-        std::cout << "\n" << Colorize("[Assistant" + skill_str + "]: " + last_msg.content, ansi::BlueBg) << "\n" << std::endl;
+        slop::PrintAssistantMessage(last_msg.content, absl::StrJoin(active_skills, ", "));
         break; 
       } else {
         // Collect ALL pending tool call messages at the end of history
@@ -308,15 +304,11 @@ int main(int argc, char** argv) {
             auto calls_or = orchestrator.ParseToolCalls(msg);
             if (calls_or.ok()) {
                 for (const auto& tc : *calls_or) {
-                    std::string call_info = "[Tool Call]: " + tc.name + "(" + tc.args.dump() + ")";
-                    if (call_info.size() > 60) call_info = call_info.substr(0, 57) + "...";
-                    std::cout << "\n" << Colorize(call_info, ansi::CyanBg) << std::endl;
+                    slop::PrintToolCallMessage(tc.name, tc.args.dump());
 
                     auto tool_res = tool_executor.Execute(tc.name, tc.args);
                     std::string display_res = tool_res.ok() ? *tool_res : "Error: " + std::string(tool_res.status().message());
-                    std::string res_info = "[Tool Result]: " + display_res;
-                    if (res_info.size() > 60) res_info = res_info.substr(0, 57) + "...";
-                    std::cout << Colorize(res_info, ansi::GreyBg) << "\n" << std::endl;
+                    slop::PrintToolResultMessage(display_res);
 
                     if (provider == slop::Orchestrator::Provider::GEMINI) {
                         nlohmann::json tool_msg = {

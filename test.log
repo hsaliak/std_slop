@@ -1,0 +1,18 @@
+Computing main repo mapping: 
+Loading: 
+Loading: 0 packages loaded
+Analyzing: target //:ui_test (0 packages loaded, 0 targets configured)
+Analyzing: target //:ui_test (0 packages loaded, 0 targets configured)
+
+INFO: Analyzed target //:ui_test (0 packages loaded, 0 targets configured).
+[3 / 4] 1 / 1 tests; Testing //:ui_test; 0s darwin-sandbox
+INFO: Found 1 test target...
+Target //:ui_test up-to-date:
+  bazel-bin/ui_test
+INFO: Elapsed time: 1.787s, Critical Path: 1.67s
+INFO: 4 processes: 1 internal, 3 darwin-sandbox.
+INFO: Build completed successfully, 4 total actions
+//:ui_test                                                               PASSED in 0.7s
+
+Executed 1 out of 1 test: 1 test passes.
+There were tests whose specified size is too big. Use the --test_verbose_timeout_warnings command line option to see which ones these are.

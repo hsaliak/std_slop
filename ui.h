@@ -27,6 +27,25 @@ void DisplayAssembledContext(const std::string& json_str);
 // Wraps text to a specific width, preserving newlines and being ANSI-aware.
 std::string WrapText(const std::string& text, size_t width = 80);
 
+// Returns terminal width or 80 if detection fails.
+size_t GetTerminalWidth();
+
+/**
+ * @brief Formats a single line with truncation, padding, and coloring.
+ * 
+ * @param text The text to format.
+ * @param color_bg ANSI background color code.
+ * @param width Target width (0 to use GetTerminalWidth()).
+ */
+std::string FormatLine(const std::string& text, const char* color_bg, size_t width = 0);
+
+/**
+ * @brief High-level methods for centralized UI message formatting.
+ */
+void PrintAssistantMessage(const std::string& content, const std::string& skill_info = "");
+void PrintToolCallMessage(const std::string& name, const std::string& args);
+void PrintToolResultMessage(const std::string& result);
+
 } // namespace slop
 
 #endif // SLOP_SQL_UI_H_
