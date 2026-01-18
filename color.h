@@ -15,6 +15,12 @@ namespace ansi {
     // Foreground (text) color
     constexpr const char* White = "\033[37m";
     constexpr const char* Black = "\033[30m";
+    constexpr const char* Blue = "\033[34m";
+    constexpr const char* Cyan = "\033[36m";
+    constexpr const char* Grey = "\033[90m";
+    constexpr const char* Green = "\033[32m";
+    constexpr const char* Yellow = "\033[33m";
+    constexpr const char* Magenta = "\033[35m";
 }  // namespace ansi
 
 /**

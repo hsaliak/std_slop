@@ -25,10 +25,59 @@ size_t VisibleLength(const std::string& s) {
                 i++;
             }
         } else {
-            len++;
+            // Simple UTF-8 aware length: don't count continuation bytes (10xxxxxx)
+            if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
+                len++;
+            }
         }
     }
     return len;
+}
+
+void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey) {
+    if (width == 0) width = GetTerminalWidth();
+    if (width > 100) width = 100;
+    std::string line;
+    for (size_t i = 0; i < width; ++i) line += "─";
+    std::cout << Colorize(line, "", color_fg) << std::endl;
+}
+
+void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg) {
+    size_t width = GetTerminalWidth();
+    if (width > 100) width = 100;
+    size_t content_width = width - 4;
+
+    // Top border
+    std::string top_line = "┌─ [ " + header + " ] ";
+    size_t top_visible = VisibleLength(top_line);
+    if (top_visible < width - 1) {
+        for (size_t i = top_visible; i < width - 1; ++i) {
+            top_line += "─";
+        }
+        top_line += "┐";
+    } else {
+        // Truncate if too long (simplified)
+        top_line = top_line.substr(0, width - 2) + "┐";
+    }
+    std::cout << Colorize(top_line, "", color_fg) << std::endl;
+
+    // Body
+    std::string wrapped = WrapText(body, content_width);
+    if (!wrapped.empty()) {
+        std::stringstream ss(wrapped);
+        std::string line;
+        while (std::getline(ss, line)) {
+            size_t visible = VisibleLength(line);
+            std::string padding = (visible < content_width) ? std::string(content_width - visible, ' ') : "";
+            std::cout << Colorize("│ ", "", color_fg) << line << padding << Colorize(" │", "", color_fg) << std::endl;
+        }
+    }
+
+    // Bottom border
+    std::string bottom = "└";
+    for (size_t i = 0; i < width - 2; ++i) bottom += "─";
+    bottom += "┘";
+    std::cout << Colorize(bottom, "", color_fg) << std::endl;
 }
 } // namespace
 
@@ -42,20 +91,23 @@ size_t GetTerminalWidth() {
 
 std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
     if (width == 0) width = GetTerminalWidth();
+    if (width > 100) width = 100;
     
     std::string line = text;
-    std::replace(line.begin(), line.end(), "\n"[0], " "[0]);
+    std::replace(line.begin(), line.end(), '\n', ' ');
     
     size_t visible_len = VisibleLength(line);
     if (visible_len > width) {
         size_t current_visible = 0;
         size_t i = 0;
         for (; i < line.length() && current_visible < width - 3; ++i) {
-             if (line[i] == "\033"[0] && i + 1 < line.length() && line[i+1] == "["[0]) {
+             if (line[i] == '\033' && i + 1 < line.length() && line[i+1] == '[') {
                 i += 2;
                 while (i < line.length() && (line[i] < 0x40 || line[i] > 0x7E)) i++;
             } else {
-                current_visible++;
+                if ((static_cast<unsigned char>(line[i]) & 0xC0) != 0x80) {
+                    current_visible++;
+                }
             }
         }
         line = line.substr(0, i) + "...";
@@ -63,7 +115,7 @@ std::string FormatLine(const std::string& text, const char* color_bg, size_t wid
     }
     
     if (visible_len < width) {
-        line += std::string(width - visible_len, " "[0]);
+        line += std::string(width - visible_len, ' ');
     }
     
     return Colorize(line, color_bg, color_fg);
@@ -89,6 +141,7 @@ void ShowBanner() {
 }
 
 std::string ReadLine(const std::string& prompt, const std::string& session_id) {
+    PrintHorizontalLine(0, ansi::Grey);
     char* buf = readline(prompt.c_str());
     if (!buf) return "/exit";
     std::string line(buf);
@@ -111,44 +164,29 @@ std::string WrapText(const std::string& text, size_t width) {
         current_line_visible_len = 0;
     };
 
-    for (size_t i = 0; i < text.length(); ++i) {
-        if (text[i] == '\n') {
-            finalize_line();
-            continue;
-        }
-
-        if (text[i] == ' ') {
-            continue;
-        }
-
-        size_t j = i;
-        while (j < text.length() && text[j] != ' ' && text[j] != '\n') {
-            j++;
-        }
-        
-        std::string word = text.substr(i, j - i);
-        size_t word_len = VisibleLength(word);
-
-        if (current_line_visible_len + (current_line_visible_len > 0 ? 1 : 0) + word_len > width) {
-            if (current_line_visible_len > 0) {
+    std::stringstream ss(text);
+    std::string paragraph;
+    while (std::getline(ss, paragraph)) {
+        std::stringstream word_ss(paragraph);
+        std::string word;
+        bool first_word = true;
+        while (word_ss >> word) {
+            size_t word_len = VisibleLength(word);
+            if (!first_word && current_line_visible_len + 1 + word_len > width) {
                 finalize_line();
+                first_word = true;
             }
+            if (!first_word) {
+                current_line += " ";
+                current_line_visible_len += 1;
+            }
+            current_line += word;
+            current_line_visible_len += word_len;
+            first_word = false;
         }
-
-        if (current_line_visible_len > 0) {
-            current_line += " ";
-            current_line_visible_len += 1;
-        }
-        current_line += word;
-        current_line_visible_len += word_len;
-
-        i = j - 1;
+        finalize_line();
     }
 
-    if (!current_line.empty() || (result.empty() && !text.empty())) {
-        if (!result.empty() && !current_line.empty()) result += "\n";
-        result += current_line;
-    }
     return result;
 }
 
@@ -270,37 +308,22 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
     return absl::OkStatus();
 }
 
-void PrintFormattedBlock(const std::string& header, const std::string& body, const char* bg, const char* fg = ansi::White) {
-    size_t width = GetTerminalWidth();
-    if (!header.empty()) {
-        std::cout << FormatLine(header, bg, width, fg) << std::endl;
-    }
-    std::string wrapped = WrapText(body, width);
-    if (wrapped.empty()) return;
-    std::stringstream ss(wrapped);
-    std::string line;
-    while (std::getline(ss, line)) {
-        std::cout << FormatLine(line, bg, width, fg) << std::endl;
-    }
-    std::cout << std::endl;
-}
-
 void PrintAssistantMessage(const std::string& content, const std::string& skill_info) {
-    std::string label = "[Assistant]";
+    std::string label = "Assistant";
     if (!skill_info.empty()) {
-        label = "[Assistant (" + skill_info + ")]";
+        label = "Assistant (" + skill_info + ")";
     }
+    PrintBorderedBlock(label, content, ansi::Blue);
     std::cout << std::endl;
-    PrintFormattedBlock(label, content, ansi::BlueBg);
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
-    std::cout << std::endl;
-    PrintFormattedBlock("[Tool Call: " + name + "]", args, ansi::GreyBg);
+    PrintBorderedBlock("Tool Call: " + name, args, ansi::Grey);
 }
 
 void PrintToolResultMessage(const std::string& result) {
-    PrintFormattedBlock("[Tool Result]", result, ansi::GreyBg);
+    PrintBorderedBlock("Tool Result", result, ansi::Grey);
+    std::cout << std::endl;
 }
 
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit, const std::vector<std::string>& selected_groups) {
@@ -311,7 +334,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     for (size_t i = start; i < history_or->size(); ++i) {
         const auto& msg = (*history_or)[i];
         if (msg.role == "user") {
-            std::cout << "\n[User (GID: " << msg.group_id << ")]> " << WrapText(msg.content, 70) << std::endl;
+            std::cout << "\n" << Colorize("[User (GID: " + msg.group_id + ")]> ", "", ansi::Green) << msg.content << std::endl;
         } else if (msg.role == "assistant") {
             if (msg.status == "tool_call") {
                  PrintToolCallMessage("LLM", msg.content);
@@ -321,12 +344,12 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
         } else if (msg.role == "tool") {
             PrintToolResultMessage(msg.content);
         } else if (msg.role == "system") {
-            std::cout << "[System]> " << WrapText(msg.content, 70) << std::endl;
+            std::cout << Colorize("[System]> ", "", ansi::Yellow) << msg.content << std::endl;
         }
     }
 
     if (!selected_groups.empty()) {
-        std::cout << "\n--- Injected Context (" << selected_groups.size() << " groups) ---" << std::endl;
+        std::cout << "\n" << Colorize("--- Injected Context (" + std::to_string(selected_groups.size()) + " groups) ---", "", ansi::Cyan) << std::endl;
         for (const auto& gid : selected_groups) {
             auto res = db.Query("SELECT role, substr(content, 1, 60) as preview FROM messages WHERE group_id = '" + gid + "' LIMIT 1");
             if (res.ok()) {
@@ -336,7 +359,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
                 }
             }
         }
-        std::cout << "------------------------------------------" << std::endl;
+        std::cout << Colorize("------------------------------------------", "", ansi::Cyan) << std::endl;
     }
 
     std::cout << std::endl;
