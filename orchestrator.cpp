@@ -306,7 +306,7 @@ nlohmann::json Orchestrator::FormatOpenAIPayload(const std::string& system_instr
 }
 
 
-absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::string& api_key) {
+absl::StatusOr<std::vector<Orchestrator::ModelInfo>> Orchestrator::GetModels(const std::string& api_key) {
     std::string url;
     std::vector<std::string> headers = {"Content-Type: application/json"};
     if (provider_ == Provider::GEMINI) {
@@ -316,8 +316,6 @@ absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::stri
                 headers.push_back("Authorization: Bearer " + api_key);
             }
         } else {
-            // For public Gemini API, if we have an OAuth token (starts with ya29 or similar), 
-            // use Authorization header. If it's a short key, use query param.
             if (!api_key.empty() && api_key.length() > 50) {
                 url = absl::StrCat(kPublicGeminiBaseUrl, "/models");
                 headers.push_back("Authorization: Bearer " + api_key);
@@ -326,7 +324,7 @@ absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::stri
             }
         }
     } else {
-        url = absl::StrCat(kOpenAIBaseUrl, "/models");
+        url = absl::StrCat(base_url_, "/models");
         headers.push_back("Authorization: Bearer " + api_key);
     }
 
@@ -341,23 +339,30 @@ absl::StatusOr<std::vector<std::string>> Orchestrator::GetModels(const std::stri
     auto j = nlohmann::json::parse(*resp_or, nullptr, false);
     if (j.is_discarded()) return absl::InternalError("Failed to parse models response");
 
-    std::vector<std::string> models;
+    std::vector<ModelInfo> models;
     if (provider_ == Provider::GEMINI) {
         if (j.contains("models")) {
             for (const auto& m : j["models"]) {
-                std::string name = m["name"];
-                if (absl::StartsWith(name, "models/")) name = name.substr(7);
-                models.push_back(name);
+                ModelInfo info;
+                info.id = m["name"];
+                if (absl::StartsWith(info.id, "models/")) info.id = info.id.substr(7);
+                info.name = m.value("displayName", info.id);
+                models.push_back(info);
             }
         }
     } else {
         if (j.contains("data")) {
             for (const auto& m : j["data"]) {
-                models.push_back(m["id"]);
+                ModelInfo info;
+                info.id = m["id"];
+                info.name = m.value("name", info.id);
+                models.push_back(info);
             }
         }
     }
-    std::sort(models.begin(), models.end());
+    std::sort(models.begin(), models.end(), [](const ModelInfo& a, const ModelInfo& b) {
+        return a.id < b.id;
+    });
     return models;
 }
 

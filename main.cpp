@@ -62,7 +62,7 @@ std::string GetHelpText() {
          "  /tool show <name>      Show tool details\n" 
          "  /stats /usage          Show session usage statistics\n" 
          "  /schema                Show current database schema\n" 
-         "  /models                List available models\n" 
+         "  /models [filter]       List available models\n" 
          "  /model <name>          Change active model\n" 
          "  /throttle [N]          Set/show request throttle\n" 
          "  /exec <command>        Execute shell command\n" 

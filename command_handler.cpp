@@ -458,16 +458,27 @@ CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
         }
         auto m_or = orchestrator_->GetModels(key);
         if (m_or.ok()) {
+            std::string filter = std::string(absl::StripAsciiWhitespace(args.args));
             nlohmann::json table = nlohmann::json::array();
-            for (const auto& m : *m_or) table.push_back({{"Model Name", m}});
-            log_status(PrintJsonAsTable(table.dump()));
+            for (const auto& m : *m_or) {
+                if (filter.empty() || 
+                    absl::StrContains(absl::AsciiStrToLower(m.id), absl::AsciiStrToLower(filter)) ||
+                    absl::StrContains(absl::AsciiStrToLower(m.name), absl::AsciiStrToLower(filter))) {
+                    table.push_back({{"ID", m.id}, {"Name", m.name}});
+                }
+            }
+            if (table.empty()) {
+                if (filter.empty()) std::cout << "No models available." << std::endl;
+                else std::cout << "No models matching filter: " << filter << std::endl;
+            } else {
+                log_status(PrintJsonAsTable(table.dump()));
+            }
         } else {
             std::cout << "Could not fetch models: " << m_or.status().message() << std::endl;
         }
     }
     return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
     if (args.args.empty()) {
         std::cout << "Usage: /exec <command>" << std::endl;

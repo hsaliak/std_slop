@@ -44,7 +44,12 @@ class Orchestrator {
   };
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
 
-  absl::StatusOr<std::vector<std::string>> GetModels(const std::string& api_key);
+  struct ModelInfo {
+    std::string id;
+    std::string name;
+  };
+
+  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key);
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
 
   int CountTokens(const nlohmann::json& prompt);
