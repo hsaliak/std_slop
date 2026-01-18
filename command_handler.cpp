@@ -135,13 +135,17 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
     std::string sub_cmd = sub_parts[0];
     std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
+    
     if (sub_cmd == "window") {
         int n = sub_args.empty() ? 0 : std::atoi(sub_args.c_str());
         log_status(db_->SetContextWindow(args.session_id, n));
         if (n > 0) std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
         else if (n == 0) std::cout << "Full Context Mode (infinite buffer)." << std::endl;
         else std::cout << "Context Hidden (None)." << std::endl;
-    } else if (sub_cmd == "rebuild") {
+        return Result::HANDLED;
+    } 
+    
+    if (sub_cmd == "rebuild") {
         if (orchestrator_) {
             auto status = orchestrator_->RebuildContext(args.session_id); 
             if (status.ok()) std::cout << "Context rebuilt from history." << std::endl; 
@@ -149,36 +153,36 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
         } else {
             std::cerr << "Orchestrator not available for rebuilding context." << std::endl;
         }
-    } else if (sub_cmd == "show") {
-        if (orchestrator_) {
-            auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
-            if (prompt_or.ok()) {
-                DisplayAssembledContext(prompt_or->dump());
-            } else {
-                std::cerr << "Error assembling prompt: " << prompt_or.status().message() << std::endl;
-                log_status(DisplayHistory(*db_, args.session_id, 20, args.selected_groups));
-            }
+        return Result::HANDLED;
+    }
+
+    // Default or 'show' command
+    if (!sub_cmd.empty() && sub_cmd != "show") {
+        std::cout << "Unknown context command: " << sub_cmd << std::endl;
+        std::cout << "Usage: /context [window <N>|rebuild|show]" << std::endl;
+    }
+
+    auto s = db_->GetContextSettings(args.session_id);
+    if (s.ok()) {
+        if (s->size > 0) std::cout << "Current Context: Rolling window of last " << s->size << " groups." << std::endl;
+        else if (s->size == 0) std::cout << "Current Context: Full history." << std::endl;
+        else std::cout << "Current Context: None (Hidden)." << std::endl;
+    }
+
+    if (orchestrator_) {
+        auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
+        if (prompt_or.ok()) {
+            DisplayAssembledContext(prompt_or->dump());
         } else {
+            std::cerr << "Error assembling prompt: " << prompt_or.status().message() << std::endl;
             log_status(DisplayHistory(*db_, args.session_id, 20, args.selected_groups));
         }
     } else {
-        auto s = db_->GetContextSettings(args.session_id);
-        if (s.ok()) {
-            if (s->size > 0) std::cout << "Current Context: Rolling window of last " << s->size << " groups." << std::endl;
-            else if (s->size == 0) std::cout << "Current Context: Full history." << std::endl;
-            else std::cout << "Current Context: None (Hidden)." << std::endl;
-        }
-        if (orchestrator_) {
-            auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
-            if (prompt_or.ok()) {
-                DisplayAssembledContext(prompt_or->dump());
-            }
-        }
-        std::cout << "Usage: /context [window <N>|rebuild|show]" << std::endl;
+        log_status(DisplayHistory(*db_, args.session_id, 20, args.selected_groups));
     }
+    
     return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
     std::string sub_cmd = sub_parts[0];
@@ -378,7 +382,11 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         if (res.ok()) log_status(PrintJsonAsTable(*res));
     } else {
         std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
-        if (sub_parts[0] == "remove" && sub_parts.size() > 1) {
+        if (sub_parts[0] == "remove") {
+            if (sub_parts.size() < 2 || sub_parts[1].empty()) {
+                std::cerr << "Usage: /session remove <name>" << std::endl;
+                return Result::HANDLED;
+            }
             std::string target = sub_parts[1];
             auto status = db_->DeleteSession(target);
             if (status.ok()) {
@@ -395,11 +403,11 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
             args.session_id = args.args;
             std::cout << "Switched to: " << args.session_id << std::endl;
             log_status(DisplayHistory(*db_, args.session_id, 20, args.selected_groups));
+            if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
         }
     }
     return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
     auto res = db_->Query("SELECT role, count(*) as count, status FROM messages WHERE session_id = '" + args.session_id + "' GROUP BY role, status");
     if (res.ok()) {

@@ -8,8 +8,8 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 #include <iomanip>
-#include <readline/readline.h>
-#include <readline/history.h>
+#include "readline/readline.h"
+#include "readline/history.h"
 #include "absl/status/status.h"
 #include "color.h"
 
@@ -229,10 +229,17 @@ void SmartDisplay(const std::string& content) {
 }
 
 std::string FormatAssembledContext(const std::string& json_str) {
-    auto j = nlohmann::json::parse(json_str, nullptr, false);
-    if (j.is_discarded()) {
+    auto j_top = nlohmann::json::parse(json_str, nullptr, false);
+    if (j_top.is_discarded()) {
         return "Error parsing context JSON: " + json_str;
     }
+
+    const nlohmann::json* j_ptr = &j_top;
+    if (j_top.contains("request")) {
+        j_ptr = &j_top["request"];
+    }
+    const nlohmann::json& j = *j_ptr;
+
     std::stringstream ss;
     ss << "=== Assembled Context ===\n\n";
     
@@ -262,8 +269,17 @@ std::string FormatAssembledContext(const std::string& json_str) {
     } else if (j.contains("messages") && j["messages"].is_array()) {
         for (const auto& msg : j["messages"]) {
             std::string role = msg.value("role", "unknown");
-            std::string content = msg.value("content", "");
-            ss << "[" << role << "]\n" << content << "\n\n";
+            ss << "[" << role << "]\n";
+            if (msg.contains("content") && !msg["content"].is_null()) {
+                ss << msg["content"].get<std::string>() << "\n";
+            }
+            if (msg.contains("tool_calls")) {
+                ss << "Tool Calls: " << msg["tool_calls"].dump() << "\n";
+            }
+            if (msg.contains("tool_call_id")) {
+                ss << "Tool Call ID: " << msg["tool_call_id"].get<std::string>() << "\n";
+            }
+            ss << "\n";
         }
     }
     return ss.str();

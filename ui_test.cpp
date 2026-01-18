@@ -75,6 +75,40 @@ TEST(UiTest, FormatAssembledContextGemini) {
     EXPECT_TRUE(formatted.find("Hello!") != std::string::npos);
 }
 
+TEST(UiTest, FormatAssembledContextGCA) {
+    std::string json = R"({
+        "request": {
+            "contents": [
+                {"role": "user", "parts": [{"text": "GCA hello!"}]}
+            ],
+            "system_instruction": {"parts": [{"text": "GCA system prompt."}]}
+        },
+        "model": "model-id"
+    })";
+    std::string formatted = FormatAssembledContext(json);
+    EXPECT_TRUE(formatted.find("[SYSTEM INSTRUCTION]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("GCA system prompt.") != std::string::npos);
+    EXPECT_TRUE(formatted.find("[user]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("GCA hello!") != std::string::npos);
+}
+
+TEST(UiTest, FormatAssembledContextOpenAI) {
+    std::string json = R"({
+        "messages": [
+            {"role": "system", "content": "OpenAI System"},
+            {"role": "user", "content": "OpenAI User"},
+            {"role": "assistant", "content": null, "tool_calls": [{"id": "call_1", "function": {"name": "test_tool"}}]}
+        ]
+    })";
+    std::string formatted = FormatAssembledContext(json);
+    EXPECT_TRUE(formatted.find("OpenAI System") != std::string::npos);
+    EXPECT_TRUE(formatted.find("[user]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("OpenAI User") != std::string::npos);
+    EXPECT_TRUE(formatted.find("[assistant]") != std::string::npos);
+    EXPECT_TRUE(formatted.find("Tool Calls:") != std::string::npos);
+    EXPECT_TRUE(formatted.find("test_tool") != std::string::npos);
+}
+
 TEST(UiTest, SmartDisplayFallback) {
     const char* old_editor = std::getenv("EDITOR");
     unsetenv("EDITOR");

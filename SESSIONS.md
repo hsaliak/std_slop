@@ -36,6 +36,10 @@ The `/session [name]` command updates the internal session pointer.
 ### Starting fresh
 To completely clear your context for a new task, simply `/session` to a new name (e.g., `/session project_part_2`). This is the recommended way to start fresh.
 
+### Removing Sessions
+The `/session remove <name>` command permanently deletes a session and all its associated data (history, usage, state, and context settings).
+- If the current active session is removed, the system automatically switches to `default_session`.
+
 ### Persistence
 The ledger is stored in `slop.db` and persists across restarts. Resume a session by providing its name at startup or via `/session`.
 

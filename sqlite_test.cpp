@@ -1,8 +1,8 @@
-#include <sqlite3.h>
 #include <gtest/gtest.h>
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include <string>
+#include "sqlite3.h"
 
 TEST(SqliteTest, CanOpenAndQueryVersion) {
     sqlite3* db;
