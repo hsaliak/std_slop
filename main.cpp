@@ -178,9 +178,9 @@ int main(int argc, char** argv) {
     std::string model_name = orchestrator.GetModel();
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
-    std::string prompt = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, "> ");
+    std::string modeline = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ">");
 
-    std::string input = slop::ReadLine(prompt, session_id);
+    std::string input = slop::ReadLine(modeline, session_id);
     if (input.empty()) continue;
 
     auto res = cmd_handler.Handle(input, session_id, active_skills, ShowHelp);

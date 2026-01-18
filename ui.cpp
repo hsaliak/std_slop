@@ -34,19 +34,27 @@ size_t VisibleLength(const std::string& s) {
     return len;
 }
 
-void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey) {
-    if (width == 0) width = GetTerminalWidth();
-    if (width > 100) width = 100;
+void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "") {
+    if (width == 0) width = GetTerminalWidth() - 1;
     std::string bold_fg = std::string(ansi::Bold) + color_fg;
-    std::string line;
-    for (size_t i = 0; i < width; ++i) line += "─";
-    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+    
+    if (header.empty()) {
+        std::string line;
+        for (size_t i = 0; i < width; ++i) line += "─";
+        std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+    } else {
+        std::string line = "── [ " + header + " ] ";
+        size_t visible = VisibleLength(line);
+        if (visible < width) {
+            for (size_t i = visible; i < width; ++i) line += "─";
+        }
+        std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+    }
 }
 
 void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg) {
-    size_t width = GetTerminalWidth();
-    if (width > 100) width = 100;
-    size_t content_width = width - 4;
+    size_t width = GetTerminalWidth() - 1;
+    size_t content_width = (width > 4) ? width - 4 : width;
     std::string bold_fg = std::string(ansi::Bold) + color_fg;
 
     // Top border
@@ -92,8 +100,7 @@ size_t GetTerminalWidth() {
 }
 
 std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
-    if (width == 0) width = GetTerminalWidth();
-    if (width > 100) width = 100;
+    if (width == 0) width = GetTerminalWidth() - 1;
     
     std::string line = text;
     std::replace(line.begin(), line.end(), '\n', ' ');
@@ -142,9 +149,9 @@ void ShowBanner() {
     std::cout << std::endl;
 }
 
-std::string ReadLine(const std::string& prompt, const std::string& session_id) {
-    PrintHorizontalLine(0, ansi::Grey);
-    char* buf = readline(prompt.c_str());
+std::string ReadLine(const std::string& modeline, const std::string& session_id) {
+    PrintHorizontalLine(0, ansi::Grey, modeline);
+    char* buf = readline("> ");
     if (!buf) return "/exit";
     std::string line(buf);
     free(buf);
@@ -215,64 +222,83 @@ std::string OpenInEditor(const std::string& initial_content) {
 void SmartDisplay(const std::string& content) {
     const char* editor = std::getenv("EDITOR");
     if (!editor || std::string(editor).empty()) {
-        std::cout << WrapText(content) << std::endl;
+        std::cout << content << std::endl;
         return;
     }
+    OpenInEditor(content);
+}
 
-    std::string tmp_path = "/tmp/slop_view.txt";
-    { 
-        std::ofstream out(tmp_path);
-        out << content;
+std::string FormatAssembledContext(const std::string& json_str) {
+    auto j = nlohmann::json::parse(json_str, nullptr, false);
+    if (j.is_discarded()) {
+        return "Error parsing context JSON: " + json_str;
+    }
+    std::stringstream ss;
+    ss << "=== Assembled Context ===\n\n";
+    
+    if (j.contains("system_instruction")) {
+        ss << "[SYSTEM INSTRUCTION]\n";
+        if (j["system_instruction"].contains("parts")) {
+            for (const auto& part : j["system_instruction"]["parts"]) {
+                if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
+            }
+        }
+        ss << "\n";
     }
 
-    std::string cmd = std::string(editor) + " " + tmp_path;
-    int res = std::system(cmd.c_str());
-    std::filesystem::remove(tmp_path);
-
-    if (res != 0) {
-        std::cout << WrapText(content) << std::endl;
+    if (j.contains("contents") && j["contents"].is_array()) {
+        for (const auto& entry : j["contents"]) {
+            std::string role = entry.value("role", "unknown");
+            ss << "[" << role << "]\n";
+            if (entry.contains("parts")) {
+                for (const auto& part : entry["parts"]) {
+                    if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
+                    if (part.contains("functionCall")) ss << "Function Call: " << part["functionCall"].dump() << "\n";
+                    if (part.contains("functionResponse")) ss << "Function Response: " << part["functionResponse"].dump() << "\n";
+                }
+            }
+            ss << "\n";
+        }
+    } else if (j.contains("messages") && j["messages"].is_array()) {
+        for (const auto& msg : j["messages"]) {
+            std::string role = msg.value("role", "unknown");
+            std::string content = msg.value("content", "");
+            ss << "[" << role << "]\n" << content << "\n\n";
+        }
     }
+    return ss.str();
+}
+
+void DisplayAssembledContext(const std::string& json_str) {
+    SmartDisplay(FormatAssembledContext(json_str));
 }
 
 absl::Status PrintJsonAsTable(const std::string& json_str) {
     auto j = nlohmann::json::parse(json_str, nullptr, false);
     if (j.is_discarded()) {
-        return absl::InternalError("Failed to parse query results as JSON.");
+        return absl::InvalidArgumentError("Invalid JSON: " + json_str);
     }
-    
     if (!j.is_array() || j.empty()) {
-        if (j.is_array() && j.empty()) {
-            std::cout << "No results found." << std::endl;
-            return absl::OkStatus();
-        }
-        return absl::InvalidArgumentError("JSON input is not a non-empty array.");
-    }
-
-    std::vector<std::string> keys;
-    for (auto& [key, value] : j[0].items()) {
-        keys.push_back(key);
-    }
-
-    if (keys.empty()) {
-        std::cout << "No data columns found." << std::endl;
+        std::cout << "No results found." << std::endl;
         return absl::OkStatus();
     }
 
+    std::vector<std::string> keys;
+    for (auto& [key, value] : j[0].items()) keys.push_back(key);
+
     std::vector<size_t> widths(keys.size());
-    for (size_t i = 0; i < keys.size(); ++i) {
-        widths[i] = keys[i].length();
-        for (const auto& row : j) {
+    for (size_t i = 0; i < keys.size(); ++i) widths[i] = keys[i].length();
+
+    for (const auto& row : j) {
+        for (size_t i = 0; i < keys.size(); ++i) {
             std::string val;
             if (row.contains(keys[i])) {
                 if (row[keys[i]].is_null()) val = "NULL";
                 else if (row[keys[i]].is_string()) val = row[keys[i]].get<std::string>();
                 else val = row[keys[i]].dump();
-            } else {
-                val = "";
             }
             widths[i] = std::max(widths[i], val.length());
         }
-        widths[i] = std::min(widths[i], static_cast<size_t>(40));
     }
 
     auto print_sep = [&]() {
@@ -349,74 +375,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
             std::cout << Colorize("[System]> ", "", ansi::Yellow) << msg.content << std::endl;
         }
     }
-
-    if (!selected_groups.empty()) {
-        std::cout << "\n" << Colorize("--- Injected Context (" + std::to_string(selected_groups.size()) + " groups) ---", "", ansi::Cyan) << std::endl;
-        for (const auto& gid : selected_groups) {
-            auto res = db.Query("SELECT role, substr(content, 1, 60) as preview FROM messages WHERE group_id = '" + gid + "' LIMIT 1");
-            if (res.ok()) {
-                auto j = nlohmann::json::parse(*res, nullptr, false);
-                if (!j.is_discarded() && !j.empty()) {
-                    std::cout << "  [" << gid << "] " << j[0]["role"].get<std::string>() << ": " << j[0]["preview"].get<std::string>() << "..." << std::endl;
-                }
-            }
-        }
-        std::cout << Colorize("------------------------------------------", "", ansi::Cyan) << std::endl;
-    }
-
-    std::cout << std::endl;
     return absl::OkStatus();
-}
-
-std::string FormatAssembledContext(const std::string& json_str) {
-    auto j = nlohmann::json::parse(json_str, nullptr, false);
-    if (j.is_discarded()) {
-        return "Error parsing assembled context.";
-    }
-
-    if (j.contains("request") && j["request"].is_object()) {
-        j = j["request"];
-    }
-
-    std::stringstream ss;
-    ss << "\n=== ASSEMBLED CONTEXT SENT TO LLM ===\n" << std::endl;
-
-    if (j.contains("system_instruction")) {
-        ss << "[SYSTEM INSTRUCTION]" << std::endl;
-        if (j["system_instruction"].contains("parts")) {
-            for (const auto& part : j["system_instruction"]["parts"]) {
-                if (part.contains("text")) ss << WrapText(part["text"].get<std::string>(), 78) << std::endl;
-            }
-        }
-        ss << "------------------------------------------" << std::endl;
-    }
-
-    if (j.contains("contents")) {
-        for (const auto& content : j["contents"]) {
-            std::string role = content.value("role", "unknown");
-            ss << "[" << role << "]" << std::endl;
-            if (content.contains("parts")) {
-                for (const auto& part : content["parts"]) {
-                    if (part.contains("text")) {
-                        ss << WrapText(part["text"].get<std::string>(), 78) << std::endl;
-                    } else if (part.contains("functionCall")) {
-                        ss << "CALL: " << part["functionCall"]["name"].get<std::string>() 
-                           << "(" << part["functionCall"]["args"].dump() << ")" << std::endl;
-                    } else if (part.contains("functionResponse")) {
-                        ss << "RESPONSE [" << part["functionResponse"]["name"].get<std::string>() << "]: " 
-                           << part["functionResponse"]["response"].dump() << std::endl;
-                    }
-                }
-            }
-            ss << "------------------------------------------" << std::endl;
-        }
-    }
-
-    return ss.str();
-}
-
-void DisplayAssembledContext(const std::string& json_str) {
-    SmartDisplay(FormatAssembledContext(json_str));
 }
 
 } // namespace slop

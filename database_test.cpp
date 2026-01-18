@@ -70,7 +70,8 @@ TEST(DatabaseTest, GenericQuery) {
     auto res = db.Query("SELECT 42 as answer, 'slop' as name");
     ASSERT_TRUE(res.ok());
     
-    nlohmann::json j = nlohmann::json::parse(*res);
+    nlohmann::json j = nlohmann::json::parse(*res, nullptr, false);
+    ASSERT_FALSE(j.is_discarded());
     ASSERT_EQ(j.size(), 1);
     EXPECT_EQ(j[0]["answer"], 42);
     EXPECT_EQ(j[0]["name"], "slop");

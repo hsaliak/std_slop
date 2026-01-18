@@ -89,7 +89,8 @@ TEST_F(OrchestratorTest, ProcessResponseToolCall) {
     EXPECT_EQ((*history)[0].role, "assistant");
     EXPECT_EQ((*history)[0].status, "tool_call");
     
-    nlohmann::json content = nlohmann::json::parse((*history)[0].content);
+    nlohmann::json content = nlohmann::json::parse((*history)[0].content, nullptr, false);
+    ASSERT_FALSE(content.is_discarded());
     EXPECT_EQ(content["functionCall"]["name"], "execute_bash");
 }
 
@@ -213,14 +214,14 @@ TEST_F(OrchestratorTest, ParseToolCallsGemini) {
     Database::Message msg;
     msg.role = "assistant";
     msg.status = "tool_call";
-    msg.tool_call_id = "test_tool";
-    msg.content = R"({"functionCall": {"name": "test_tool", "args": {"key": "val"}}})";
+    msg.tool_call_id = "execute_bash";
+    msg.content = R"({"functionCall": {"name": "execute_bash", "args": {"command": "ls"}}})";
     
     auto tcs_or = orchestrator.ParseToolCalls(msg);
     ASSERT_TRUE(tcs_or.ok());
     ASSERT_EQ(tcs_or->size(), 1);
-    EXPECT_EQ((*tcs_or)[0].name, "test_tool");
-    EXPECT_EQ((*tcs_or)[0].args["key"], "val");
+    EXPECT_EQ((*tcs_or)[0].name, "execute_bash");
+    EXPECT_EQ((*tcs_or)[0].args["command"], "ls");
 }
 
 TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
@@ -234,8 +235,8 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
         "tool_calls": [{
             "id": "call_123",
             "function": {
-                "name": "test_tool",
-                "arguments": "{\"key\": \"val\"}"
+                "name": "execute_bash",
+                "arguments": "{\"command\": \"ls\"}"
             }
         }]
     })";
@@ -243,9 +244,9 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
     auto tcs_or = orchestrator.ParseToolCalls(msg);
     ASSERT_TRUE(tcs_or.ok());
     ASSERT_EQ(tcs_or->size(), 1);
-    EXPECT_EQ((*tcs_or)[0].name, "test_tool");
+    EXPECT_EQ((*tcs_or)[0].name, "execute_bash");
     EXPECT_EQ((*tcs_or)[0].id, "call_123");
-    EXPECT_EQ((*tcs_or)[0].args["key"], "val");
+    EXPECT_EQ((*tcs_or)[0].args["command"], "ls");
 }
 
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
