@@ -29,7 +29,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     
     std::string path = args.contains("path") ? args["path"].get<std::string>() : ".";
     int context = args.contains("context") ? args["context"].get<int>() : 0;
-
+    
     // Delegate to GitGrep if in a git repo
     auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
     if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
@@ -86,7 +86,28 @@ absl::StatusOr<std::string> ToolExecutor::WriteFile(const std::string& path, con
   std::ofstream file(path);
   if (!file.is_open()) return absl::InternalError("Could not open file for writing: " + path);
   file << content;
-  return "File written successfully: " + path;
+  file.close();
+
+  // Get the size of the content written
+  size_t bytes_written = content.size();
+
+  // Create a preview of the content (first 3 lines or less)
+  std::stringstream preview;
+  std::stringstream content_stream(content);
+  std::string line;
+  int line_count = 0;
+  while (std::getline(content_stream, line) && line_count < 3) {
+    preview << line << "\n";
+    line_count++;
+  }
+
+  // Return a more detailed result
+  std::string result = "File written successfully:\n";
+  result += "Path: " + path + "\n";
+  result += "Bytes written: " + std::to_string(bytes_written) + "\n";
+  result += "Preview:\n" + preview.str();
+
+  return result;
 }
 
 absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) {
@@ -144,17 +165,17 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
     if (args.contains("before")) cmd += " -B " + std::to_string(args["before"].get<int>());
     if (args.contains("after")) cmd += " -A " + std::to_string(args["after"].get<int>());
   }
-
+  
   if (args.contains("branch")) {
     cmd += " " + args["branch"].get<std::string>();
   }
-
+  
   cmd += " -e \"" + args["pattern"].get<std::string>() + "\"";
-
+  
   if (args.contains("path")) {
     cmd += " -- \"" + args["path"].get<std::string>() + "\"";
   }
-
+  
   return ExecuteBash(cmd);
 }
 
