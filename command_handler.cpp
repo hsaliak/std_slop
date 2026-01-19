@@ -365,6 +365,32 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
         "SUM(prompt_tokens + completion_tokens) as total FROM usage "
         "WHERE session_id = '$0' GROUP BY model", args.session_id));
     if (res.ok()) log_status(PrintJsonAsTable(*res));
+    if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled()) {
+	    auto token_or = oauth_handler_->GetValidToken();
+	    if (token_or.ok()) {
+		    auto quota_or = orchestrator_->GetQuota(*token_or);
+		    if (quota_or.ok() && quota_or->is_object()) {
+			    std::cout << "\n--- Gemini User Quota ---" << std::endl;
+			    nlohmann::json table = nlohmann::json::array();
+			    if (quota_or->contains("buckets") && (*quota_or)["buckets"].is_array()) {
+				    for (const auto& b : (*quota_or)["buckets"]) {
+					    if (!b.is_object()) continue;
+					    nlohmann::json row;
+					    row["Model ID"] = b.value("modelId", "N/A");
+					    row["Remaining Amount"] = b.value("remainingAmount", "N/A");
+					    row["Remaining Fraction"] = b.value("remainingFraction", 0.0);
+					    row["Reset Time"] = b.value("resetTime", "N/A");
+					    row["Token Type"] = b.value("tokenType", "N/A");
+					    table.push_back(row);
+				    }
+			    }
+			    if (!table.empty()) log_status(PrintJsonAsTable(table.dump()));
+			    else std::cout << "No quota buckets found." << std::endl;
+		    } else {
+			    std::cout << "Could not fetch quota: " << quota_or.status().message() << std::endl;
+		    }
+	    }
+    }
     return Result::HANDLED;
 }
 
