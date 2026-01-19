@@ -28,34 +28,10 @@ namespace ansi {
 
 namespace slop {
 
-struct Style {
-    const char* fg = "";
-    const char* bg = "";
-    bool bold = false;
-
-    static Style Default() { return {ansi::White, "", false}; }
-    static Style User() { return {ansi::Green, "", true}; }
-    static Style Assistant() { return {ansi::Cyan, "", false}; }
-    static Style System() { return {ansi::Yellow, "", false}; }
-    static Style Error() { return {ansi::Magenta, "", true}; }
-    static Style Tool() { return {ansi::Grey, "", false}; }
-    static Style Subtle() { return {ansi::Grey, "", false}; }
-};
-
 inline std::string Colorize(const std::string& text, const char* bg_background,
                              const char* fg_foreground = ansi::White) {
     return std::string(bg_background) + std::string(fg_foreground) + text +
            ansi::Reset;
-}
-
-inline std::string ApplyStyle(const std::string& text, const Style& style) {
-    std::string res;
-    if (style.bold) res += ansi::Bold;
-    if (style.bg && *style.bg) res += style.bg;
-    if (style.fg && *style.fg) res += style.fg;
-    res += text;
-    res += ansi::Reset;
-    return res;
 }
 
 } // namespace slop
