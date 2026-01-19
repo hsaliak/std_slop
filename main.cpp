@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
 
   if (google_auth) {
     provider = slop::Orchestrator::Provider::GEMINI;
-    orchestrator.SetModel(!model.empty() ? model : "gemini-2.0-flash");
+    orchestrator.SetModel(!model.empty() ? model : "gemini-2.5-flash");
     base_url = absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal");
     orchestrator.SetGcaMode(true);
   } else if (!openai_key.empty()) {
@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
     headers.push_back("Authorization: Bearer " + openai_key);
   } else {
     provider = slop::Orchestrator::Provider::GEMINI;
-    orchestrator.SetModel(!model.empty() ? model : "gemini-2.0-flash");
+    orchestrator.SetModel(!model.empty() ? model : "gemini-2.5-flash");
     base_url = slop::kPublicGeminiBaseUrl;
   }
   orchestrator.SetProvider(provider);
