@@ -181,7 +181,13 @@ int main(int argc, char** argv) {
   (void)orchestrator.RebuildContext(session_id);
 
   while (true) {
-    std::string input = slop::ReadLine(orchestrator.GetModel(), session_id);
+    auto settings_or = db.GetContextSettings(session_id);
+    int window_size = settings_or.ok() ? settings_or->size : 0;
+    std::string model_name = orchestrator.GetModel();
+    std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
+    std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
+    std::string modeline = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ">");
+    std::string input = slop::ReadLine(modeline, session_id);
     if (input == "/exit" || input == "/quit") break;
 
     auto result = cmd_handler.Handle(input, session_id, active_skills, ShowHelp);
