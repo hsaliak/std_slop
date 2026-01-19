@@ -33,7 +33,7 @@ size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void
   return size * nmemb;
 }
 
-int HttpClient::ProgressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
+int HttpClient::ProgressCallback(void* clientp, [[maybe_unused]]  curl_off_t dltotal, [[maybe_unused]]  curl_off_t dlnow, [[maybe_unused]]  curl_off_t ultotal, [[maybe_unused]]  curl_off_t ulnow) {
     HttpClient* client = static_cast<HttpClient*>(clientp);
     if (client->abort_requested_) {
         return 1;

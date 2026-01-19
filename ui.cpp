@@ -149,7 +149,7 @@ void ShowBanner() {
     std::cout << std::endl;
 }
 
-std::string ReadLine(const std::string& modeline, const std::string& session_id) {
+std::string ReadLine(const std::string& modeline) {
     PrintHorizontalLine(0, ansi::Grey, modeline);
     char* buf = readline("> ");
     if (!buf) return "/exit";
@@ -370,7 +370,7 @@ void PrintToolResultMessage(const std::string& result) {
     std::cout << std::endl;
 }
 
-absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit, const std::vector<std::string>& selected_groups) {
+absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit) {
     auto history_or = db.GetConversationHistory(session_id);
     if (!history_or.ok()) return history_or.status();
 

@@ -76,7 +76,8 @@ TEST(ToolExecutorTest, GrepToolWorks) {
     ASSERT_TRUE(db.Init(":memory:").ok());
     ToolExecutor executor(&db);
     
-    executor.Execute("write_file", {{"path", "grep_test.txt"}, {"content", "line 1\npattern here\nline 3"}});
+    auto write_res = executor.Execute("write_file", {{"path", "grep_test.txt"}, {"content", "line 1\npattern here\nline 3"}});
+    ASSERT_TRUE(write_res.ok());
     
     auto grep_res = executor.Execute("grep_tool", {{"pattern", "pattern"}, {"path", "grep_test.txt"}, {"context", 1}});
     ASSERT_TRUE(grep_res.ok());

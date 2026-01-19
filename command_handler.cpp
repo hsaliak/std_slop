@@ -74,7 +74,7 @@ CommandHandler::Result CommandHandler::HandleHelp(CommandArgs& args) {
     return Result::HANDLED;
 }
 
-CommandHandler::Result CommandHandler::HandleExit(CommandArgs& args) {
+CommandHandler::Result CommandHandler::HandleExit([[maybe_unused]] CommandArgs& args) {
     return Result::HANDLED;
 }
 
@@ -442,7 +442,7 @@ CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
     return Result::HANDLED;
 }
 
-CommandHandler::Result CommandHandler::HandleSchema(CommandArgs& args) {
+CommandHandler::Result CommandHandler::HandleSchema([[maybe_unused]] CommandArgs& args) {
     auto res = db_->Query("SELECT sql FROM sqlite_master WHERE type='table'");
     if (res.ok()) {
         auto j = nlohmann::json::parse(*res, nullptr, false);

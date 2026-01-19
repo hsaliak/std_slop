@@ -13,7 +13,8 @@ protected:
     std::vector<std::string> active_skills;
 
     void SetUp() override {
-        db.Init(":memory:");
+        auto status = db.Init(":memory:");
+	ASSERT_TRUE(status.ok());
     }
 };
 
