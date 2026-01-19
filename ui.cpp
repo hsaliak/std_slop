@@ -203,7 +203,7 @@ std::string OpenInEditor(const std::string& initial_content) {
     const char* editor = std::getenv("EDITOR");
     if (!editor) editor = "vi";
     
-    std::string tmp_path = "/tmp/slop_edit.txt";
+    std::string tmp_path  = (std::filesystem::temp_directory_path()/ "slop_edit.txt").string();
     { 
         std::ofstream out(tmp_path);
         if (!initial_content.empty()) out << initial_content;

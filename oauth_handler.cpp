@@ -15,6 +15,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include <nlohmann/json.hpp>
+#include <filesystem>
+#include <system_error>
 
 namespace slop {
 
@@ -27,6 +29,14 @@ std::string GetHomeDir() {
   return home ? home : "";
 }
 } // namespace
+absl::Status MaybeCreateDirectory(const std::string& dir_path) {
+  std::error_code ec;
+  if (!std::filesystem::create_directories(dir_path, ec) && ec) {
+    return absl::InternalError(ec.message());
+  }
+
+  return absl::OkStatus();
+}
 
 OAuthHandler::OAuthHandler(HttpClient* http_client) 
     : http_client_(http_client) {
@@ -60,8 +70,8 @@ absl::Status OAuthHandler::SaveTokens(const OAuthTokens& tokens) {
   if (token_path_.empty()) return absl::InternalError("No token path");
   
   std::string dir = token_path_.substr(0, token_path_.find_last_of('/'));
-  std::string cmd = "mkdir -p " + dir;
-  (void)system(cmd.c_str());
+  auto mkdir_status = MaybeCreateDirectory(dir);
+  if (!mkdir_status.ok()) return mkdir_status;
 
   nlohmann::json j;
   j["access_token"] = tokens.access_token;

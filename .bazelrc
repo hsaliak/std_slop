@@ -4,10 +4,17 @@ build --features=-use_header_modules
 build --macos_minimum_os=10.15
 build --@curl//:http_only=False
 build --@curl//:use_mbedtls=True
-build --cxxopt="-D_FORTIFY_SOURCE=3"
-build --cxxopt="-fstack-protector-strong"
 build --cxxopt="-Werror=unused-function"
 build --cxxopt="-Wall" --cxxopt="-Wextra" --cxxopt="-Werror"
+# General Hardening
+build --copt="-O2"
+build --copt="-D_FORTIFY_SOURCE=3"
+build --copt="-fstack-protector-strong"
+build --copt="-fstack-clash-protection"
+build --copt="-fcf-protection=full"
+build --copt="-D_GLIBCXX_ASSERTIONS"
+
+
 # Enable with: bazel build --config=asan //...
 build:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address"
 build:asan --copt="-fno-omit-frame-pointer"
@@ -15,10 +22,12 @@ test:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address"
 test:asan --copt="-fno-omit-frame-pointer"
 
 
+
 # Enable with: bazel build --config=ubsan //...
 build:ubsan --copt="-fsanitize=undefined" --linkopt="-fsanitize=undefined"
 test:ubsan --copt="-fsanitize=undefined" --linkopt="-fsanitize=undefined"
 
-
-
 test --test_output=errors
+# relax for external repos
+# Specifically silence the uninitialized warning for external code if needed
+build --per_file_copt="external/.*@-Wno-maybe-uninitialized"
