@@ -156,33 +156,35 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
         }
         return Result::HANDLED;
     }
+    if (sub_cmd == "show") {
+	    auto s = db_->GetContextSettings(args.session_id);
+	    std::stringstream ss;
+	    if (s.ok()) {
+		    ss << "--- CONTEXT STATUS ---\n";
+		    ss  << "Session: " << args.session_id << "\n";
+		    ss << "Window Size: " ;
+		    ss << (s->size == 0 ? "Infinite" : std::to_string(s->size));
+		    ss <<  "\n";
+		    if (!args.active_skills.empty()) {
+			    ss << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
+		    }
+	    }
 
-    if (sub_cmd != "show") {
-        if (!sub_cmd.empty()) {
-            std::cerr << "Unknown context command: " << sub_cmd << std::endl;
-        }
-        std::cout << "Usage: /context show | window <N> | rebuild" << std::endl;
-        return Result::HANDLED;
+	    if (orchestrator_) {
+		    auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
+		    if (prompt_or.ok()) {
+			    ss << "\n--- ASSEMBLED PROMPT ---" << std::endl;
+			    ss << prompt_or->dump(2) << std::endl;
+		    }
+	    }
+	    SmartDisplay(ss.str());
+	    return Result::HANDLED;
     }
-
-    auto s = db_->GetContextSettings(args.session_id);
-    if (s.ok()) {
-        std::cout << "--- CONTEXT STATUS ---" << std::endl;
-        std::cout << "Session: " << args.session_id << std::endl;
-        std::cout << "Window Size: " << (s->size == 0 ? "Infinite" : std::to_string(s->size)) << std::endl;
-        if (!args.active_skills.empty()) {
-            std::cout << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
-        }
+    // unknown
+    if (!sub_cmd.empty()) {
+	    std::cerr << "Unknown context command: " << sub_cmd << std::endl;
     }
-
-    if (orchestrator_) {
-        auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
-        if (prompt_or.ok()) {
-            std::cout << "\n--- ASSEMBLED PROMPT (DEBUG) ---" << std::endl;
-            SmartDisplay(prompt_or->dump(2));
-        }
-    }
-    
+    std::cout << "Usage: /context show | window <N> | rebuild" << std::endl;
     return Result::HANDLED;
 }
 
@@ -190,29 +192,24 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
     std::string sub_cmd = sub_parts[0];
     std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
+
     if (sub_cmd == "list") {
-        auto tools = db_->GetEnabledTools();
-        if (tools.ok()) {
-            std::cout << "Available Tools:" << std::endl;
-            for (const auto& t : *tools) {
-                std::cout << " - " << t.name << ": " << t.description << std::endl;
-            }
-        }
+        auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
+        if (res.ok()) log_status(PrintJsonAsTable(*res));
     } else if (sub_cmd == "show") {
-        auto tools = db_->GetEnabledTools();
-        bool found = false;
-        if (tools.ok()) {
-            for (const auto& t : *tools) {
-                if (t.name == sub_args) {
-                    std::cout << "Tool: " << t.name << "\nDescription: " << t.description << "\nSchema:\n" << t.json_schema << std::endl;
-                    found = true;
-                    break;
-                }
+        auto res = db_->Query("SELECT * FROM tools WHERE name = '" + sub_args + "'");
+        if (res.ok()) {
+            auto j = nlohmann::json::parse(*res, nullptr, false);
+            if (!j.is_discarded() && !j.empty()) {
+                std::cout << j[0].dump(2) << std::endl;
             }
         }
-        if (!found) std::cerr << "Tool not found or not enabled." << std::endl;
+    } else if (sub_cmd == "enable" || sub_cmd == "disable") {
+        int val = (sub_cmd == "enable") ? 1 : 0;
+        log_status(db_->Execute("UPDATE tools SET is_enabled = " + std::to_string(val) + " WHERE name = '" + sub_args + "'"));
+        std::cout << "Tool '" << sub_args << "' " << (val ? "enabled" : "disabled") << "." << std::endl;
     } else {
-        std::cout << "Usage: /tool list | show <name>" << std::endl;
+        std::cout << "Usage: /tool list | show <name> | enable <name> | disable <name>" << std::endl;
     }
     return Result::HANDLED;
 }
@@ -220,16 +217,27 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
 CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
     std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
     std::string sub_cmd = sub_parts[0];
-    std::string sub_args = std::string(absl::StripAsciiWhitespace((sub_parts.size() > 1) ? sub_parts[1] : ""));
+    std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
 
-    if (sub_cmd == "activate") {
-        if (sub_args.empty()) {
-            std::cerr << "Usage: /skill activate <name|id>" << std::endl;
-            return Result::HANDLED;
+    if (sub_cmd == "list") {
+        auto skills_or = db_->GetSkills();
+        if (skills_or.ok()) {
+            nlohmann::json table = nlohmann::json::array();
+            for (const auto& s : *skills_or) {
+                bool active = std::find(args.active_skills.begin(), args.active_skills.end(), s.name) != args.active_skills.end();
+                nlohmann::json row;
+                row["id"] = s.id;
+                row["name"] = s.name;
+                row["description"] = s.description;
+                row["active"] = active ? "YES" : "no";
+                table.push_back(row);
+            }
+            log_status(PrintJsonAsTable(table.dump()));
         }
-        auto s_or = db_->GetSkills();
-        if (s_or.ok()) {
-            for (const auto& s : *s_or) {
+    } else if (sub_cmd == "activate") {
+        auto skills_or = db_->GetSkills();
+        if (skills_or.ok()) {
+            for (const auto& s : *skills_or) {
                 bool match = false;
                 if (s.name == sub_args) match = true;
                 else {
@@ -237,13 +245,11 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
                     if (absl::SimpleAtoi(sub_args, &id) && s.id == id) match = true;
                 }
                 if (match) {
-                    bool already_active = false;
-                    for (const auto& a : args.active_skills) if (a == s.name) already_active = true;
-                    if (!already_active) {
+                    if (std::find(args.active_skills.begin(), args.active_skills.end(), s.name) == args.active_skills.end()) {
                         args.active_skills.push_back(s.name);
-                        std::cout << "Skill activated: " << s.name << std::endl;
+                        std::cout << "Skill '" << s.name << "' activated." << std::endl;
                     } else {
-                        std::cout << "Skill already active: " << s.name << std::endl;
+                        std::cout << "Skill '" << s.name << "' is already active." << std::endl;
                     }
                     return Result::HANDLED;
                 }
@@ -251,52 +257,43 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
             std::cerr << "Skill not found: " << sub_args << std::endl;
         }
     } else if (sub_cmd == "deactivate") {
-        auto it = std::find_if(args.active_skills.begin(), args.active_skills.end(), [&](const std::string& name) {
-            if (name == sub_args) return true;
-            auto s_or = db_->GetSkills();
-            if (s_or.ok()) {
-                for (const auto& s : *s_or) {
-                    int id;
-                    if (s.name == name && absl::SimpleAtoi(sub_args, &id) && s.id == id) return true;
-                }
-            }
-            return false;
-        });
+        auto it = std::find(args.active_skills.begin(), args.active_skills.end(), sub_args);
         if (it != args.active_skills.end()) {
-            std::cout << "Skill deactivated: " << *it << std::endl;
+            std::cout << "Skill '" << *it << "' deactivated." << std::endl;
             args.active_skills.erase(it);
         } else {
-            std::cerr << "Skill not active: " << sub_args << std::endl;
-        }
-    } else if (sub_cmd == "list") {
-        auto s_or = db_->GetSkills();
-        if (s_or.ok()) {
-            std::cout << "Available Skills:" << std::endl;
-            for (const auto& s : *s_or) {
-                bool active = false;
-                for (const auto& a : args.active_skills) if (a == s.name) active = true;
-                std::cout << " [" << (active ? "ACTIVE" : "      ") << "] " << s.id << ": " << s.name << " - " << s.description << std::endl;
+            // try by ID
+            int id;
+            if (absl::SimpleAtoi(sub_args, &id)) {
+                auto skills_or = db_->GetSkills();
+                if (skills_or.ok()) {
+                    for (const auto& s : *skills_or) {
+                        if (s.id == id) {
+                           auto it2 = std::find(args.active_skills.begin(), args.active_skills.end(), s.name);
+                           if (it2 != args.active_skills.end()) {
+                               std::cout << "Skill '" << *it2 << "' deactivated." << std::endl;
+                               args.active_skills.erase(it2);
+                               return Result::HANDLED;
+                           }
+                        }
+                    }
+                }
             }
+            std::cerr << "Active skill not found: " << sub_args << std::endl;
         }
     } else if (sub_cmd == "add") {
-        std::string name, desc, patch;
-        std::cout << "Skill Name: "; std::getline(std::cin, name);
-        std::cout << "Description: "; std::getline(std::cin, desc);
-        std::cout << "System Prompt Patch (Opening Editor...)" << std::endl;
-        patch = slop::OpenInEditor();
+        std::cout << "Enter skill name: "; std::string name; std::getline(std::cin, name);
+        std::cout << "Enter description: "; std::string desc; std::getline(std::cin, desc);
+        std::cout << "Opening editor for system prompt patch..." << std::endl;
+        std::string patch = slop::OpenInEditor();
         if (!name.empty()) {
-            Database::Skill s = {0, name, desc, patch};
-            log_status(db_->RegisterSkill(s));
-            std::cout << "Skill registered." << std::endl;
+            log_status(db_->RegisterSkill({0, name, desc, patch}));
+            std::cout << "Skill '" << name << "' added." << std::endl;
         }
     } else if (sub_cmd == "edit") {
-        if (sub_args.empty()) {
-            std::cerr << "Usage: /skill edit <name|id>" << std::endl;
-            return Result::HANDLED;
-        }
-        auto s_or = db_->GetSkills();
-        if (s_or.ok()) {
-            for (const auto& s : *s_or) {
+        auto skills_or = db_->GetSkills();
+        if (skills_or.ok()) {
+            for (const auto& s : *skills_or) {
                 bool match = false;
                 if (s.name == sub_args) match = true;
                 else {
@@ -353,8 +350,14 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         } else {
             std::cout << "Session '" << sub_args << "' removed." << std::endl;
         }
+    } else if (sub_cmd == "clear") {
+        log_status(db_->DeleteSession(args.session_id));
+        std::cout << "Session '" << args.session_id << "' cleared." << std::endl;
+        if (orchestrator_) {
+            (void)orchestrator_->RebuildContext(args.session_id);
+        }
     } else {
-        std::cout << "Usage: /session list | activate <name> | remove <name>" << std::endl;
+        std::cout << "Usage: /session list | activate <name> | remove <name> | clear" << std::endl;
     }
     return Result::HANDLED;
 }
@@ -398,11 +401,29 @@ CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
     std::string api_key = (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI) ? google_api_key_ : openai_api_key_;
     auto models_or = orchestrator_->GetModels(api_key);
     if (models_or.ok()) {
-        std::cout << "Available Models:" << std::endl;
+        nlohmann::json table = nlohmann::json::array();
         for (const auto& m : *models_or) {
-            if (args.args.empty() || absl::StrContainsIgnoreCase(m.id, args.args) || absl::StrContainsIgnoreCase(m.name, args.args)) {
-                std::cout << " - " << m.id << " (" << m.name << ")" << std::endl;
+            nlohmann::json row;
+            row["id"] = m.id;
+            row["name"] = m.name;
+            table.push_back(row);
+        }
+
+        if (!args.args.empty()) {
+            nlohmann::json filtered = nlohmann::json::array();
+            for (const auto& row : table) {
+                bool match = false;
+                for (auto it = row.begin(); it != row.end(); ++it) {
+                    if (it.value().is_string() && absl::StrContains(it.value().get<std::string>(), args.args)) {
+                        match = true;
+                        break;
+                    }
+                }
+                if (match) filtered.push_back(row);
             }
+            log_status(PrintJsonAsTable(filtered.dump()));
+        } else {
+            log_status(PrintJsonAsTable(table.dump()));
         }
     } else {
         std::cerr << "Error fetching models: " << models_or.status().message() << std::endl;
@@ -422,8 +443,15 @@ CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
 }
 
 CommandHandler::Result CommandHandler::HandleSchema(CommandArgs& args) {
-    auto res = db_->Query("SELECT name, sql FROM sqlite_master WHERE type='table'");
-    if (res.ok()) log_status(PrintJsonAsTable(*res));
+    auto res = db_->Query("SELECT sql FROM sqlite_master WHERE type='table'");
+    if (res.ok()) {
+        auto j = nlohmann::json::parse(*res, nullptr, false);
+        if (!j.is_discarded()) {
+            for (const auto& row : j) {
+                std::cout << row["sql"].get<std::string>() << ";\n" << std::endl;
+            }
+        }
+    }
     return Result::HANDLED;
 }
 
@@ -439,11 +467,15 @@ CommandHandler::Result CommandHandler::HandleModel(CommandArgs& args) {
 
 CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
     if (args.args.empty()) {
-        std::cout << "Current throttle: " << orchestrator_->GetThrottle() << " seconds" << std::endl;
+        std::cout << "Current throttle: " << orchestrator_->GetThrottle() << " seconds." << std::endl;
     } else {
-        int t = std::atoi(args.args.c_str());
-        orchestrator_->SetThrottle(t);
-        std::cout << "Throttle set to " << t << " seconds." << std::endl;
+        int n;
+        if (absl::SimpleAtoi(args.args, &n)) {
+            orchestrator_->SetThrottle(n);
+            std::cout << "Throttle set to " << n << " seconds." << std::endl;
+        } else {
+            std::cerr << "Invalid throttle value: " << args.args << std::endl;
+        }
     }
     return Result::HANDLED;
 }

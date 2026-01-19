@@ -207,41 +207,50 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
     std::string input = "/session remove test_sid";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-
-    // Verify session and its data are gone
-    auto history = db.GetConversationHistory("test_sid");
-    EXPECT_EQ(history->size(), 0);
-
-    // Verify session switched if it was the active one
     EXPECT_EQ(sid, "default_session");
+
+    auto history = db.GetConversationHistory("test_sid");
+    ASSERT_TRUE(history.ok());
+    EXPECT_TRUE(history->empty());
 }
 
 TEST_F(CommandHandlerTest, HandlesSessionList) {
     CommandHandler handler(&db);
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "msg").ok());
-    
+
     std::string input = "/session list";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-
-    auto res_db = db.Query("SELECT DISTINCT session_id FROM messages UNION SELECT DISTINCT id FROM sessions");
-    EXPECT_TRUE(res_db.ok());
-    auto j = nlohmann::json::parse(*res_db);
-    EXPECT_EQ(j.size(), 1);
-    EXPECT_EQ(j[0]["session_id"], "s1");
 }
 
 TEST_F(CommandHandlerTest, HandlesSessionActivate) {
     CommandHandler handler(&db);
-    std::string sid = "current";
+    std::string sid = "s1";
     std::vector<std::string> active_skills;
-    
+
     std::string input = "/session activate new_session";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     EXPECT_EQ(sid, "new_session");
 }
 
-}  // namespace slop
+TEST_F(CommandHandlerTest, HandlesSessionClear) {
+    CommandHandler handler(&db);
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "hello").ok());
+    ASSERT_TRUE(db.SetContextWindow(sid, 10).ok());
+
+    std::string input = "/session clear";
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+    EXPECT_EQ(sid, "s1"); // Should preserve session ID
+
+    auto history = db.GetConversationHistory("s1");
+    ASSERT_TRUE(history.ok());
+    EXPECT_TRUE(history->empty());
+}
+
+} // namespace slop

@@ -64,7 +64,10 @@ bazel run //:std_slop -- [session_name]
 ## Command Reference
 
 ### Session and Context
-- `/session [name]`    List all sessions or switch to/create a specific one.
+- `/session list`      List all unique session names in the DB.
+- `/session activate <name>` Switch to or create a new session.
+- `/session remove <name>` Delete a session and all its data.
+- `/session clear`     Clear all history and state for current session.
 - `/undo`            Remove last interaction and rebuild context.
 - `/context`         Show context status and assembled prompt.
 - `/context window <N>` Set size of rolling window (0 for full history).

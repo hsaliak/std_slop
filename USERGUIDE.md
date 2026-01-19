@@ -71,6 +71,7 @@ If no session name is provided, it defaults to `default_session`.
 - `/session list`: List all existing sessions.
 - `/session activate <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
 - `/session remove <name>`: Delete a session and all its associated data (history, usage, state).
+- `/session clear`: Wipe all messages and state for the *current* session, effectively starting fresh while keeping the same session ID.
 
 ### Message Operations
 - `/message list [N]`: List the prompts of the last `N` message groups.

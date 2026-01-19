@@ -50,6 +50,7 @@ std::string GetHelpText() {
          "  /session list          List all unique session names in the DB\n" 
          "  /session activate <name> Switch to or create a new session named <name>\n" 
          "  /session remove <name> Delete a session and all its data\n" 
+         "  /session clear         Clear all history and state for current session\n" 
          "  /skill list            List all available skills\n" 
          "  /skill activate <ID|Name> Set active skill\n" 
          "  /skill deactivate <ID|Name> Disable active skill\n" 
@@ -211,9 +212,11 @@ int main(int argc, char** argv) {
             std::cerr << "Error assembling prompt: " << prompt_or.status().message() << std::endl;
             break;
         }
-
-        std::string url;
+	// Create the Thinking UI
+	int context_tokens = orchestrator.CountTokens(*prompt_or);
+	std::cout << "[context: " << context_tokens << " tokens] Thinking...\n " << std::flush;
         std::vector<std::string> current_headers = headers;
+	std::string url = base_url;
         if (google_auth) {
             auto token_or = oauth_handler->GetValidToken();
             if (token_or.ok()) {
