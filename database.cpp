@@ -393,6 +393,19 @@ absl::Status Database::RegisterSkill(const Skill& skill) {
   return stmt->Run();
 }
 
+absl::Status Database::UpdateSkill(const Skill& skill) {
+  auto stmt_or = Prepare("UPDATE skills SET name = ?, description = ?, system_prompt_patch = ? WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  (void)stmt->BindText(1, skill.name);
+  (void)stmt->BindText(2, skill.description);
+  (void)stmt->BindText(3, skill.system_prompt_patch);
+  (void)stmt->BindInt(4, skill.id);
+
+  return stmt->Run();
+}
+
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
     auto stmt_or = Prepare("DELETE FROM skills WHERE name = ? OR id = ?");
     if (!stmt_or.ok()) return stmt_or.status();

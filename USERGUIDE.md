@@ -68,8 +68,8 @@ If no session name is provided, it defaults to `default_session`.
 
 ### Session Management
 - `/exit` or `/quit`: Close the session.
-- `/session`: List all existing sessions.
-- `/session <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
+- `/session list`: List all existing sessions.
+- `/session activate <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
 - `/session remove <name>`: Delete a session and all its associated data (history, usage, state).
 
 ### Message Operations
@@ -80,14 +80,12 @@ If no session name is provided, it defaults to `default_session`.
 - `/edit`: Open your last input in your system `$EDITOR` (e.g., vim, nano) and resend it after saving.
 
 ### Context Control
-- `/context`: Show current context settings and the fully assembled prompt that would be sent to the LLM.
+- `/context show`: Show current context settings and the fully assembled prompt that would be sent to the LLM.
 - `/context window <N>`: Limit the context to the last `N` interaction groups. Set to `0` for infinite history.
 - `/context rebuild`: Force a rebuild of the in-memory session state from the SQL message history. Useful if the database was modified externally.
-- `/window <N>`: Shortcut for `/context window <N>`.
 
 ### Skills (Personas)
 - `/skill list`: List all available and active skills.
-- `/skill show <name|id>`: View the system prompt patch for a skill.
 - `/skill activate <name|id>`: Enable a skill for the current session.
 - `/skill deactivate <name|id>`: Disable a skill for the current session.
 - `/skill add`: Interactive prompt to create a new skill.

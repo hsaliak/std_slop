@@ -17,7 +17,7 @@ TEST_F(CommandHandlerTest, DetectsCommand) {
     std::string input = "/help";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
@@ -26,7 +26,7 @@ TEST_F(CommandHandlerTest, IgnoresNormalText) {
     std::string input = "Just some text";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::NOT_A_COMMAND);
 }
 
@@ -35,7 +35,7 @@ TEST_F(CommandHandlerTest, HandlesUnknownCommand) {
     std::string input = "/unknown_xyz";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::UNKNOWN);
 }
 
@@ -44,7 +44,7 @@ TEST_F(CommandHandlerTest, HandlesCommandWithWhitespace) {
     std::string input = "   /help   ";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
@@ -53,7 +53,7 @@ TEST_F(CommandHandlerTest, HandlesContextWindow) {
     std::string input = "/context window 10";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     
     auto settings = db.GetContextSettings("s1");
@@ -61,12 +61,40 @@ TEST_F(CommandHandlerTest, HandlesContextWindow) {
     EXPECT_EQ(settings->size, 10);
 }
 
+TEST_F(CommandHandlerTest, ContextWithoutSubcommandShowsUsage) {
+    CommandHandler handler(&db);
+    std::string input = "/context";
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+    // Usage message is printed to stdout, which is hard to verify here.
+}
+
+TEST_F(CommandHandlerTest, ContextShowIsHandled) {
+    CommandHandler handler(&db);
+    std::string input = "/context show";
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+}
+
+TEST_F(CommandHandlerTest, WindowAliasIsRemoved) {
+    CommandHandler handler(&db);
+    std::string input = "/window 10";
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::UNKNOWN);
+}
+
 TEST_F(CommandHandlerTest, DetectsQuitExit) {
     CommandHandler handler(&db);
     std::string input = "/quit";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
@@ -79,7 +107,7 @@ TEST_F(CommandHandlerTest, ActivatesSkillByName) {
     std::string input = "/skill activate test_skill";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     ASSERT_EQ(active_skills.size(), 1);
@@ -96,11 +124,25 @@ TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
     std::string input = "/skill activate 1";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     ASSERT_EQ(active_skills.size(), 1);
     EXPECT_EQ(active_skills[0], "first_skill");
+}
+
+TEST_F(CommandHandlerTest, SkillShowIsRemoved) {
+    CommandHandler handler(&db);
+    Database::Skill skill_obj = {0, "test_skill", "desc", "PATCH"};
+    ASSERT_TRUE(db.RegisterSkill(skill_obj).ok());
+    
+    std::string input = "/skill show test_skill";
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    
+    // It will fall through to usage message since "show" is no longer recognized.
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
 TEST_F(CommandHandlerTest, HandlesThrottle) {
@@ -112,13 +154,13 @@ TEST_F(CommandHandlerTest, HandlesThrottle) {
     
     // Test setting throttle
     std::string input = "/throttle 5";
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     EXPECT_EQ(orchestrator.GetThrottle(), 5);
     
     // Test viewing throttle (just ensures it returns HANDLED)
     input = "/throttle";
-    res = handler.Handle(input, sid, active_skills, [](){});
+    res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     EXPECT_EQ(orchestrator.GetThrottle(), 5);
 }
@@ -142,7 +184,7 @@ TEST_F(CommandHandlerTest, HandlesUndo) {
 
     // Undo last interaction
     std::string input = "/undo";
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 
     // Verify g2 is gone, g1 remains
@@ -163,15 +205,43 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
     ASSERT_TRUE(db.SetContextWindow(sid, 10).ok());
 
     std::string input = "/session remove test_sid";
-    auto res = handler.Handle(input, sid, active_skills, [](){});
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 
-    // Verify data is gone
+    // Verify session and its data are gone
     auto history = db.GetConversationHistory("test_sid");
     EXPECT_EQ(history->size(), 0);
 
     // Verify session switched if it was the active one
     EXPECT_EQ(sid, "default_session");
+}
+
+TEST_F(CommandHandlerTest, HandlesSessionList) {
+    CommandHandler handler(&db);
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "msg").ok());
+    
+    std::string input = "/session list";
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+
+    auto res_db = db.Query("SELECT DISTINCT session_id FROM messages UNION SELECT DISTINCT id FROM sessions");
+    EXPECT_TRUE(res_db.ok());
+    auto j = nlohmann::json::parse(*res_db);
+    EXPECT_EQ(j.size(), 1);
+    EXPECT_EQ(j[0]["session_id"], "s1");
+}
+
+TEST_F(CommandHandlerTest, HandlesSessionActivate) {
+    CommandHandler handler(&db);
+    std::string sid = "current";
+    std::vector<std::string> active_skills;
+    
+    std::string input = "/session activate new_session";
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+    EXPECT_EQ(sid, "new_session");
 }
 
 }  // namespace slop
