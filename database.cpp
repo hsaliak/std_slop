@@ -144,6 +144,14 @@ absl::Status Database::Init(const std::string& db_path) {
         state_blob TEXT,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS todos (
+        id INTEGER,
+        group_name TEXT,
+        description TEXT,
+        status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',
+        PRIMARY KEY (id, group_name)
+    );
   )";
 
   absl::Status s = Execute(schema);
@@ -488,6 +496,90 @@ absl::StatusOr<std::string> Database::GetSessionState(const std::string& session
         return stmt->ColumnText(0);
     }
     return absl::NotFoundError("No state found for session: " + session_id);
+}
+
+absl::Status Database::AddTodo(const std::string& group_name, const std::string& description) {
+  auto id_stmt_or = Prepare("SELECT COALESCE(MAX(id), 0) + 1 FROM todos WHERE group_name = ?");
+  if (!id_stmt_or.ok()) return id_stmt_or.status();
+  (void)(*id_stmt_or)->BindText(1, group_name);
+  auto row_or = (*id_stmt_or)->Step();
+  if (!row_or.ok()) return row_or.status();
+  int next_id = (*id_stmt_or)->ColumnInt(0);
+
+  auto stmt_or = Prepare("INSERT INTO todos (id, group_name, description) VALUES (?, ?, ?)");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  (void)stmt->BindInt(1, next_id);
+  (void)stmt->BindText(2, group_name);
+  (void)stmt->BindText(3, description);
+
+  return stmt->Run();
+}
+
+absl::StatusOr<std::vector<Database::Todo>> Database::GetTodos(const std::string& group_name) {
+  std::string sql = "SELECT id, group_name, description, status FROM todos";
+  if (!group_name.empty()) {
+    sql += " WHERE group_name = ?";
+  }
+  sql += " ORDER BY group_name ASC, id ASC";
+
+  auto stmt_or = Prepare(sql);
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  if (!group_name.empty()) {
+    (void)stmt->BindText(1, group_name);
+  }
+
+  std::vector<Todo> todos;
+  while (true) {
+    auto row_or = stmt->Step();
+    if (!row_or.ok()) return row_or.status();
+    if (!*row_or) break;
+
+    Todo t;
+    t.id = stmt->ColumnInt(0);
+    t.group_name = stmt->ColumnText(1);
+    t.description = stmt->ColumnText(2);
+    t.status = stmt->ColumnText(3);
+    todos.push_back(t);
+  }
+  return todos;
+}
+
+absl::Status Database::UpdateTodo(int id, const std::string& group_name, const std::string& description) {
+  auto stmt_or = Prepare("UPDATE todos SET description = ? WHERE id = ? AND group_name = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  (void)stmt->BindText(1, description);
+  (void)stmt->BindInt(2, id);
+  (void)stmt->BindText(3, group_name);
+
+  return stmt->Run();
+}
+
+absl::Status Database::UpdateTodoStatus(int id, const std::string& group_name, const std::string& status) {
+  auto stmt_or = Prepare("UPDATE todos SET status = ? WHERE id = ? AND group_name = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  (void)stmt->BindText(1, status);
+  (void)stmt->BindInt(2, id);
+  (void)stmt->BindText(3, group_name);
+
+  return stmt->Run();
+}
+
+absl::Status Database::DeleteTodoGroup(const std::string& group_name) {
+  auto stmt_or = Prepare("DELETE FROM todos WHERE group_name = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  (void)stmt->BindText(1, group_name);
+
+  return stmt->Run();
 }
 
 absl::StatusOr<std::string> Database::Query(const std::string& sql) {

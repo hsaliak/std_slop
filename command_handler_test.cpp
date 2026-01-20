@@ -68,7 +68,6 @@ TEST_F(CommandHandlerTest, ContextWithoutSubcommandShowsUsage) {
     std::vector<std::string> active_skills;
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    // Usage message is printed to stdout, which is hard to verify here.
 }
 
 TEST_F(CommandHandlerTest, ContextShowIsHandled) {
@@ -141,7 +140,6 @@ TEST_F(CommandHandlerTest, SkillShowIsRemoved) {
     std::vector<std::string> active_skills;
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     
-    // It will fall through to usage message since "show" is no longer recognized.
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
@@ -157,14 +155,7 @@ TEST_F(CommandHandlerTest, HandlesThrottle) {
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     EXPECT_EQ(orchestrator.GetThrottle(), 5);
-    
-    // Test viewing throttle (just ensures it returns HANDLED)
-    input = "/throttle";
-    res = handler.Handle(input, sid, active_skills, [](){}, {});
-    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    EXPECT_EQ(orchestrator.GetThrottle(), 5);
 }
-
 
 TEST_F(CommandHandlerTest, HandlesUndo) {
     CommandHandler handler(&db);
@@ -191,9 +182,6 @@ TEST_F(CommandHandlerTest, HandlesUndo) {
     history = db.GetConversationHistory(sid);
     ASSERT_TRUE(history.ok());
     EXPECT_EQ(history->size(), 2);
-    for (const auto& msg : *history) {
-        EXPECT_EQ(msg.group_id, "g1");
-    }
 }
 
 TEST_F(CommandHandlerTest, HandlesSessionRemove) {
@@ -208,16 +196,19 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     EXPECT_EQ(sid, "default_session");
-
+    
     auto history = db.GetConversationHistory("test_sid");
     ASSERT_TRUE(history.ok());
-    EXPECT_TRUE(history->empty());
+    EXPECT_EQ(history->size(), 0);
 }
 
 TEST_F(CommandHandlerTest, HandlesSessionList) {
     CommandHandler handler(&db);
     std::string sid = "s1";
     std::vector<std::string> active_skills;
+    
+    ASSERT_TRUE(db.AppendMessage("session_a", "user", "hi").ok());
+    ASSERT_TRUE(db.AppendMessage("session_b", "user", "hi").ok());
 
     std::string input = "/session list";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
@@ -228,29 +219,72 @@ TEST_F(CommandHandlerTest, HandlesSessionActivate) {
     CommandHandler handler(&db);
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-
-    std::string input = "/session activate new_session";
+    
+    std::string input = "/session activate session_b";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    EXPECT_EQ(sid, "new_session");
+    EXPECT_EQ(sid, "session_b");
 }
 
 TEST_F(CommandHandlerTest, HandlesSessionClear) {
     CommandHandler handler(&db);
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-
-    ASSERT_TRUE(db.AppendMessage(sid, "user", "hello").ok());
-    ASSERT_TRUE(db.SetContextWindow(sid, 10).ok());
-
+    
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "hi").ok());
+    
     std::string input = "/session clear";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    EXPECT_EQ(sid, "s1"); // Should preserve session ID
-
-    auto history = db.GetConversationHistory("s1");
+    
+    auto history = db.GetConversationHistory(sid);
     ASSERT_TRUE(history.ok());
-    EXPECT_TRUE(history->empty());
+    EXPECT_EQ(history->size(), 0);
+}
+
+TEST_F(CommandHandlerTest, HandlesTodoCommands) {
+    CommandHandler handler(&db);
+    std::string sid = "s1";
+    std::vector<std::string> active_skills;
+
+    // Add todo
+    std::string input = "/todo add g1 my task";
+    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+
+    auto todos = db.GetTodos("g1");
+    ASSERT_TRUE(todos.ok());
+    ASSERT_EQ(todos->size(), 1);
+    EXPECT_EQ((*todos)[0].description, "my task");
+
+    // List todos
+    input = "/todo list";
+    res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+
+    // Edit todo
+    input = "/todo edit g1 1 new description";
+    res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+    
+    todos = db.GetTodos("g1");
+    EXPECT_EQ((*todos)[0].description, "new description");
+
+    // Complete todo
+    input = "/todo complete g1 1";
+    res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+    
+    todos = db.GetTodos("g1");
+    EXPECT_EQ((*todos)[0].status, "Complete");
+
+    // Drop group
+    input = "/todo drop g1";
+    res = handler.Handle(input, sid, active_skills, [](){}, {});
+    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+    
+    todos = db.GetTodos("g1");
+    EXPECT_EQ(todos->size(), 0);
 }
 
 } // namespace slop

@@ -167,3 +167,44 @@ TEST(DatabaseTest, DeleteSessionWorks) {
     state = db.GetSessionState(sid);
     EXPECT_FALSE(state.ok());
 }
+
+TEST(DatabaseTest, TodosPersistence) {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+    
+    ASSERT_TRUE(db.AddTodo("group1", "task 1").ok());
+    ASSERT_TRUE(db.AddTodo("group1", "task 2").ok());
+    ASSERT_TRUE(db.AddTodo("group2", "other task").ok());
+    
+    auto todos = db.GetTodos();
+    ASSERT_TRUE(todos.ok());
+    ASSERT_EQ(todos->size(), 3);
+    
+    EXPECT_EQ((*todos)[0].id, 1);
+    EXPECT_EQ((*todos)[0].group_name, "group1");
+    EXPECT_EQ((*todos)[0].description, "task 1");
+    EXPECT_EQ((*todos)[0].status, "Open");
+
+    EXPECT_EQ((*todos)[1].id, 2);
+    EXPECT_EQ((*todos)[1].group_name, "group1");
+
+    EXPECT_EQ((*todos)[2].id, 1);
+    EXPECT_EQ((*todos)[2].group_name, "group2");
+
+    // Test updates
+    ASSERT_TRUE(db.UpdateTodo(1, "group1", "task 1 updated").ok());
+    ASSERT_TRUE(db.UpdateTodoStatus(1, "group1", "Complete").ok());
+    
+    auto group1_todos = db.GetTodos("group1");
+    ASSERT_TRUE(group1_todos.ok());
+    ASSERT_EQ(group1_todos->size(), 2);
+    EXPECT_EQ((*group1_todos)[0].description, "task 1 updated");
+    EXPECT_EQ((*group1_todos)[0].status, "Complete");
+    
+    // Test drop group
+    ASSERT_TRUE(db.DeleteTodoGroup("group1").ok());
+    todos = db.GetTodos();
+    ASSERT_TRUE(todos.ok());
+    ASSERT_EQ(todos->size(), 1);
+    EXPECT_EQ((*todos)[0].group_name, "group2");
+}

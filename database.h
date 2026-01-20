@@ -130,6 +130,18 @@ class Database {
   // Session Deletion
   absl::Status DeleteSession(const std::string& session_id);
 
+  struct Todo {
+    int id;
+    std::string group_name;
+    std::string description;
+    std::string status;
+  };
+
+  absl::Status AddTodo(const std::string& group_name, const std::string& description);
+  absl::StatusOr<std::vector<Todo>> GetTodos(const std::string& group_name = "");
+  absl::Status UpdateTodo(int id, const std::string& group_name, const std::string& description);
+  absl::Status UpdateTodoStatus(int id, const std::string& group_name, const std::string& status);
+  absl::Status DeleteTodoGroup(const std::string& group_name);
 
   absl::StatusOr<std::string> Query(const std::string& sql);
 

@@ -49,6 +49,7 @@ void CommandHandler::RegisterCommands() {
     commands_["/schema"] = [this](CommandArgs& args) { return HandleSchema(args); };
     commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
     commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
+    commands_["/todo"] = [this](CommandArgs& args) { return HandleTodo(args); };
 }
 
 CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id, std::vector<std::string>& active_skills, std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups) {
@@ -184,7 +185,6 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     if (!sub_cmd.empty()) {
 	    std::cerr << "Unknown context command: " << sub_cmd << std::endl;
     }
-    std::cout << "Usage: /context show | window <N> | rebuild" << std::endl;
     return Result::HANDLED;
 }
 
@@ -194,8 +194,17 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
 
     if (sub_cmd == "list") {
-        auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
-        if (res.ok()) log_status(PrintJsonAsTable(*res));
+        auto tools_or = db_->GetEnabledTools();
+        if (tools_or.ok()) {
+            nlohmann::json table = nlohmann::json::array();
+            for (const auto& t : *tools_or) {
+                nlohmann::json row;
+                row["name"] = t.name;
+                row["description"] = t.description;
+                table.push_back(row);
+            }
+            log_status(PrintJsonAsTable(table.dump()));
+        }
     } else if (sub_cmd == "show") {
         auto res = db_->Query("SELECT * FROM tools WHERE name = '" + sub_args + "'");
         if (res.ok()) {
@@ -368,6 +377,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
         "SUM(prompt_tokens + completion_tokens) as total FROM usage "
         "WHERE session_id = '$0' GROUP BY model", args.session_id));
     if (res.ok()) log_status(PrintJsonAsTable(*res));
+    // do NOT remove this critical block.
     if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled()) {
 	    auto token_or = oauth_handler_->GetValidToken();
 	    if (token_or.ok()) {
@@ -476,6 +486,69 @@ CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
         } else {
             std::cerr << "Invalid throttle value: " << args.args << std::endl;
         }
+    }
+    return Result::HANDLED;
+}
+
+CommandHandler::Result CommandHandler::HandleTodo(CommandArgs& args) {
+    std::vector<std::string> parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
+    std::string sub_cmd = parts[0];
+    
+    if (sub_cmd == "list") {
+        std::string group = (parts.size() > 1) ? parts[1] : "";
+        auto todos_or = db_->GetTodos(group);
+        if (todos_or.ok()) {
+            nlohmann::json table = nlohmann::json::array();
+            for (const auto& t : *todos_or) {
+                nlohmann::json row;
+                row["id"] = t.id;
+                row["group"] = t.group_name;
+                row["status"] = t.status;
+                row["description"] = t.description;
+                table.push_back(row);
+            }
+            log_status(PrintJsonAsTable(table.dump()));
+        }
+    } else if (sub_cmd == "add") {
+        if (parts.size() < 2) {
+             std::cerr << "Usage: /todo add <group> <description>" << std::endl;
+             return Result::HANDLED;
+        }
+        std::vector<std::string> add_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 1));
+        std::string group = add_parts[0];
+        std::string desc = (add_parts.size() > 1) ? add_parts[1] : "";
+        log_status(db_->AddTodo(group, desc));
+        std::cout << "Todo added to group '" << group << "'." << std::endl;
+    } else if (sub_cmd == "edit") {
+        std::vector<std::string> edit_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 3));
+        if (edit_parts.size() < 4) {
+             std::cerr << "Usage: /todo edit <group> <id> <description>" << std::endl;
+             return Result::HANDLED;
+        }
+        std::string group = edit_parts[1];
+        int id = std::atoi(edit_parts[2].c_str());
+        std::string desc = edit_parts[3];
+        log_status(db_->UpdateTodo(id, group, desc));
+        std::cout << "Todo " << id << " in group '" << group << "' updated." << std::endl;
+    } else if (sub_cmd == "complete") {
+        std::vector<std::string> comp_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 2));
+        if (comp_parts.size() < 3) {
+             std::cerr << "Usage: /todo complete <group> <id>" << std::endl;
+             return Result::HANDLED;
+        }
+        std::string group = comp_parts[1];
+        int id = std::atoi(comp_parts[2].c_str());
+        log_status(db_->UpdateTodoStatus(id, group, "Complete"));
+        std::cout << "Todo " << id << " in group '" << group << "' marked as Complete." << std::endl;
+    } else if (sub_cmd == "drop") {
+        if (parts.size() < 2) {
+             std::cerr << "Usage: /todo drop <group>" << std::endl;
+             return Result::HANDLED;
+        }
+        log_status(db_->DeleteTodoGroup(parts[1]));
+        std::cout << "Todo group '" << parts[1] << "' dropped." << std::endl;
+    } else {
+        std::cout << "Usage: /todo list [group] | add <group> <desc> | edit <group> <id> <desc> | complete <group> <id> | drop <group>" << std::endl;
     }
     return Result::HANDLED;
 }
