@@ -133,6 +133,6 @@ Ok, implement it.
         ###
 ```
 
-**Note:** You don't need to add a `rust_expert` skill as the system prompt should be good, but it feels good to have specialized personas.
-**Note 2:** You can have multiple skills active (e.g., `planner` AND `rust_expert`), but instructions might conflict as they all go into the system prompt.
+**Note:** You don't need to activate the `expert_rust_developer` skill as the system prompt should be good enough to implement htis program, but it feels good to be cool. This is especially useful to ensure that the generated code adheres to any specific coding standards relevant to the project.
+**Note 2:** You can have multiple skills active (e.g., `planner` AND `expert_rust_developer`), but instructions might conflict as they all go into the system prompt.
 **Note 3:** If you get rate limit errors, the `/throttle` command allows you to add wait times between requests. This is useful for free tier plans.
