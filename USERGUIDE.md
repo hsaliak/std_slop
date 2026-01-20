@@ -140,13 +140,11 @@ You ALWAYS run all the tests and ensure the affected targets compiles correctly.
 You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo from the 'todos' table (ordered by id) for the specified group. Once fetched, treat its description as your next goal. Plan the implementation, present it to the user, and wait for approval. After successful completion, update the todo's status to 'Complete' and proceed to the next 'Open' todo.
 ```
 
-The Planner and the Todo Processor work well together. The Todo Processor can be mixed in with the C++ expert. 
-Eg:
-1. Ask the planner to plan with steps.
-2. Deactivate the planner, and activate the todo processor if not already done in step 1 (you can mix multiple skills).
-3. Ask the todo processor to add the plan into a group eg: foo_group. Ask the Todo processor to either ask for user input after every todo, or go through them all.
-4. Mix in any other skill that might be relevant before the todo_processor works the todos.
-5. Profit
+### Automation Workflow
+The Planner and the Todo Processor work well together to automate complex tasks:
+1.  **Plan**: Activate the `planner` skill and ask for a detailed implementation plan for a feature.
+2.  **Queue**: Activate the `todo_processor` skill and ask it to add the plan steps as todos in a specific group (e.g., `feature-x`).
+3.  **Execute**: Deactivate the `planner` and (optionally) activate the `c++_expert`. Tell the `todo_processor` to start working on the `feature-x` group.
 
 ### Tools
 - `/tool list`: List all tools currently available to the agent.
@@ -166,3 +164,4 @@ The CLI uses a local SQLite database (default: `slop.db`). You can inspect it di
 sqlite3 slop.db
 ```
 Tables include `messages`, `sessions`, `usage`, `skills`, `tools`, `session_state`, and `todos`.
+Refer to `SCHEMA.md` for detailed table definitions.

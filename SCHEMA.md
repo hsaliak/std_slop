@@ -13,7 +13,7 @@ Stores user prompts, assistant responses, and tool executions.
 | session_id | TEXT | Conversation identifier. |
 | role | TEXT | `system`, `user`, `assistant`, or `tool`. Has a CHECK constraint. |
 | content | TEXT | Message text or tool JSON. |
-| tool_call_id | TEXT | Metadata for linking responses (e.g., `id\|name`). |
+| tool_call_id | TEXT | Metadata for linking responses (e.g., `id|name`). |
 | status | TEXT | `completed`, `tool_call`, or `dropped`. Default: `completed`. |
 | created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
 | group_id | TEXT | Turn identifier for atomic operations (Unix nanoseconds). |
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS session_state (
 );
 
 CREATE TABLE IF NOT EXISTS todos (
-    id INTEGER,
+    id INTEGER NOT NULL,
     group_name TEXT,
     description TEXT,
     status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',

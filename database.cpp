@@ -146,7 +146,7 @@ absl::Status Database::Init(const std::string& db_path) {
     );
 
     CREATE TABLE IF NOT EXISTS todos (
-        id INTEGER,
+        id INTEGER NOT NULL,
         group_name TEXT,
         description TEXT,
         status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',
