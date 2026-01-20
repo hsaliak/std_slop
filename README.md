@@ -42,6 +42,8 @@ bazel build //...
 
 ## Usage
 
+For a step-by-step guide, see the [WALKTHROUGH](WALKTHROUGH.md).
+
 ### 1. Setup API Keys
 
 ```bash
@@ -112,6 +114,7 @@ bazel run //:std_slop -- [session_name]
 
 ## Other Documentation
 
+* [WALKTHROUGH](WALKTHROUGH.md)
 * [SESSIONS](SESSIONS.md)
 * [OAUTH](OAUTH.md)
 * [CONTEXT_MANAGEMENT](CONTEXT_MANAGEMENT.md)
