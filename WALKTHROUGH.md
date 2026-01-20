@@ -1,17 +1,21 @@
 # Walkthrough
 
-1. Git clone the project.
-2. Ensure [Bazel](https://bazel.build/) is installed.
+1.  **Clone the project:**
+    ```bash
+    git clone https://github.com/hsaliak/std_slop.git 
+    cd std_slop
+    ```
+2.  **Ensure [Bazel](https://bazel.build/) is installed.**
+
+    ```bash
+    bazel test ...
+    bazel build ...
+    ```
+
+Copy the `std_slop` executable to your path (e.g., `~/bin/`). Ensure `~/bin` is in your shell's `PATH` environment variable.
 
 ```bash
-bazel test ...
-bazel build ...
-```
-
-Copy `slop` to your path (e.g., `~/bin/`):
-
-```bash
-cp bazel-bin/std_slop $HOME/bin
+cp bazel-bin/std_slop $HOME/bin/std_slop
 ```
 
 Create and save an OAuth token with Gemini (it comes with generous limits):
@@ -26,7 +30,7 @@ Create an example folder:
 mkdir -p ~/Source/christmas-tree
 ```
 
-Run `slop`. I recommend starting with Gemini and using your own OAuth. You can also get a key from Google AI Studio or use a model from OpenRouter. I recommend `gemini-1.5-flash`. It's a cost-effective model that gets things done.
+Run `std_slop`. I recommend starting with Gemini and using your own OAuth. You can also get a key from Google AI Studio or use a model from OpenRouter. I recommend `gemini-1.5-flash`. It's a cost-effective model that gets things done.
 
 ```bash
 std_slop --google_oauth
@@ -34,7 +38,7 @@ std_slop --google_oauth
 
 This model defaults to `gemini-1.5-flash`. It does not support the `/models` command, but `/stats` should show usage stats in a second table. You may need to run at least one query with the LLM before doing so.
 
-Slop will have created a new database.
+`std_slop` will have created a new database.
 
 ### Adding Skills
 
@@ -86,6 +90,7 @@ Sessions maintain their own context and are completely isolated. They can also b
 Run `/message list` to ensure that you have not polluted your context with details about weather. You can also view the entire context. `/message` also lets you remove the last message and rebuild the context if needed.
 
 ```bash
+/bash
 /message list
 /context show
 ```
@@ -103,7 +108,7 @@ You will now see a plan. If the plan looks okay, deactivate the planner and acti
 
 ```bash
 /skill deactivate planner
-/skill activate 1  # You can activate by ID as well as name
+/skill activate expert_rust_developer
 ```
 
 And tell the LLM:
