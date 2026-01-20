@@ -115,6 +115,7 @@ bazel run //:std_slop -- [session_name]
 ## Other Documentation
 
 * [WALKTHROUGH](WALKTHROUGH.md)
+* [CONTRIBUTING](CONTRIBUTING.md)
 * [SESSIONS](SESSIONS.md)
 * [OAUTH](OAUTH.md)
 * [CONTEXT_MANAGEMENT](CONTEXT_MANAGEMENT.md)
