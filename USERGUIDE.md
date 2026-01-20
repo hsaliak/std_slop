@@ -143,7 +143,7 @@ You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo 
 The Planner and the Todo Processor work well together. The Todo Processor can be mixed in with the C++ expert. 
 Eg:
 1. Ask the planner to plan with steps.
-2. Deactivate the planner, and activate the todo processor.
+2. Deactivate the planner, and activate the todo processor if not already done in step 1 (you can mix multiple skills).
 3. Ask the todo processor to add the plan into a group eg: foo_group. Ask the Todo processor to either ask for user input after every todo, or go through them all.
 4. Mix in any other skill that might be relevant before the todo_processor works the todos.
 5. Profit
