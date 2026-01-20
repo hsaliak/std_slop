@@ -1,6 +1,6 @@
-# Context Management in std_slop
+# Context Management in std::slop
 
-This document outlines the context management strategy in `std_slop`. We focus on a **Sequential Rolling Window** complemented by **Self-Managed State Tracking** and **On-Demand Historical Retrieval**.
+This document outlines the context management strategy in `std::slop`. We focus on a **Sequential Rolling Window** complemented by **Self-Managed State Tracking** and **On-Demand Historical Retrieval**.
 
 The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
 
@@ -26,7 +26,7 @@ The system treats the conversation history as a linear timeline. This ensures th
 
 ## 2. Self-Managed State Tracking (Long-term RAM)
 
-To prevent the loss of critical technical details when messages age out of the rolling window, `std_slop` implements a self-managed state tracking mechanism. This allows the LLM to maintain a persistent "Global Anchor" of technical truth.
+To prevent the loss of critical technical details when messages age out of the rolling window, `std::slop` implements a self-managed state tracking mechanism. This allows the LLM to maintain a persistent "Global Anchor" of technical truth.
 
 ### The "Context Layers" Approach
 
@@ -57,7 +57,7 @@ Technical Anchors: [Ports, IPs, constant values]
 
 ## 3. Historical Context Retrieval (SQL-based Retrieval)
 
-Unique to `std_slop`, the agent has the capability to query its own message history directly via SQL when the rolling window is insufficient.
+Unique to `std::slop`, the agent has the capability to query its own message history directly via SQL when the rolling window is insufficient.
 
 ### Mechanism
 The agent is instructed to use the `query_db` tool to search the `messages` table. This allows for precision retrieval of old information that has fallen out of the rolling window without bloating the context with irrelevant data.
@@ -94,7 +94,7 @@ Since the `---STATE---` block is derived from the *last* assistant message, remo
 
 ## Evolution: Why we removed FTS-Ranked Mode
 
-Earlier versions of `std_slop` included a `FTS_RANKED` mode that used hybrid retrieval (BM25 + Recency) via SQLite FTS5. While theoretically powerful for long sessions, it was removed for the following reasons:
+Earlier versions of `std::slop` included a `FTS_RANKED` mode that used hybrid retrieval (BM25 + Recency) via SQLite FTS5. While theoretically powerful for long sessions, it was removed for the following reasons:
 
 1.  **Stop-Word Pollution**: Common conversational phrases like "continue," "next," or "go on" acted as high-relevance search terms. This caused the system to pull in random historical fragments where those words appeared, filling the context window with irrelevant noise.
 2.  **Narrative Fragmentation**: Non-sequential retrieval often confused the LLM. If the "middle" of a technical implementation was missing because it didn't match the current keyword, the LLM would hallucinate missing details or repeat work.
