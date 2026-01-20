@@ -30,13 +30,14 @@ Create an example folder:
 mkdir -p ~/Source/christmas-tree
 ```
 
-Run `std_slop`. I recommend starting with Gemini and using your own OAuth. You can also get a key from Google AI Studio or use a model from OpenRouter. I recommend `gemini-1.5-flash`. It's a cost-effective model that gets things done.
+Run `std_slop`. I recommend starting with Gemini and using your own OAuth. You can also get a key from Google AI Studio or use a model from OpenRouter. I recommend `gemini-3-flash-preview`. It's a cost-effective model that gets things done.
 
 ```bash
 std_slop --google_oauth
+/model gemini-3-flash-preview
 ```
 
-This model defaults to `gemini-1.5-flash`. It does not support the `/models` command, but `/stats` should show usage stats in a second table. You may need to run at least one query with the LLM before doing so.
+This model defaults to `gemini-2.5-flash`. It does not support the `/models` command, but `/stats` should show usage stats in a second table. You may need to run at least one query with the LLM before doing so.
 
 `std_slop` will have created a new database.
 
