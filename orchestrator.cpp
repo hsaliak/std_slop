@@ -142,6 +142,7 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(
   if (window_size > 0 && !history.empty()) {
       // Find the last N distinct group_ids
       std::vector<std::string> chron_groups;
+      chron_groups.reserve(history.size());
       std::set<std::string> seen;
       for (auto it = history.rbegin(); it != history.rend(); ++it) {
           if (seen.find(it->group_id) == seen.end()) {
@@ -156,6 +157,7 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(
           for (size_t i = 0; i < limit; ++i) keep_groups.insert(chron_groups[i]);
           
           std::vector<Database::Message> filtered;
+          filtered.reserve(history.size());
           for (const auto& m : history) {
               if (keep_groups.count(m.group_id)) filtered.push_back(m);
           }
