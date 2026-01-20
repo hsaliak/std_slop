@@ -113,7 +113,6 @@ bazel run //:std_slop -- [session_name]
 ## Other Documentation
 
 * [SESSIONS](SESSIONS.md)
-* [build_migration](build_migration.md)
 * [OAUTH](OAUTH.md)
 * [CONTEXT_MANAGEMENT](CONTEXT_MANAGEMENT.md)
 * [USERGUIDE](USERGUIDE.md)

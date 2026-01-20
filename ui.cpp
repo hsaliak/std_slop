@@ -362,7 +362,12 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
-    PrintBorderedBlock("Tool Call: " + name, args, ansi::Grey);
+	std::string display_args = args;
+	if (args.length() > 80) {
+		display_args = args.substr(0,66) + "...[Truncated]";
+	}
+    PrintBorderedBlock("Tool Call: " + name, display_args, ansi::Grey);
+    std::cout << std::endl;
 }
 
 void PrintToolResultMessage(const std::string& result) {
