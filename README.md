@@ -111,6 +111,15 @@ bazel run //:std_slop -- [session_name]
 | `execute_bash` | Run arbitrary shell commands. |
 | `query_db` | Query the session ledger using SQL. Used for data analysis and **historical context retrieval**. |
 
+## Built-in Skills
+
+| Skill | Description |
+| :--- | :--- |
+| `planner` | Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery. |
+| `dba` | Database Administrator specializing in SQLite schema design and data integrity. |
+| `c++_expert` | Enforces strict adherence to project C++17 constraints (Google Style, no exceptions). |
+| `todo_processor` | Sequential task automation; reads 'Open' todos and executes them upon approval. |
+
 ## Project Constraints
 
 - C++ Standard: C++17.
