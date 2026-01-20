@@ -92,6 +92,15 @@ The following tools are registered by default during database initialization:
 - `search_code`: Search for code snippets in the codebase using grep.
 - `query_db`: Query the local SQLite database using SQL.
 
+## Default Skills
+
+The following skills are registered by default:
+
+- `planner`: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.
+- `dba`: Database Administrator specializing in SQLite schema design and data integrity.
+- `c++_expert`: Enforces strict adherence to project C++17 constraints and Google style.
+- `todo_processor`: Sequential task automation via the `todos` table.
+
 ## SQL Initialization
 
 ```sql

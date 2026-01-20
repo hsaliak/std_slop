@@ -163,6 +163,9 @@ absl::Status Database::Init(const std::string& db_path) {
   s = RegisterDefaultTools();
   if (!s.ok()) return s;
 
+  s = RegisterDefaultSkills();
+  if (!s.ok()) return s;
+
   return absl::OkStatus();
 }
 
@@ -208,6 +211,31 @@ absl::Status Database::RegisterDefaultTools() {
     for (const auto& t : default_tools) {
         absl::Status s = RegisterTool(t);
         if (!s.ok()) return s;
+    }
+    return absl::OkStatus();
+}
+
+absl::Status Database::RegisterDefaultSkills() {
+    std::vector<Skill> default_skills = {
+        {0, "planner", "Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.",
+         "You only plan. You _do_ _not_ implement anything, and do not write or modify any files. You give me ideas to plan ONLY!"},
+        {0, "dba", "Database Administrator specializing in SQLite schema design, optimization, and data integrity.",
+         "As a DBA, you are the steward of the project's data. You focus on efficient schema design, precise query construction, and maintaining data integrity. When interacting with the database: 1. Always verify schema before operations. 2. Use transactions for complex updates. 3. Provide clear explanations for schema changes. 4. Optimize for performance while ensuring clarity."},
+        {0, "c++_expert", "Enforces strict adherence to project C++ constraints: C++17, Google Style, no exceptions, RAII/unique_ptr, absl::Status.",
+         "You are a C++ Expert specialized in the std::slop codebase.\nYou MUST adhere to these constraints in every code change:\n- Language: C++17.\n- Style: Google C++ Style Guide.\n- Exceptions: Strictly disabled (-fno-exceptions). Never use try, catch, or throw.\n- Memory: Use RAII and std::unique_ptr exclusively. Avoid raw new/delete. Use stack allocation where possible.\n- Error Handling: Use absl::Status and absl::StatusOr for all fallible operations.\n- Threading: Avoid threading and async primitives. If necessary, use absl based primitives with std::thread and provide tsan tests.\n- Design: Prefer simple, readable code over complex template metaprogramming or deep inheritance.\nYou ALWAYS run all tests. You ALWAYS ensure affected targets compile."},
+        {0, "todo_processor", "Reads open todos from the database and executes them sequentially after user confirmation.",
+         "You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo from the 'todos' table (ordered by id) for the specified group. Once fetched, treat its description as your next goal. Plan the implementation, present it to the user, and wait for approval. After successful completion, update the todo's status to 'Complete' and proceed to the next 'Open' todo.\n"}
+    };
+
+    for (const auto& s : default_skills) {
+        auto stmt_or = Prepare("INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)");
+        if (!stmt_or.ok()) return stmt_or.status();
+        auto& stmt = *stmt_or;
+        (void)stmt->BindText(1, s.name);
+        (void)stmt->BindText(2, s.description);
+        (void)stmt->BindText(3, s.system_prompt_patch);
+        absl::Status status = stmt->Run();
+        if (!status.ok()) return status;
     }
     return absl::OkStatus();
 }

@@ -17,6 +17,25 @@ TEST(DatabaseTest, TablesExist) {
     EXPECT_TRUE(db.Execute("INSERT INTO messages (session_id, role, content) VALUES ('session1', 'user', 'hello')").ok());
 }
 
+TEST(DatabaseTest, DefaultSkillsExist) {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+    
+    auto skills = db.GetSkills();
+    ASSERT_TRUE(skills.ok());
+    // planner, dba, c++_expert, todo_processor
+    ASSERT_GE(skills->size(), 4);
+    
+    bool found_planner = false;
+    bool found_todo = false;
+    for (const auto& s : *skills) {
+        if (s.name == "planner") found_planner = true;
+        if (s.name == "todo_processor") found_todo = true;
+    }
+    EXPECT_TRUE(found_planner);
+    EXPECT_TRUE(found_todo);
+}
+
 TEST(DatabaseTest, MessagePersistence) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
@@ -42,14 +61,17 @@ TEST(DatabaseTest, SkillsPersistence) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    slop::Database::Skill skill = {1, "expert", "Expert skill", "PATCH"};
+    slop::Database::Skill skill = {0, "extra_skill", "Extra skill", "PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill).ok());
     
     auto skills = db.GetSkills();
     ASSERT_TRUE(skills.ok());
-    ASSERT_EQ(skills->size(), 1); 
     
-    EXPECT_EQ((*skills)[0].name, "expert");
+    bool found = false;
+    for (const auto& s : *skills) {
+        if (s.name == "extra_skill") found = true;
+    }
+    EXPECT_TRUE(found);
 }
 
 TEST(DatabaseTest, ContextSettingsPersistence) {

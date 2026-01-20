@@ -151,6 +151,7 @@ class Database {
 
  private:
   absl::Status RegisterDefaultTools();
+  absl::Status RegisterDefaultSkills();
 
   struct SqliteDeleter {
     void operator()(sqlite3* db) const { if (db) sqlite3_close(db); }

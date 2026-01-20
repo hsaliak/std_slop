@@ -101,7 +101,7 @@ If no session name is provided, it defaults to `default_session`.
 - `/skill edit <name|id>`: Modify an existing skill.
 - `/skill delete <name|id>`: Permanently remove a skill from the database.
 
-#### Example Skills
+#### Example Skills (these are provided as defaults)
 
 **planner**
 - **Description**: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.
@@ -139,6 +139,14 @@ You ALWAYS run all the tests and ensure the affected targets compiles correctly.
 ```text
 You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo from the 'todos' table (ordered by id) for the specified group. Once fetched, treat its description as your next goal. Plan the implementation, present it to the user, and wait for approval. After successful completion, update the todo's status to 'Complete' and proceed to the next 'Open' todo.
 ```
+
+The Planner and the Todo Processor work well together. The Todo Processor can be mixed in with the C++ expert. 
+Eg:
+1. Ask the planner to plan with steps.
+2. Deactivate the planner, and activate the todo processor.
+3. Ask the todo processor to add the plan into a group eg: foo_group. Ask the Todo processor to either ask for user input after every todo, or go through them all.
+4. Mix in any other skill that might be relevant before the todo_processor works the todos.
+5. Profit
 
 ### Tools
 - `/tool list`: List all tools currently available to the agent.

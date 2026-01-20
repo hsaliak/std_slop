@@ -116,18 +116,25 @@ TEST_F(CommandHandlerTest, ActivatesSkillByName) {
 TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
     CommandHandler handler(&db);
     
-    // In a fresh :memory: db, the first skill will have ID 1.
-    Database::Skill skill_obj = {0, "first_skill", "desc", "PATCH"};
+    Database::Skill skill_obj = {0, "extra_skill", "desc", "PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill_obj).ok());
     
-    std::string input = "/skill activate 1";
+    auto skills = db.GetSkills();
+    ASSERT_TRUE(skills.ok());
+    int target_id = -1;
+    for (const auto& s : *skills) {
+        if (s.name == "extra_skill") target_id = s.id;
+    }
+    ASSERT_NE(target_id, -1);
+
+    std::string input = "/skill activate " + std::to_string(target_id);
     std::string sid = "s1";
     std::vector<std::string> active_skills;
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     ASSERT_EQ(active_skills.size(), 1);
-    EXPECT_EQ(active_skills[0], "first_skill");
+    EXPECT_EQ(active_skills[0], "extra_skill");
 }
 
 TEST_F(CommandHandlerTest, SkillShowIsRemoved) {
@@ -209,7 +216,7 @@ TEST_F(CommandHandlerTest, HandlesSessionList) {
     
     ASSERT_TRUE(db.AppendMessage("session_a", "user", "hi").ok());
     ASSERT_TRUE(db.AppendMessage("session_b", "user", "hi").ok());
-
+    
     std::string input = "/session list";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
@@ -217,7 +224,7 @@ TEST_F(CommandHandlerTest, HandlesSessionList) {
 
 TEST_F(CommandHandlerTest, HandlesSessionActivate) {
     CommandHandler handler(&db);
-    std::string sid = "s1";
+    std::string sid = "session_a";
     std::vector<std::string> active_skills;
     
     std::string input = "/session activate session_b";
@@ -231,7 +238,8 @@ TEST_F(CommandHandlerTest, HandlesSessionClear) {
     std::string sid = "s1";
     std::vector<std::string> active_skills;
     
-    ASSERT_TRUE(db.AppendMessage(sid, "user", "hi").ok());
+    ASSERT_TRUE(db.AppendMessage(sid, "user", "msg1").ok());
+    ASSERT_TRUE(db.SetSessionState(sid, "state1").ok());
     
     std::string input = "/session clear";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
@@ -240,49 +248,48 @@ TEST_F(CommandHandlerTest, HandlesSessionClear) {
     auto history = db.GetConversationHistory(sid);
     ASSERT_TRUE(history.ok());
     EXPECT_EQ(history->size(), 0);
+    
+    auto state = db.GetSessionState(sid);
+    EXPECT_FALSE(state.ok());
 }
 
 TEST_F(CommandHandlerTest, HandlesTodoCommands) {
     CommandHandler handler(&db);
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-
-    // Add todo
+    
     std::string input = "/todo add g1 my task";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-
+    
     auto todos = db.GetTodos("g1");
     ASSERT_TRUE(todos.ok());
     ASSERT_EQ(todos->size(), 1);
     EXPECT_EQ((*todos)[0].description, "my task");
-
+    
     // List todos
-    input = "/todo list";
+    input = "/todo list g1";
     res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-
+    
     // Edit todo
     input = "/todo edit g1 1 new description";
     res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    
     todos = db.GetTodos("g1");
     EXPECT_EQ((*todos)[0].description, "new description");
-
+    
     // Complete todo
     input = "/todo complete g1 1";
     res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    
     todos = db.GetTodos("g1");
     EXPECT_EQ((*todos)[0].status, "Complete");
-
+    
     // Drop group
     input = "/todo drop g1";
     res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    
     todos = db.GetTodos("g1");
     EXPECT_EQ(todos->size(), 0);
 }
