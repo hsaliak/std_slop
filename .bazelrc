@@ -1,33 +1,40 @@
-# Standard Bazel options
 build --cxxopt=-std=c++17
 build --features=-use_header_modules
 build --macos_minimum_os=10.15
 build --@curl//:http_only=False
 build --@curl//:use_mbedtls=True
-build --cxxopt="-Werror=unused-function"
 build --cxxopt="-Wall" --cxxopt="-Wextra" --cxxopt="-Werror"
-# General Hardening
+build --cxxopt="-Werror=unused-function"
 build --copt="-O2"
-build --copt="-D_FORTIFY_SOURCE=3"
+
+# 2. Universal Hardening (Safe for modern Clang and GCC)
 build --copt="-fstack-protector-strong"
-build --copt="-fstack-clash-protection"
-build --copt="-fcf-protection=full"
+build --copt="-D_FORTIFY_SOURCE=3"
 build --copt="-D_GLIBCXX_ASSERTIONS"
 
+# 3. Handle the "Unused Argument" error for Clang
+# This must come BEFORE the specific flags to ensure Clang doesn't choke on GCC flags
+build --copt="-Wno-unused-command-line-argument"
 
-# Enable with: bazel build --config=asan //...
-build:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address"
-build:asan --copt="-fno-omit-frame-pointer"
-test:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address"
-test:asan --copt="-fno-omit-frame-pointer"
+# 4. Compiler-Specific Flags
+# Bazel automatically triggers :gcc or :clang configs based on the toolchain
+build:gcc --copt="-fstack-clash-protection"
+build:gcc --copt="-fcf-protection=full"
 
+build:clang --copt="-fstack-clash-protection" # Only if using Clang 11+
+# If Clang version varies, keep -Wno-unused-command-line-argument enabled (Line 16)
 
+# 5. Sanitizers (Common flags)
+build:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-fno-omit-frame-pointer"
+test:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-fno-omit-frame-pointer"
 
-# Enable with: bazel build --config=ubsan //...
 build:ubsan --copt="-fsanitize=undefined" --linkopt="-fsanitize=undefined"
 test:ubsan --copt="-fsanitize=undefined" --linkopt="-fsanitize=undefined"
 
-test --test_output=errors
-# relax for external repos
-# Specifically silence the uninitialized warning for external code if needed
-build --per_file_copt="external/.*@-Wno-maybe-uninitialized"
+# 6. Per-file handling for external repos
+# Use the common Clang flag -Wno-uninitialized which works for most cases
+build --per_file_copt="external/.*@-Wno-uninitialized"
+# Use the GCC-specific one only for GCC
+build:gcc --per_file_copt="external/.*@-Wno-maybe-uninitialized"
+
+build --test_output=errors
