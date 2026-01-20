@@ -68,6 +68,18 @@ Stores the persistent self-managed state block.
 | state_blob | TEXT | The persistent `---STATE---` block. |
 | last_updated | TIMESTAMP | Timestamp of last update. Default: `CURRENT_TIMESTAMP`. |
 
+### 7. todos
+Sequential task management system.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| id | INTEGER | Task ID (Sequential per group). |
+| group_name | TEXT | Group identifier (e.g., `feature_x`, `code_todos`). |
+| description | TEXT | Task details. |
+| status | TEXT | `Open` or `Complete`. Default: `Open`. |
+
+**Primary Key**: `(id, group_name)`
+
 ## Default Tools
 
 The following tools are registered by default during database initialization:
@@ -127,5 +139,13 @@ CREATE TABLE IF NOT EXISTS session_state (
     session_id TEXT PRIMARY KEY,
     state_blob TEXT,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS todos (
+    id INTEGER,
+    group_name TEXT,
+    description TEXT,
+    status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',
+    PRIMARY KEY (id, group_name)
 );
 ```

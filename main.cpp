@@ -131,17 +131,17 @@ int main(int argc, char** argv) {
   slop::Orchestrator::Provider provider;
   std::vector<std::string> headers = {"Content-Type: application/json"};
 
-  if (google_auth) {
+  if (google_auth) { // google OAuth
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-2.5-flash");
     base_url = absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal");
     orchestrator.SetGcaMode(true);
-  } else if (!openai_key.empty()) {
+  } else if (!openai_key.empty()) { // openAI API key
     provider = slop::Orchestrator::Provider::OPENAI;
     orchestrator.SetModel(!model.empty() ? model : "gpt-4o");
     base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
     headers.push_back("Authorization: Bearer " + openai_key);
-  } else {
+  } else { // gemini API key
     provider = slop::Orchestrator::Provider::GEMINI;
     orchestrator.SetModel(!model.empty() ? model : "gemini-2.5-flash");
     base_url = slop::kPublicGeminiBaseUrl;
@@ -166,32 +166,141 @@ int main(int argc, char** argv) {
     }
     auto proj_or = oauth_handler->GetProjectId();
     if (proj_or.ok()) {
-      headers.push_back("x-goog-user-project: " + std::string(*proj_or));
+        orchestrator.SetProjectId(*proj_or);
     }
-    orchestrator.SetOAuthHandler(oauth_handler.get());
-  } else if (!google_key.empty()) {
-    headers.push_back("x-api-key: " + google_key);
   }
-  orchestrator.SetHeaders(headers);
 
   slop::ToolExecutor tool_executor(&db);
-  slop::UI ui;
-  slop::CommandHandler command_handler(&orchestrator, &tool_executor, &db, &ui, session_id);
-  
-  ui.Init();
-  ui.SetMessageCallback([&](const std::string& message) {
-    if (message == "/help") {
-      ShowHelp();
-      return true;
-    } else if (message == "/exit" || message == "/quit") {
-      ui.Stop();
-      return true;
-    } else {
-      command_handler.HandleCommand(message);
-      return true;
-    }
-  });
+  slop::CommandHandler cmd_handler(&db, &orchestrator, oauth_handler.get(), google_key, openai_key);
+  std::vector<std::string> active_skills;
 
-  ui.Run();
+  std::cout << "std::slop - session: " << session_id << " (" << orchestrator.GetModel() << ")" << std::endl;
+  std::cout << "Type /help for slash commands." << std::endl;
+
+  // Initial display of history
+  status = slop::DisplayHistory(db, session_id, 20);
+  if (!status.ok()) {
+    std::cerr << "Error loading history: " << status.message() << std::endl;
+  }
+
+  // Initial context rebuild
+  (void)orchestrator.RebuildContext(session_id);
+
+  while (true) {
+    auto settings_or = db.GetContextSettings(session_id);
+    int window_size = settings_or.ok() ? settings_or->size : 0;
+    std::string model_name = orchestrator.GetModel();
+    std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
+    std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
+    std::string modeline = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ">");
+    std::string input = slop::ReadLine(modeline);
+    if (input == "/exit" || input == "/quit") break;
+
+    auto result = cmd_handler.Handle(input, session_id, active_skills, ShowHelp);
+
+    if (result == slop::CommandHandler::Result::HANDLED || result == slop::CommandHandler::Result::UNKNOWN) {
+      continue;
+    }
+
+    if (input.empty()) continue;
+
+    // Generate unique group ID for this interaction
+    std::string group_id = std::to_string(absl::ToUnixNanos(absl::Now()));
+
+    // Append user message
+    auto append_status = db.AppendMessage(session_id, "user", input, "", "completed", group_id);
+    if (!append_status.ok()) {
+        std::cerr << "Database Error (User Message): " << append_status.message() << std::endl;
+        continue;
+    }
+
+    // LLM Loop (handles tool calls)
+    bool continue_loop = true;
+    while (continue_loop) {
+        continue_loop = false;
+
+        auto prompt_or = orchestrator.AssemblePrompt(session_id, active_skills);
+        if (!prompt_or.ok()) {
+            std::cerr << "Error assembling prompt: " << prompt_or.status().message() << std::endl;
+            break;
+        }
+       // Create the Thinking UI
+       int context_tokens = orchestrator.CountTokens(*prompt_or);
+       std::cout << "[context: " << context_tokens << " tokens] Thinking...\n " << std::flush;
+        std::vector<std::string> current_headers = headers;
+       std::string url = base_url;
+        if (google_auth) {
+            auto token_or = oauth_handler->GetValidToken();
+            if (token_or.ok()) {
+                current_headers.push_back("Authorization: Bearer " + *token_or);
+            }
+            url = base_url + ":generateContent";
+        } else if (provider == slop::Orchestrator::Provider::GEMINI) {
+            url = absl::StrCat(base_url, "/models/", orchestrator.GetModel(), ":generateContent?key=", google_key);
+        } else {
+            url = base_url + "/chat/completions";
+        }
+
+        auto response_or = http_client.Post(url, prompt_or->dump(), current_headers);
+        if (!response_or.ok()) {
+            std::cerr << "LLM Error: " << response_or.status().message() << std::endl;
+            // Attempt OAuth refresh if needed
+            if (google_auth && (absl::IsUnauthenticated(response_or.status()) || absl::IsPermissionDenied(response_or.status()))) {
+                std::cout << "Refreshing OAuth token..." << std::endl;
+                (void)oauth_handler->GetValidToken();
+            }
+            break;
+        }
+
+        auto process_status = orchestrator.ProcessResponse(session_id, *response_or, group_id);
+        if (!process_status.ok()) {
+            std::cerr << "Error processing response: " << process_status.message() << std::endl;
+            break;
+        }
+
+        // Check for tool calls in the last assistant message
+        auto history_or = db.GetConversationHistory(session_id);
+        if (history_or.ok() && !history_or->empty()) {
+            const auto& last_msg = history_or->back();
+            if (last_msg.role == "assistant" && last_msg.status == "tool_call") {
+                auto calls_or = orchestrator.ParseToolCalls(last_msg);
+                if (calls_or.ok()) {
+                    for (const auto& call : *calls_or) {
+                        slop::PrintToolCallMessage(call.name, call.args.dump());
+                        auto result_or = tool_executor.Execute(call.name, call.args);
+                        std::string tool_output;
+                        if (result_or.ok()) {
+                            tool_output = *result_or;
+                        } else {
+                            tool_output = absl::StrCat("Error: ", result_or.status().message());
+                        }
+                        slop::PrintToolResultMessage(tool_output);
+
+                        nlohmann::json tool_msg;
+                        if (provider == slop::Orchestrator::Provider::GEMINI) {
+                            tool_msg = {{"functionResponse", {{"name", call.name}, {"response", {{"content", tool_output}}}}}};
+                        } else {
+                            tool_msg = {{"content", tool_output}};
+                        }
+                        auto t_status = db.AppendMessage(session_id, "tool", tool_msg.dump(), last_msg.tool_call_id, "completed", group_id);
+                        if (!t_status.ok()) {
+                            std::cerr << "Database Error (Tool Result): " << t_status.message() << std::endl;
+                            continue_loop = false;
+                            break;
+                        }
+                    }
+                    continue_loop = true; // Run LLM again with tool results
+                }
+            } else if (last_msg.role == "assistant") {
+                slop::PrintAssistantMessage(last_msg.content);
+            }
+        }
+
+        if (orchestrator.GetThrottle() > 0 && continue_loop) {
+            std::this_thread::sleep_for(std::chrono::seconds(orchestrator.GetThrottle()));
+        }
+  
+    }
+  }
   return 0;
 }

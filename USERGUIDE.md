@@ -57,6 +57,7 @@ If no session name is provided, it defaults to `default_session`.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
 - **Tools**: Executable functions (grep, file read, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
+- **Todos**: A sequential task list managed in the database, enabling automated workflows.
 
 ## User Interface
 
@@ -78,12 +79,19 @@ If no session name is provided, it defaults to `default_session`.
 - `/message show <GID>`: View the full content (including tool calls/responses) of a specific group.
 - `/message remove <GID>`: Hard delete a specific message group from history.
 - `/undo`: Delete the very last interaction group and rebuild the session context.
-- `/edit`: Open your last input in your system `$EDITOR` (e.g., vim, nano) and resend it after saving.
+- `/edit`: Open your last input in your system `$EDITOR` (e.g., vime, nano) and resend it after saving.
 
 ### Context Control
 - `/context show`: Show current context settings and the fully assembled prompt that would be sent to the LLM.
 - `/context window <N>`: Limit the context to the last `N` interaction groups. Set to `0` for infinite history.
 - `/context rebuild`: Force a rebuild of the in-memory session state from the SQL message history. Useful if the database was modified externally.
+
+### Todo Management
+- `/todo list [group]`: List all todos, optionally filtered by group.
+- `/todo add <group> <description>`: Add a new task to a specific group.
+- `/todo edit <group> <id> <description>`: Update the text of an existing todo.
+- `/todo complete <group> <id>`: Mark a todo as finished.
+- `/todo drop <group>`: Delete all tasks in a group.
 
 ### Skills (Personas)
 - `/skill list`: List all available and active skills.
@@ -125,6 +133,13 @@ You MUST adhere to these constraints in every code change:
 You ALWAYS run all the tests and ensure the affected targets compiles correctly.
 ```
 
+**todo_processor**
+- **Description**: Reads open todos from the database and executes them sequentially after user confirmation.
+- **System Prompt Patch**:
+```text
+You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo from the 'todos' table (ordered by id) for the specified group. Once fetched, treat its description as your next goal. Plan the implementation, present it to the user, and wait for approval. After successful completion, update the todo's status to 'Complete' and proceed to the next 'Open' todo.
+```
+
 ### Tools
 - `/tool list`: List all tools currently available to the agent.
 - `/tool show <name>`: View the JSON Schema and description for a tool.
@@ -142,4 +157,4 @@ The CLI uses a local SQLite database (default: `slop.db`). You can inspect it di
 ```bash
 sqlite3 slop.db
 ```
-Tables include `messages`, `sessions`, `usage`, `skills`, `tools`, and `session_state`.
+Tables include `messages`, `sessions`, `usage`, `skills`, `tools`, `session_state`, and `todos`.

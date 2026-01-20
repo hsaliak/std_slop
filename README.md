@@ -10,6 +10,7 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 - **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
 - **Historical Context Retrieval**: Unique ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
+- **Todo-Driven Workflows**: Integrated todo management system allowing for sequential execution of tasks via specialized skills.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
 - **Enhanced UI**: ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions.
@@ -20,7 +21,7 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 
 ## Architecture
 
-- **Storage**: SQLite3 (Ledger, Tools, Skills, State).
+- **Storage**: SQLite3 (Ledger, Tools, Skills, State, Todos).
 - **Orchestrator**: Unified logic for prompt assembly and response processing.
 - **Execution**: Secure tool execution engine.
 - **Network**: Asynchronous HTTP client with automatic exponential backoff for 429/5xx errors.
@@ -81,6 +82,13 @@ bazel run //:std_slop -- [session_name]
 - `/skill show <ID>` Display details of a skill.
 - `/tool list`       List enabled tools.
 - `/tool show <name>` Show tool schema and description.
+
+### Todo Management
+- `/todo list [group]` List todos (optionally by group).
+- `/todo add <group> <desc>` Add a new todo to a group.
+- `/todo edit <group> <id> <desc>` Update a todo's description.
+- `/todo complete <group> <id>` Mark a todo as Complete.
+- `/todo drop <group>` Delete all todos in a group.
 
 ### Models and Settings
 - `/models`          List available models from the provider.
