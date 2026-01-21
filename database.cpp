@@ -183,7 +183,9 @@ absl::Status Database::RegisterDefaultTools() {
         {"search_code", "Search for code snippets in the codebase using grep.",
          R"({"type":"object","properties":{"query":{"type":"string"}},"required":["query"]})", true},
         {"query_db", "Query the local SQLite database using SQL.",
-         R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true}
+         R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true},
+        {"apply_patch", "Applies partial changes to a file by matching a specific block of text and replacing it.",
+         R"({"type":"object","properties":{"path":{"type":"string"},"patches":{"type":"array","items":{"type":"object","properties":{"find":{"type":"string"},"replace":{"type":"string"}},"required":["find","replace"]}}},"required":["path","patches"]})", true}
     };
 
     for (const auto& t : default_tools) {

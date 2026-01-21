@@ -25,6 +25,10 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
     if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' argument");
     result = WriteFile(args["path"], args["content"]);
+  } else if (name == "apply_patch") {
+    if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
+    if (!args.contains("patches")) return absl::InvalidArgumentError("Missing 'patches' argument");
+    result = ApplyPatch(args["path"], args["patches"]);
   } else if (name == "grep_tool") {
     if (!args.contains("pattern")) return absl::InvalidArgumentError("Missing 'pattern' argument");
     
@@ -111,6 +115,39 @@ absl::StatusOr<std::string> ToolExecutor::WriteFile(const std::string& path, con
   return result;
 }
 
+absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, const nlohmann::json& patches) {
+  std::ifstream ifs(path, std::ios::in | std::ios::binary | std::ios::ate);
+  if (!ifs.is_open()) return absl::NotFoundError("Could not open file: " + path);
+  std::ifstream::pos_type fileSize = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+  std::string content(static_cast<size_t>(fileSize), '\0');
+  ifs.read(&content[0], fileSize);
+
+  if (!patches.is_array()) return absl::InvalidArgumentError("'patches' must be an array");
+
+  for (const auto& patch : patches) {
+    if (!patch.contains("find") || !patch.contains("replace")) {
+      return absl::InvalidArgumentError("Each patch must contain 'find' and 'replace'");
+    }
+    std::string find_str = patch["find"];
+    std::string replace_str = patch["replace"];
+
+    if (find_str.empty()) return absl::InvalidArgumentError("Patch 'find' string cannot be empty");
+
+    size_t pos = content.find(find_str);
+    if (pos == std::string::npos) {
+      return absl::NotFoundError(absl::StrCat("Could not find exact match for: ", find_str));
+    }
+    if (content.find(find_str, pos + 1) != std::string::npos) {
+      return absl::FailedPreconditionError(absl::StrCat("Ambiguous match for: ", find_str));
+    }
+
+    content.replace(pos, find_str.length(), replace_str);
+  }
+
+  return WriteFile(path, content);
+}
+
 absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) {
   std::array<char, 128> buffer;
   std::string result;
@@ -123,16 +160,19 @@ absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command
 }
 
 absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context) {
-  std::string cmd = "grep -rn";
-  if (context > 0) cmd += " -C " + std::to_string(context);
+  std::string cmd = "grep -n";
+  if (std::filesystem::is_directory(path)) {
+      cmd += "r";
+  }
+  if (context > 0) {
+    cmd += " -C " + std::to_string(context);
+  }
   cmd += " \"" + pattern + "\" " + path;
   return ExecuteBash(cmd);
 }
 
 absl::StatusOr<std::string> ToolExecutor::SearchCode(const std::string& query) {
-  nlohmann::json args;
-  args["pattern"] = query;
-  return Execute("grep_tool", args);
+  return Grep(query, ".", 0);
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {

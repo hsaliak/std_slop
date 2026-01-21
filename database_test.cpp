@@ -212,3 +212,27 @@ TEST(DatabaseTest, GetTodosAllGroups) {
     ASSERT_TRUE(group2_todos.ok());
     EXPECT_EQ(group2_todos->size(), 1);
 }
+
+TEST(DatabaseTest, ApplyPatchToolSchema) {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+
+    auto tools = db.GetEnabledTools();
+    ASSERT_TRUE(tools.ok());
+
+    bool found = false;
+    for (const auto& t : *tools) {
+        if (t.name == "apply_patch") {
+            found = true;
+            nlohmann::json schema = nlohmann::json::parse(t.json_schema);
+            EXPECT_EQ(schema["type"], "object");
+            EXPECT_TRUE(schema["properties"].contains("path"));
+            EXPECT_TRUE(schema["properties"].contains("patches"));
+            EXPECT_EQ(schema["properties"]["patches"]["type"], "array");
+            auto item_props = schema["properties"]["patches"]["items"]["properties"];
+            EXPECT_TRUE(item_props.contains("find"));
+            EXPECT_TRUE(item_props.contains("replace"));
+        }
+    }
+    EXPECT_TRUE(found) << "apply_patch tool not found in registered tools";
+}

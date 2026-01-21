@@ -20,6 +20,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> Grep(const std::string& pattern, const std::string& path, int context);
   absl::StatusOr<std::string> ReadFile(const std::string& path, bool add_line_numbers = false);
   absl::StatusOr<std::string> WriteFile(const std::string& path, const std::string& content);
+  absl::StatusOr<std::string> ApplyPatch(const std::string& path, const nlohmann::json& patches);
   absl::StatusOr<std::string> ExecuteBash(const std::string& command);
   absl::StatusOr<std::string> SearchCode(const std::string& query);
   absl::StatusOr<std::string> GitGrep(const nlohmann::json& args);
