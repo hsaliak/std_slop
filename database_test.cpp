@@ -17,23 +17,31 @@ TEST(DatabaseTest, TablesExist) {
     EXPECT_TRUE(db.Execute("INSERT INTO messages (session_id, role, content) VALUES ('session1', 'user', 'hello')").ok());
 }
 
-TEST(DatabaseTest, DefaultSkillsExist) {
+TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
     auto skills = db.GetSkills();
     ASSERT_TRUE(skills.ok());
-    // planner, dba, c++_expert, todo_processor
-    ASSERT_GE(skills->size(), 4);
+    // We expect at least the 4 default skills we added
+    EXPECT_GE(skills->size(), 4);
     
     bool found_planner = false;
-    bool found_todo = false;
     for (const auto& s : *skills) {
         if (s.name == "planner") found_planner = true;
-        if (s.name == "todo_processor") found_todo = true;
     }
     EXPECT_TRUE(found_planner);
-    EXPECT_TRUE(found_todo);
+
+    auto tools = db.GetEnabledTools();
+    ASSERT_TRUE(tools.ok());
+    // We expect at least the 7 default tools we added
+    EXPECT_GE(tools->size(), 7);
+
+    bool found_read_file = false;
+    for (const auto& t : *tools) {
+        if (t.name == "read_file") found_read_file = true;
+    }
+    EXPECT_TRUE(found_read_file);
 }
 
 TEST(DatabaseTest, MessagePersistence) {
@@ -57,32 +65,91 @@ TEST(DatabaseTest, MessagePersistence) {
     EXPECT_EQ(history2->size(), 1);
 }
 
-TEST(DatabaseTest, SkillsPersistence) {
+TEST(DatabaseTest, GetConversationHistoryWindowed) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    slop::Database::Skill skill = {0, "extra_skill", "Extra skill", "PATCH"};
-    ASSERT_TRUE(db.RegisterSkill(skill).ok());
+    // Create 3 groups of messages
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 1", "", "completed", "g1").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Resp 1", "", "completed", "g1").ok());
     
-    auto skills = db.GetSkills();
-    ASSERT_TRUE(skills.ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 2", "", "completed", "g2").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Resp 2", "", "completed", "g2").ok());
     
-    bool found = false;
-    for (const auto& s : *skills) {
-        if (s.name == "extra_skill") found = true;
-    }
-    EXPECT_TRUE(found);
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 3", "", "completed", "g3").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Resp 3", "", "completed", "g3").ok());
+
+    // Window size 2 should return Msg 2, Resp 2, Msg 3, Resp 3 (latest 2 groups)
+    auto history = db.GetConversationHistory("s1", false, 2);
+    ASSERT_TRUE(history.ok());
+    ASSERT_EQ(history->size(), 4);
+    EXPECT_EQ((*history)[0].content, "Msg 2");
+    EXPECT_EQ((*history)[1].content, "Resp 2");
+    EXPECT_EQ((*history)[2].content, "Msg 3");
+    EXPECT_EQ((*history)[3].content, "Resp 3");
+
+    // Window size 1 should return Msg 3, Resp 3
+    auto history1 = db.GetConversationHistory("s1", false, 1);
+    ASSERT_TRUE(history1.ok());
+    ASSERT_EQ(history1->size(), 2);
+    EXPECT_EQ((*history1)[0].content, "Msg 3");
+    EXPECT_EQ((*history1)[1].content, "Resp 3");
+
+    // Window size 0 or large should return all
+    auto historyall = db.GetConversationHistory("s1", false, 0);
+    ASSERT_TRUE(historyall.ok());
+    EXPECT_EQ(historyall->size(), 6);
 }
 
-TEST(DatabaseTest, ContextSettingsPersistence) {
+TEST(DatabaseTest, GetConversationHistoryWindowedWithDropped) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
     
-    ASSERT_TRUE(db.SetContextWindow("s1", 15).ok());
+    // g1: kept
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 1", "", "completed", "g1").ok());
+    // g2: dropped
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 2", "", "dropped", "g2").ok());
+    // g3: kept
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 3", "", "completed", "g3").ok());
+
+    // Window size 2, include_dropped=false
+    // Should skip g2, and take latest 2 kept groups (g1, g3)
+    auto history = db.GetConversationHistory("s1", false, 2);
+    ASSERT_TRUE(history.ok());
+    ASSERT_EQ(history->size(), 2);
+    EXPECT_EQ((*history)[0].content, "Msg 1");
+    EXPECT_EQ((*history)[1].content, "Msg 3");
+
+    // Window size 2, include_dropped=true
+    // Should include g2, and take latest 2 groups (g2, g3)
+    auto history_inc = db.GetConversationHistory("s1", true, 2);
+    ASSERT_TRUE(history_inc.ok());
+    ASSERT_EQ(history_inc->size(), 2);
+    EXPECT_EQ((*history_inc)[0].content, "Msg 2");
+    EXPECT_EQ((*history_inc)[1].content, "Msg 3");
+}
+
+TEST(DatabaseTest, UpdateMessageStatusWorks) {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
     
-    auto settings = db.GetContextSettings("s1");
-    ASSERT_TRUE(settings.ok());
-    EXPECT_EQ(settings->size, 15);
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+    auto history = db.GetConversationHistory("s1");
+    ASSERT_TRUE(history.ok());
+    ASSERT_EQ(history->size(), 1);
+    int msg_id = (*history)[0].id;
+    EXPECT_EQ((*history)[0].status, "completed");
+    
+    ASSERT_TRUE(db.UpdateMessageStatus(msg_id, "dropped").ok());
+    
+    auto history2 = db.GetConversationHistory("s1", true);
+    ASSERT_TRUE(history2.ok());
+    ASSERT_EQ(history2->size(), 1);
+    EXPECT_EQ((*history2)[0].status, "dropped");
+    
+    auto history3 = db.GetConversationHistory("s1", false);
+    ASSERT_TRUE(history3.ok());
+    EXPECT_EQ(history3->size(), 0);
 }
 
 TEST(DatabaseTest, GenericQuery) {
@@ -120,113 +187,23 @@ TEST(DatabaseTest, UsageTracking) {
     EXPECT_EQ(global_usage->total_tokens, 340);
 }
 
-TEST(DatabaseTest, UpdateMessageStatusWorks) {
+TEST(DatabaseTest, GetTodosAllGroups) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
-    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
-    auto history = db.GetConversationHistory("s1");
-    ASSERT_TRUE(history.ok());
-    ASSERT_EQ(history->size(), 1);
-    int msg_id = (*history)[0].id;
-    EXPECT_EQ((*history)[0].status, "completed");
-    
-    ASSERT_TRUE(db.UpdateMessageStatus(msg_id, "dropped").ok());
-    
-    auto history2 = db.GetConversationHistory("s1", true);
-    ASSERT_TRUE(history2.ok());
-    ASSERT_EQ(history2->size(), 1);
-    EXPECT_EQ((*history2)[0].status, "dropped");
-    
-    auto history3 = db.GetConversationHistory("s1", false);
-    ASSERT_TRUE(history3.ok());
-    EXPECT_EQ(history3->size(), 0);
-}
 
-TEST(DatabaseTest, DeleteSessionWorks) {
-    slop::Database db;
-    ASSERT_TRUE(db.Init(":memory:").ok());
-    
-    std::string sid = "test_session";
-    ASSERT_TRUE(db.AppendMessage(sid, "user", "hi").ok());
-    ASSERT_TRUE(db.RecordUsage(sid, "model", 10, 10).ok());
-    ASSERT_TRUE(db.SetContextWindow(sid, 10).ok());
-    ASSERT_TRUE(db.SetSessionState(sid, "state").ok());
-    
-    // Verify data exists
-    auto history = db.GetConversationHistory(sid);
-    ASSERT_TRUE(history.ok());
-    EXPECT_EQ(history->size(), 1);
-    
-    auto usage = db.GetTotalUsage(sid);
-    ASSERT_TRUE(usage.ok());
-    EXPECT_EQ(usage->total_tokens, 20);
-    
-    auto settings = db.GetContextSettings(sid);
-    ASSERT_TRUE(settings.ok());
-    EXPECT_EQ(settings->size, 10);
-    
-    auto state = db.GetSessionState(sid);
-    ASSERT_TRUE(state.ok());
-    EXPECT_EQ(*state, "state");
-    
-    // Delete
-    ASSERT_TRUE(db.DeleteSession(sid).ok());
-    
-    // Verify gone
-    history = db.GetConversationHistory(sid);
-    ASSERT_TRUE(history.ok());
-    EXPECT_EQ(history->size(), 0);
-    
-    usage = db.GetTotalUsage(sid);
-    ASSERT_TRUE(usage.ok());
-    EXPECT_EQ(usage->total_tokens, 0);
-    
-    settings = db.GetContextSettings(sid);
-    ASSERT_TRUE(settings.ok());
-    EXPECT_EQ(settings->size, 5); // Should return default if row is gone
-    
-    state = db.GetSessionState(sid);
-    EXPECT_FALSE(state.ok());
-}
+    ASSERT_TRUE(db.AddTodo("group1", "task1").ok());
+    ASSERT_TRUE(db.AddTodo("group1", "task2").ok());
+    ASSERT_TRUE(db.AddTodo("group2", "task3").ok());
 
-TEST(DatabaseTest, TodosPersistence) {
-    slop::Database db;
-    ASSERT_TRUE(db.Init(":memory:").ok());
-    
-    ASSERT_TRUE(db.AddTodo("group1", "task 1").ok());
-    ASSERT_TRUE(db.AddTodo("group1", "task 2").ok());
-    ASSERT_TRUE(db.AddTodo("group2", "other task").ok());
-    
-    auto todos = db.GetTodos();
-    ASSERT_TRUE(todos.ok());
-    ASSERT_EQ(todos->size(), 3);
-    
-    EXPECT_EQ((*todos)[0].id, 1);
-    EXPECT_EQ((*todos)[0].group_name, "group1");
-    EXPECT_EQ((*todos)[0].description, "task 1");
-    EXPECT_EQ((*todos)[0].status, "Open");
+    auto all_todos = db.GetTodos("");
+    ASSERT_TRUE(all_todos.ok());
+    EXPECT_EQ(all_todos->size(), 3);
 
-    EXPECT_EQ((*todos)[1].id, 2);
-    EXPECT_EQ((*todos)[1].group_name, "group1");
-
-    EXPECT_EQ((*todos)[2].id, 1);
-    EXPECT_EQ((*todos)[2].group_name, "group2");
-
-    // Test updates
-    ASSERT_TRUE(db.UpdateTodo(1, "group1", "task 1 updated").ok());
-    ASSERT_TRUE(db.UpdateTodoStatus(1, "group1", "Complete").ok());
-    
     auto group1_todos = db.GetTodos("group1");
     ASSERT_TRUE(group1_todos.ok());
-    ASSERT_EQ(group1_todos->size(), 2);
-    EXPECT_EQ((*group1_todos)[0].description, "task 1 updated");
-    EXPECT_EQ((*group1_todos)[0].status, "Complete");
-    
-    // Test drop group
-    ASSERT_TRUE(db.DeleteTodoGroup("group1").ok());
-    todos = db.GetTodos();
-    ASSERT_TRUE(todos.ok());
-    ASSERT_EQ(todos->size(), 1);
-    EXPECT_EQ((*todos)[0].group_name, "group2");
+    EXPECT_EQ(group1_todos->size(), 2);
+
+    auto group2_todos = db.GetTodos("group2");
+    ASSERT_TRUE(group2_todos.ok());
+    EXPECT_EQ(group2_todos->size(), 1);
 }

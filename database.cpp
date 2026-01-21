@@ -142,8 +142,7 @@ absl::Status Database::Init(const std::string& db_path) {
     
     CREATE TABLE IF NOT EXISTS session_state (
         session_id TEXT PRIMARY KEY,
-        state_blob TEXT,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        state_blob TEXT
     );
 
     CREATE TABLE IF NOT EXISTS todos (
@@ -155,14 +154,12 @@ absl::Status Database::Init(const std::string& db_path) {
     );
   )";
 
-  absl::Status s = Execute(schema);
-  if (!s.ok()) return s;
+  rc = sqlite3_exec(db_.get(), schema, nullptr, nullptr, nullptr);
+  if (rc != SQLITE_OK) {
+    return absl::InternalError("Schema error: " + std::string(sqlite3_errmsg(db_.get())));
+  }
 
-  // Migrations
-  (void)Execute("ALTER TABLE sessions ADD COLUMN context_size INTEGER DEFAULT 5");
-  (void)Execute("ALTER TABLE messages ADD COLUMN parsing_strategy TEXT");
-
-  s = RegisterDefaultTools();
+  absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
 
   s = RegisterDefaultSkills();
@@ -171,48 +168,26 @@ absl::Status Database::Init(const std::string& db_path) {
   return absl::OkStatus();
 }
 
-
 absl::Status Database::RegisterDefaultTools() {
     std::vector<Tool> default_tools = {
-        {"grep_tool", "Search for a pattern in the codebase using grep. Delegates to git_grep_tool if available in a git repository. Returns matching lines with context.",
-         R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":"integer","description":"Number of lines of context to show around matches"}},"required":["pattern"]})", true},
-        {"git_grep_tool", "Comprehensive search using git grep. Optimized for git repositories, honors .gitignore, and can search history.",
-         R"({
-           "type": "object",
-           "properties": {
-             "pattern": {"type": "string", "description": "The pattern to search for."},
-             "patterns": {"type": "array", "items": {"type": "string"}, "description": "Multiple patterns to search for (using -e)."},
-             "all_match": {"type": "boolean", "default": false, "description": "Limit matches to files that match all patterns."},
-             "path": {"type": "string", "description": "Limit search to specific path or file pattern."},
-             "case_insensitive": {"type": "boolean", "default": false},
-             "line_number": {"type": "boolean", "default": true},
-             "count": {"type": "boolean", "default": false, "description": "Count occurrences per file."},
-             "context": {"type": "integer", "default": 0, "description": "Show n lines of context."},
-             "after": {"type": "integer", "default": 0, "description": "Show n lines after match."},
-             "before": {"type": "integer", "default": 0, "description": "Show n lines before match."},
-             "show_function": {"type": "boolean", "default": false, "description": "Show function/method context."},
-             "files_with_matches": {"type": "boolean", "default": false, "description": "Only show file names."},
-             "word_regexp": {"type": "boolean", "default": false, "description": "Match whole words only."},
-             "pcre": {"type": "boolean", "default": false, "description": "Use Perl-compatible regular expressions."},
-             "branch": {"type": "string", "description": "Search in a specific branch, tag, or commit."},
-             "cached": {"type": "boolean", "default": false, "description": "Search in the staging area (index) instead of working tree."}
-           },
-           "required": ["pattern"]
-         })", true},
-        {"read_file", "Read the content of a file from the local filesystem. Returns content with line numbers.",
+        {"read_file", "Read the content of a file from the local filesystem.",
          R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})", true},
         {"write_file", "Write content to a file in the local filesystem.",
          R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})", true},
         {"execute_bash", "Execute a bash command on the local system.",
          R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", true},
+        {"grep_tool", "Search for a pattern in the codebase using grep. Delegates to git_grep_tool if available in a git repository. Returns matching lines with context.",
+         R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":"integer"}},"required":["pattern"]})", true},
+        {"git_grep_tool", "Comprehensive search using git grep. Optimized for git repositories, honors .gitignore, and can search history.",
+         R"({"type":"object","properties":{"pattern":{"type":"string"},"patterns":{"type":"array","items":{"type":"string"}},"path":{"type":"string"},"case_insensitive":{"type":"boolean"},"word_regexp":{"type":"boolean"},"line_number":{"type":"boolean","default":true},"count":{"type":"boolean"},"before":{"type":"integer"},"after":{"type":"integer"},"context":{"type":"integer"},"files_with_matches":{"type":"boolean"},"all_match":{"type":"boolean"},"pcre":{"type":"boolean"},"show_function":{"type":"boolean"},"cached":{"type":"boolean"},"branch":{"type":"string"}},"required":["pattern"]})", true},
         {"search_code", "Search for code snippets in the codebase using grep.",
          R"({"type":"object","properties":{"query":{"type":"string"}},"required":["query"]})", true},
         {"query_db", "Query the local SQLite database using SQL.",
          R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true}
     };
 
-    for (const auto& tool : default_tools) {
-        auto s = RegisterTool(tool);
+    for (const auto& t : default_tools) {
+        absl::Status s = RegisterTool(t);
         if (!s.ok()) return s;
     }
     return absl::OkStatus();
@@ -227,17 +202,11 @@ absl::Status Database::RegisterDefaultSkills() {
         {0, "c++_expert", "Enforces strict adherence to project C++ constraints: C++17, Google Style, no exceptions, RAII/unique_ptr, absl::Status.",
          "You are a C++ Expert specialized in the std::slop codebase.\nYou MUST adhere to these constraints in every code change:\n- Language: C++17.\n- Style: Google C++ Style Guide.\n- Exceptions: Strictly disabled (-fno-exceptions). Never use try, catch, or throw.\n- Memory: Use RAII and std::unique_ptr exclusively. Avoid raw new/delete. Use stack allocation where possible.\n- Error Handling: Use absl::Status and absl::StatusOr for all fallible operations.\n- Threading: Avoid threading and async primitives. If necessary, use absl based primitives with std::thread and provide tsan tests.\n- Design: Prefer simple, readable code over complex template metaprogramming or deep inheritance.\nYou ALWAYS run all tests. You ALWAYS ensure affected targets compile."},
         {0, "todo_processor", "Reads open todos from the database and executes them sequentially after user confirmation.",
-         "You are now in Todo Processing mode. Given a group name, perform the following steps: 1. Fetch the next Open todo ordered by id from the todos table for that group.  - If no Open todos exist, report No open todos and exit.  2. Treat the todo's description as your next goal.  3. Plan the implementation, present the plan to the user, and wait for approval.  4. Upon approval, update the todo's status to Complete within a transaction, ensuring atomicity.  5. Proceed to the next Open todo in the same group.  Always ensure that any insertion into the todos table supplies a non-null id; if an insertion fails, report the error to the user and abort.  If any step encounters an error, report the error and stop processing."}
+         "You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo from the 'todos' table (ordered by id) for the specified group. Once fetched, treat its description as your next goal. Plan the implementation, present it to the user, and wait for approval. After successful completion, update the todo's status to 'Complete' and proceed to the next 'Open' todo.\n"}
     };
 
-    for (const auto& skill : default_skills) {
-        auto stmt_or = Prepare("INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)");
-        if (!stmt_or.ok()) return stmt_or.status();
-        auto& stmt = *stmt_or;
-        (void)stmt->BindText(1, skill.name);
-        (void)stmt->BindText(2, skill.description);
-        (void)stmt->BindText(3, skill.system_prompt_patch);
-        absl::Status status = stmt->Run();
+    for (const auto& s : default_skills) {
+        absl::Status status = RegisterSkill(s);
         if (!status.ok()) return status;
     }
     return absl::OkStatus();
@@ -247,9 +216,9 @@ absl::Status Database::Execute(const std::string& sql) {
   char* errmsg = nullptr;
   int rc = sqlite3_exec(db_.get(), sql.c_str(), nullptr, nullptr, &errmsg);
   if (rc != SQLITE_OK) {
-    std::string msg = errmsg ? errmsg : "Unknown error";
+    std::string err = errmsg ? errmsg : "unknown error";
     sqlite3_free(errmsg);
-    return absl::InternalError("Execute error: " + msg + " (SQL: " + sql + ")");
+    return absl::InternalError("Execute error: " + err);
   }
   return absl::OkStatus();
 }
@@ -261,29 +230,28 @@ absl::Status Database::AppendMessage(const std::string& session_id,
                                      const std::string& status,
                                      const std::string& group_id,
                                      const std::string& parsing_strategy) {
-  auto stmt_or = Prepare("INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  std::string sql = "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy) VALUES (?, ?, ?, ?, ?, ?, ?)";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
   (void)stmt->BindText(1, session_id);
   (void)stmt->BindText(2, role);
   (void)stmt->BindText(3, content);
-  
   if (tool_call_id.empty()) (void)stmt->BindNull(4);
   else (void)stmt->BindText(4, tool_call_id);
-  
   (void)stmt->BindText(5, status);
-  
   if (group_id.empty()) (void)stmt->BindNull(6);
   else (void)stmt->BindText(6, group_id);
-  
-  (void)stmt->BindText(7, parsing_strategy);
+  if (parsing_strategy.empty()) (void)stmt->BindNull(7);
+  else (void)stmt->BindText(7, parsing_strategy);
 
   return stmt->Run();
 }
 
 absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
-  auto stmt_or = Prepare("UPDATE messages SET status = ? WHERE id = ?");
+  std::string sql = "UPDATE messages SET status = ? WHERE id = ?";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
@@ -293,18 +261,34 @@ absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
   return stmt->Run();
 }
 
-absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(const std::string& session_id, bool include_dropped) {
-  std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy FROM messages WHERE session_id = ?";
-  if (!include_dropped) {
-    sql += " AND status != 'dropped'";
+absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(const std::string& session_id, bool include_dropped, int window_size) {
+  std::string sql;
+  std::string drop_filter = include_dropped ? "" : "AND status != 'dropped'";
+  
+  if (window_size > 0) {
+    sql = absl::Substitute(
+        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy "
+        "FROM messages WHERE session_id = ? $0 "
+        "AND group_id IN (SELECT DISTINCT group_id FROM messages WHERE session_id = ? $0 ORDER BY created_at DESC, id DESC LIMIT ?) "
+        "ORDER BY created_at ASC, id ASC",
+        drop_filter);
+  } else {
+    sql = absl::Substitute(
+        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy "
+        "FROM messages WHERE session_id = ? $0 "
+        "ORDER BY created_at ASC, id ASC",
+        drop_filter);
   }
-  sql += " ORDER BY created_at ASC, id ASC";
 
   auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
   (void)stmt->BindText(1, session_id);
+  if (window_size > 0) {
+    (void)stmt->BindText(2, session_id);
+    (void)stmt->BindInt(3, window_size);
+  }
 
   std::vector<Message> history;
   while (true) {
@@ -366,8 +350,23 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(con
     return messages;
 }
 
+absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_id) {
+    std::string sql = "SELECT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 1";
+    auto stmt_or = Prepare(sql);
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
+    (void)stmt->BindText(1, session_id);
+    auto row_or = stmt->Step();
+    if (!row_or.ok()) return row_or.status();
+    if (*row_or) {
+        return stmt->ColumnText(0);
+    }
+    return absl::NotFoundError("No group found");
+}
+
 absl::Status Database::RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens, int completion_tokens) {
-  auto stmt_or = Prepare("INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)");
+  std::string sql = "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
@@ -394,9 +393,11 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
     (void)stmt->BindText(1, session_id);
   }
 
-  TotalUsage usage = {0, 0, 0};
   auto row_or = stmt->Step();
-  if (row_or.ok() && *row_or) {
+  if (!row_or.ok()) return row_or.status();
+  
+  TotalUsage usage = {0, 0, 0};
+  if (*row_or) {
     usage.prompt_tokens = stmt->ColumnInt(0);
     usage.completion_tokens = stmt->ColumnInt(1);
     usage.total_tokens = stmt->ColumnInt(2);
@@ -405,7 +406,8 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 }
 
 absl::Status Database::RegisterTool(const Tool& tool) {
-  auto stmt_or = Prepare("INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?)");
+  std::string sql = "INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?)";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
@@ -418,7 +420,8 @@ absl::Status Database::RegisterTool(const Tool& tool) {
 }
 
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
-  auto stmt_or = Prepare("SELECT name, description, json_schema, is_enabled FROM tools WHERE is_enabled = 1");
+  std::string sql = "SELECT name, description, json_schema, is_enabled FROM tools WHERE is_enabled = 1";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
@@ -439,7 +442,8 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 }
 
 absl::Status Database::RegisterSkill(const Skill& skill) {
-  auto stmt_or = Prepare("INSERT OR REPLACE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)");
+  std::string sql = "INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
@@ -451,7 +455,8 @@ absl::Status Database::RegisterSkill(const Skill& skill) {
 }
 
 absl::Status Database::UpdateSkill(const Skill& skill) {
-  auto stmt_or = Prepare("UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?");
+  std::string sql = "UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
@@ -463,18 +468,25 @@ absl::Status Database::UpdateSkill(const Skill& skill) {
 }
 
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
-  auto stmt_or = Prepare("DELETE FROM skills WHERE name = ? OR id = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
+    std::string sql = "DELETE FROM skills WHERE name = ? OR id = ?";
+    auto stmt_or = Prepare(sql);
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
 
-  (void)stmt->BindText(1, name_or_id);
-  (void)stmt->BindText(2, name_or_id);
+    (void)stmt->BindText(1, name_or_id);
+    int id = 0;
+    if (absl::SimpleAtoi(name_or_id, &id)) {
+        (void)stmt->BindInt(2, id);
+    } else {
+        (void)stmt->BindNull(2);
+    }
 
-  return stmt->Run();
+    return stmt->Run();
 }
 
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
-  auto stmt_or = Prepare("SELECT id, name, description, system_prompt_patch FROM skills");
+  std::string sql = "SELECT id, name, description, system_prompt_patch FROM skills";
+  auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
@@ -495,110 +507,136 @@ absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
 }
 
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
-    auto stmt_or = Prepare("INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?)");
+    std::string sql = "INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?)";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
-    
+
     (void)stmt->BindText(1, session_id);
     (void)stmt->BindInt(2, size);
-    
+
     return stmt->Run();
 }
 
 absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
-    auto stmt_or = Prepare("SELECT context_size FROM sessions WHERE id = ?");
+    std::string sql = "SELECT context_size FROM sessions WHERE id = ?";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
-    
+
     (void)stmt->BindText(1, session_id);
-    
-    ContextSettings settings = {5};
+
     auto row_or = stmt->Step();
-    if (row_or.ok() && *row_or) {
+    if (!row_or.ok()) return row_or.status();
+
+    ContextSettings settings = {5}; // Default
+    if (*row_or) {
         settings.size = stmt->ColumnInt(0);
     }
     return settings;
 }
 
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
-    auto stmt_or = Prepare("INSERT OR REPLACE INTO session_state (session_id, state_blob, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)");
+    std::string sql = "INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?)";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
-    
+
     (void)stmt->BindText(1, session_id);
     (void)stmt->BindText(2, state_blob);
-    
+
     return stmt->Run();
 }
 
 absl::StatusOr<std::string> Database::GetSessionState(const std::string& session_id) {
-    auto stmt_or = Prepare("SELECT state_blob FROM session_state WHERE session_id = ?");
+    std::string sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
-    
+
     (void)stmt->BindText(1, session_id);
-    
+
     auto row_or = stmt->Step();
-    if (row_or.ok() && *row_or) {
+    if (!row_or.ok()) return row_or.status();
+
+    if (*row_or) {
         return stmt->ColumnText(0);
     }
     return absl::NotFoundError("Session state not found");
 }
 
 absl::Status Database::DeleteSession(const std::string& session_id) {
-  (void)Execute("BEGIN TRANSACTION");
-
-  auto delete_from = [&](const std::string& table, const std::string& col) -> absl::Status {
-    std::string sql = "DELETE FROM " + table + " WHERE " + col + " = ?";
-    auto stmt_or = Prepare(sql);
-    if (!stmt_or.ok()) return stmt_or.status();
-    (void)(*stmt_or)->BindText(1, session_id);
-    return (*stmt_or)->Run();
-  };
-
-  absl::Status s;
-  s = delete_from("messages", "session_id");
-  if (!s.ok()) { (void)Execute("ROLLBACK"); return s; }
-  s = delete_from("usage", "session_id");
-  if (!s.ok()) { (void)Execute("ROLLBACK"); return s; }
-  s = delete_from("session_state", "session_id");
-  if (!s.ok()) { (void)Execute("ROLLBACK"); return s; }
-  s = delete_from("sessions", "id");
-  if (!s.ok()) { (void)Execute("ROLLBACK"); return s; }
-
-  return Execute("COMMIT");
+    // 1. Delete messages
+    {
+        std::string sql = "DELETE FROM messages WHERE session_id = ?";
+        auto stmt_or = Prepare(sql);
+        if (!stmt_or.ok()) return stmt_or.status();
+        (void)(*stmt_or)->BindText(1, session_id);
+        auto status = (*stmt_or)->Run();
+        if (!status.ok()) return status;
+    }
+    // 2. Delete usage
+    {
+        std::string sql = "DELETE FROM usage WHERE session_id = ?";
+        auto stmt_or = Prepare(sql);
+        if (!stmt_or.ok()) return stmt_or.status();
+        (void)(*stmt_or)->BindText(1, session_id);
+        auto status = (*stmt_or)->Run();
+        if (!status.ok()) return status;
+    }
+    // 3. Delete session settings
+    {
+        std::string sql = "DELETE FROM sessions WHERE id = ?";
+        auto stmt_or = Prepare(sql);
+        if (!stmt_or.ok()) return stmt_or.status();
+        (void)(*stmt_or)->BindText(1, session_id);
+        auto status = (*stmt_or)->Run();
+        if (!status.ok()) return status;
+    }
+    // 4. Delete session state
+    {
+        std::string sql = "DELETE FROM session_state WHERE session_id = ?";
+        auto stmt_or = Prepare(sql);
+        if (!stmt_or.ok()) return stmt_or.status();
+        (void)(*stmt_or)->BindText(1, session_id);
+        auto status = (*stmt_or)->Run();
+        if (!status.ok()) return status;
+    }
+    return absl::OkStatus();
 }
 
 absl::Status Database::AddTodo(const std::string& group_name, const std::string& description) {
-    auto id_stmt_or = Prepare("SELECT COALESCE(MAX(id), 0) + 1 FROM todos WHERE group_name = ?");
-    if (!id_stmt_or.ok()) return id_stmt_or.status();
-    auto& id_stmt = *id_stmt_or;
-    (void)id_stmt->BindText(1, group_name);
-    auto row_or = id_stmt->Step();
-    int next_id = 1;
-    if (row_or.ok() && *row_or) {
-        next_id = id_stmt->ColumnInt(0);
-    }
+    std::string sql_max = "SELECT COALESCE(MAX(id), 0) FROM todos WHERE group_name = ?";
+    auto stmt_max_or = Prepare(sql_max);
+    if (!stmt_max_or.ok()) return stmt_max_or.status();
+    (void)(*stmt_max_or)->BindText(1, group_name);
+    auto row_or = (*stmt_max_or)->Step();
+    if (!row_or.ok()) return row_or.status();
+    int next_id = (*stmt_max_or)->ColumnInt(0) + 1;
 
-    auto stmt_or = Prepare("INSERT INTO todos (id, group_name, description, status) VALUES (?, ?, ?, 'Open')");
+    std::string sql = "INSERT INTO todos (id, group_name, description) VALUES (?, ?, ?)";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
+
     (void)stmt->BindInt(1, next_id);
     (void)stmt->BindText(2, group_name);
     (void)stmt->BindText(3, description);
+
     return stmt->Run();
 }
 
 absl::StatusOr<std::vector<Database::Todo>> Database::GetTodos(const std::string& group_name) {
-    std::string sql = "SELECT id, group_name, description, status FROM todos";
-    if (!group_name.empty()) {
-        sql += " WHERE group_name = ?";
+    std::string sql;
+    if (group_name.empty()) {
+        sql = "SELECT id, group_name, description, status FROM todos ORDER BY group_name ASC, id ASC";
+    } else {
+        sql = "SELECT id, group_name, description, status FROM todos WHERE group_name = ? ORDER BY id ASC";
     }
-    sql += " ORDER BY group_name ASC, id ASC";
-
     auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
+
     if (!group_name.empty()) {
         (void)stmt->BindText(1, group_name);
     }
@@ -620,30 +658,39 @@ absl::StatusOr<std::vector<Database::Todo>> Database::GetTodos(const std::string
 }
 
 absl::Status Database::UpdateTodo(int id, const std::string& group_name, const std::string& description) {
-    auto stmt_or = Prepare("UPDATE todos SET description = ? WHERE id = ? AND group_name = ?");
+    std::string sql = "UPDATE todos SET description = ? WHERE group_name = ? AND id = ?";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
+
     (void)stmt->BindText(1, description);
-    (void)stmt->BindInt(2, id);
-    (void)stmt->BindText(3, group_name);
+    (void)stmt->BindText(2, group_name);
+    (void)stmt->BindInt(3, id);
+
     return stmt->Run();
 }
 
 absl::Status Database::UpdateTodoStatus(int id, const std::string& group_name, const std::string& status) {
-    auto stmt_or = Prepare("UPDATE todos SET status = ? WHERE id = ? AND group_name = ?");
+    std::string sql = "UPDATE todos SET status = ? WHERE group_name = ? AND id = ?";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
+
     (void)stmt->BindText(1, status);
-    (void)stmt->BindInt(2, id);
-    (void)stmt->BindText(3, group_name);
+    (void)stmt->BindText(2, group_name);
+    (void)stmt->BindInt(3, id);
+
     return stmt->Run();
 }
 
 absl::Status Database::DeleteTodoGroup(const std::string& group_name) {
-    auto stmt_or = Prepare("DELETE FROM todos WHERE group_name = ?");
+    std::string sql = "DELETE FROM todos WHERE group_name = ?";
+    auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
+
     (void)stmt->BindText(1, group_name);
+
     return stmt->Run();
 }
 
@@ -661,29 +708,15 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql) {
         nlohmann::json row = nlohmann::json::object();
         for (int i = 0; i < stmt->ColumnCount(); ++i) {
             std::string name = stmt->ColumnName(i);
-            switch (stmt->ColumnType(i)) {
-                case SQLITE_INTEGER: row[name] = stmt->ColumnInt64(i); break;
-                case SQLITE_FLOAT:   row[name] = stmt->ColumnDouble(i); break;
-                case SQLITE_TEXT:    row[name] = stmt->ColumnText(i); break;
-                case SQLITE_NULL:    row[name] = nullptr; break;
-                default:             row[name] = stmt->ColumnText(i); break;
-            }
+            int type = stmt->ColumnType(i);
+            if (type == SQLITE_INTEGER) row[name] = stmt->ColumnInt64(i);
+            else if (type == SQLITE_FLOAT) row[name] = stmt->ColumnDouble(i);
+            else if (type == SQLITE_NULL) row[name] = nullptr;
+            else row[name] = stmt->ColumnText(i);
         }
         results.push_back(row);
     }
-    return results.dump(2);
+    return results.dump();
 }
 
-absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_id) {
-  auto stmt_or = Prepare("SELECT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL ORDER BY id DESC LIMIT 1");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-  (void)stmt->BindText(1, session_id);
-  auto row_or = stmt->Step();
-  if (row_or.ok() && *row_or) {
-    return stmt->ColumnText(0);
-  }
-  return absl::NotFoundError("No group_id found for session");
-}
-
-}  // namespace slop
+} // namespace slop

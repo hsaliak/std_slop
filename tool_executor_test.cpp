@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include <filesystem>
+#include <iostream>
 
 namespace slop {
 
@@ -67,7 +68,7 @@ TEST(ToolExecutorTest, QueryDb) {
 
     auto res = executor.Execute("query_db", {{"sql", "SELECT 1 as val"}});
     ASSERT_TRUE(res.ok());
-    EXPECT_TRUE(res->find("\"val\": 1") != std::string::npos);
+    EXPECT_TRUE(res->find("\"val\":1") != std::string::npos);
 }
 
 

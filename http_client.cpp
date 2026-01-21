@@ -90,20 +90,23 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
   int retry_count = 0;
   long backoff_ms = 1000;
 
+  std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
+  if (!curl) return absl::InternalError("Failed to initialize CURL");
+
+  struct curl_slist* raw_chunk = nullptr;
+  for (const auto& header : headers) {
+    raw_chunk = curl_slist_append(raw_chunk, header.c_str());
+  }
+  std::unique_ptr<struct curl_slist, SlistDeleter> chunk(raw_chunk);
+
   while (true) {
-    std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
-    if (!curl) return absl::InternalError("Failed to initialize CURL");
-
     std::string response_string;
-    struct curl_slist* raw_chunk = nullptr;
-    for (const auto& header : headers) {
-      raw_chunk = curl_slist_append(raw_chunk, header.c_str());
-    }
-    std::unique_ptr<struct curl_slist, SlistDeleter> chunk(raw_chunk);
-
+    
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
     if (method == "POST") {
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, body.c_str());
+    } else {
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPGET, 1L);
     }
     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, chunk.get());
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, HttpClient::WriteCallback);
@@ -127,25 +130,25 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
           backoff_ms *= 2;
           continue;
       }
-      return absl::InternalError("CURL request failed: " + std::string(curl_easy_strerror(res)));
+      return absl::InternalError("CURL error: " + std::string(curl_easy_strerror(res)));
     }
 
-    if (response_code == 429 || (response_code >= 500 && response_code <= 599)) {
+    if (response_code >= 200 && response_code < 300) {
+      return response_string;
+    }
+
+    if (response_code >= 500 || response_code == 429) {
       if (retry_count < max_retries) {
         std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
         retry_count++;
         backoff_ms *= 2;
         continue;
       }
-      if (response_code == 429) return absl::ResourceExhaustedError("Rate limit exceeded: " + response_string);
     }
 
-    if (response_code >= 400) {
-      return absl::InternalError("HTTP error " + std::to_string(response_code) + ": " + response_string);
-    }
-
-    return response_string;
+    return absl::Status(static_cast<absl::StatusCode>(response_code), 
+                       "HTTP error " + std::to_string(response_code) + ": " + response_string);
   }
 }
 
-}  // namespace slop
+} // namespace slop

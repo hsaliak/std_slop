@@ -76,8 +76,9 @@ class Database {
                              const std::string& parsing_strategy = "");
   absl::Status UpdateMessageStatus(int id, const std::string& status);
 
-  absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id, bool include_dropped = false);
+  absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id, bool include_dropped = false, int window_size = 0);
   absl::StatusOr<std::vector<Message>> GetMessagesByGroups(const std::vector<std::string>& group_ids);
+  absl::StatusOr<std::string> GetLastGroupId(const std::string& session_id);
 
   struct Usage {
     std::string session_id;
@@ -140,25 +141,22 @@ class Database {
   };
 
   absl::Status AddTodo(const std::string& group_name, const std::string& description);
-  absl::StatusOr<std::vector<Todo>> GetTodos(const std::string& group_name = "");
+  absl::StatusOr<std::vector<Todo>> GetTodos(const std::string& group_name);
   absl::Status UpdateTodo(int id, const std::string& group_name, const std::string& description);
   absl::Status UpdateTodoStatus(int id, const std::string& group_name, const std::string& status);
   absl::Status DeleteTodoGroup(const std::string& group_name);
 
+  // Full Text Search
   absl::StatusOr<std::string> Query(const std::string& sql);
-
-  absl::StatusOr<std::string> GetLastGroupId(const std::string& session_id);
-
-  sqlite3* GetRawDb() const { return db_.get(); }
 
  private:
   absl::Status RegisterDefaultTools();
   absl::Status RegisterDefaultSkills();
 
-  struct SqliteDeleter {
+  struct DbDeleter {
     void operator()(sqlite3* db) const { if (db) sqlite3_close(db); }
   };
-  std::unique_ptr<sqlite3, SqliteDeleter> db_;
+  std::unique_ptr<sqlite3, DbDeleter> db_;
 };
 
 }  // namespace slop
