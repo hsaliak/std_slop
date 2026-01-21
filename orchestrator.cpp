@@ -6,6 +6,7 @@
 #include <map>
 #include <algorithm>
 #include <set>
+#include <unordered_set>
 #include <fstream>
 #include <sstream>
 #include "absl/strings/match.h"
@@ -130,7 +131,7 @@ int Orchestrator::CountTokens(const nlohmann::json& prompt) {
 }
 
 std::string Orchestrator::BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills) {
-  const char* kHistoryInstructions = R"(
+  static constexpr absl::string_view kHistoryInstructions = R"(
 ---CONVERSATION HISTORY GUIDELINES---
 1. The following messages are sequential and chronological.
 2. Every response MUST include a ---STATE--- block at the end to summarize technical progress.
@@ -157,7 +158,7 @@ Technical Anchors: [Ports, IPs, constant values]
               continue;
           }
           if (in_patch) {
-              system_instruction += line + "\n";
+              absl::StrAppend(&system_instruction, line, "\n");
           }
       }
   }
@@ -167,48 +168,51 @@ Technical Anchors: [Ports, IPs, constant values]
       system_instruction = "You are a helpful coding assistant.";
   }
 
-  if (!system_instruction.empty() && system_instruction.back() != '\n') system_instruction += "\n";
+  if (system_instruction.back() != '\n') absl::StrAppend(&system_instruction, "\n");
 
   auto tools_or = db_->GetEnabledTools();
   if (tools_or.ok() && !tools_or->empty()) {
-      system_instruction += "\n---AVAILABLE TOOLS---\n";
-      system_instruction += "You have access to the following tools. Use them to fulfill the user's request.\n";
+      absl::StrAppend(&system_instruction, "\n---AVAILABLE TOOLS---\n",
+                      "You have access to the following tools. Use them to fulfill the user's request.\n");
       for (const auto& t : *tools_or) {
-          system_instruction += "- " + t.name + ": " + t.description + "\n";
+          absl::StrAppend(&system_instruction, "- ", t.name, ": ", t.description, "\n");
       }
   }
 
   auto all_skills_or = db_->GetSkills();
   if (all_skills_or.ok() && !active_skills.empty()) {
-      system_instruction += "\n---ACTIVE PERSONAS & SKILLS---\n";
+      absl::StrAppend(&system_instruction, "\n---ACTIVE PERSONAS & SKILLS---\n");
       for (const auto& skill : *all_skills_or) {
           for (const auto& active_name : active_skills) {
               if (skill.name == active_name) {
-                  system_instruction += "### Skill: " + skill.name + "\n";
-                  system_instruction += skill.system_prompt_patch + "\n";
+                  absl::StrAppend(&system_instruction, "### Skill: ", skill.name, "\n",
+                                  skill.system_prompt_patch, "\n");
               }
           }
       }
   }
 
-  system_instruction += kHistoryInstructions;
-  system_instruction += "\n";
+  absl::StrAppend(&system_instruction, kHistoryInstructions, "\n");
 
   auto state_or = db_->GetSessionState(session_id);
   if (state_or.ok() && !state_or->empty()) {
-      system_instruction += "---GLOBAL STATE (ANCHOR)---\n";
-      system_instruction += *state_or + "\n";
+      absl::StrAppend(&system_instruction, "---GLOBAL STATE (ANCHOR)---\n", *state_or, "\n");
   }
 
   return system_instruction;
 }
 
 absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(const std::string& session_id, int window_size) {
-  auto hist_or = db_->GetConversationHistory(session_id, false);
+  // Use Phase 2 windowed fetching if window_size > 0
+  auto hist_or = db_->GetConversationHistory(session_id, false, window_size);
   if (!hist_or.ok()) return hist_or.status();
 
   std::vector<Database::Message> history;
-  std::string current_strategy = strategy_->GetName();
+  history.reserve(hist_or->size());
+  
+  const std::string& current_strategy = strategy_->GetName();
+  std::set<std::string> group_ids;
+
   for (auto& m : *hist_or) {
       bool is_tool_related = (m.role == "tool" || m.status == "tool_call");
       bool strategy_matches = (m.parsing_strategy.empty() || m.parsing_strategy == current_strategy ||
@@ -216,39 +220,14 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(
                                (current_strategy == "gemini" && m.parsing_strategy == "gemini_gca"));
       
       if (!is_tool_related || strategy_matches) {
+          if (!m.group_id.empty()) {
+              group_ids.insert(m.group_id);
+          }
           history.push_back(std::move(m));
       }
   }
 
-  if (window_size > 0 && !history.empty()) {
-      std::vector<std::string> chron_groups;
-      chron_groups.reserve(history.size());
-      std::set<std::string> seen;
-      for (auto it = history.rbegin(); it != history.rend(); ++it) {
-          if (seen.find(it->group_id) == seen.end()) {
-              chron_groups.push_back(it->group_id);
-              seen.insert(it->group_id);
-          }
-      }
-      
-      size_t limit = static_cast<size_t>(window_size);
-      if (chron_groups.size() > limit) {
-          std::set<std::string> keep_groups;
-          for (size_t i = 0; i < limit; ++i) keep_groups.insert(chron_groups[i]);
-          
-          std::vector<Database::Message> filtered;
-          filtered.reserve(history.size());
-          for (const auto& m : history) {
-              if (keep_groups.count(m.group_id)) filtered.push_back(m);
-          }
-          history = std::move(filtered);
-      }
-  }
-
-  std::set<std::string> group_ids;
-  for (const auto& m : history) group_ids.insert(m.group_id);
-  last_selected_groups_ = std::vector<std::string>(group_ids.begin(), group_ids.end());
-
+  last_selected_groups_.assign(group_ids.begin(), group_ids.end());
   return history;
 }
 
@@ -276,4 +255,4 @@ absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
   return absl::OkStatus();
 }
 
-}  // namespace slop
+} // namespace slop

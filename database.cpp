@@ -269,7 +269,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
     sql = absl::Substitute(
         "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy "
         "FROM messages WHERE session_id = ? $0 "
-        "AND group_id IN (SELECT DISTINCT group_id FROM messages WHERE session_id = ? $0 ORDER BY created_at DESC, id DESC LIMIT ?) "
+        "AND (group_id IS NULL OR group_id IN (SELECT DISTINCT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL $0 ORDER BY created_at DESC, id DESC LIMIT ?)) "
         "ORDER BY created_at ASC, id ASC",
         drop_filter);
   } else {

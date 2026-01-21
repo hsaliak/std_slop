@@ -79,26 +79,31 @@ TEST(DatabaseTest, GetConversationHistoryWindowed) {
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 3", "", "completed", "g3").ok());
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Resp 3", "", "completed", "g3").ok());
 
-    // Window size 2 should return Msg 2, Resp 2, Msg 3, Resp 3 (latest 2 groups)
+    // Add a message with NO group_id (should ALWAYS be included)
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Global Msg").ok());
+
+    // Window size 2 should return Msg 2, Resp 2, Msg 3, Resp 3 (latest 2 groups) + Global Msg
     auto history = db.GetConversationHistory("s1", false, 2);
     ASSERT_TRUE(history.ok());
-    ASSERT_EQ(history->size(), 4);
+    ASSERT_EQ(history->size(), 5);
     EXPECT_EQ((*history)[0].content, "Msg 2");
     EXPECT_EQ((*history)[1].content, "Resp 2");
     EXPECT_EQ((*history)[2].content, "Msg 3");
     EXPECT_EQ((*history)[3].content, "Resp 3");
+    EXPECT_EQ((*history)[4].content, "Global Msg");
 
-    // Window size 1 should return Msg 3, Resp 3
+    // Window size 1 should return Msg 3, Resp 3 + Global Msg
     auto history1 = db.GetConversationHistory("s1", false, 1);
     ASSERT_TRUE(history1.ok());
-    ASSERT_EQ(history1->size(), 2);
+    ASSERT_EQ(history1->size(), 3);
     EXPECT_EQ((*history1)[0].content, "Msg 3");
     EXPECT_EQ((*history1)[1].content, "Resp 3");
+    EXPECT_EQ((*history1)[2].content, "Global Msg");
 
     // Window size 0 or large should return all
     auto historyall = db.GetConversationHistory("s1", false, 0);
     ASSERT_TRUE(historyall.ok());
-    EXPECT_EQ(historyall->size(), 6);
+    EXPECT_EQ(historyall->size(), 7);
 }
 
 TEST(DatabaseTest, GetConversationHistoryWindowedWithDropped) {
