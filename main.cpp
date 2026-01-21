@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
 
   if (google_auth) { // google OAuth
     builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-           .WithModel(!model.empty() ? model : "gemini-2.0-flash")
+           .WithModel(!model.empty() ? model : "gemini-2.5-flash")
            .WithBaseUrl(absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal"))
            .WithGcaMode(true);
   } else if (!openai_key.empty()) { // openAI API key
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
            .WithBaseUrl(!openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl);
   } else { // gemini API key
     builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-           .WithModel(!model.empty() ? model : "gemini-2.0-flash")
+           .WithModel(!model.empty() ? model : "gemini-2.5-flash")
            .WithBaseUrl(slop::kPublicGeminiBaseUrl);
   }
 
