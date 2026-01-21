@@ -23,6 +23,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> ExecuteBash(const std::string& command);
   absl::StatusOr<std::string> SearchCode(const std::string& query);
   absl::StatusOr<std::string> GitGrep(const nlohmann::json& args);
+  absl::StatusOr<std::string> ApplyPatch(const nlohmann::json& args);
 };
 
 } // namespace slop

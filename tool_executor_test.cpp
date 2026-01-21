@@ -104,4 +104,56 @@ TEST(ToolExecutorTest, GitGrepToolWorks) {
     }
 }
 
+TEST(ToolExecutorTest, ApplyPatchWorks) {
+    Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+    ToolExecutor executor(&db);
+
+    std::string test_file = "patch_test.txt";
+    ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "old line\n"}}).ok());
+
+    std::string patch = 
+        "--- patch_test.txt\n"
+        "+++ patch_test.txt\n"
+        "@@ -1 +1 @@\n"
+        "-old line\n"
+        "+new line\n";
+
+    auto patch_res = executor.Execute("apply_patch", {{"patch", patch}});
+    ASSERT_TRUE(patch_res.ok());
+    EXPECT_TRUE(patch_res->find("patching file patch_test.txt") != std::string::npos);
+
+    auto read_res = executor.Execute("read_file", {{"path", test_file}});
+    ASSERT_TRUE(read_res.ok());
+    EXPECT_TRUE(read_res->find("1: new line") != std::string::npos);
+
+    std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, ApplyPatchDryRun) {
+    Database db;
+    ASSERT_TRUE(db.Init(":memory:").ok());
+    ToolExecutor executor(&db);
+
+    std::string test_file = "patch_dry_test.txt";
+    ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "old line\n"}}).ok());
+
+    std::string patch = 
+        "--- patch_dry_test.txt\n"
+        "+++ patch_dry_test.txt\n"
+        "@@ -1 +1 @@\n"
+        "-old line\n"
+        "+new line\n";
+
+    auto patch_res = executor.Execute("apply_patch", {{"patch", patch}, {"dry_run", true}});
+    ASSERT_TRUE(patch_res.ok());
+    EXPECT_TRUE(patch_res->find("patching file patch_dry_test.txt") != std::string::npos);
+
+    auto read_res = executor.Execute("read_file", {{"path", test_file}});
+    ASSERT_TRUE(read_res.ok());
+    EXPECT_TRUE(read_res->find("1: old line") != std::string::npos);
+
+    std::filesystem::remove(test_file);
+}
+
 }  // namespace slop
