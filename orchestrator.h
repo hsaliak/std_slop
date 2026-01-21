@@ -28,7 +28,7 @@ class Orchestrator {
 
   void SetGcaMode(bool enabled);
   void SetProjectId(const std::string& project_id);
-  void SetBaseUrl(const std::string& url) { base_url_ = url; }
+  void SetBaseUrl(const std::string& url);
 
   void SetThrottle(int seconds) { throttle_ = seconds; }
   int GetThrottle() const { return throttle_; }
@@ -50,10 +50,9 @@ class Orchestrator {
 
   // Exposed for rebuilding and testing
   absl::StatusOr<std::vector<Database::Message>> GetRelevantHistory(const std::string& session_id, int window_size);
-
- private:
   void UpdateStrategy();
 
+ private:
   Database* db_;
   HttpClient* http_client_;
   Provider provider_ = Provider::GEMINI;

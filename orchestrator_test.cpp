@@ -16,6 +16,7 @@ class OrchestratorTest : public ::testing::Test {
 
 TEST_F(OrchestratorTest, AssemblePromptBasic) {
     Orchestrator orchestrator(&db, &http);
+    orchestrator.UpdateStrategy();
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Hi!").ok());
@@ -31,6 +32,7 @@ TEST_F(OrchestratorTest, AssemblePromptBasic) {
 
 TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
     Orchestrator orchestrator(&db, &http);
+    orchestrator.UpdateStrategy();
     
     Database::Skill skill = {1, "test_skill", "A test skill", "SYSTEM_PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill).ok());
@@ -47,6 +49,7 @@ TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
 
 TEST_F(OrchestratorTest, ProcessResponsePersists) {
     Orchestrator orchestrator(&db, &http);
+    orchestrator.UpdateStrategy();
     
     std::string mock_response = R"({
         "candidates": [{
@@ -67,6 +70,7 @@ TEST_F(OrchestratorTest, ProcessResponsePersists) {
 
 TEST_F(OrchestratorTest, ProcessResponseToolCall) {
     Orchestrator orchestrator(&db, &http);
+    orchestrator.UpdateStrategy();
     
     std::string mock_response = R"({
         "candidates": [{
@@ -96,6 +100,7 @@ TEST_F(OrchestratorTest, ProcessResponseToolCall) {
 
 TEST_F(OrchestratorTest, AssemblePromptWithTools) {
     Orchestrator orchestrator(&db, &http);
+    orchestrator.UpdateStrategy();
     
     Database::Tool tool = {"test_tool", "A test tool", R"({"type":"object","properties":{}})", true};
     ASSERT_TRUE(db.RegisterTool(tool).ok());
@@ -120,6 +125,7 @@ TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
     orchestrator.SetModel("gpt-4o");
+    orchestrator.UpdateStrategy();
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     
@@ -139,6 +145,7 @@ TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
 TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
+    orchestrator.UpdateStrategy();
     
     std::string mock_response = R"({
         "choices": [{
@@ -160,6 +167,7 @@ TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
 TEST_F(OrchestratorTest, ProcessOpenAIToolCall) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
+    orchestrator.UpdateStrategy();
     
     std::string mock_response = R"({
         "choices": [{
@@ -189,6 +197,7 @@ TEST_F(OrchestratorTest, ProcessOpenAIToolCall) {
 TEST_F(OrchestratorTest, GeminiHistoryNormalization) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
+    orchestrator.UpdateStrategy();
     
     // Create invalid sequence: User -> User
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Part 1").ok());
@@ -210,6 +219,7 @@ TEST_F(OrchestratorTest, GeminiHistoryNormalization) {
 TEST_F(OrchestratorTest, ParseToolCallsGemini) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
+    orchestrator.UpdateStrategy();
     
     Database::Message msg;
     msg.role = "assistant";
@@ -227,6 +237,7 @@ TEST_F(OrchestratorTest, ParseToolCallsGemini) {
 TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
+    orchestrator.UpdateStrategy();
     
     Database::Message msg;
     msg.role = "assistant";
@@ -253,6 +264,7 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
     orchestrator.SetModel("gemini-1.5-pro");
+    orchestrator.UpdateStrategy();
 
     std::string mock_response = R"({
         "candidates": [{"content": {"parts": [{"text": "Hello"}]}}],
@@ -274,6 +286,7 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
     Orchestrator orchestrator(&db, &http);
     orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
     orchestrator.SetModel("gpt-4o");
+    orchestrator.UpdateStrategy();
 
     std::string mock_response = R"({
         "choices": [{"message": {"role": "assistant", "content": "Hello"}}],

@@ -470,6 +470,8 @@ CommandHandler::Result CommandHandler::HandleModel(CommandArgs& args) {
         std::cout << "Current model: " << orchestrator_->GetModel() << std::endl;
     } else {
         orchestrator_->SetModel(args.args);
+        orchestrator_->UpdateStrategy(); // must call to re initialize
+
         std::cout << "Model set to: " << args.args << std::endl;
     }
     return Result::HANDLED;

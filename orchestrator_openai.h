@@ -9,7 +9,7 @@ namespace slop {
 
 class OpenAiOrchestrator : public OrchestratorStrategy {
  public:
-  OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model);
+  OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url);
 
   absl::StatusOr<nlohmann::json> AssemblePayload(
       const std::string& session_id,
@@ -24,7 +24,7 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(
       const Database::Message& msg) override;
 
-  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& baseurl) override;
+  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key) override;
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
   int CountTokens(const nlohmann::json& prompt) override;
 
@@ -32,6 +32,7 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
   Database* db_;
   HttpClient* http_client_;
   std::string model_;
+  std::string base_url_;
 
   std::string SmarterTruncate(const std::string& content, size_t limit);
   static constexpr int kMaxToolResultContext = 8192;

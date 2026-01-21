@@ -5,8 +5,8 @@
 
 namespace slop {
 
-GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model)
-    : db_(db), http_client_(http_client), model_(model) {}
+GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url)
+    : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {}
 
 absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(
     const std::string& session_id,
@@ -123,8 +123,8 @@ absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const D
     return calls;
 }
 
-absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key, const std::string& baseurl) {
-    std::string url = baseurl + "/models?key=" + api_key;
+absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key) {
+    std::string url = base_url_ + "/models?key=" + api_key;
     auto resp_or = http_client_->Get(url, {});
     if (!resp_or.ok()) return resp_or.status();
 
@@ -161,8 +161,8 @@ std::string GeminiOrchestrator::SmarterTruncate(const std::string& content, size
     return truncated + metadata;
 }
 
-GeminiGcaOrchestrator::GeminiGcaOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& project_id)
-    : GeminiOrchestrator(db, http_client, model), project_id_(project_id) {}
+GeminiGcaOrchestrator::GeminiGcaOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url, const std::string& project_id)
+    : GeminiOrchestrator(db, http_client, model, base_url), project_id_(project_id) {}
 
 absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::AssemblePayload(
     const std::string& session_id,
@@ -188,9 +188,30 @@ absl::Status GeminiGcaOrchestrator::ProcessResponse(
     return GeminiOrchestrator::ProcessResponse(session_id, response_json, group_id);
 }
 
-absl::StatusOr<std::vector<ModelInfo>> GeminiGcaOrchestrator::GetModels([[maybe_unused]] const std::string& api_key, [[maybe_unused]] const std::string& baseurl) {
+absl::StatusOr<std::vector<ModelInfo>> GeminiGcaOrchestrator::GetModels([[maybe_unused]] const std::string& api_key) {
     return absl::UnimplementedError("Model listing not implemented for Gemini OAuth logins yet");
 }
 
+absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::GetQuota(const std::string& oauth_token) {
+    if (project_id_.empty()) {
+        return absl::FailedPreconditionError("Project ID is not set.");
+    }
+
+    std::string url = base_url_ + ":retrieveUserQuota";
+    std::vector<std::string> headers = {
+        "Content-Type: application/json",
+        "Authorization: Bearer " + oauth_token
+    };
+
+    nlohmann::json body;
+    body["project"] = project_id_;
+
+    auto resp_or = http_client_->Post(url, body.dump(), headers);
+    if (!resp_or.ok()) return resp_or.status();
+
+    auto j = nlohmann::json::parse(*resp_or, nullptr, false);
+    if (j.is_discarded()) return absl::InternalError("Failed to parse quota response");
+    return j;
+}
 
 }  // namespace slop

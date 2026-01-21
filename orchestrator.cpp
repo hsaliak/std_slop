@@ -21,38 +21,37 @@ namespace slop {
 
 Orchestrator::Orchestrator(Database* db, HttpClient* http_client)
     : db_(db), http_client_(http_client), throttle_(0) {
-    UpdateStrategy();
 }
 
 void Orchestrator::SetProvider(Provider provider) {
     provider_ = provider;
-    UpdateStrategy();
+}
+
+void Orchestrator::SetBaseUrl(const std::string& base_url) {
+    base_url_ = base_url;
 }
 
 void Orchestrator::SetModel(const std::string& model) {
     model_ = model;
-    UpdateStrategy();
 }
 
 void Orchestrator::SetGcaMode(bool enabled) {
     gca_mode_ = enabled;
-    UpdateStrategy();
 }
 
 void Orchestrator::SetProjectId(const std::string& project_id) {
     project_id_ = project_id;
-    UpdateStrategy();
 }
 
 void Orchestrator::UpdateStrategy() {
     if (provider_ == Provider::GEMINI) {
         if (gca_mode_) {
-            strategy_ = std::make_unique<GeminiGcaOrchestrator>(db_, http_client_, model_, project_id_);
+            strategy_ = std::make_unique<GeminiGcaOrchestrator>(db_, http_client_, model_, base_url_, project_id_);
         } else {
-            strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, model_);
+            strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, model_, base_url_);
         }
     } else {
-        strategy_ = std::make_unique<OpenAiOrchestrator>(db_, http_client_, model_);
+        strategy_ = std::make_unique<OpenAiOrchestrator>(db_, http_client_, model_, base_url_);
     }
 }
 
@@ -80,7 +79,7 @@ absl::StatusOr<std::vector<ToolCall>> Orchestrator::ParseToolCalls(const Databas
 }
 
 absl::StatusOr<std::vector<ModelInfo>> Orchestrator::GetModels(const std::string& api_key) {
-    return strategy_->GetModels(api_key, base_url_);
+    return strategy_->GetModels(api_key);
 }
 
 absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_token) {

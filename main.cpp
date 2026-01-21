@@ -169,7 +169,8 @@ int main(int argc, char** argv) {
         orchestrator.SetProjectId(*proj_or);
     }
   }
-
+  //Initialize the orchestrator once
+  orchestrator.UpdateStrategy();
   slop::ToolExecutor tool_executor(&db);
   slop::CommandHandler cmd_handler(&db, &orchestrator, oauth_handler.get(), google_key, openai_key);
   std::vector<std::string> active_skills;

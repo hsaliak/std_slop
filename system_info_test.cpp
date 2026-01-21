@@ -17,6 +17,7 @@ class SystemInfoTest : public ::testing::Test {
 
 TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
     Orchestrator orchestrator(&db, &http);
+    orchestrator.UpdateStrategy();
     
     // Create a dummy session
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());

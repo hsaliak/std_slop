@@ -4,8 +4,8 @@
 
 namespace slop {
 
-OpenAiOrchestrator::OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model)
-    : db_(db), http_client_(http_client), model_(model) {}
+OpenAiOrchestrator::OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url)
+    : db_(db), http_client_(http_client), model_(model),  base_url_(base_url) {}
 
 absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
     const std::string& session_id,
@@ -123,9 +123,10 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const D
     return calls;
 }
 
-absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::string& api_key, const std::string& baseurl) {
+absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::string& api_key) {
     std::vector<std::string> headers = {"Authorization: Bearer " + api_key};
-    auto resp_or = http_client_->Get(baseurl + "/models", headers);
+    std::string url = base_url_ + "/models";
+    auto resp_or = http_client_->Get(url, headers);
     if (!resp_or.ok()) return resp_or.status();
 
     auto j = nlohmann::json::parse(*resp_or, nullptr, false);
