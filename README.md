@@ -109,6 +109,7 @@ bazel run //:std_slop -- [session_name]
 | `git_grep_tool` | Advanced git-based search with support for branches and history. |
 | `search_code` | Live codebase search using optimized grep logic. |
 | `execute_bash` | Run arbitrary shell commands. |
+| `apply_patch` | Apply unified diff patches safely via the system `patch` command. |
 | `query_db` | Query the session ledger using SQL. Used for data analysis and **historical context retrieval**. |
 
 ## Built-in Skills

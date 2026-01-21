@@ -55,7 +55,7 @@ If no session name is provided, it defaults to `default_session`.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
-- **Tools**: Executable functions (grep, file read, etc.) that the LLM can call.
+- **Tools**: Executable functions (grep, file read, apply_patch, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 - **Todos**: A sequential task list managed in the database, enabling automated workflows.
 
