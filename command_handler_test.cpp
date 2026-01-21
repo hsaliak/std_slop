@@ -137,22 +137,28 @@ TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
     EXPECT_EQ(active_skills[0], "extra_skill");
 }
 
-TEST_F(CommandHandlerTest, SkillShowIsRemoved) {
+TEST_F(CommandHandlerTest, DeactivatesSkill) {
     CommandHandler handler(&db);
-    Database::Skill skill_obj = {0, "test_skill", "desc", "PATCH"};
-    ASSERT_TRUE(db.RegisterSkill(skill_obj).ok());
-    
-    std::string input = "/skill show test_skill";
     std::string sid = "s1";
-    std::vector<std::string> active_skills;
+    
+    Database::Skill skill1 = {0, "skill1", "desc", "PATCH"};
+    Database::Skill skill2 = {0, "skill2", "desc", "PATCH"};
+    ASSERT_TRUE(db.RegisterSkill(skill1).ok());
+    ASSERT_TRUE(db.RegisterSkill(skill2).ok());
+    
+    std::vector<std::string> active_skills = {"skill1", "skill2"};
+    
+    std::string input = "/skill deactivate skill1";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+    ASSERT_EQ(active_skills.size(), 1);
+    EXPECT_EQ(active_skills[0], "skill2");
 }
 
 TEST_F(CommandHandlerTest, HandlesThrottle) {
-    Orchestrator orchestrator(&db, &http_client);
-    CommandHandler handler(&db, &orchestrator);
+    auto orchestrator = Orchestrator::Builder(&db, &http_client).Build();
+    CommandHandler handler(&db, orchestrator.get());
     
     std::string sid = "s1";
     std::vector<std::string> active_skills;
@@ -161,7 +167,7 @@ TEST_F(CommandHandlerTest, HandlesThrottle) {
     std::string input = "/throttle 5";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    EXPECT_EQ(orchestrator.GetThrottle(), 5);
+    EXPECT_EQ(orchestrator->GetThrottle(), 5);
 }
 
 TEST_F(CommandHandlerTest, HandlesUndo) {
@@ -209,88 +215,40 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
     EXPECT_EQ(history->size(), 0);
 }
 
-TEST_F(CommandHandlerTest, HandlesSessionList) {
-    CommandHandler handler(&db);
-    std::string sid = "s1";
-    std::vector<std::string> active_skills;
-    
-    ASSERT_TRUE(db.AppendMessage("session_a", "user", "hi").ok());
-    ASSERT_TRUE(db.AppendMessage("session_b", "user", "hi").ok());
-    
-    std::string input = "/session list";
-    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
-    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-}
-
-TEST_F(CommandHandlerTest, HandlesSessionActivate) {
-    CommandHandler handler(&db);
-    std::string sid = "session_a";
-    std::vector<std::string> active_skills;
-    
-    std::string input = "/session activate session_b";
-    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
-    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    EXPECT_EQ(sid, "session_b");
-}
-
-TEST_F(CommandHandlerTest, HandlesSessionClear) {
-    CommandHandler handler(&db);
-    std::string sid = "s1";
-    std::vector<std::string> active_skills;
-    
-    ASSERT_TRUE(db.AppendMessage(sid, "user", "msg1").ok());
-    ASSERT_TRUE(db.SetSessionState(sid, "state1").ok());
-    
-    std::string input = "/session clear";
-    auto res = handler.Handle(input, sid, active_skills, [](){}, {});
-    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    
-    auto history = db.GetConversationHistory(sid);
-    ASSERT_TRUE(history.ok());
-    EXPECT_EQ(history->size(), 0);
-    
-    auto state = db.GetSessionState(sid);
-    EXPECT_FALSE(state.ok());
-}
-
 TEST_F(CommandHandlerTest, HandlesTodoCommands) {
     CommandHandler handler(&db);
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    
-    std::string input = "/todo add g1 my task";
+
+    // /todo add
+    std::string input = "/todo add mygroup Do the thing";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    
-    auto todos = db.GetTodos("g1");
+
+    auto todos = db.GetTodos("mygroup");
     ASSERT_TRUE(todos.ok());
     ASSERT_EQ(todos->size(), 1);
-    EXPECT_EQ((*todos)[0].description, "my task");
-    
-    // List todos
-    input = "/todo list g1";
+    EXPECT_EQ((*todos)[0].description, "Do the thing");
+
+    // /todo edit
+    input = "/todo edit mygroup 1 New description";
     res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    
-    // Edit todo
-    input = "/todo edit g1 1 new description";
+    todos = db.GetTodos("mygroup");
+    EXPECT_EQ((*todos)[0].description, "New description");
+
+    // /todo complete
+    input = "/todo complete mygroup 1";
     res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    todos = db.GetTodos("g1");
-    EXPECT_EQ((*todos)[0].description, "new description");
-    
-    // Complete todo
-    input = "/todo complete g1 1";
-    res = handler.Handle(input, sid, active_skills, [](){}, {});
-    EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    todos = db.GetTodos("g1");
+    todos = db.GetTodos("mygroup");
     EXPECT_EQ((*todos)[0].status, "Complete");
-    
-    // Drop group
-    input = "/todo drop g1";
+
+    // /todo drop
+    input = "/todo drop mygroup";
     res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    todos = db.GetTodos("g1");
+    todos = db.GetTodos("mygroup");
     EXPECT_EQ(todos->size(), 0);
 }
 

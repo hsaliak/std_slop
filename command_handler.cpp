@@ -3,6 +3,7 @@
 #include <iostream>
 #include <algorithm>
 #include <nlohmann/json.hpp>
+#include <array>
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/match.h"
@@ -19,6 +20,17 @@ namespace slop {
 namespace {
 void log_status(const absl::Status& status) {
     if (!status.ok()) std::cerr << "Error: " << status.message() << std::endl;
+}
+
+std::string ExecuteAndCapture(const std::string& command) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+    if (!pipe) return "popen() failed!";
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
 }
 } // namespace
 
@@ -44,6 +56,7 @@ void CommandHandler::RegisterCommands() {
     commands_["/skill"] = [this](CommandArgs& args) { return HandleSkill(args); };
     commands_["/session"] = [this](CommandArgs& args) { return HandleSession(args); };
     commands_["/stats"] = [this](CommandArgs& args) { return HandleStats(args); };
+    commands_["/usage"] = [this](CommandArgs& args) { return HandleStats(args); };
     commands_["/models"] = [this](CommandArgs& args) { return HandleModels(args); };
     commands_["/exec"] = [this](CommandArgs& args) { return HandleExec(args); };
     commands_["/schema"] = [this](CommandArgs& args) { return HandleSchema(args); };
@@ -160,15 +173,13 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     if (sub_cmd == "show") {
 	    auto s = db_->GetContextSettings(args.session_id);
 	    std::stringstream ss;
-	    if (s.ok()) {
-		    ss << "--- CONTEXT STATUS ---\n";
-		    ss  << "Session: " << args.session_id << "\n";
-		    ss << "Window Size: " ;
-		    ss << (s->size == 0 ? "Infinite" : std::to_string(s->size));
-		    ss <<  "\n";
-		    if (!args.active_skills.empty()) {
-			    ss << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
-		    }
+	    ss << "--- CONTEXT STATUS ---\n";
+	    ss  << "Session: " << args.session_id << "\n";
+	    ss << "Window Size: " ;
+	    ss << (s.ok() ? (s->size == 0 ? "Infinite" : std::to_string(s->size)) : "Error");
+	    ss <<  "\n";
+	    if (!args.active_skills.empty()) {
+		    ss << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
 	    }
 
 	    if (orchestrator_) {
@@ -181,10 +192,6 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
 	    SmartDisplay(ss.str());
 	    return Result::HANDLED;
     }
-    // unknown
-    if (!sub_cmd.empty()) {
-	    std::cerr << "Unknown context command: " << sub_cmd << std::endl;
-    }
     return Result::HANDLED;
 }
 
@@ -194,31 +201,18 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
 
     if (sub_cmd == "list") {
-        auto tools_or = db_->GetEnabledTools();
-        if (tools_or.ok()) {
-            nlohmann::json table = nlohmann::json::array();
-            for (const auto& t : *tools_or) {
-                nlohmann::json row;
-                row["name"] = t.name;
-                row["description"] = t.description;
-                table.push_back(row);
-            }
-            log_status(PrintJsonAsTable(table.dump()));
-        }
+        auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
+        if (res.ok()) log_status(PrintJsonAsTable(*res));
     } else if (sub_cmd == "show") {
-        auto res = db_->Query("SELECT * FROM tools WHERE name = '" + sub_args + "'");
+        auto res = db_->Query("SELECT name, description, json_schema FROM tools WHERE name = '" + sub_args + "'");
         if (res.ok()) {
             auto j = nlohmann::json::parse(*res, nullptr, false);
             if (!j.is_discarded() && !j.empty()) {
-                std::cout << j[0].dump(2) << std::endl;
+                std::cout << "Tool: " << j[0]["name"].get<std::string>() << std::endl;
+                std::cout << "Description: " << j[0]["description"].get<std::string>() << std::endl;
+                std::cout << "Schema:\n" << j[0]["json_schema"].get<std::string>() << std::endl;
             }
         }
-    } else if (sub_cmd == "enable" || sub_cmd == "disable") {
-        int val = (sub_cmd == "enable") ? 1 : 0;
-        log_status(db_->Execute("UPDATE tools SET is_enabled = " + std::to_string(val) + " WHERE name = '" + sub_args + "'"));
-        std::cout << "Tool '" << sub_args << "' " << (val ? "enabled" : "disabled") << "." << std::endl;
-    } else {
-        std::cout << "Usage: /tool list | show <name> | enable <name> | disable <name>" << std::endl;
     }
     return Result::HANDLED;
 }
@@ -229,102 +223,61 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
     std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
 
     if (sub_cmd == "list") {
-        auto skills_or = db_->GetSkills();
-        if (skills_or.ok()) {
-            nlohmann::json table = nlohmann::json::array();
-            for (const auto& s : *skills_or) {
-                bool active = std::find(args.active_skills.begin(), args.active_skills.end(), s.name) != args.active_skills.end();
-                nlohmann::json row;
-                row["id"] = s.id;
-                row["name"] = s.name;
-                row["description"] = s.description;
-                row["active"] = active ? "YES" : "no";
-                table.push_back(row);
+        auto res = db_->Query("SELECT id, name, description FROM skills");
+        if (res.ok()) {
+            auto j = nlohmann::json::parse(*res, nullptr, false);
+            if (!j.is_discarded()) {
+                for (auto& row : j) {
+                    bool active = std::find(args.active_skills.begin(), args.active_skills.end(), row["name"].get<std::string>()) != args.active_skills.end();
+                    row["status"] = active ? "ACTIVE" : "inactive";
+                }
+                log_status(PrintJsonAsTable(j.dump()));
             }
-            log_status(PrintJsonAsTable(table.dump()));
         }
     } else if (sub_cmd == "activate") {
-        auto skills_or = db_->GetSkills();
-        if (skills_or.ok()) {
-            for (const auto& s : *skills_or) {
-                bool match = false;
-                if (s.name == sub_args) match = true;
-                else {
-                    int id;
-                    if (absl::SimpleAtoi(sub_args, &id) && s.id == id) match = true;
-                }
-                if (match) {
-                    if (std::find(args.active_skills.begin(), args.active_skills.end(), s.name) == args.active_skills.end()) {
-                        args.active_skills.push_back(s.name);
-                        std::cout << "Skill '" << s.name << "' activated." << std::endl;
-                    } else {
-                        std::cout << "Skill '" << s.name << "' is already active." << std::endl;
-                    }
-                    return Result::HANDLED;
-                }
+        auto res = db_->Query("SELECT name FROM skills WHERE id = '" + sub_args + "' OR name = '" + sub_args + "'");
+        if (res.ok()) {
+            auto j = nlohmann::json::parse(*res, nullptr, false);
+            if (!j.is_discarded() && !j.empty()) {
+                std::string name = j[0]["name"];
+                args.active_skills.push_back(name);
+                std::cout << "Skill '" << name << "' activated." << std::endl;
+            } else {
+                std::cerr << "Skill not found: " << sub_args << std::endl;
             }
-            std::cerr << "Skill not found: " << sub_args << std::endl;
         }
     } else if (sub_cmd == "deactivate") {
-        auto it = std::find(args.active_skills.begin(), args.active_skills.end(), sub_args);
-        if (it != args.active_skills.end()) {
-            std::cout << "Skill '" << *it << "' deactivated." << std::endl;
-            args.active_skills.erase(it);
-        } else {
-            // try by ID
-            int id;
-            if (absl::SimpleAtoi(sub_args, &id)) {
-                auto skills_or = db_->GetSkills();
-                if (skills_or.ok()) {
-                    for (const auto& s : *skills_or) {
-                        if (s.id == id) {
-                           auto it2 = std::find(args.active_skills.begin(), args.active_skills.end(), s.name);
-                           if (it2 != args.active_skills.end()) {
-                               std::cout << "Skill '" << *it2 << "' deactivated." << std::endl;
-                               args.active_skills.erase(it2);
-                               return Result::HANDLED;
-                           }
-                        }
-                    }
-                }
+        auto res = db_->Query("SELECT name FROM skills WHERE id = '" + sub_args + "' OR name = '" + sub_args + "'");
+        if (res.ok()) {
+            auto j = nlohmann::json::parse(*res, nullptr, false);
+            if (!j.is_discarded() && !j.empty()) {
+                std::string name = j[0]["name"];
+                args.active_skills.erase(std::remove(args.active_skills.begin(), args.active_skills.end(), name), args.active_skills.end());
+                std::cout << "Skill '" << name << "' deactivated." << std::endl;
             }
-            std::cerr << "Active skill not found: " << sub_args << std::endl;
         }
-    } else if (sub_cmd == "add") {
-        std::cout << "Enter skill name: "; std::string name; std::getline(std::cin, name);
-        std::cout << "Enter description: "; std::string desc; std::getline(std::cin, desc);
-        std::cout << "Opening editor for system prompt patch..." << std::endl;
-        std::string patch = slop::OpenInEditor();
-        if (!name.empty()) {
-            log_status(db_->RegisterSkill({0, name, desc, patch}));
-            std::cout << "Skill '" << name << "' added." << std::endl;
-        }
-    } else if (sub_cmd == "edit") {
-        auto skills_or = db_->GetSkills();
-        if (skills_or.ok()) {
-            for (const auto& s : *skills_or) {
-                bool match = false;
-                if (s.name == sub_args) match = true;
-                else {
-                    int id;
-                    if (absl::SimpleAtoi(sub_args, &id) && s.id == id) match = true;
-                }
-                if (match) {
-                    std::string new_patch = slop::OpenInEditor(s.system_prompt_patch);
-                    Database::Skill updated = s;
-                    updated.system_prompt_patch = new_patch;
-                    log_status(db_->UpdateSkill(updated));
-                    std::cout << "Skill '" << s.name << "' updated." << std::endl;
-                    return Result::HANDLED;
-                }
+    } else if (sub_cmd == "show") {
+        auto res = db_->Query("SELECT name, description, system_prompt_patch FROM skills WHERE name = '" + sub_args + "' OR id = '" + sub_args + "'");
+        if (res.ok()) {
+            auto j = nlohmann::json::parse(*res, nullptr, false);
+            if (!j.is_discarded() && !j.empty()) {
+                std::cout << "Skill: " << j[0]["name"].get<std::string>() << std::endl;
+                std::cout << "Description: " << j[0]["description"].get<std::string>() << std::endl;
+                std::cout << "Patch:\n" << j[0]["system_prompt_patch"].get<std::string>() << std::endl;
             }
-            std::cerr << "Skill not found: " << sub_args << std::endl;
         }
     } else if (sub_cmd == "delete") {
-        log_status(db_->Execute("DELETE FROM skills WHERE name = '" + sub_args + "' OR id = '" + sub_args + "'"));
+        log_status(db_->DeleteSkill(sub_args));
         std::cout << "Skill deleted." << std::endl;
-    } else {
-        std::cout << "Usage: /skill list | activate | deactivate | add | edit | delete" << std::endl;
+    } else if (sub_cmd == "add") {
+        std::string name, desc, patch;
+        std::cout << "Skill Name: "; std::getline(std::cin, name);
+        std::cout << "Description: "; std::getline(std::cin, desc);
+        std::cout << "System Prompt Patch (Ctrl+D to finish):\n";
+        std::string line;
+        while (std::getline(std::cin, line)) patch += line + "\n";
+        Database::Skill s{0, name, desc, patch};
+        log_status(db_->RegisterSkill(s));
     }
     return Result::HANDLED;
 }
@@ -334,39 +287,24 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     std::string sub_cmd = sub_parts[0];
     std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
 
-    if (sub_cmd == "activate") {
-        if (sub_args.empty()) {
-            std::cerr << "Usage: /session activate <name>" << std::endl;
-            return Result::HANDLED;
-        }
-        args.session_id = sub_args;
-        std::cout << "Switched to session: " << args.session_id << std::endl;
-        if (orchestrator_) {
-            (void)orchestrator_->RebuildContext(args.session_id);
-        }
-    } else if (sub_cmd == "list") {
+    if (sub_cmd == "list") {
         auto res = db_->Query("SELECT DISTINCT session_id FROM messages UNION SELECT DISTINCT id FROM sessions");
-        log_status(res.status()); if (res.ok()) log_status(PrintJsonAsTable(*res));
+        if (res.ok()) log_status(PrintJsonAsTable(*res));
+    } else if (sub_cmd == "activate") {
+        args.session_id = sub_args;
+        std::cout << "Session switched to: " << sub_args << std::endl;
+        if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
     } else if (sub_cmd == "remove") {
-        if (sub_args.empty()) {
-            std::cerr << "Usage: /session remove <name>" << std::endl;
-            return Result::HANDLED;
-        }
         log_status(db_->DeleteSession(sub_args));
+        std::cout << "Session " << sub_args << " deleted." << std::endl;
         if (args.session_id == sub_args) {
             args.session_id = "default_session";
-            std::cout << "Removed current session. Switched to 'default_session'." << std::endl;
-        } else {
-            std::cout << "Session '" << sub_args << "' removed." << std::endl;
+            std::cout << "Returning to default_session." << std::endl;
         }
     } else if (sub_cmd == "clear") {
         log_status(db_->DeleteSession(args.session_id));
-        std::cout << "Session '" << args.session_id << "' cleared." << std::endl;
-        if (orchestrator_) {
-            (void)orchestrator_->RebuildContext(args.session_id);
-        }
-    } else {
-        std::cout << "Usage: /session list | activate <name> | remove <name> | clear" << std::endl;
+        std::cout << "Session " << args.session_id << " history and state cleared." << std::endl;
+        if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
     }
     return Result::HANDLED;
 }
@@ -376,8 +314,11 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
         "SELECT model, SUM(prompt_tokens) as prompt, SUM(completion_tokens) as completion, "
         "SUM(prompt_tokens + completion_tokens) as total FROM usage "
         "WHERE session_id = '$0' GROUP BY model", args.session_id));
-    if (res.ok()) log_status(PrintJsonAsTable(*res));
-    // do NOT remove this critical block.
+    if (res.ok()) {
+        std::cout << "Usage Stats for Session [" << args.session_id << "]" << std::endl;
+        log_status(PrintJsonAsTable(*res));
+    }
+
     if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled()) {
 	    auto token_or = oauth_handler_->GetValidToken();
 	    if (token_or.ok()) {
@@ -402,58 +343,45 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
 		    } else {
 			    std::cout << "Could not fetch quota: " << quota_or.status().message() << std::endl;
 		    }
-	    }
+        }
     }
+
     return Result::HANDLED;
 }
 
 CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
+    if (!orchestrator_) return Result::HANDLED;
+    
     std::string api_key = (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI) ? google_api_key_ : openai_api_key_;
-    auto models_or = orchestrator_->GetModels(api_key);
-    if (models_or.ok()) {
-        nlohmann::json table = nlohmann::json::array();
-        for (const auto& m : *models_or) {
-            nlohmann::json row;
-            row["id"] = m.id;
-            row["name"] = m.name;
-            table.push_back(row);
-        }
+    if (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled()) {
+        auto token_or = oauth_handler_->GetValidToken();
+        if (token_or.ok()) api_key = *token_or;
+    }
 
-        if (!args.args.empty()) {
-            nlohmann::json filtered = nlohmann::json::array();
-            for (const auto& row : table) {
-                bool match = false;
-                for (auto it = row.begin(); it != row.end(); ++it) {
-                    if (it.value().is_string() && absl::StrContains(it.value().get<std::string>(), args.args)) {
-                        match = true;
-                        break;
-                    }
-                }
-                if (match) filtered.push_back(row);
-            }
-            log_status(PrintJsonAsTable(filtered.dump()));
-        } else {
-            log_status(PrintJsonAsTable(table.dump()));
-        }
-    } else {
+    auto models_or = orchestrator_->GetModels(api_key);
+    if (!models_or.ok()) {
         std::cerr << "Error fetching models: " << models_or.status().message() << std::endl;
+        return Result::HANDLED;
+    }
+
+    std::cout << "Available Models:" << std::endl;
+    for (const auto& m : *models_or) {
+        if (args.args.empty() || absl::StrContains(m.id, args.args)) {
+            std::cout << " - " << m.id << " (" << m.name << ")" << std::endl;
+        }
     }
     return Result::HANDLED;
 }
 
 CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
-    if (args.args.empty()) {
-        std::cerr << "Usage: /exec <command>" << std::endl;
-        return Result::HANDLED;
-    }
-    std::cout << "Executing: " << args.args << std::endl;
-    int res = std::system(args.args.c_str());
-    std::cout << "Exit code: " << res << std::endl;
+    if (args.args.empty()) return Result::HANDLED;
+    std::string result = ExecuteAndCapture(args.args);
+    SmartDisplay(result);
     return Result::HANDLED;
 }
 
 CommandHandler::Result CommandHandler::HandleSchema([[maybe_unused]] CommandArgs& args) {
-    auto res = db_->Query("SELECT sql FROM sqlite_master WHERE type='table'");
+    auto res = db_->Query("SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
     if (res.ok()) {
         auto j = nlohmann::json::parse(*res, nullptr, false);
         if (!j.is_discarded()) {
@@ -469,9 +397,7 @@ CommandHandler::Result CommandHandler::HandleModel(CommandArgs& args) {
     if (args.args.empty()) {
         std::cout << "Current model: " << orchestrator_->GetModel() << std::endl;
     } else {
-        orchestrator_->SetModel(args.args);
-        orchestrator_->UpdateStrategy(); // must call to re initialize
-
+        orchestrator_->Update().WithModel(args.args).BuildInto(orchestrator_);
         std::cout << "Model set to: " << args.args << std::endl;
     }
     return Result::HANDLED;
@@ -483,7 +409,7 @@ CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
     } else {
         int n;
         if (absl::SimpleAtoi(args.args, &n)) {
-            orchestrator_->SetThrottle(n);
+            orchestrator_->Update().WithThrottle(n).BuildInto(orchestrator_);
             std::cout << "Throttle set to " << n << " seconds." << std::endl;
         } else {
             std::cerr << "Invalid throttle value: " << args.args << std::endl;
@@ -498,59 +424,37 @@ CommandHandler::Result CommandHandler::HandleTodo(CommandArgs& args) {
     
     if (sub_cmd == "list") {
         std::string group = (parts.size() > 1) ? parts[1] : "";
-        auto todos_or = db_->GetTodos(group);
-        if (todos_or.ok()) {
-            nlohmann::json table = nlohmann::json::array();
-            for (const auto& t : *todos_or) {
-                nlohmann::json row;
-                row["id"] = t.id;
-                row["group"] = t.group_name;
-                row["status"] = t.status;
-                row["description"] = t.description;
-                table.push_back(row);
+        auto res = db_->GetTodos(group);
+        if (res.ok()) {
+            nlohmann::json j = nlohmann::json::array();
+            for (const auto& t : *res) {
+                j.push_back({{"id", t.id}, {"group", t.group_name}, {"status", t.status}, {"description", t.description}});
             }
-            log_status(PrintJsonAsTable(table.dump()));
+            log_status(PrintJsonAsTable(j.dump()));
         }
     } else if (sub_cmd == "add") {
-        if (parts.size() < 2) {
-             std::cerr << "Usage: /todo add <group> <description>" << std::endl;
-             return Result::HANDLED;
-        }
         std::vector<std::string> add_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 1));
-        std::string group = add_parts[0];
-        std::string desc = (add_parts.size() > 1) ? add_parts[1] : "";
-        log_status(db_->AddTodo(group, desc));
-        std::cout << "Todo added to group '" << group << "'." << std::endl;
+        if (add_parts.size() == 2) {
+            log_status(db_->AddTodo(add_parts[0], add_parts[1]));
+            std::cout << "Todo added to group: " << add_parts[0] << std::endl;
+        }
     } else if (sub_cmd == "edit") {
-        std::vector<std::string> edit_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 3));
-        if (edit_parts.size() < 4) {
-             std::cerr << "Usage: /todo edit <group> <id> <description>" << std::endl;
-             return Result::HANDLED;
+        std::vector<std::string> edit_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 2));
+        if (edit_parts.size() == 3) {
+            int id = std::atoi(edit_parts[1].c_str());
+            log_status(db_->UpdateTodo(id, edit_parts[0], edit_parts[2]));
+            std::cout << "Todo " << id << " in group " << edit_parts[0] << " updated." << std::endl;
         }
-        std::string group = edit_parts[1];
-        int id = std::atoi(edit_parts[2].c_str());
-        std::string desc = edit_parts[3];
-        log_status(db_->UpdateTodo(id, group, desc));
-        std::cout << "Todo " << id << " in group '" << group << "' updated." << std::endl;
     } else if (sub_cmd == "complete") {
-        std::vector<std::string> comp_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 2));
-        if (comp_parts.size() < 3) {
-             std::cerr << "Usage: /todo complete <group> <id>" << std::endl;
-             return Result::HANDLED;
+        std::vector<std::string> comp_parts = absl::StrSplit(parts[1], ' ');
+        if (comp_parts.size() == 2) {
+            int id = std::atoi(comp_parts[1].c_str());
+            log_status(db_->UpdateTodoStatus(id, comp_parts[0], "Complete"));
+            std::cout << "Todo " << id << " in group " << comp_parts[0] << " marked as Complete." << std::endl;
         }
-        std::string group = comp_parts[1];
-        int id = std::atoi(comp_parts[2].c_str());
-        log_status(db_->UpdateTodoStatus(id, group, "Complete"));
-        std::cout << "Todo " << id << " in group '" << group << "' marked as Complete." << std::endl;
     } else if (sub_cmd == "drop") {
-        if (parts.size() < 2) {
-             std::cerr << "Usage: /todo drop <group>" << std::endl;
-             return Result::HANDLED;
-        }
         log_status(db_->DeleteTodoGroup(parts[1]));
-        std::cout << "Todo group '" << parts[1] << "' dropped." << std::endl;
-    } else {
-        std::cout << "Usage: /todo list [group] | add <group> <desc> | edit <group> <id> <desc> | complete <group> <id> | drop <group>" << std::endl;
+        std::cout << "All todos in group " << parts[1] << " deleted." << std::endl;
     }
     return Result::HANDLED;
 }

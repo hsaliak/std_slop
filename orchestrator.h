@@ -19,19 +19,45 @@ class Orchestrator {
     OPENAI
   };
 
+  struct Config {
+    Provider provider = Provider::GEMINI;
+    std::string model;
+    bool gca_mode = false;
+    std::string project_id;
+    std::string base_url;
+    int throttle = 0;
+  };
+
+  class Builder {
+   public:
+    Builder(Database* db, HttpClient* http_client);
+    explicit Builder(const Orchestrator& orchestrator);
+
+    Builder& WithProvider(Provider provider);
+    Builder& WithModel(const std::string& model);
+    Builder& WithGcaMode(bool enabled);
+    Builder& WithProjectId(const std::string& project_id);
+    Builder& WithBaseUrl(const std::string& url);
+    Builder& WithThrottle(int seconds);
+
+    std::unique_ptr<Orchestrator> Build();
+    void BuildInto(Orchestrator* orchestrator);
+
+   private:
+    Database* db_;
+    HttpClient* http_client_;
+    Config config_;
+  };
+
+  // Constructor is public to allow stack allocation if desired, 
+  // but Builder is preferred for complex configuration.
   Orchestrator(Database* db, HttpClient* http_client);
 
-  void SetProvider(Provider provider);
   Provider GetProvider() const { return provider_; }
-  void SetModel(const std::string& model);
   std::string GetModel() const { return model_; }
-
-  void SetGcaMode(bool enabled);
-  void SetProjectId(const std::string& project_id);
-  void SetBaseUrl(const std::string& url);
-
-  void SetThrottle(int seconds) { throttle_ = seconds; }
   int GetThrottle() const { return throttle_; }
+
+  Builder Update() const { return Builder(*this); }
 
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills = {});
   absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json, const std::string& group_id = "");
@@ -50,10 +76,13 @@ class Orchestrator {
 
   // Exposed for rebuilding and testing
   absl::StatusOr<std::vector<Database::Message>> GetRelevantHistory(const std::string& session_id, int window_size);
-  // Must be called after the setters above. Todo, refactor to builder pattern
+  
+  // Refactored: UpdateStrategy is now called by Build() or BuildInto()
   void UpdateStrategy();
 
  private:
+  friend class Builder;
+
   Database* db_;
   HttpClient* http_client_;
   Provider provider_ = Provider::GEMINI;

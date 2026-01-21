@@ -19,28 +19,67 @@
 
 namespace slop {
 
+Orchestrator::Builder::Builder(Database* db, HttpClient* http_client)
+    : db_(db), http_client_(http_client) {}
+
+Orchestrator::Builder::Builder(const Orchestrator& orchestrator)
+    : db_(orchestrator.db_), http_client_(orchestrator.http_client_) {
+    config_.provider = orchestrator.provider_;
+    config_.model = orchestrator.model_;
+    config_.gca_mode = orchestrator.gca_mode_;
+    config_.project_id = orchestrator.project_id_;
+    config_.base_url = orchestrator.base_url_;
+    config_.throttle = orchestrator.throttle_;
+}
+
+Orchestrator::Builder& Orchestrator::Builder::WithProvider(Provider provider) {
+    config_.provider = provider;
+    return *this;
+}
+
+Orchestrator::Builder& Orchestrator::Builder::WithModel(const std::string& model) {
+    config_.model = model;
+    return *this;
+}
+
+Orchestrator::Builder& Orchestrator::Builder::WithGcaMode(bool enabled) {
+    config_.gca_mode = enabled;
+    return *this;
+}
+
+Orchestrator::Builder& Orchestrator::Builder::WithProjectId(const std::string& project_id) {
+    config_.project_id = project_id;
+    return *this;
+}
+
+Orchestrator::Builder& Orchestrator::Builder::WithBaseUrl(const std::string& url) {
+    config_.base_url = url;
+    return *this;
+}
+
+Orchestrator::Builder& Orchestrator::Builder::WithThrottle(int seconds) {
+    config_.throttle = seconds;
+    return *this;
+}
+
+std::unique_ptr<Orchestrator> Orchestrator::Builder::Build() {
+    auto orchestrator = std::unique_ptr<Orchestrator>(new Orchestrator(db_, http_client_));
+    BuildInto(orchestrator.get());
+    return orchestrator;
+}
+
+void Orchestrator::Builder::BuildInto(Orchestrator* orchestrator) {
+    orchestrator->provider_ = config_.provider;
+    orchestrator->model_ = config_.model;
+    orchestrator->gca_mode_ = config_.gca_mode;
+    orchestrator->project_id_ = config_.project_id;
+    orchestrator->base_url_ = config_.base_url;
+    orchestrator->throttle_ = config_.throttle;
+    orchestrator->UpdateStrategy();
+}
+
 Orchestrator::Orchestrator(Database* db, HttpClient* http_client)
     : db_(db), http_client_(http_client), throttle_(0) {
-}
-
-void Orchestrator::SetProvider(Provider provider) {
-    provider_ = provider;
-}
-
-void Orchestrator::SetBaseUrl(const std::string& base_url) {
-    base_url_ = base_url;
-}
-
-void Orchestrator::SetModel(const std::string& model) {
-    model_ = model;
-}
-
-void Orchestrator::SetGcaMode(bool enabled) {
-    gca_mode_ = enabled;
-}
-
-void Orchestrator::SetProjectId(const std::string& project_id) {
-    project_id_ = project_id;
 }
 
 void Orchestrator::UpdateStrategy() {

@@ -16,13 +16,12 @@ class SystemInfoTest : public ::testing::Test {
 };
 
 TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http).Build();
     
     // Create a dummy session
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     
-    auto result = orchestrator.AssemblePrompt("s1", {});
+    auto result = orchestrator->AssemblePrompt("s1", {});
     ASSERT_TRUE(result.ok());
     
     nlohmann::json prompt = *result;

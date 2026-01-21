@@ -25,7 +25,6 @@ size_t VisibleLength(const std::string& s) {
                 i++;
             }
         } else {
-            // Simple UTF-8 aware length: don't count continuation bytes (10xxxxxx)
             if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
                 len++;
             }
@@ -57,7 +56,6 @@ void PrintBorderedBlock(const std::string& header, const std::string& body, cons
     size_t content_width = (width > 4) ? width - 4 : width;
     std::string bold_fg = std::string(ansi::Bold) + color_fg;
 
-    // Top border
     std::string top_line = "┌─ [ " + header + " ] ";
     size_t top_visible = VisibleLength(top_line);
     if (top_visible < width - 1) {
@@ -66,12 +64,10 @@ void PrintBorderedBlock(const std::string& header, const std::string& body, cons
         }
         top_line += "┐";
     } else {
-        // Truncate if too long (simplified)
         top_line = top_line.substr(0, width - 2) + "┐";
     }
     std::cout << Colorize(top_line, "", bold_fg.c_str()) << std::endl;
 
-    // Body
     std::string wrapped = WrapText(body, content_width);
     if (!wrapped.empty()) {
         std::stringstream ss(wrapped);
@@ -83,7 +79,6 @@ void PrintBorderedBlock(const std::string& header, const std::string& body, cons
         }
     }
 
-    // Bottom border
     std::string bottom = "└";
     for (size_t i = 0; i < width - 2; ++i) bottom += "─";
     bottom += "┘";
@@ -131,15 +126,14 @@ std::string FormatLine(const std::string& text, const char* color_bg, size_t wid
 }
 
 void SetupTerminal() {
-    // Readline initialization
 }
 
 void ShowBanner() {
-    std::cout << R"(  ____ _____ ____               ____  _     ___  ____  )" << std::endl;
-    std::cout << R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )" << std::endl;
-    std::cout << R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)" << std::endl;
-    std::cout << R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )" << std::endl;
-    std::cout << R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )" << std::endl;
+    std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Cyan) << std::endl;
+    std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", "", ansi::Cyan) << std::endl;
+    std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", "", ansi::Cyan) << std::endl;
+    std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", "", ansi::Cyan) << std::endl;
+    std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", "", ansi::Cyan) << std::endl;
     std::cout << std::endl;
     #ifdef SLOP_VERSION
     std::cout << " std::slop version " << SLOP_VERSION << std::endl;

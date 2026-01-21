@@ -15,13 +15,12 @@ class OrchestratorTest : public ::testing::Test {
 };
 
 TEST_F(OrchestratorTest, AssemblePromptBasic) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http).Build();
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Hi!").ok());
     
-    auto result = orchestrator.AssemblePrompt("s1", {});
+    auto result = orchestrator->AssemblePrompt("s1", {});
     ASSERT_TRUE(result.ok());
     
     nlohmann::json prompt = *result;
@@ -31,15 +30,14 @@ TEST_F(OrchestratorTest, AssemblePromptBasic) {
 }
 
 TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http).Build();
     
     Database::Skill skill = {1, "test_skill", "A test skill", "SYSTEM_PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill).ok());
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     
-    auto result = orchestrator.AssemblePrompt("s1", {"test_skill"});
+    auto result = orchestrator->AssemblePrompt("s1", {"test_skill"});
     ASSERT_TRUE(result.ok());
     
     nlohmann::json prompt = *result;
@@ -47,9 +45,26 @@ TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
     EXPECT_TRUE(prompt["system_instruction"]["parts"][0]["text"].get<std::string>().find("SYSTEM_PATCH") != std::string::npos);
 }
 
+TEST_F(OrchestratorTest, AssemblePromptWithMultipleSkills) {
+    auto orchestrator = Orchestrator::Builder(&db, &http).Build();
+    
+    Database::Skill s1 = {0, "skill1", "desc1", "PATCH1"};
+    Database::Skill s2 = {0, "skill2", "desc2", "PATCH2"};
+    ASSERT_TRUE(db.RegisterSkill(s1).ok());
+    ASSERT_TRUE(db.RegisterSkill(s2).ok());
+    
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+    
+    auto result = orchestrator->AssemblePrompt("s1", {"skill1", "skill2"});
+    ASSERT_TRUE(result.ok());
+    
+    std::string instr = (*result)["system_instruction"]["parts"][0]["text"];
+    EXPECT_TRUE(instr.find("PATCH1") != std::string::npos);
+    EXPECT_TRUE(instr.find("PATCH2") != std::string::npos);
+}
+
 TEST_F(OrchestratorTest, ProcessResponsePersists) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http).Build();
     
     std::string mock_response = R"({
         "candidates": [{
@@ -59,7 +74,7 @@ TEST_F(OrchestratorTest, ProcessResponsePersists) {
         }]
     })";
     
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
     
     auto history = db.GetConversationHistory("s1");
     ASSERT_TRUE(history.ok());
@@ -69,8 +84,7 @@ TEST_F(OrchestratorTest, ProcessResponsePersists) {
 }
 
 TEST_F(OrchestratorTest, ProcessResponseToolCall) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http).Build();
     
     std::string mock_response = R"({
         "candidates": [{
@@ -85,7 +99,7 @@ TEST_F(OrchestratorTest, ProcessResponseToolCall) {
         }]
     })";
     
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
     
     auto history = db.GetConversationHistory("s1");
     ASSERT_TRUE(history.ok());
@@ -99,15 +113,14 @@ TEST_F(OrchestratorTest, ProcessResponseToolCall) {
 }
 
 TEST_F(OrchestratorTest, AssemblePromptWithTools) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http).Build();
     
     Database::Tool tool = {"test_tool", "A test tool", R"({"type":"object","properties":{}})", true};
     ASSERT_TRUE(db.RegisterTool(tool).ok());
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Use the tool").ok());
     
-    auto result = orchestrator.AssemblePrompt("s1");
+    auto result = orchestrator->AssemblePrompt("s1");
     ASSERT_TRUE(result.ok());
     
     nlohmann::json prompt = *result;
@@ -122,14 +135,14 @@ TEST_F(OrchestratorTest, AssemblePromptWithTools) {
 }
 
 TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    orchestrator.SetModel("gpt-4o");
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::OPENAI)
+        .WithModel("gpt-4o")
+        .Build();
     
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     
-    auto result = orchestrator.AssemblePrompt("s1", {});
+    auto result = orchestrator->AssemblePrompt("s1", {});
     ASSERT_TRUE(result.ok());
     
     nlohmann::json prompt = *result;
@@ -143,9 +156,9 @@ TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
 }
 
 TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::OPENAI)
+        .Build();
     
     std::string mock_response = R"({
         "choices": [{
@@ -156,7 +169,7 @@ TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
         }]
     })";
     
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
     
     auto history = db.GetConversationHistory("s1");
     ASSERT_TRUE(history.ok());
@@ -165,9 +178,9 @@ TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
 }
 
 TEST_F(OrchestratorTest, ProcessOpenAIToolCall) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::OPENAI)
+        .Build();
     
     std::string mock_response = R"({
         "choices": [{
@@ -185,7 +198,7 @@ TEST_F(OrchestratorTest, ProcessOpenAIToolCall) {
         }]
     })";
     
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
     
     auto history = db.GetConversationHistory("s1");
     ASSERT_TRUE(history.ok());
@@ -195,9 +208,9 @@ TEST_F(OrchestratorTest, ProcessOpenAIToolCall) {
 }
 
 TEST_F(OrchestratorTest, GeminiHistoryNormalization) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::GEMINI)
+        .Build();
     
     // Create invalid sequence: User -> User
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Part 1").ok());
@@ -206,7 +219,7 @@ TEST_F(OrchestratorTest, GeminiHistoryNormalization) {
     // Create orphaned tool response: User -> Tool
     ASSERT_TRUE(db.AppendMessage("s1", "tool", "{\"functionResponse\":{\"name\":\"ls\",\"response\":{\"content\":\"a.txt\"}}}").ok());
 
-    auto result = orchestrator.AssemblePrompt("s1", {});
+    auto result = orchestrator->AssemblePrompt("s1", {});
     ASSERT_TRUE(result.ok());
     
     nlohmann::json prompt = *result;
@@ -217,9 +230,9 @@ TEST_F(OrchestratorTest, GeminiHistoryNormalization) {
 }
 
 TEST_F(OrchestratorTest, ParseToolCallsGemini) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::GEMINI)
+        .Build();
     
     Database::Message msg;
     msg.role = "assistant";
@@ -227,7 +240,7 @@ TEST_F(OrchestratorTest, ParseToolCallsGemini) {
     msg.tool_call_id = "execute_bash";
     msg.content = R"({"functionCall": {"name": "execute_bash", "args": {"command": "ls"}}})";
     
-    auto tcs_or = orchestrator.ParseToolCalls(msg);
+    auto tcs_or = orchestrator->ParseToolCalls(msg);
     ASSERT_TRUE(tcs_or.ok());
     ASSERT_EQ(tcs_or->size(), 1);
     EXPECT_EQ((*tcs_or)[0].name, "execute_bash");
@@ -235,9 +248,9 @@ TEST_F(OrchestratorTest, ParseToolCallsGemini) {
 }
 
 TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::OPENAI)
+        .Build();
     
     Database::Message msg;
     msg.role = "assistant";
@@ -252,7 +265,7 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
         }]
     })";
     
-    auto tcs_or = orchestrator.ParseToolCalls(msg);
+    auto tcs_or = orchestrator->ParseToolCalls(msg);
     ASSERT_TRUE(tcs_or.ok());
     ASSERT_EQ(tcs_or->size(), 1);
     EXPECT_EQ((*tcs_or)[0].name, "execute_bash");
@@ -261,10 +274,10 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
 }
 
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::GEMINI);
-    orchestrator.SetModel("gemini-1.5-pro");
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::GEMINI)
+        .WithModel("gemini-1.5-pro")
+        .Build();
 
     std::string mock_response = R"({
         "candidates": [{"content": {"parts": [{"text": "Hello"}]}}],
@@ -274,7 +287,7 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
         }
     })";
     
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
     
     auto usage_or = db.GetTotalUsage("s1");
     ASSERT_TRUE(usage_or.ok());
@@ -283,10 +296,10 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
 }
 
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
-    Orchestrator orchestrator(&db, &http);
-    orchestrator.SetProvider(Orchestrator::Provider::OPENAI);
-    orchestrator.SetModel("gpt-4o");
-    orchestrator.UpdateStrategy();
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::OPENAI)
+        .WithModel("gpt-4o")
+        .Build();
 
     std::string mock_response = R"({
         "choices": [{"message": {"role": "assistant", "content": "Hello"}}],
@@ -296,7 +309,7 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
         }
     })";
     
-    ASSERT_TRUE(orchestrator.ProcessResponse("s1", mock_response).ok());
+    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
     
     auto usage_or = db.GetTotalUsage("s1");
     ASSERT_TRUE(usage_or.ok());
