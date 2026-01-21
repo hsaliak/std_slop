@@ -273,6 +273,34 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
     EXPECT_EQ((*tcs_or)[0].args["command"], "ls");
 }
 
+TEST_F(OrchestratorTest, HistoryFiltering) {
+    auto gemini = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::GEMINI)
+        .Build();
+    
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Gemini msg", "", "completed", "g1", "gemini").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "OpenAI msg", "", "completed", "g2", "openai").ok());
+    
+    auto hist_or = gemini->GetRelevantHistory("s1", 0);
+    ASSERT_TRUE(hist_or.ok());
+    // Should have user msg (empty strategy) and gemini msg, but NOT openai msg.
+    EXPECT_EQ(hist_or->size(), 2);
+    EXPECT_EQ((*hist_or)[0].content, "Hello");
+    EXPECT_EQ((*hist_or)[1].content, "Gemini msg");
+    
+    auto openai = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::OPENAI)
+        .Build();
+        
+    hist_or = openai->GetRelevantHistory("s1", 0);
+    ASSERT_TRUE(hist_or.ok());
+    // Should have user msg and openai msg.
+    EXPECT_EQ(hist_or->size(), 2);
+    EXPECT_EQ((*hist_or)[0].content, "Hello");
+    EXPECT_EQ((*hist_or)[1].content, "OpenAI msg");
+}
+
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {
     auto orchestrator = Orchestrator::Builder(&db, &http)
         .WithProvider(Orchestrator::Provider::GEMINI)

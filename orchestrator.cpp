@@ -115,13 +115,6 @@ absl::Status Orchestrator::ProcessResponse(const std::string& session_id, const 
 }
 
 absl::StatusOr<std::vector<ToolCall>> Orchestrator::ParseToolCalls(const Database::Message& msg) {
-    if (msg.parsing_strategy == "openai") {
-        OpenAiOrchestrator parser(db_, http_client_, "", "");
-        return parser.ParseToolCalls(msg);
-    } else if (msg.parsing_strategy == "gemini" || msg.parsing_strategy == "gemini_gca") {
-        GeminiOrchestrator parser(db_, http_client_, "", "");
-        return parser.ParseToolCalls(msg);
-    }
     return strategy_->ParseToolCalls(msg);
 }
 
@@ -214,7 +207,16 @@ Technical Anchors: [Ports, IPs, constant values]
 absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(const std::string& session_id, int window_size) {
   auto hist_or = db_->GetConversationHistory(session_id, false);
   if (!hist_or.ok()) return hist_or.status();
-  std::vector<Database::Message> history = std::move(*hist_or);
+
+  std::vector<Database::Message> history;
+  std::string current_strategy = strategy_->GetName();
+  for (auto& m : *hist_or) {
+      if (m.parsing_strategy.empty() || m.parsing_strategy == current_strategy ||
+          (current_strategy == "gemini_gca" && m.parsing_strategy == "gemini") ||
+          (current_strategy == "gemini" && m.parsing_strategy == "gemini_gca")) {
+          history.push_back(std::move(m));
+      }
+  }
 
   if (window_size > 0 && !history.empty()) {
       std::vector<std::string> chron_groups;
