@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     std::string model_name = orchestrator.GetModel();
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
-    std::string modeline = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ">");
+    std::string modeline = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ", ", session_id, ">");
     std::string input = slop::ReadLine(modeline);
     if (input == "/exit" || input == "/quit") break;
 
