@@ -3,10 +3,12 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 #include "database.h"
 #include "http_client.h"
 #include <nlohmann/json.hpp>
 #include "absl/status/statusor.h"
+#include "orchestrator_strategy.h"
 
 namespace slop {
 
@@ -19,13 +21,13 @@ class Orchestrator {
 
   Orchestrator(Database* db, HttpClient* http_client);
 
-  void SetProvider(Provider provider) { provider_ = provider; }
+  void SetProvider(Provider provider);
   Provider GetProvider() const { return provider_; }
-  void SetModel(const std::string& model) { model_ = model; }
+  void SetModel(const std::string& model);
   std::string GetModel() const { return model_; }
 
-  void SetGcaMode(bool enabled) { gca_mode_ = enabled; }
-  void SetProjectId(const std::string& project_id) { project_id_ = project_id; }
+  void SetGcaMode(bool enabled);
+  void SetProjectId(const std::string& project_id);
   void SetBaseUrl(const std::string& url) { base_url_ = url; }
 
   void SetThrottle(int seconds) { throttle_ = seconds; }
@@ -37,17 +39,7 @@ class Orchestrator {
   // Rebuilds the session state (---STATE--- anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);
 
-  struct ToolCall {
-    std::string name;
-    std::string id; // For OpenAI
-    nlohmann::json args;
-  };
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
-
-  struct ModelInfo {
-    std::string id;
-    std::string name;
-  };
 
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key);
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
@@ -60,15 +52,7 @@ class Orchestrator {
   absl::StatusOr<std::vector<Database::Message>> GetRelevantHistory(const std::string& session_id, int window_size);
 
  private:
-  static constexpr int kMaxToolResultContext = 8192;
-
-  // Helper methods for AssemblePrompt
-  std::string BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills);
-  nlohmann::json FormatGeminiPayload(const std::string& system_instruction, const std::vector<Database::Message>& history);
-  nlohmann::json FormatOpenAIPayload(const std::string& system_instruction, const std::vector<Database::Message>& history);
-  
-  // Truncates content for context efficiency with metadata
-  std::string SmarterTruncate(const std::string& content, size_t limit);
+  void UpdateStrategy();
 
   Database* db_;
   HttpClient* http_client_;
@@ -79,6 +63,11 @@ class Orchestrator {
   std::string base_url_;
   int throttle_ = 0;
   std::vector<std::string> last_selected_groups_;
+
+  std::unique_ptr<OrchestratorStrategy> strategy_;
+
+  // Helper methods for AssemblePrompt
+  std::string BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills);
 };
 
 }  // namespace slop
