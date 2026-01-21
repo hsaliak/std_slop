@@ -10,7 +10,10 @@ Sessions provide isolation of history.
 - **Result**: The LLM has no visibility into other sessions.
 
 ## Cross-Model Persistence
-Sessions are agnostic to the LLM model or provider used. Because every message in the session history is tagged with its original `parsing_strategy`, you can switch models (e.g., from Gemini to OpenAI) mid-session. The orchestrator will automatically re-parse the historical tool calls and messages into the format required by the newly active model.
+Sessions are designed to be resilient across model switches. However, because different providers (like Google and OpenAI) use incompatible tool-calling schemas, `std::slop` implements **tool call isolation**.
+
+- **Conversational Text**: Regular user and assistant messages are preserved and automatically re-parsed when you switch models.
+- **Tool Isolation**: Tool calls and their results are scoped to the provider strategy that created them. If you switch from Gemini to an OpenAI model, the OpenAI model will see the previous conversation text but will *not* see the Gemini-specific tool calls or results. This prevents parsing errors and "hallucinations" caused by cross-provider format mismatches.
 
 ## Shared & Preserved State
 

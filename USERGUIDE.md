@@ -53,7 +53,7 @@ If no session name is provided, it defaults to `default_session`.
 - **Session**: An isolated conversation history with its own settings and token usage tracking.
 - **Group (GID)**: Every interaction (user prompt + assistant response + tool executions) is grouped under a unique `group_id`. This allows for atomic operations like `/undo`.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
-- **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. The orchestrator automatically re-parses historical messages into the native format of the newly active model.
+- **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. While conversational text is preserved across models, tool calls and results are isolated by provider (e.g., Gemini vs. OpenAI) to ensure reliable parsing and execution. Switching providers will hide previous tool interactions from the new model's immediate context.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.

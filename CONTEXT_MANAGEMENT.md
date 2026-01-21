@@ -24,21 +24,21 @@ The system treats the conversation history as a linear timeline. This ensures th
 - **Cons**:
     - **Memory Loss**: Older context falls off the window. This is mitigated by **State Tracking** and **Historical Retrieval**.
 
-## 2. Multi-Strategy Orchestration and Cross-Model Compatibility
+## 2. Multi-Strategy Orchestration and Tool Call Isolation
 
-As sessions evolve, users might switch between different LLM providers (e.g., shifting from Gemini to OpenAI). Different providers often use incompatible formats for tool calls and message structures. To address this, `std::slop` implements a strategy-aware parsing layer.
+As sessions evolve, users might switch between different LLM providers (e.g., shifting from Gemini to OpenAI). Different providers often use incompatible formats for tool calls and message structures. To ensure stability and prevent parsing errors, `std::slop` implements **Tool Call Isolation**.
 
 ### Strategy Tagging
 Every message appended to the database is tagged with the `parsing_strategy` that was active when it was created. Common strategies include `openai`, `gemini`, and `gemini_gca`.
 
-### Universal Context Rebuilding
-When the `Orchestrator` assembles a prompt:
-1.  It retrieves the historical messages from the database.
-2.  For each message, it identifies the original `parsing_strategy`.
-3.  It dispatches the message to the appropriate strategy-specific parser to extract standardized `ToolCall` objects.
-4.  The currently *active* strategy then takes these standardized objects and re-formats them into its own native provider-specific JSON structure.
+### Strategy-Aware History Filtering
+When the `Orchestrator` assembles a prompt, it filters the historical messages based on the currently active strategy:
 
-This ensures that the LLM always sees a coherent history in its preferred format, regardless of which model originally performed the work.
+1.  **Text Messages**: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.
+2.  **Tool Isolation**: Messages with a `role` of `tool` or a `status` of `tool_call` are only included if their `parsing_strategy` matches the currently active one (with compatibility between `gemini` and `gemini_gca`).
+3.  **Rationale**: Providers (like Google and OpenAI) use vastly different JSON schemas and sequences for tool interactions. Attempting to "translate" a complex tool chain from one provider to another often leads to hallucinations or API errors. Isolation ensures that the LLM only sees tool interactions it is capable of understanding and continuing.
+
+This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs. Information that must persist across tool-isolated boundaries should be recorded in the **Global Anchor (State)**.
 
 ## 3. Self-Managed State Tracking (Long-term RAM)
 

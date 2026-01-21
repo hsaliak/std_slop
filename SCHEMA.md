@@ -17,7 +17,7 @@ Stores user prompts, assistant responses, and tool executions.
 | status | TEXT | `completed`, `tool_call`, or `dropped`. Default: `completed`. |
 | created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
 | group_id | TEXT | Turn identifier for atomic operations (Unix nanoseconds). |
-| parsing_strategy | TEXT | The orchestrator strategy used to publish the message (e.g., `openai`, `gemini`). |
+| parsing_strategy | TEXT | The orchestrator strategy used to publish the message (e.g., `openai`, `gemini`). Used for filtering tool history during cross-model switches. |
 
 ### 2. tools
 Registry of available agent tools.
