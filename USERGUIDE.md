@@ -55,7 +55,7 @@ If no session name is provided, it defaults to `default_session`.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
-- **Tools**: Executable functions (grep, file read, apply_patch, etc.) that the LLM can call.
+- **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 - **Todos**: A sequential task list managed in the database, enabling automated workflows.
 
@@ -142,9 +142,9 @@ You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo 
 
 ### Automation Workflow
 The Planner and the Todo Processor work well together to automate complex tasks:
-1.  **Plan**: Activate the `planner` skill and ask for a detailed implementation plan for a feature.
-2.  **Queue**: Activate the `todo_processor` skill and ask it to add the plan steps as todos in a specific group (e.g., `feature-x`).
-3.  **Execute**: Deactivate the `planner` and (optionally) activate the `c++_expert`. Tell the `todo_processor` to start working on the `feature-x` group.
+1. **Plan**: Activate the `planner` skill and ask for a detailed implementation plan for a feature.
+2. **Queue**: Activate the `todo_processor` skill and ask it to add the plan steps as todos in a specific group (e.g., `feature-x`).
+3. **Execute**: Deactivate the `planner` and (optionally) activate the `c++_expert`. Tell the `todo_processor` to start working on the `feature-x` group.
 
 ### Tools
 - `/tool list`: List all tools currently available to the agent.
