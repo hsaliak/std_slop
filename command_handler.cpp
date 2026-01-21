@@ -22,16 +22,6 @@ void log_status(const absl::Status& status) {
     if (!status.ok()) std::cerr << "Error: " << status.message() << std::endl;
 }
 
-std::string ExecuteAndCapture(const std::string& command) {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
-    if (!pipe) return "popen() failed!";
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
-    }
-    return result;
-}
 } // namespace
 
 CommandHandler::CommandHandler(Database* db, 
@@ -374,9 +364,13 @@ CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
 }
 
 CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
-    if (args.args.empty()) return Result::HANDLED;
-    std::string result = ExecuteAndCapture(args.args);
-    SmartDisplay(result);
+    if (args.args.empty()) {
+        std::cerr << "Usage: /exec <command>" << std::endl;
+        return Result::HANDLED;
+    }
+    std::cout << "Executing: " << args.args << std::endl;
+    int res = std::system(args.args.c_str());
+    std::cout << "Exit code: " << res << std::endl;
     return Result::HANDLED;
 }
 

@@ -92,7 +92,6 @@ void Orchestrator::UpdateStrategy() {
     } else {
         strategy_ = std::make_unique<OpenAiOrchestrator>(db_, http_client_, model_, base_url_);
     }
-    strategy_->SetOrchestrator(this);
 }
 
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills) {

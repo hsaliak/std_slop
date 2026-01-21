@@ -27,29 +27,21 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
 
       if (msg.role == "system") continue;
 
-      nlohmann::json msg_obj = {{"role", msg.role}};
+      nlohmann::json msg_obj;
       
-      if (msg.status == "tool_call" && orchestrator_) {
-          auto calls_or = orchestrator_->ParseToolCalls(msg);
-          if (calls_or.ok()) {
-              nlohmann::json tool_calls = nlohmann::json::array();
-              for (const auto& call : *calls_or) {
-                  tool_calls.push_back({
-                      {"id", call.id},
-                      {"type", "function"},
-                      {"function", {{"name", call.name}, {"arguments", call.args.dump()}}}
-                  });
-              }
-              msg_obj["tool_calls"] = tool_calls;
-              msg_obj["content"] = nullptr;
+      if (msg.status == "tool_call") {
+          auto j = nlohmann::json::parse(msg.content, nullptr, false);
+          if (!j.is_discarded()) {
+              msg_obj = j;
           } else {
-              msg_obj["content"] = display_content;
+              msg_obj = {{"role", msg.role}, {"content", display_content}};
           }
       } else if (msg.role == "tool") {
+          msg_obj = {{"role", msg.role}};
           msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
           msg_obj["content"] = SmarterTruncate(msg.content, kMaxToolResultContext);
       } else {
-          msg_obj["content"] = display_content;
+          msg_obj = {{"role", msg.role}, {"content", display_content}};
       }
 
       if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") {
@@ -127,7 +119,6 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const D
         for (const auto& call : j["tool_calls"]) {
             ToolCall tc;
             tc.name = call["function"]["name"];
-            tc.id = call["id"];
             tc.args = nlohmann::json::parse(call["function"]["arguments"].get<std::string>(), nullptr, false);
             calls.push_back(tc);
         }

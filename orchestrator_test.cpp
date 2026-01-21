@@ -269,7 +269,6 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
     ASSERT_TRUE(tcs_or.ok());
     ASSERT_EQ(tcs_or->size(), 1);
     EXPECT_EQ((*tcs_or)[0].name, "execute_bash");
-    EXPECT_EQ((*tcs_or)[0].id, "call_123");
     EXPECT_EQ((*tcs_or)[0].args["command"], "ls");
 }
 

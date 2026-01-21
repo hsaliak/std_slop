@@ -31,16 +31,10 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(
       std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
       nlohmann::json part;
       
-      if (msg.status == "tool_call" && orchestrator_) {
-          auto calls_or = orchestrator_->ParseToolCalls(msg);
-          if (calls_or.ok()) {
-              // Gemini only supports one function call per message in this simple implementation
-              if (!calls_or->empty()) {
-                  const auto& call = (*calls_or)[0];
-                  part = {{"functionCall", {{"name", call.name}, {"args", call.args}}}};
-              } else {
-                  part = {{"text", display_content}};
-              }
+      if (msg.status == "tool_call") {
+          auto j = nlohmann::json::parse(msg.content, nullptr, false);
+          if (!j.is_discarded()) {
+              part = j;
           } else {
               part = {{"text", display_content}};
           }
