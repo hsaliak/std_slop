@@ -53,6 +53,7 @@ void Orchestrator::UpdateStrategy() {
     } else {
         strategy_ = std::make_unique<OpenAiOrchestrator>(db_, http_client_, model_, base_url_);
     }
+    strategy_->SetOrchestrator(this);
 }
 
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills) {
@@ -75,6 +76,13 @@ absl::Status Orchestrator::ProcessResponse(const std::string& session_id, const 
 }
 
 absl::StatusOr<std::vector<ToolCall>> Orchestrator::ParseToolCalls(const Database::Message& msg) {
+    if (msg.parsing_strategy == "openai") {
+        OpenAiOrchestrator parser(db_, http_client_, "", "");
+        return parser.ParseToolCalls(msg);
+    } else if (msg.parsing_strategy == "gemini" || msg.parsing_strategy == "gemini_gca") {
+        GeminiOrchestrator parser(db_, http_client_, "", "");
+        return parser.ParseToolCalls(msg);
+    }
     return strategy_->ParseToolCalls(msg);
 }
 
@@ -204,27 +212,25 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(
 absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
   auto settings_or = db_->GetContextSettings(session_id);
   if (!settings_or.ok()) return settings_or.status();
-  
   auto history_or = GetRelevantHistory(session_id, settings_or->size);
   if (!history_or.ok()) return history_or.status();
-  
-  const auto& history = *history_or;
-  for (auto it = history.rbegin(); it != history.rend(); ++it) {
-      if (it->role == "assistant" || it->role == "model") {
-          size_t start_pos = it->content.find("---STATE---");
+
+  for (const auto& msg : *history_or) {
+      if (msg.role == "assistant") {
+          size_t start_pos = msg.content.find("---STATE---");
           if (start_pos != std::string::npos) {
-              size_t end_pos = it->content.find("---END STATE---", start_pos);
+              size_t end_pos = msg.content.find("---END STATE---", start_pos);
               std::string state_blob;
               if (end_pos != std::string::npos) {
-                  state_blob = it->content.substr(start_pos, end_pos - start_pos + 15);
+                  state_blob = msg.content.substr(start_pos, end_pos - start_pos + 15);
               } else {
-                  state_blob = it->content.substr(start_pos);
+                  state_blob = msg.content.substr(start_pos);
               }
-              return db_->SetSessionState(session_id, state_blob);
+              (void)db_->SetSessionState(session_id, state_blob);
           }
       }
   }
-  return absl::NotFoundError("No state block found in current context window.");
+  return absl::OkStatus();
 }
 
 }  // namespace slop

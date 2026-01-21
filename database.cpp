@@ -107,7 +107,8 @@ absl::Status Database::Init(const std::string& db_path) {
         tool_call_id TEXT,
         status TEXT DEFAULT 'completed',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        group_id TEXT
+        group_id TEXT,
+        parsing_strategy TEXT
     );
 
     CREATE TABLE IF NOT EXISTS tools (
@@ -159,6 +160,7 @@ absl::Status Database::Init(const std::string& db_path) {
 
   // Migrations
   (void)Execute("ALTER TABLE sessions ADD COLUMN context_size INTEGER DEFAULT 5");
+  (void)Execute("ALTER TABLE messages ADD COLUMN parsing_strategy TEXT");
 
   s = RegisterDefaultTools();
   if (!s.ok()) return s;
@@ -194,7 +196,8 @@ absl::Status Database::RegisterDefaultTools() {
              "pcre": {"type": "boolean", "default": false, "description": "Use Perl-compatible regular expressions."},
              "branch": {"type": "string", "description": "Search in a specific branch, tag, or commit."},
              "cached": {"type": "boolean", "default": false, "description": "Search in the staging area (index) instead of working tree."}
-           }
+           },
+           "required": ["pattern"]
          })", true},
         {"read_file", "Read the content of a file from the local filesystem. Returns content with line numbers.",
          R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})", true},
@@ -208,8 +211,8 @@ absl::Status Database::RegisterDefaultTools() {
          R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true}
     };
 
-    for (const auto& t : default_tools) {
-        absl::Status s = RegisterTool(t);
+    for (const auto& tool : default_tools) {
+        auto s = RegisterTool(tool);
         if (!s.ok()) return s;
     }
     return absl::OkStatus();
@@ -227,17 +230,28 @@ absl::Status Database::RegisterDefaultSkills() {
          "You are now in Todo Processing mode. Given a group name, perform the following steps: 1. Fetch the next Open todo ordered by id from the todos table for that group.  - If no Open todos exist, report No open todos and exit.  2. Treat the todo's description as your next goal.  3. Plan the implementation, present the plan to the user, and wait for approval.  4. Upon approval, update the todo's status to Complete within a transaction, ensuring atomicity.  5. Proceed to the next Open todo in the same group.  Always ensure that any insertion into the todos table supplies a non-null id; if an insertion fails, report the error to the user and abort.  If any step encounters an error, report the error and stop processing."}
     };
 
-    for (const auto& s : default_skills) {
+    for (const auto& skill : default_skills) {
         auto stmt_or = Prepare("INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)");
         if (!stmt_or.ok()) return stmt_or.status();
         auto& stmt = *stmt_or;
-        (void)stmt->BindText(1, s.name);
-        (void)stmt->BindText(2, s.description);
-        (void)stmt->BindText(3, s.system_prompt_patch);
+        (void)stmt->BindText(1, skill.name);
+        (void)stmt->BindText(2, skill.description);
+        (void)stmt->BindText(3, skill.system_prompt_patch);
         absl::Status status = stmt->Run();
         if (!status.ok()) return status;
     }
     return absl::OkStatus();
+}
+
+absl::Status Database::Execute(const std::string& sql) {
+  char* errmsg = nullptr;
+  int rc = sqlite3_exec(db_.get(), sql.c_str(), nullptr, nullptr, &errmsg);
+  if (rc != SQLITE_OK) {
+    std::string msg = errmsg ? errmsg : "Unknown error";
+    sqlite3_free(errmsg);
+    return absl::InternalError("Execute error: " + msg + " (SQL: " + sql + ")");
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Database::AppendMessage(const std::string& session_id,
@@ -245,23 +259,28 @@ absl::Status Database::AppendMessage(const std::string& session_id,
                                      const std::string& content,
                                      const std::string& tool_call_id,
                                      const std::string& status,
-                                     const std::string& group_id) {
-  auto stmt_or = Prepare("INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id) VALUES (?, ?, ?, ?, ?, ?)");
+                                     const std::string& group_id,
+                                     const std::string& parsing_strategy) {
+  auto stmt_or = Prepare("INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy) VALUES (?, ?, ?, ?, ?, ?, ?)");
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
   (void)stmt->BindText(1, session_id);
   (void)stmt->BindText(2, role);
   (void)stmt->BindText(3, content);
+  
   if (tool_call_id.empty()) (void)stmt->BindNull(4);
   else (void)stmt->BindText(4, tool_call_id);
+  
   (void)stmt->BindText(5, status);
+  
   if (group_id.empty()) (void)stmt->BindNull(6);
   else (void)stmt->BindText(6, group_id);
+  
+  (void)stmt->BindText(7, parsing_strategy);
 
   return stmt->Run();
 }
-
 
 absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
   auto stmt_or = Prepare("UPDATE messages SET status = ? WHERE id = ?");
@@ -275,7 +294,7 @@ absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
 }
 
 absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(const std::string& session_id, bool include_dropped) {
-  std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id FROM messages WHERE session_id = ?";
+  std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy FROM messages WHERE session_id = ?";
   if (!include_dropped) {
     sql += " AND status != 'dropped'";
   }
@@ -302,6 +321,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
     m.status = stmt->ColumnText(5);
     m.created_at = stmt->ColumnText(6);
     m.group_id = stmt->ColumnText(7);
+    m.parsing_strategy = stmt->ColumnText(8);
     history.push_back(m);
   }
   return history;
@@ -315,7 +335,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(con
         placeholders += (i == 0 ? "?" : ", ?");
     }
     
-    std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id FROM messages WHERE group_id IN (" + placeholders + ") ORDER BY created_at ASC, id ASC";
+    std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy FROM messages WHERE group_id IN (" + placeholders + ") ORDER BY created_at ASC, id ASC";
     
     auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
@@ -340,6 +360,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(con
         m.status = stmt->ColumnText(5);
         m.created_at = stmt->ColumnText(6);
         m.group_id = stmt->ColumnText(7);
+        m.parsing_strategy = stmt->ColumnText(8);
         messages.push_back(m);
     }
     return messages;
@@ -430,27 +451,26 @@ absl::Status Database::RegisterSkill(const Skill& skill) {
 }
 
 absl::Status Database::UpdateSkill(const Skill& skill) {
-  auto stmt_or = Prepare("UPDATE skills SET name = ?, description = ?, system_prompt_patch = ? WHERE id = ?");
+  auto stmt_or = Prepare("UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?");
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
 
-  (void)stmt->BindText(1, skill.name);
-  (void)stmt->BindText(2, skill.description);
-  (void)stmt->BindText(3, skill.system_prompt_patch);
-  (void)stmt->BindInt(4, skill.id);
+  (void)stmt->BindText(1, skill.description);
+  (void)stmt->BindText(2, skill.system_prompt_patch);
+  (void)stmt->BindText(3, skill.name);
 
   return stmt->Run();
 }
 
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
-    auto stmt_or = Prepare("DELETE FROM skills WHERE name = ? OR id = ?");
-    if (!stmt_or.ok()) return stmt_or.status();
-    auto& stmt = *stmt_or;
-    
-    (void)stmt->BindText(1, name_or_id);
-    (void)stmt->BindText(2, name_or_id);
-    
-    return stmt->Run();
+  auto stmt_or = Prepare("DELETE FROM skills WHERE name = ? OR id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  (void)stmt->BindText(1, name_or_id);
+  (void)stmt->BindText(2, name_or_id);
+
+  return stmt->Run();
 }
 
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
@@ -475,7 +495,7 @@ absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
 }
 
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
-    auto stmt_or = Prepare("INSERT INTO sessions (id, context_size) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET context_size = excluded.context_size");
+    auto stmt_or = Prepare("INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?)");
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
     
@@ -492,17 +512,16 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
     
     (void)stmt->BindText(1, session_id);
     
-    ContextSettings s = {5}; // Default
+    ContextSettings settings = {5};
     auto row_or = stmt->Step();
     if (row_or.ok() && *row_or) {
-        s.size = stmt->ColumnInt(0);
+        settings.size = stmt->ColumnInt(0);
     }
-    return s;
+    return settings;
 }
 
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
-    auto stmt_or = Prepare("INSERT INTO session_state (session_id, state_blob, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP) "
-                           "ON CONFLICT(session_id) DO UPDATE SET state_blob = excluded.state_blob, last_updated = CURRENT_TIMESTAMP");
+    auto stmt_or = Prepare("INSERT OR REPLACE INTO session_state (session_id, state_blob, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)");
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
     
@@ -523,130 +542,7 @@ absl::StatusOr<std::string> Database::GetSessionState(const std::string& session
     if (row_or.ok() && *row_or) {
         return stmt->ColumnText(0);
     }
-    return absl::NotFoundError("No state found for session: " + session_id);
-}
-
-absl::Status Database::AddTodo(const std::string& group_name, const std::string& description) {
-  auto id_stmt_or = Prepare("SELECT COALESCE(MAX(id), 0) + 1 FROM todos WHERE group_name = ?");
-  if (!id_stmt_or.ok()) return id_stmt_or.status();
-  (void)(*id_stmt_or)->BindText(1, group_name);
-  auto row_or = (*id_stmt_or)->Step();
-  if (!row_or.ok()) return row_or.status();
-  int next_id = (*id_stmt_or)->ColumnInt(0);
-
-  auto stmt_or = Prepare("INSERT INTO todos (id, group_name, description) VALUES (?, ?, ?)");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  (void)stmt->BindInt(1, next_id);
-  (void)stmt->BindText(2, group_name);
-  (void)stmt->BindText(3, description);
-
-  return stmt->Run();
-}
-
-absl::StatusOr<std::vector<Database::Todo>> Database::GetTodos(const std::string& group_name) {
-  std::string sql = "SELECT id, group_name, description, status FROM todos";
-  if (!group_name.empty()) {
-    sql += " WHERE group_name = ?";
-  }
-  sql += " ORDER BY group_name ASC, id ASC";
-
-  auto stmt_or = Prepare(sql);
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  if (!group_name.empty()) {
-    (void)stmt->BindText(1, group_name);
-  }
-
-  std::vector<Todo> todos;
-  while (true) {
-    auto row_or = stmt->Step();
-    if (!row_or.ok()) return row_or.status();
-    if (!*row_or) break;
-
-    Todo t;
-    t.id = stmt->ColumnInt(0);
-    t.group_name = stmt->ColumnText(1);
-    t.description = stmt->ColumnText(2);
-    t.status = stmt->ColumnText(3);
-    todos.push_back(t);
-  }
-  return todos;
-}
-
-absl::Status Database::UpdateTodo(int id, const std::string& group_name, const std::string& description) {
-  auto stmt_or = Prepare("UPDATE todos SET description = ? WHERE id = ? AND group_name = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  (void)stmt->BindText(1, description);
-  (void)stmt->BindInt(2, id);
-  (void)stmt->BindText(3, group_name);
-
-  return stmt->Run();
-}
-
-absl::Status Database::UpdateTodoStatus(int id, const std::string& group_name, const std::string& status) {
-  auto stmt_or = Prepare("UPDATE todos SET status = ? WHERE id = ? AND group_name = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  (void)stmt->BindText(1, status);
-  (void)stmt->BindInt(2, id);
-  (void)stmt->BindText(3, group_name);
-
-  return stmt->Run();
-}
-
-absl::Status Database::DeleteTodoGroup(const std::string& group_name) {
-  auto stmt_or = Prepare("DELETE FROM todos WHERE group_name = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  (void)stmt->BindText(1, group_name);
-
-  return stmt->Run();
-}
-
-absl::StatusOr<std::string> Database::Query(const std::string& sql) {
-  auto stmt_or = Prepare(sql);
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  nlohmann::json results = nlohmann::json::array();
-  int cols = stmt->ColumnCount();
-  while (true) {
-    auto row_or = stmt->Step();
-    if (!row_or.ok()) return row_or.status();
-    if (!*row_or) break;
-
-    nlohmann::json row;
-    for (int i = 0; i < cols; ++i) {
-      const char* name = stmt->ColumnName(i);
-      int type = stmt->ColumnType(i);
-      if (type == SQLITE_INTEGER) row[name] = stmt->ColumnInt64(i);
-      else if (type == SQLITE_FLOAT) row[name] = stmt->ColumnDouble(i);
-      else if (type == SQLITE_NULL) row[name] = nullptr;
-      else row[name] = stmt->ColumnText(i);
-    }
-    results.push_back(row);
-  }
-  return results.dump(2);
-}
-
-absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_id) {
-  auto stmt_or = Prepare("SELECT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL ORDER BY id DESC LIMIT 1");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  (void)stmt->BindText(1, session_id);
-  auto row_or = stmt->Step();
-  if (row_or.ok() && *row_or) {
-      return stmt->ColumnText(0);
-  }
-  return absl::NotFoundError("No messages found for this session");
+    return absl::NotFoundError("Session state not found");
 }
 
 absl::Status Database::DeleteSession(const std::string& session_id) {
@@ -673,15 +569,121 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   return Execute("COMMIT");
 }
 
-absl::Status Database::Execute(const std::string& sql) {
-  char* errmsg = nullptr;
-  int rc = sqlite3_exec(db_.get(), sql.c_str(), nullptr, nullptr, &errmsg);
-  if (rc != SQLITE_OK) {
-    std::string error = errmsg ? errmsg : "Unknown error";
-    sqlite3_free(errmsg);
-    return absl::InternalError("SQL error: " + error + " (SQL: " + sql + ")");
+absl::Status Database::AddTodo(const std::string& group_name, const std::string& description) {
+    auto id_stmt_or = Prepare("SELECT COALESCE(MAX(id), 0) + 1 FROM todos WHERE group_name = ?");
+    if (!id_stmt_or.ok()) return id_stmt_or.status();
+    auto& id_stmt = *id_stmt_or;
+    (void)id_stmt->BindText(1, group_name);
+    auto row_or = id_stmt->Step();
+    int next_id = 1;
+    if (row_or.ok() && *row_or) {
+        next_id = id_stmt->ColumnInt(0);
+    }
+
+    auto stmt_or = Prepare("INSERT INTO todos (id, group_name, description, status) VALUES (?, ?, ?, 'Open')");
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
+    (void)stmt->BindInt(1, next_id);
+    (void)stmt->BindText(2, group_name);
+    (void)stmt->BindText(3, description);
+    return stmt->Run();
+}
+
+absl::StatusOr<std::vector<Database::Todo>> Database::GetTodos(const std::string& group_name) {
+    std::string sql = "SELECT id, group_name, description, status FROM todos";
+    if (!group_name.empty()) {
+        sql += " WHERE group_name = ?";
+    }
+    sql += " ORDER BY group_name ASC, id ASC";
+
+    auto stmt_or = Prepare(sql);
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
+    if (!group_name.empty()) {
+        (void)stmt->BindText(1, group_name);
+    }
+
+    std::vector<Todo> todos;
+    while (true) {
+        auto row_or = stmt->Step();
+        if (!row_or.ok()) return row_or.status();
+        if (!*row_or) break;
+
+        Todo t;
+        t.id = stmt->ColumnInt(0);
+        t.group_name = stmt->ColumnText(1);
+        t.description = stmt->ColumnText(2);
+        t.status = stmt->ColumnText(3);
+        todos.push_back(t);
+    }
+    return todos;
+}
+
+absl::Status Database::UpdateTodo(int id, const std::string& group_name, const std::string& description) {
+    auto stmt_or = Prepare("UPDATE todos SET description = ? WHERE id = ? AND group_name = ?");
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
+    (void)stmt->BindText(1, description);
+    (void)stmt->BindInt(2, id);
+    (void)stmt->BindText(3, group_name);
+    return stmt->Run();
+}
+
+absl::Status Database::UpdateTodoStatus(int id, const std::string& group_name, const std::string& status) {
+    auto stmt_or = Prepare("UPDATE todos SET status = ? WHERE id = ? AND group_name = ?");
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
+    (void)stmt->BindText(1, status);
+    (void)stmt->BindInt(2, id);
+    (void)stmt->BindText(3, group_name);
+    return stmt->Run();
+}
+
+absl::Status Database::DeleteTodoGroup(const std::string& group_name) {
+    auto stmt_or = Prepare("DELETE FROM todos WHERE group_name = ?");
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
+    (void)stmt->BindText(1, group_name);
+    return stmt->Run();
+}
+
+absl::StatusOr<std::string> Database::Query(const std::string& sql) {
+    auto stmt_or = Prepare(sql);
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto& stmt = *stmt_or;
+
+    nlohmann::json results = nlohmann::json::array();
+    while (true) {
+        auto row_or = stmt->Step();
+        if (!row_or.ok()) return row_or.status();
+        if (!*row_or) break;
+
+        nlohmann::json row = nlohmann::json::object();
+        for (int i = 0; i < stmt->ColumnCount(); ++i) {
+            std::string name = stmt->ColumnName(i);
+            switch (stmt->ColumnType(i)) {
+                case SQLITE_INTEGER: row[name] = stmt->ColumnInt64(i); break;
+                case SQLITE_FLOAT:   row[name] = stmt->ColumnDouble(i); break;
+                case SQLITE_TEXT:    row[name] = stmt->ColumnText(i); break;
+                case SQLITE_NULL:    row[name] = nullptr; break;
+                default:             row[name] = stmt->ColumnText(i); break;
+            }
+        }
+        results.push_back(row);
+    }
+    return results.dump(2);
+}
+
+absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_id) {
+  auto stmt_or = Prepare("SELECT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL ORDER BY id DESC LIMIT 1");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+  (void)stmt->BindText(1, session_id);
+  auto row_or = stmt->Step();
+  if (row_or.ok() && *row_or) {
+    return stmt->ColumnText(0);
   }
-  return absl::OkStatus();
+  return absl::NotFoundError("No group_id found for session");
 }
 
 }  // namespace slop

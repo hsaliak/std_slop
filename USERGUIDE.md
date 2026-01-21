@@ -53,6 +53,7 @@ If no session name is provided, it defaults to `default_session`.
 - **Session**: An isolated conversation history with its own settings and token usage tracking.
 - **Group (GID)**: Every interaction (user prompt + assistant response + tool executions) is grouped under a unique `group_id`. This allows for atomic operations like `/undo`.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
+- **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. The orchestrator automatically re-parses historical messages into the native format of the newly active model.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
@@ -142,26 +143,15 @@ You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo 
 
 ### Automation Workflow
 The Planner and the Todo Processor work well together to automate complex tasks:
-1. **Plan**: Activate the `planner` skill and ask for a detailed implementation plan for a feature.
-2. **Queue**: Activate the `todo_processor` skill and ask it to add the plan steps as todos in a specific group (e.g., `feature-x`).
-3. **Execute**: Deactivate the `planner` and (optionally) activate the `c++_expert`. Tell the `todo_processor` to start working on the `feature-x` group.
+1.  **Decompose**: Use the `planner` skill to break a large feature into small, atomic tasks.
+2.  **Add Todos**: Ask the LLM to use the `add_todo` tool for each task.
+3.  **Execute**: Enable the `todo_processor` skill and ask the agent to start working on the group.
+4.  **Confirm**: The agent will pick the first open task, propose a plan, and wait for your approval before executing and marking it complete.
 
-### Tools
-- `/tool list`: List all tools currently available to the agent.
-- `/tool show <name>`: View the JSON Schema and description for a tool.
-
-### Utility & Debugging
-- `/stats` or `/usage`: View token usage for the current session and global totals.
-- `/schema`: Display the SQLite database schema.
-- `/models`: List available models for the current provider.
-- `/model <name>`: Switch the active LLM model (e.g., `gemini-1.5-pro`, `gpt-4o-mini`).
-- `/exec <command>`: Execute a shell command without leaving the CLI.
-- `/query_db`: Direct SQL access to the session ledger. **Note: The agent also uses this tool to retrieve historical context.**
-
-## Database Schema
-The CLI uses a local SQLite database (default: `slop.db`). You can inspect it directly:
-```bash
-sqlite3 slop.db
-```
-Tables include `messages`, `sessions`, `usage`, `skills`, `tools`, `session_state`, and `todos`.
-Refer to `SCHEMA.md` for detailed table definitions.
+### Other Commands
+- `/models`: List all models available for your current provider.
+- `/model <name>`: Switch to a different LLM model.
+- `/throttle [N]`: Set a pause (in seconds) between automatic agent interactions to prevent rate limiting or to allow for human review.
+- `/exec <command>`: Run a shell command and view its output in a pager.
+- `/usage` or `/stats`: View total token usage for the current session.
+- `/schema`: View the internal database schema for the `messages` ledger.

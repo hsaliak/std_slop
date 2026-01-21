@@ -64,6 +64,7 @@ class Database {
     std::string status;
     std::string created_at;
     std::string group_id;
+    std::string parsing_strategy;
   };
 
   absl::Status AppendMessage(const std::string& session_id,
@@ -71,7 +72,8 @@ class Database {
                              const std::string& content,
                              const std::string& tool_call_id = "",
                              const std::string& status = "completed",
-                             const std::string& group_id = "");
+                             const std::string& group_id = "",
+                             const std::string& parsing_strategy = "");
   absl::Status UpdateMessageStatus(int id, const std::string& status);
 
   absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id, bool include_dropped = false);

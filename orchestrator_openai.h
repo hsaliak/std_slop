@@ -11,6 +11,8 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
  public:
   OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url);
 
+  std::string GetName() const override { return "openai"; }
+
   absl::StatusOr<nlohmann::json> AssemblePayload(
       const std::string& session_id,
       const std::string& system_instruction,
@@ -29,13 +31,12 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
   int CountTokens(const nlohmann::json& prompt) override;
 
  private:
+  std::string SmarterTruncate(const std::string& content, size_t limit);
   Database* db_;
   HttpClient* http_client_;
   std::string model_;
   std::string base_url_;
-
-  std::string SmarterTruncate(const std::string& content, size_t limit);
-  static constexpr int kMaxToolResultContext = 8192;
+  static constexpr size_t kMaxToolResultContext = 5000;
 };
 
 }  // namespace slop

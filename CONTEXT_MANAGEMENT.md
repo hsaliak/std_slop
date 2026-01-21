@@ -24,7 +24,23 @@ The system treats the conversation history as a linear timeline. This ensures th
 - **Cons**:
     - **Memory Loss**: Older context falls off the window. This is mitigated by **State Tracking** and **Historical Retrieval**.
 
-## 2. Self-Managed State Tracking (Long-term RAM)
+## 2. Multi-Strategy Orchestration and Cross-Model Compatibility
+
+As sessions evolve, users might switch between different LLM providers (e.g., shifting from Gemini to OpenAI). Different providers often use incompatible formats for tool calls and message structures. To address this, `std::slop` implements a strategy-aware parsing layer.
+
+### Strategy Tagging
+Every message appended to the database is tagged with the `parsing_strategy` that was active when it was created. Common strategies include `openai`, `gemini`, and `gemini_gca`.
+
+### Universal Context Rebuilding
+When the `Orchestrator` assembles a prompt:
+1.  It retrieves the historical messages from the database.
+2.  For each message, it identifies the original `parsing_strategy`.
+3.  It dispatches the message to the appropriate strategy-specific parser to extract standardized `ToolCall` objects.
+4.  The currently *active* strategy then takes these standardized objects and re-formats them into its own native provider-specific JSON structure.
+
+This ensures that the LLM always sees a coherent history in its preferred format, regardless of which model originally performed the work.
+
+## 3. Self-Managed State Tracking (Long-term RAM)
 
 To prevent the loss of critical technical details when messages age out of the rolling window, `std::slop` implements a self-managed state tracking mechanism. This allows the LLM to maintain a persistent "Global Anchor" of technical truth.
 
@@ -55,7 +71,7 @@ Technical Anchors: [Ports, IPs, constant values]
 ---END STATE---
 ```
 
-## 3. Historical Context Retrieval (SQL-based Retrieval)
+## 4. Historical Context Retrieval (SQL-based Retrieval)
 
 Unique to `std::slop`, the agent has the capability to query its own message history directly via SQL when the rolling window is insufficient.
 
@@ -74,7 +90,7 @@ WHERE status != 'dropped' AND content LIKE '%refactor plan%'
 ORDER BY id DESC LIMIT 5;
 ```
 
-## 4. Manual Context Intervention
+## 5. Manual Context Intervention
 
 Users have several tools to manually prune or repair the context:
 

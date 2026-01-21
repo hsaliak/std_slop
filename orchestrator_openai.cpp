@@ -1,5 +1,6 @@
 #include "orchestrator_openai.h"
 #include "absl/strings/substitute.h"
+#include "orchestrator.h"
 #include <iostream>
 
 namespace slop {
@@ -27,18 +28,29 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
       if (msg.role == "system") continue;
 
       nlohmann::json msg_obj = {{"role", msg.role}};
-      auto j = nlohmann::json::parse(msg.content, nullptr, false);
-      if (!j.is_discarded()) {
-          if (j.contains("tool_calls")) {
-              msg_obj["tool_calls"] = j["tool_calls"];
+      
+      if (msg.status == "tool_call" && orchestrator_) {
+          auto calls_or = orchestrator_->ParseToolCalls(msg);
+          if (calls_or.ok()) {
+              nlohmann::json tool_calls = nlohmann::json::array();
+              for (const auto& call : *calls_or) {
+                  tool_calls.push_back({
+                      {"id", call.id},
+                      {"type", "function"},
+                      {"function", {{"name", call.name}, {"arguments", call.args.dump()}}}
+                  });
+              }
+              msg_obj["tool_calls"] = tool_calls;
               msg_obj["content"] = nullptr;
+          } else {
+              msg_obj["content"] = display_content;
           }
-          else if (msg.role == "tool" && j.contains("content")) { 
-              msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
-              msg_obj["content"] = SmarterTruncate(j["content"].get<std::string>(), kMaxToolResultContext);
-          }
-          else msg_obj["content"] = display_content;
-      } else msg_obj["content"] = display_content;
+      } else if (msg.role == "tool") {
+          msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
+          msg_obj["content"] = SmarterTruncate(msg.content, kMaxToolResultContext);
+      } else {
+          msg_obj["content"] = display_content;
+      }
 
       if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") {
           messages.back()["content"] = messages.back()["content"].get<std::string>() + "\n" + msg_obj["content"].get<std::string>();
@@ -84,10 +96,10 @@ absl::Status OpenAiOrchestrator::ProcessResponse(
       if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
           status = db_->AppendMessage(session_id, "assistant", msg.dump(), 
               msg["tool_calls"][0]["id"].get<std::string>() + "|" + msg["tool_calls"][0]["function"]["name"].get<std::string>(), 
-              "tool_call", group_id);
+              "tool_call", group_id, GetName());
       } else if (msg.contains("content") && !msg["content"].is_null()) {
           std::string text = msg["content"];
-          status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id);
+          status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName());
 
           size_t start_pos = text.find("---STATE---");
           if (start_pos != std::string::npos) {

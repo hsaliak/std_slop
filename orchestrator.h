@@ -50,6 +50,7 @@ class Orchestrator {
 
   // Exposed for rebuilding and testing
   absl::StatusOr<std::vector<Database::Message>> GetRelevantHistory(const std::string& session_id, int window_size);
+  // Must be called after the setters above. Todo, refactor to builder pattern
   void UpdateStrategy();
 
  private:

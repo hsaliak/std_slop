@@ -1,6 +1,7 @@
 #include "orchestrator_gemini.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
+#include "orchestrator.h"
 #include <iostream>
 
 namespace slop {
@@ -29,15 +30,25 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(
 
       std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
       nlohmann::json part;
-      auto j = nlohmann::json::parse(msg.content, nullptr, false);
       
-      if (!j.is_discarded() && j.contains("functionResponse")) {
-          std::string raw_content = j["functionResponse"]["response"]["content"].get<std::string>();
-          j["functionResponse"]["response"]["content"] = SmarterTruncate(raw_content, kMaxToolResultContext);
-          part = j;
+      if (msg.status == "tool_call" && orchestrator_) {
+          auto calls_or = orchestrator_->ParseToolCalls(msg);
+          if (calls_or.ok()) {
+              // Gemini only supports one function call per message in this simple implementation
+              if (!calls_or->empty()) {
+                  const auto& call = (*calls_or)[0];
+                  part = {{"functionCall", {{"name", call.name}, {"args", call.args}}}};
+              } else {
+                  part = {{"text", display_content}};
+              }
+          } else {
+              part = {{"text", display_content}};
+          }
+      } else if (msg.role == "tool") {
+          part = {{"functionResponse", {{"name", msg.tool_call_id.substr(msg.tool_call_id.find('|') + 1)}, {"response", {{"content", SmarterTruncate(msg.content, kMaxToolResultContext)}}}}}};
+      } else {
+          part = {{"text", display_content}};
       }
-      else if (!j.is_discarded() && j.contains("functionCall")) part = j;
-      else part = {{"text", display_content}};
 
       if (!contents.empty() && contents.back()["role"] == role) contents.back()["parts"].push_back(part);
       else contents.push_back({{"role", role}, {"parts", {part}}});
@@ -88,10 +99,10 @@ absl::Status GeminiOrchestrator::ProcessResponse(
   if (target->contains("candidates") && !(*target)["candidates"].empty()) {
       auto& parts = (*target)["candidates"][0]["content"]["parts"];
       for (const auto& part : parts) {
-          if (part.contains("functionCall")) status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call", group_id);
+          if (part.contains("functionCall")) status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call", group_id, GetName());
           else if (part.contains("text")) {
               std::string text = part["text"];
-              status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id);
+              status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName());
               
               size_t start_pos = text.find("---STATE---");
               if (start_pos != std::string::npos) {

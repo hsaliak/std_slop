@@ -9,6 +9,8 @@
 
 namespace slop {
 
+class Orchestrator; // Forward declaration
+
 struct ToolCall {
   std::string name;
   std::string id; // For OpenAI
@@ -23,6 +25,8 @@ struct ModelInfo {
 class OrchestratorStrategy {
  public:
   virtual ~OrchestratorStrategy() = default;
+
+  virtual std::string GetName() const = 0;
 
   // Assembles the JSON payload for the specific provider.
   // The system_instruction and history are provided by the Orchestrator.
@@ -45,6 +49,11 @@ class OrchestratorStrategy {
   virtual absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key) = 0;
   virtual absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) = 0;
   virtual int CountTokens(const nlohmann::json& prompt) = 0;
+
+  void SetOrchestrator(Orchestrator* orchestrator) { orchestrator_ = orchestrator; }
+
+ protected:
+  Orchestrator* orchestrator_ = nullptr;
 };
 
 }  // namespace slop

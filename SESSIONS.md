@@ -9,6 +9,9 @@ Sessions provide isolation of history.
 - **Prompt Construction**: The `Orchestrator` queries only messages associated with the active `session_id` where status is not 'dropped'.
 - **Result**: The LLM has no visibility into other sessions.
 
+## Cross-Model Persistence
+Sessions are agnostic to the LLM model or provider used. Because every message in the session history is tagged with its original `parsing_strategy`, you can switch models (e.g., from Gemini to OpenAI) mid-session. The orchestrator will automatically re-parse the historical tool calls and messages into the format required by the newly active model.
+
 ## Shared & Preserved State
 
 While history is isolated, certain configurations are global or preserved in memory when switching.

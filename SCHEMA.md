@@ -17,6 +17,7 @@ Stores user prompts, assistant responses, and tool executions.
 | status | TEXT | `completed`, `tool_call`, or `dropped`. Default: `completed`. |
 | created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
 | group_id | TEXT | Turn identifier for atomic operations (Unix nanoseconds). |
+| parsing_strategy | TEXT | The orchestrator strategy used to publish the message (e.g., `openai`, `gemini`). |
 
 ### 2. tools
 Registry of available agent tools.
@@ -112,7 +113,8 @@ CREATE TABLE IF NOT EXISTS messages (
     tool_call_id TEXT,
     status TEXT DEFAULT 'completed',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    group_id TEXT
+    group_id TEXT,
+    parsing_strategy TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tools (
