@@ -56,8 +56,6 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   } else if (name == "query_db") {
     if (!args.contains("sql")) return absl::InvalidArgumentError("Missing 'sql' argument");
     result = db_->Query(args["sql"]);
-  } else if (name == "apply_patch") {
-    result = ApplyPatch(args);
   } else {
     return absl::NotFoundError("Tool not found: " + name);
   }
@@ -181,41 +179,4 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   
   return ExecuteBash(cmd);
 }
-
-absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const nlohmann::json& args) {
-  if (!args.contains("patch")) {
-    return absl::InvalidArgumentError("Missing 'patch' argument");
-  }
-  std::string patch_content = args["patch"].get<std::string>();
-  
-  // Use a temporary file for the patch
-  char patch_filename[] = "/tmp/patchXXXXXX";
-  int fd = mkstemp(patch_filename);
-  if (fd == -1) return absl::InternalError("Failed to create temporary file for patch");
-  
-  {
-    std::string content = patch_content;
-    if (write(fd, content.c_str(), content.size()) == -1) {
-      close(fd);
-      unlink(patch_filename);
-      return absl::InternalError("Failed to write patch to temporary file");
-    }
-  }
-  close(fd);
-
-  std::string cmd = "patch";
-  if (args.value("dry_run", false)) cmd += " --dry-run";
-  if (args.contains("strip")) {
-    cmd += " -p" + std::to_string(args["strip"].get<int>());
-  }
-  if (args.contains("path")) {
-    cmd += " -d \"" + args["path"].get<std::string>() + "\"";
-  }
-  cmd += " < " + std::string(patch_filename) + " 2>&1";
-
-  auto res = ExecuteBash(cmd);
-  unlink(patch_filename);
-  return res;
-}
-
 } // namespace slop

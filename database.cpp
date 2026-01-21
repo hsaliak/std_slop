@@ -204,8 +204,6 @@ absl::Status Database::RegisterDefaultTools() {
          R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", true},
         {"search_code", "Search for code snippets in the codebase using grep.",
          R"({"type":"object","properties":{"query":{"type":"string"}},"required":["query"]})", true},
-        {"apply_patch", "Apply a unified diff patch via the system patch command, relaying stdout/stderr and status to the assistant.",
-         R"({"type":"object","properties":{"patch":{"type":"string","description":"Unified diff text to apply."},"path":{"type":"string","description":"Working directory for the patch command."},"strip":{"type":"integer","description":"Number of leading path components to strip.","default":0},"dry_run":{"type":"boolean","description":"If true, run patch in --dry-run mode.","default":false}},"required":["patch"]})", true},
         {"query_db", "Query the local SQLite database using SQL.",
          R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true}
     };
