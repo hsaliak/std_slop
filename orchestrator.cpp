@@ -210,9 +210,12 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(
   std::vector<Database::Message> history;
   std::string current_strategy = strategy_->GetName();
   for (auto& m : *hist_or) {
-      if (m.parsing_strategy.empty() || m.parsing_strategy == current_strategy ||
-          (current_strategy == "gemini_gca" && m.parsing_strategy == "gemini") ||
-          (current_strategy == "gemini" && m.parsing_strategy == "gemini_gca")) {
+      bool is_tool_related = (m.role == "tool" || m.status == "tool_call");
+      bool strategy_matches = (m.parsing_strategy.empty() || m.parsing_strategy == current_strategy ||
+                               (current_strategy == "gemini_gca" && m.parsing_strategy == "gemini") ||
+                               (current_strategy == "gemini" && m.parsing_strategy == "gemini_gca"));
+      
+      if (!is_tool_related || strategy_matches) {
           history.push_back(std::move(m));
       }
   }

@@ -283,10 +283,11 @@ TEST_F(OrchestratorTest, HistoryFiltering) {
     
     auto hist_or = gemini->GetRelevantHistory("s1", 0);
     ASSERT_TRUE(hist_or.ok());
-    // Should have user msg (empty strategy) and gemini msg, but NOT openai msg.
-    EXPECT_EQ(hist_or->size(), 2);
+    // Both Gemini and OpenAI text assistant messages are kept now.
+    EXPECT_EQ(hist_or->size(), 3);
     EXPECT_EQ((*hist_or)[0].content, "Hello");
     EXPECT_EQ((*hist_or)[1].content, "Gemini msg");
+    EXPECT_EQ((*hist_or)[2].content, "OpenAI msg");
     
     auto openai = Orchestrator::Builder(&db, &http)
         .WithProvider(Orchestrator::Provider::OPENAI)
@@ -294,10 +295,59 @@ TEST_F(OrchestratorTest, HistoryFiltering) {
         
     hist_or = openai->GetRelevantHistory("s1", 0);
     ASSERT_TRUE(hist_or.ok());
-    // Should have user msg and openai msg.
+    // Both kept.
+    EXPECT_EQ(hist_or->size(), 3);
+    EXPECT_EQ((*hist_or)[0].content, "Hello");
+    EXPECT_EQ((*hist_or)[1].content, "Gemini msg");
+    EXPECT_EQ((*hist_or)[2].content, "OpenAI msg");
+}
+
+TEST_F(OrchestratorTest, ToolResultFiltering) {
+    auto gemini = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::GEMINI)
+        .Build();
+    
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Run tool").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "call", "my_tool", "tool_call", "g1", "gemini").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "tool", "result", "my_tool", "completed", "g1", "gemini").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "call", "other_tool", "tool_call", "g2", "openai").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "tool", "result", "other_tool", "completed", "g2", "openai").ok());
+    
+    auto hist_or = gemini->GetRelevantHistory("s1", 0);
+    ASSERT_TRUE(hist_or.ok());
+    // Should have: "Run tool", gemini assistant call, gemini tool result. (3 messages)
+    EXPECT_EQ(hist_or->size(), 3);
+    for (const auto& m : *hist_or) {
+        EXPECT_NE(m.parsing_strategy, "openai");
+    }
+}
+
+TEST_F(OrchestratorTest, CrossModelMessagePreservation) {
+    // 1. Start with Gemini
+    auto gemini = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::GEMINI)
+        .Build();
+    
+    ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "I am Gemini", "", "completed", "g1", "gemini").ok());
+    
+    // 2. Switch to OpenAI
+    auto openai = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::OPENAI)
+        .Build();
+    
+    auto hist_or = openai->GetRelevantHistory("s1", 0);
+    ASSERT_TRUE(hist_or.ok());
+    
+    // User "Hello" (text) and "I am Gemini" (text assistant) should both be kept.
     EXPECT_EQ(hist_or->size(), 2);
     EXPECT_EQ((*hist_or)[0].content, "Hello");
-    EXPECT_EQ((*hist_or)[1].content, "OpenAI msg");
+    EXPECT_EQ((*hist_or)[1].content, "I am Gemini");
+
+    // 3. Add a Gemini Tool Call (should be filtered for OpenAI)
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{}", "tool_1", "tool_call", "g2", "gemini").ok());
+    hist_or = openai->GetRelevantHistory("s1", 0);
+    ASSERT_EQ(hist_or->size(), 2); // Still 2
 }
 
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {

@@ -250,7 +250,7 @@ int main(int argc, char** argv) {
                     auto result_or = tool_executor.Execute(call.name, call.args);
                     std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
                     slop::PrintToolResultMessage(result);
-                    (void)db.AppendMessage(session_id, "tool", result, last_msg.tool_call_id, "completed", group_id);
+                    (void)db.AppendMessage(session_id, "tool", result, last_msg.tool_call_id, "completed", group_id, last_msg.parsing_strategy);
                 }
                 if (orchestrator->GetThrottle() > 0) {
                     std::this_thread::sleep_for(std::chrono::seconds(orchestrator->GetThrottle()));
