@@ -1,3 +1,5 @@
+#include "oauth_handler.h"
+
 #include <cstdlib>
 #include <fstream>
 
@@ -5,18 +7,18 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "http_client.h"
-#include "oauth_handler.h"
 namespace slop {
 
 using ::testing::_;
-using ::testing::Return;
-using ::testing::Contains;
 using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::HasSubstr;
+using ::testing::Return;
 
 class MockHttpClient : public HttpClient {
  public:
-  MOCK_METHOD(absl::StatusOr<std::string>, Post, (const std::string&, const std::string&, const std::vector<std::string>&), (override));
+  MOCK_METHOD(absl::StatusOr<std::string>, Post,
+              (const std::string&, const std::string&, const std::vector<std::string>&), (override));
   MOCK_METHOD(absl::StatusOr<std::string>, Get, (const std::string&, const std::vector<std::string>&), (override));
 };
 
@@ -58,8 +60,7 @@ TEST_F(OAuthHandlerTest, DiscoverProjectIdObjectFormat) {
 
   // Expect headers verification as well
   EXPECT_CALL(mock_http, Post(HasSubstr("loadCodeAssist"), _,
-      AllOf(Contains(HasSubstr("X-Goog-Api-Client")),
-            Contains(HasSubstr("Client-Metadata")))))
+                              AllOf(Contains(HasSubstr("X-Goog-Api-Client")), Contains(HasSubstr("Client-Metadata")))))
       .WillOnce(Return(object_json));
 
   auto proj_or = handler.GetProjectId();
@@ -69,4 +70,4 @@ TEST_F(OAuthHandlerTest, DiscoverProjectIdObjectFormat) {
   unlink(temp_path);
 }
 
-} // namespace slop
+}  // namespace slop

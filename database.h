@@ -2,9 +2,11 @@
 #define SLOP_SQL_DATABASE_H_
 
 #include <sqlite3.h>
+
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
@@ -23,7 +25,9 @@ class Database {
   absl::Status Execute(const std::string& sql);
 
   struct StmtDeleter {
-    void operator()(sqlite3_stmt* stmt) const { if (stmt) sqlite3_finalize(stmt); }
+    void operator()(sqlite3_stmt* stmt) const {
+      if (stmt) sqlite3_finalize(stmt);
+    }
   };
   using UniqueStmt = std::unique_ptr<sqlite3_stmt, StmtDeleter>;
 
@@ -36,8 +40,8 @@ class Database {
     absl::Status BindText(int index, const std::string& value);
     absl::Status BindNull(int index);
 
-    absl::StatusOr<bool> Step(); // Returns true if a row is available (SQLITE_ROW)
-    absl::Status Run();      // For operations that don't return rows (SQLITE_DONE)
+    absl::StatusOr<bool> Step();  // Returns true if a row is available (SQLITE_ROW)
+    absl::Status Run();           // For operations that don't return rows (SQLITE_DONE)
 
     int ColumnInt(int index);
     int64_t ColumnInt64(int index);
@@ -67,16 +71,13 @@ class Database {
     std::string parsing_strategy;
   };
 
-  absl::Status AppendMessage(const std::string& session_id,
-                             const std::string& role,
-                             const std::string& content,
-                             const std::string& tool_call_id = "",
-                             const std::string& status = "completed",
-                             const std::string& group_id = "",
-                             const std::string& parsing_strategy = "");
+  absl::Status AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
+                             const std::string& tool_call_id = "", const std::string& status = "completed",
+                             const std::string& group_id = "", const std::string& parsing_strategy = "");
   absl::Status UpdateMessageStatus(int id, const std::string& status);
 
-  absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id, bool include_dropped = false, int window_size = 0);
+  absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id,
+                                                              bool include_dropped = false, int window_size = 0);
   absl::StatusOr<std::vector<Message>> GetMessagesByGroups(const std::vector<std::string>& group_ids);
   absl::StatusOr<std::string> GetLastGroupId(const std::string& session_id);
 
@@ -89,7 +90,8 @@ class Database {
     std::string created_at;
   };
 
-  absl::Status RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens, int completion_tokens);
+  absl::Status RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
+                           int completion_tokens);
   struct TotalUsage {
     int prompt_tokens;
     int completion_tokens;
@@ -122,7 +124,7 @@ class Database {
   // Context Settings
   absl::Status SetContextWindow(const std::string& session_id, int size);
   struct ContextSettings {
-      int size;
+    int size;
   };
   absl::StatusOr<ContextSettings> GetContextSettings(const std::string& session_id);
 
@@ -154,7 +156,9 @@ class Database {
   absl::Status RegisterDefaultSkills();
 
   struct DbDeleter {
-    void operator()(sqlite3* db) const { if (db) sqlite3_close(db); }
+    void operator()(sqlite3* db) const {
+      if (db) sqlite3_close(db);
+    }
   };
   std::unique_ptr<sqlite3, DbDeleter> db_;
 };

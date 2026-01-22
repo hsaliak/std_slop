@@ -42,6 +42,43 @@ std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for se
 bazel build //...
 ```
 
+## Development
+
+The project includes hermetic tools for code formatting and linting, managed via Bazel to ensure consistency across environments.
+
+### Code Formatting
+
+We use `clang-format` (LLVM 17.0.6) with the Google style guide.
+
+**Check formatting:**
+```bash
+bazel run //:format.check
+# OR
+bazel test //:format_test
+```
+
+**Apply formatting:**
+```bash
+bazel run //:format
+```
+
+### Linting
+
+We use `clang-tidy` for static analysis. Configuration is in `.clang-tidy`.
+
+**Run linter:**
+```bash
+bazel test //:clang_tidy_test
+```
+
+### Unified Check
+
+A helper script is provided to run all checks:
+
+```bash
+./scripts/lint.sh
+```
+
 ## Usage
 
 For a step-by-step guide, see the [WALKTHROUGH](WALKTHROUGH.md).

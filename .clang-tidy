@@ -1,0 +1,2 @@
+Checks: '-*,bugprone-argument-selection,bugprone-assert-side-effect'
+WarningsAsErrors: '*'

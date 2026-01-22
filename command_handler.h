@@ -1,13 +1,14 @@
 #ifndef SLOP_SQL_COMMAND_HANDLER_H_
 #define SLOP_SQL_COMMAND_HANDLER_H_
 
-#include <string>
-#include <vector>
 #include <functional>
+#include <string>
 #include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
 #include "database.h"
 #include "ui.h"
-#include "absl/container/flat_hash_map.h"
 
 namespace slop {
 
@@ -16,10 +17,10 @@ class OAuthHandler;
 class CommandHandler {
  public:
   enum class Result {
-    HANDLED,       // Command executed, don't send to LLM
-    NOT_A_COMMAND, // Not a command, send to LLM
-    UNKNOWN,       // Starts with /, but unrecognized. Don't send to LLM.
-    PROCEED_TO_LLM, // Special case for /edit where we now have LLM input
+    HANDLED,         // Command executed, don't send to LLM
+    NOT_A_COMMAND,   // Not a command, send to LLM
+    UNKNOWN,         // Starts with /, but unrecognized. Don't send to LLM.
+    PROCEED_TO_LLM,  // Special case for /edit where we now have LLM input
   };
 
   struct CommandArgs {
@@ -33,13 +34,12 @@ class CommandHandler {
 
   using CommandFunc = std::function<Result(CommandArgs&)>;
 
-  explicit CommandHandler(Database* db,
-                          class Orchestrator* orchestrator = nullptr,
-                          OAuthHandler* oauth_handler = nullptr,
-                          std::string google_api_key = "",
+  explicit CommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
+                          OAuthHandler* oauth_handler = nullptr, std::string google_api_key = "",
                           std::string openai_api_key = "");
 
-  Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills, std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
+  Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills,
+                std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
 
  private:
   void RegisterCommands();

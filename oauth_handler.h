@@ -1,8 +1,9 @@
 #ifndef SLOP_SQL_OAUTH_HANDLER_H_
 #define SLOP_SQL_OAUTH_HANDLER_H_
 
-#include <string>
 #include <memory>
+#include <string>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "http_client.h"
@@ -46,6 +47,6 @@ class OAuthHandler {
   std::string manual_project_id_;
 };
 
-} // namespace slop
+}  // namespace slop
 
-#endif // SLOP_SQL_OAUTH_HANDLER_H_
+#endif  // SLOP_SQL_OAUTH_HANDLER_H_

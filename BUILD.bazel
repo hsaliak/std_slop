@@ -1,19 +1,13 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun", "format_test")
+load("//:linters.bzl", "clang_tidy_test")
 
 filegroup(
     name = "all_srcs",
     srcs = glob(["**/*.cpp", "**/*.h"]),
 )
 
-#sh_test(
-#    name = "cpplint_test",
-#    srcs = ["scripts/cpplint_test_wrapper.sh"],
-#    data = [
-#        ":all_srcs",
-#        "CPPLINT.cfg",
-#        "@cpplint//:cpplint",
-#    ],
-#)
+exports_files([".clang-tidy"])
 
 genrule(
     name = "generate_system_prompt",
@@ -162,5 +156,39 @@ cc_test(
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
         "@curl//:curl",
+    ],
+)
+
+sh_binary(
+    name = "clang_format_hermetic",
+    srcs = ["scripts/clang_format_wrapper.sh"],
+    data = ["@llvm_toolchain//:clang-format"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
+sh_binary(
+    name = "clang_tidy_hermetic",
+    srcs = ["scripts/clang_tidy_wrapper.sh"],
+    data = ["@llvm_toolchain//:clang-tidy"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
+format_multirun(
+    name = "format",
+    cc = ":clang_format_hermetic",
+    disable_git_attribute_checks = True,
+)
+
+format_test(
+    name = "format_test",
+    cc = ":clang_format_hermetic",
+    srcs = glob(["**/*.cpp", "**/*.h"]),
+)
+
+clang_tidy_test(
+    name = "clang_tidy_test",
+    srcs = [
+        ":slop_lib",
+        ":std_slop",
     ],
 )

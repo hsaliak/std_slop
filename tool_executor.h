@@ -1,8 +1,9 @@
 #ifndef SLOP_SQL_TOOL_EXECUTOR_H_
 #define SLOP_SQL_TOOL_EXECUTOR_H_
 
-#include <string>
 #include <nlohmann/json.hpp>
+#include <string>
+
 #include "absl/status/statusor.h"
 #include "database.h"
 
@@ -26,6 +27,6 @@ class ToolExecutor {
   absl::StatusOr<std::string> GitGrep(const nlohmann::json& args);
 };
 
-} // namespace slop
+}  // namespace slop
 
-#endif // SLOP_SQL_TOOL_EXECUTOR_H_
+#endif  // SLOP_SQL_TOOL_EXECUTOR_H_

@@ -1,29 +1,30 @@
+#include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <string>
-#include <vector>
-#include <cstdlib>
 #include <thread>
-#include <iomanip>
-#include <chrono>
-#include <algorithm>
-#include "database.h"
-#include "orchestrator.h"
-#include "http_client.h"
-#include "tool_executor.h"
-#include "command_handler.h"
-#include "ui.h"
-#include "oauth_handler.h"
-#include "constants.h"
-#include "color.h"
-#include "absl/strings/strip.h"
-#include "absl/strings/str_split.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
-#include "absl/time/clock.h"
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/strip.h"
+#include "absl/time/clock.h"
+#include "color.h"
+#include "command_handler.h"
+#include "constants.h"
+#include "database.h"
+#include "http_client.h"
+#include "oauth_handler.h"
+#include "orchestrator.h"
+#include "tool_executor.h"
+#include "ui.h"
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
 ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
@@ -32,7 +33,9 @@ ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_
 ABSL_FLAG(std::string, google_api_key, "", "Google API key (overrides GOOGLE_API_KEY env var)");
 ABSL_FLAG(std::string, openai_api_key, "", "OpenAI API key (overrides OPENAI_API_KEY env var)");
 ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL (overrides OPENAI_BASE_URL env var)");
-ABSL_FLAG(bool, strip_reasoning, false, "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to improve response speed and focus)");
+ABSL_FLAG(bool, strip_reasoning, false,
+          "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to "
+          "improve response speed and focus)");
 
 std::string GetHelpText() {
   return "std::slop - The SQL-backed LLM CLI\n\n"
@@ -76,9 +79,7 @@ std::string GetHelpText() {
          "  /exit /quit            Exit the program\n";
 }
 
-void ShowHelp() {
-  std::cout << GetHelpText() << std::endl;
-}
+void ShowHelp() { std::cout << GetHelpText() << std::endl; }
 
 int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(GetHelpText());
@@ -103,14 +104,17 @@ int main(int argc, char** argv) {
 
   std::string google_key = !flag_google_api_key.empty() ? flag_google_api_key : (env_google_key ? env_google_key : "");
   std::string openai_key = !flag_openai_api_key.empty() ? flag_openai_api_key : (env_openai_key ? env_openai_key : "");
-  std::string openai_base_url = !flag_openai_base_url.empty() ? flag_openai_base_url : (env_openai_base_url ? env_openai_base_url : "");
+  std::string openai_base_url =
+      !flag_openai_base_url.empty() ? flag_openai_base_url : (env_openai_base_url ? env_openai_base_url : "");
 
   std::string model = flag_model;
   if (model.empty()) {
-      const char* env_gemini = std::getenv("GEMINI_MODEL");
-      const char* env_openai = std::getenv("OPENAI_MODEL");
-      if (env_gemini) model = env_gemini;
-      else if (env_openai) model = env_openai;
+    const char* env_gemini = std::getenv("GEMINI_MODEL");
+    const char* env_openai = std::getenv("OPENAI_MODEL");
+    if (env_gemini)
+      model = env_gemini;
+    else if (env_openai)
+      model = env_openai;
   }
 
   if (!google_auth && google_key.empty() && openai_key.empty()) {
@@ -129,19 +133,19 @@ int main(int argc, char** argv) {
   slop::Orchestrator::Builder builder(&db, &http_client);
   builder.WithStripReasoning(absl::GetFlag(FLAGS_strip_reasoning));
 
-  if (google_auth) { // google OAuth
+  if (google_auth) {  // google OAuth
     builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-           .WithModel(!model.empty() ? model : "gemini-2.5-flash")
-           .WithBaseUrl(absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal"))
-           .WithGcaMode(true);
-  } else if (!openai_key.empty()) { // openAI API key
+        .WithModel(!model.empty() ? model : "gemini-2.5-flash")
+        .WithBaseUrl(absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal"))
+        .WithGcaMode(true);
+  } else if (!openai_key.empty()) {  // openAI API key
     builder.WithProvider(slop::Orchestrator::Provider::OPENAI)
-           .WithModel(!model.empty() ? model : "gpt-4o")
-           .WithBaseUrl(!openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl);
-  } else { // gemini API key
+        .WithModel(!model.empty() ? model : "gpt-4o")
+        .WithBaseUrl(!openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl);
+  } else {  // gemini API key
     builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-           .WithModel(!model.empty() ? model : "gemini-2.5-flash")
-           .WithBaseUrl(slop::kPublicGeminiBaseUrl);
+        .WithModel(!model.empty() ? model : "gemini-2.5-flash")
+        .WithBaseUrl(slop::kPublicGeminiBaseUrl);
   }
 
   auto orchestrator = builder.Build();
@@ -156,14 +160,14 @@ int main(int argc, char** argv) {
     auto token_or = oauth_handler->GetValidToken();
     if (!token_or.ok()) {
       if (absl::IsUnauthenticated(token_or.status()) || absl::IsNotFound(token_or.status())) {
-          std::cout << "Google OAuth: " << token_or.status().message() << std::endl;
-          std::cout << "Please run ./slop_auth.sh to authenticate." << std::endl;
-          return 1;
+        std::cout << "Google OAuth: " << token_or.status().message() << std::endl;
+        std::cout << "Please run ./slop_auth.sh to authenticate." << std::endl;
+        return 1;
       }
     }
     auto proj_or = oauth_handler->GetProjectId();
     if (proj_or.ok()) {
-        orchestrator->Update().WithProjectId(*proj_or).BuildInto(orchestrator.get());
+      orchestrator->Update().WithProjectId(*proj_or).BuildInto(orchestrator.get());
     }
   }
 
@@ -172,7 +176,8 @@ int main(int argc, char** argv) {
   std::vector<std::string> active_skills;
 
   slop::ShowBanner();
-  std::cout << slop::Colorize("std::slop", "", ansi::Cyan) << " - Session: " << session_id << " (" << orchestrator->GetModel() << ")" << std::endl;
+  std::cout << slop::Colorize("std::slop", "", ansi::Cyan) << " - Session: " << session_id << " ("
+            << orchestrator->GetModel() << ")" << std::endl;
   std::cout << "Type /help for slash commands." << std::endl;
 
   (void)slop::DisplayHistory(db, session_id, 20);
@@ -184,7 +189,8 @@ int main(int argc, char** argv) {
     std::string model_name = orchestrator->GetModel();
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
-    std::string modeline = absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ", ", session_id, ">");
+    std::string modeline =
+        absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ", ", session_id, ">");
 
     std::string input = slop::ReadLine(modeline);
     if (input == "/exit" || input == "/quit") break;
@@ -192,7 +198,7 @@ int main(int argc, char** argv) {
 
     auto res = cmd_handler.Handle(input, session_id, active_skills, ShowHelp, orchestrator->GetLastSelectedGroups());
     if (res == slop::CommandHandler::Result::HANDLED || res == slop::CommandHandler::Result::UNKNOWN) {
-        continue;
+      continue;
     }
 
     // Execute interaction
@@ -200,69 +206,71 @@ int main(int argc, char** argv) {
     (void)db.AppendMessage(session_id, "user", input, "", "completed", group_id);
 
     while (true) {
-        auto prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);
-        if (!prompt_or.ok()) {
-            std::cerr << "Prompt Error: " << prompt_or.status().message() << std::endl;
-            break;
-        }
+      auto prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);
+      if (!prompt_or.ok()) {
+        std::cerr << "Prompt Error: " << prompt_or.status().message() << std::endl;
+        break;
+      }
 
-        int context_tokens = orchestrator->CountTokens(*prompt_or);
-        std::cout << "[context: " << context_tokens << " tokens] Thinking...\n " << std::flush;
+      int context_tokens = orchestrator->CountTokens(*prompt_or);
+      std::cout << "[context: " << context_tokens << " tokens] Thinking...\n " << std::flush;
 
-        std::vector<std::string> headers = {"Content-Type: application/json"};
-        std::string url;
+      std::vector<std::string> headers = {"Content-Type: application/json"};
+      std::string url;
 
-        if (orchestrator->GetProvider() == slop::Orchestrator::Provider::OPENAI) {
-            headers.push_back("Authorization: Bearer " + openai_key);
-            url = (!openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl) + "/chat/completions";
-        } else if (google_auth) {
-            auto token_or = oauth_handler->GetValidToken();
-            if (token_or.ok()) headers.push_back("Authorization: Bearer " + *token_or);
-            url = absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal:generateContent");
-        } else {
-            headers.push_back("x-goog-api-key: " + google_key);
-            url = absl::StrCat(slop::kPublicGeminiBaseUrl, "/models/", orchestrator->GetModel(), ":generateContent?key=", google_key);
-        }
+      if (orchestrator->GetProvider() == slop::Orchestrator::Provider::OPENAI) {
+        headers.push_back("Authorization: Bearer " + openai_key);
+        url = (!openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl) + "/chat/completions";
+      } else if (google_auth) {
+        auto token_or = oauth_handler->GetValidToken();
+        if (token_or.ok()) headers.push_back("Authorization: Bearer " + *token_or);
+        url = absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal:generateContent");
+      } else {
+        headers.push_back("x-goog-api-key: " + google_key);
+        url = absl::StrCat(slop::kPublicGeminiBaseUrl, "/models/", orchestrator->GetModel(),
+                           ":generateContent?key=", google_key);
+      }
 
-        auto resp_or = http_client.Post(url, prompt_or->dump(), headers);
-        if (!resp_or.ok()) {
-            std::cerr << "HTTP Error: " << resp_or.status().message() << std::endl;
-            if (google_auth && (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
-                std::cout << "Refreshing OAuth token..." << std::endl;
-                (void)oauth_handler->GetValidToken();
-            }
-            break;
-        }
-
-        auto status = orchestrator->ProcessResponse(session_id, *resp_or, group_id);
-        if (!status.ok()) {
-            std::cerr << "Process Error: " << status.message() << std::endl;
-            break;
-        }
-
-        auto history_or = db.GetMessagesByGroups({group_id});
-        if (!history_or.ok() || history_or->empty()) break;
-
-        const auto& last_msg = history_or->back();
-        if (last_msg.role == "assistant" && last_msg.status == "tool_call") {
-            auto calls_or = orchestrator->ParseToolCalls(last_msg);
-            if (calls_or.ok()) {
-                for (const auto& call : *calls_or) {
-                    slop::PrintToolCallMessage(call.name, call.args.dump());
-                    auto result_or = tool_executor.Execute(call.name, call.args);
-                    std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-                    slop::PrintToolResultMessage(result);
-                    (void)db.AppendMessage(session_id, "tool", result, last_msg.tool_call_id, "completed", group_id, last_msg.parsing_strategy);
-                }
-                if (orchestrator->GetThrottle() > 0) {
-                    std::this_thread::sleep_for(std::chrono::seconds(orchestrator->GetThrottle()));
-                }
-                continue; // Loop for next LLM turn
-            }
-        } else if (last_msg.role == "assistant") {
-            slop::PrintAssistantMessage(last_msg.content);
+      auto resp_or = http_client.Post(url, prompt_or->dump(), headers);
+      if (!resp_or.ok()) {
+        std::cerr << "HTTP Error: " << resp_or.status().message() << std::endl;
+        if (google_auth && (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
+          std::cout << "Refreshing OAuth token..." << std::endl;
+          (void)oauth_handler->GetValidToken();
         }
         break;
+      }
+
+      auto status = orchestrator->ProcessResponse(session_id, *resp_or, group_id);
+      if (!status.ok()) {
+        std::cerr << "Process Error: " << status.message() << std::endl;
+        break;
+      }
+
+      auto history_or = db.GetMessagesByGroups({group_id});
+      if (!history_or.ok() || history_or->empty()) break;
+
+      const auto& last_msg = history_or->back();
+      if (last_msg.role == "assistant" && last_msg.status == "tool_call") {
+        auto calls_or = orchestrator->ParseToolCalls(last_msg);
+        if (calls_or.ok()) {
+          for (const auto& call : *calls_or) {
+            slop::PrintToolCallMessage(call.name, call.args.dump());
+            auto result_or = tool_executor.Execute(call.name, call.args);
+            std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
+            slop::PrintToolResultMessage(result);
+            (void)db.AppendMessage(session_id, "tool", result, last_msg.tool_call_id, "completed", group_id,
+                                   last_msg.parsing_strategy);
+          }
+          if (orchestrator->GetThrottle() > 0) {
+            std::this_thread::sleep_for(std::chrono::seconds(orchestrator->GetThrottle()));
+          }
+          continue;  // Loop for next LLM turn
+        }
+      } else if (last_msg.role == "assistant") {
+        slop::PrintAssistantMessage(last_msg.content);
+      }
+      break;
     }
   }
 

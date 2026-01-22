@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "absl/status/status.h"
-
 #include "color.h"
 #include "database.h"
 namespace slop {
@@ -40,7 +39,8 @@ size_t GetTerminalWidth();
  * @param width Target width (0 to use GetTerminalWidth()).
  * @param color_fg ANSI foreground color code.
  */
-std::string FormatLine(const std::string& text, const char* color_bg, size_t width = 0, const char* color_fg = ansi::White);
+std::string FormatLine(const std::string& text, const char* color_bg, size_t width = 0,
+                       const char* color_fg = ansi::White);
 
 /**
  * @brief High-level methods for centralized UI message formatting.
@@ -49,6 +49,6 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
 void PrintToolCallMessage(const std::string& name, const std::string& args);
 void PrintToolResultMessage(const std::string& result);
 
-} // namespace slop
+}  // namespace slop
 
-#endif // SLOP_SQL_UI_H_
+#endif  // SLOP_SQL_UI_H_

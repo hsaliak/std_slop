@@ -1,23 +1,21 @@
 #ifndef SLOP_SQL_ORCHESTRATOR_H_
 #define SLOP_SQL_ORCHESTRATOR_H_
 
+#include <memory>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-#include <memory>
+
+#include "absl/status/statusor.h"
 #include "database.h"
 #include "http_client.h"
-#include <nlohmann/json.hpp>
-#include "absl/status/statusor.h"
 #include "orchestrator_strategy.h"
 
 namespace slop {
 
 class Orchestrator {
  public:
-  enum class Provider {
-    GEMINI,
-    OPENAI
-  };
+  enum class Provider { GEMINI, OPENAI };
 
   struct Config {
     Provider provider = Provider::GEMINI;
@@ -61,8 +59,10 @@ class Orchestrator {
 
   Builder Update() const { return Builder(*this); }
 
-  absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills = {});
-  absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json, const std::string& group_id = "");
+  absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id,
+                                                const std::vector<std::string>& active_skills = {});
+  absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json,
+                               const std::string& group_id = "");
 
   // Rebuilds the session state (---STATE--- anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);

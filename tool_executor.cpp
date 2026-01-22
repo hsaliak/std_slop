@@ -1,8 +1,7 @@
 #include "tool_executor.h"
 
-#include <cstdio>
-
 #include <array>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -15,7 +14,7 @@ namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
   auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
-      return "---TOOL_RESULT: " + tool_name + "---\n" + content + "\n---END_RESULT---";
+    return "---TOOL_RESULT: " + tool_name + "---\n" + content + "\n---END_RESULT---";
   };
 
   absl::StatusOr<std::string> result;
@@ -39,14 +38,14 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     // Delegate to GitGrep if in a git repo
     auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
     if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
-        auto git_res = GitGrep(args);
-        if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
-            result = git_res;
-        } else {
-            result = Grep(args["pattern"], path, context);
-        }
-    } else {
+      auto git_res = GitGrep(args);
+      if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
+        result = git_res;
+      } else {
         result = Grep(args["pattern"], path, context);
+      }
+    } else {
+      result = Grep(args["pattern"], path, context);
     }
   } else if (name == "git_grep_tool") {
     result = GitGrep(args);
@@ -66,7 +65,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   }
 
   if (!result.ok()) {
-      return wrap_result(name, "Error: " + result.status().ToString());
+    return wrap_result(name, "Error: " + result.status().ToString());
   }
   return wrap_result(name, *result);
 }
@@ -163,7 +162,7 @@ absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command
 absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context) {
   std::string cmd = "grep -n";
   if (std::filesystem::is_directory(path)) {
-      cmd += "r";
+    cmd += "r";
   }
   if (context > 0) {
     cmd += " -C " + std::to_string(context);
@@ -172,9 +171,7 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
   return ExecuteBash(cmd);
 }
 
-absl::StatusOr<std::string> ToolExecutor::SearchCode(const std::string& query) {
-  return Grep(query, ".", 0);
-}
+absl::StatusOr<std::string> ToolExecutor::SearchCode(const std::string& query) { return Grep(query, ".", 0); }
 
 absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   // Check if git is available
@@ -220,4 +217,4 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
 
   return ExecuteBash(cmd);
 }
-} // namespace slop
+}  // namespace slop

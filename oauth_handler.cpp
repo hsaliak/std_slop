@@ -27,7 +27,7 @@ std::string GetHomeDir() {
   const char* home = std::getenv("HOME");
   return home ? home : "";
 }
-} // namespace
+}  // namespace
 absl::Status MaybeCreateDirectory(const std::string& dir_path) {
   std::error_code ec;
   if (!std::filesystem::create_directories(dir_path, ec) && ec) {
@@ -37,8 +37,7 @@ absl::Status MaybeCreateDirectory(const std::string& dir_path) {
   return absl::OkStatus();
 }
 
-OAuthHandler::OAuthHandler(HttpClient* http_client)
-    : http_client_(http_client) {
+OAuthHandler::OAuthHandler(HttpClient* http_client) : http_client_(http_client) {
   std::string home = GetHomeDir();
   if (!home.empty()) {
     token_path_ = home + "/.config/slop/token.json";
@@ -49,7 +48,7 @@ absl::Status OAuthHandler::LoadTokens() {
   if (token_path_.empty()) return absl::NotFoundError("No home directory found");
   std::ifstream f(token_path_);
   if (!f.is_open()) {
-      return absl::NotFoundError("Token file not found. Please run ./slop_auth.sh");
+    return absl::NotFoundError("Token file not found. Please run ./slop_auth.sh");
   }
 
   std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
@@ -102,18 +101,16 @@ absl::StatusOr<std::string> OAuthHandler::GetValidToken() {
 
 absl::Status OAuthHandler::RefreshToken() {
   if (tokens_.refresh_token.empty()) {
-      return absl::UnauthenticatedError("No refresh token available. Please run ./slop_auth.sh");
+    return absl::UnauthenticatedError("No refresh token available. Please run ./slop_auth.sh");
   }
 
   std::string token_url = kGoogleOAuthTokenUrl;
-  std::string body = "refresh_token=" + tokens_.refresh_token +
-                     "&client_id=" + std::string(kGeminiClientId) +
-                     "&client_secret=" + std::string(kGeminiClientSecret) +
-                     "&grant_type=refresh_token";
+  std::string body = "refresh_token=" + tokens_.refresh_token + "&client_id=" + std::string(kGeminiClientId) +
+                     "&client_secret=" + std::string(kGeminiClientSecret) + "&grant_type=refresh_token";
 
   auto res = http_client_->Post(token_url, body, {"Content-Type: application/x-www-form-urlencoded"});
   if (!res.ok()) {
-      return absl::UnauthenticatedError("Token refresh failed. Please run ./slop_auth.sh");
+    return absl::UnauthenticatedError("Token refresh failed. Please run ./slop_auth.sh");
   }
 
   auto j = nlohmann::json::parse(*res, nullptr, false);
@@ -159,27 +156,19 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
   std::string gca_url = absl::StrCat(kCloudCodeBaseUrl, "/v1internal:loadCodeAssist");
 
   // GCA identification headers
-  std::vector<std::string> headers = {
-      "Authorization: Bearer " + access_token,
-      "Content-Type: application/json",
-      absl::StrCat("User-Agent: ", kGcaUserAgent),
-      absl::StrCat("X-Goog-Api-Client: ", kGcaApiClient),
-      absl::StrCat("Client-Metadata: ", kGcaClientMetadata)
-  };
+  std::vector<std::string> headers = {"Authorization: Bearer " + access_token, "Content-Type: application/json",
+                                      absl::StrCat("User-Agent: ", kGcaUserAgent),
+                                      absl::StrCat("X-Goog-Api-Client: ", kGcaApiClient),
+                                      absl::StrCat("Client-Metadata: ", kGcaClientMetadata)};
 
   nlohmann::json gca_req = {
-      {"metadata", {
-          {"ideType", "IDE_UNSPECIFIED"},
-          {"platform", "PLATFORM_UNSPECIFIED"},
-          {"pluginType", "GEMINI"}
-      }}
-  };
+      {"metadata", {{"ideType", "IDE_UNSPECIFIED"}, {"platform", "PLATFORM_UNSPECIFIED"}, {"pluginType", "GEMINI"}}}};
 
   const char* env_p = std::getenv("GOOGLE_CLOUD_PROJECT");
   if (!env_p) env_p = std::getenv("GOOGLE_CLOUD_PROJECT_ID");
   if (env_p) {
-      gca_req["cloudaicompanionProject"] = env_p;
-      gca_req["metadata"]["duetProject"] = env_p;
+    gca_req["cloudaicompanionProject"] = env_p;
+    gca_req["metadata"]["duetProject"] = env_p;
   }
 
   auto gca_res = http_client_->Post(gca_url, gca_req.dump(), headers);
@@ -188,12 +177,12 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
     if (!j.is_discarded() && j.contains("cloudaicompanionProject") && !j["cloudaicompanionProject"].is_null()) {
       auto& proj = j["cloudaicompanionProject"];
       if (proj.is_string()) {
-          std::string pid = proj.get<std::string>();
-          if (!pid.empty()) return pid;
+        std::string pid = proj.get<std::string>();
+        if (!pid.empty()) return pid;
       }
       if (proj.is_object() && proj.contains("id")) {
-          std::string pid = proj["id"].get<std::string>();
-          if (!pid.empty()) return pid;
+        std::string pid = proj["id"].get<std::string>();
+        if (!pid.empty()) return pid;
       }
     }
   }
@@ -227,10 +216,11 @@ absl::Status OAuthHandler::ProvisionProject() {
   if (!token_res.ok()) return token_res.status();
   std::string token = *token_res;
 
-  std::string enable_url = absl::StrCat(kServiceUsageBaseUrl, "/projects/", project_id, "/services/generativelanguage.googleapis.com:enable");
+  std::string enable_url = absl::StrCat(kServiceUsageBaseUrl, "/projects/", project_id,
+                                        "/services/generativelanguage.googleapis.com:enable");
   (void)http_client_->Post(enable_url, "", {"Authorization: Bearer " + token});
 
   return absl::OkStatus();
 }
 
-} // namespace slop
+}  // namespace slop

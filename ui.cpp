@@ -19,342 +19,346 @@ namespace slop {
 
 namespace {
 size_t VisibleLength(const std::string& s) {
-    size_t len = 0;
-    for (size_t i = 0; i < s.length(); ++i) {
-        if (s[i] == '\033' && i + 1 < s.length() && s[i+1] == '[') {
-            i += 2;
-            while (i < s.length() && (s[i] < 0x40 || s[i] > 0x7E)) {
-                i++;
-            }
-        } else {
-            if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
-                len++;
-            }
-        }
+  size_t len = 0;
+  for (size_t i = 0; i < s.length(); ++i) {
+    if (s[i] == '\033' && i + 1 < s.length() && s[i + 1] == '[') {
+      i += 2;
+      while (i < s.length() && (s[i] < 0x40 || s[i] > 0x7E)) {
+        i++;
+      }
+    } else {
+      if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
+        len++;
+      }
     }
-    return len;
+  }
+  return len;
 }
 
 void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "") {
-    if (width == 0) width = GetTerminalWidth() - 1;
-    std::string bold_fg = std::string(ansi::Bold) + color_fg;
+  if (width == 0) width = GetTerminalWidth() - 1;
+  std::string bold_fg = std::string(ansi::Bold) + color_fg;
 
-    if (header.empty()) {
-        std::string line;
-        for (size_t i = 0; i < width; ++i) line += "─";
-        std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
-    } else {
-        std::string line = "── [ " + header + " ] ";
-        size_t visible = VisibleLength(line);
-        if (visible < width) {
-            for (size_t i = visible; i < width; ++i) line += "─";
-        }
-        std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+  if (header.empty()) {
+    std::string line;
+    for (size_t i = 0; i < width; ++i) line += "─";
+    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+  } else {
+    std::string line = "── [ " + header + " ] ";
+    size_t visible = VisibleLength(line);
+    if (visible < width) {
+      for (size_t i = visible; i < width; ++i) line += "─";
     }
+    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+  }
 }
 
 void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg) {
-    size_t width = GetTerminalWidth() - 1;
-    size_t content_width = (width > 4) ? width - 4 : width;
-    std::string bold_fg = std::string(ansi::Bold) + color_fg;
+  size_t width = GetTerminalWidth() - 1;
+  size_t content_width = (width > 4) ? width - 4 : width;
+  std::string bold_fg = std::string(ansi::Bold) + color_fg;
 
-    std::string top_line = "┌─ [ " + header + " ] ";
-    size_t top_visible = VisibleLength(top_line);
-    if (top_visible < width - 1) {
-        for (size_t i = top_visible; i < width - 1; ++i) {
-            top_line += "─";
-        }
-        top_line += "┐";
-    } else {
-        top_line = top_line.substr(0, width - 2) + "┐";
+  std::string top_line = "┌─ [ " + header + " ] ";
+  size_t top_visible = VisibleLength(top_line);
+  if (top_visible < width - 1) {
+    for (size_t i = top_visible; i < width - 1; ++i) {
+      top_line += "─";
     }
-    std::cout << Colorize(top_line, "", bold_fg.c_str()) << std::endl;
+    top_line += "┐";
+  } else {
+    top_line = top_line.substr(0, width - 2) + "┐";
+  }
+  std::cout << Colorize(top_line, "", bold_fg.c_str()) << std::endl;
 
-    std::string wrapped = WrapText(body, content_width);
-    if (!wrapped.empty()) {
-        std::stringstream ss(wrapped);
-        std::string line;
-        while (std::getline(ss, line)) {
-            size_t visible = VisibleLength(line);
-            std::string padding = (visible < content_width) ? std::string(content_width - visible, ' ') : "";
-            std::cout << Colorize("│ ", "", bold_fg.c_str()) << line << padding << Colorize(" │", "", bold_fg.c_str()) << std::endl;
-        }
+  std::string wrapped = WrapText(body, content_width);
+  if (!wrapped.empty()) {
+    std::stringstream ss(wrapped);
+    std::string line;
+    while (std::getline(ss, line)) {
+      size_t visible = VisibleLength(line);
+      std::string padding = (visible < content_width) ? std::string(content_width - visible, ' ') : "";
+      std::cout << Colorize("│ ", "", bold_fg.c_str()) << line << padding << Colorize(" │", "", bold_fg.c_str())
+                << std::endl;
     }
+  }
 
-    std::string bottom = "└";
-    for (size_t i = 0; i < width - 2; ++i) bottom += "─";
-    bottom += "┘";
-    std::cout << Colorize(bottom, "", bold_fg.c_str()) << std::endl;
+  std::string bottom = "└";
+  for (size_t i = 0; i < width - 2; ++i) bottom += "─";
+  bottom += "┘";
+  std::cout << Colorize(bottom, "", bold_fg.c_str()) << std::endl;
 }
-} // namespace
+}  // namespace
 
 size_t GetTerminalWidth() {
-    struct winsize w;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
-        return w.ws_col > 0 ? w.ws_col : 80;
-    }
-    return 80;
+  struct winsize w;
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
+    return w.ws_col > 0 ? w.ws_col : 80;
+  }
+  return 80;
 }
 
 std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
-    if (width == 0) width = GetTerminalWidth() - 1;
+  if (width == 0) width = GetTerminalWidth() - 1;
 
-    std::string line = text;
-    std::replace(line.begin(), line.end(), '\n', ' ');
+  std::string line = text;
+  std::replace(line.begin(), line.end(), '\n', ' ');
 
-    size_t visible_len = VisibleLength(line);
-    if (visible_len > width) {
-        size_t current_visible = 0;
-        size_t i = 0;
-        for (; i < line.length() && current_visible < width - 3; ++i) {
-             if (line[i] == '\033' && i + 1 < line.length() && line[i+1] == '[') {
-                i += 2;
-                while (i < line.length() && (line[i] < 0x40 || line[i] > 0x7E)) i++;
-            } else {
-                if ((static_cast<unsigned char>(line[i]) & 0xC0) != 0x80) {
-                    current_visible++;
-                }
-            }
+  size_t visible_len = VisibleLength(line);
+  if (visible_len > width) {
+    size_t current_visible = 0;
+    size_t i = 0;
+    for (; i < line.length() && current_visible < width - 3; ++i) {
+      if (line[i] == '\033' && i + 1 < line.length() && line[i + 1] == '[') {
+        i += 2;
+        while (i < line.length() && (line[i] < 0x40 || line[i] > 0x7E)) i++;
+      } else {
+        if ((static_cast<unsigned char>(line[i]) & 0xC0) != 0x80) {
+          current_visible++;
         }
-        line = line.substr(0, i) + "...";
-        visible_len = VisibleLength(line);
+      }
     }
+    line = line.substr(0, i) + "...";
+    visible_len = VisibleLength(line);
+  }
 
-    if (visible_len < width) {
-        line += std::string(width - visible_len, ' ');
-    }
+  if (visible_len < width) {
+    line += std::string(width - visible_len, ' ');
+  }
 
-    return Colorize(line, color_bg, color_fg);
+  return Colorize(line, color_bg, color_fg);
 }
 
-void SetupTerminal() {
-}
+void SetupTerminal() {}
 
 void ShowBanner() {
-    std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Cyan) << std::endl;
-    std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", "", ansi::Cyan) << std::endl;
-    std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", "", ansi::Cyan) << std::endl;
-    std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", "", ansi::Cyan) << std::endl;
-    std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", "", ansi::Cyan) << std::endl;
-    std::cout << std::endl;
-    #ifdef SLOP_VERSION
-    std::cout << " std::slop version " << SLOP_VERSION << std::endl;
-    #endif
-    std::cout << " Welcome to std::slop - The SQL-backed LLM CLI" << std::endl;
-    std::cout << " Type /help for a list of commands." << std::endl;
-    std::cout << std::endl;
+  std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Cyan) << std::endl;
+  std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", "", ansi::Cyan) << std::endl;
+  std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", "", ansi::Cyan) << std::endl;
+  std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", "", ansi::Cyan) << std::endl;
+  std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", "", ansi::Cyan) << std::endl;
+  std::cout << std::endl;
+#ifdef SLOP_VERSION
+  std::cout << " std::slop version " << SLOP_VERSION << std::endl;
+#endif
+  std::cout << " Welcome to std::slop - The SQL-backed LLM CLI" << std::endl;
+  std::cout << " Type /help for a list of commands." << std::endl;
+  std::cout << std::endl;
 }
 
 std::string ReadLine(const std::string& modeline) {
-    PrintHorizontalLine(0, ansi::Grey, modeline);
-    char* buf = readline("> ");
-    if (!buf) return "/exit";
-    std::string line(buf);
-    free(buf);
-    if (!line.empty()) {
-        add_history(line.c_str());
-    }
-    return line;
+  PrintHorizontalLine(0, ansi::Grey, modeline);
+  char* buf = readline("> ");
+  if (!buf) return "/exit";
+  std::string line(buf);
+  free(buf);
+  if (!line.empty()) {
+    add_history(line.c_str());
+  }
+  return line;
 }
 
 std::string WrapText(const std::string& text, size_t width) {
-    std::string result;
-    std::string current_line;
-    size_t current_line_visible_len = 0;
+  std::string result;
+  std::string current_line;
+  size_t current_line_visible_len = 0;
 
-    auto finalize_line = [&]() {
-        if (!result.empty()) result += "\n";
-        result += current_line;
-        current_line.clear();
-        current_line_visible_len = 0;
-    };
+  auto finalize_line = [&]() {
+    if (!result.empty()) result += "\n";
+    result += current_line;
+    current_line.clear();
+    current_line_visible_len = 0;
+  };
 
-    std::stringstream ss(text);
-    std::string paragraph;
-    while (std::getline(ss, paragraph)) {
-        std::stringstream word_ss(paragraph);
-        std::string word;
-        bool first_word = true;
-        while (word_ss >> word) {
-            size_t word_len = VisibleLength(word);
-            if (!first_word && current_line_visible_len + 1 + word_len > width) {
-                finalize_line();
-                first_word = true;
-            }
-            if (!first_word) {
-                current_line += " ";
-                current_line_visible_len += 1;
-            }
-            current_line += word;
-            current_line_visible_len += word_len;
-            first_word = false;
-        }
+  std::stringstream ss(text);
+  std::string paragraph;
+  while (std::getline(ss, paragraph)) {
+    std::stringstream word_ss(paragraph);
+    std::string word;
+    bool first_word = true;
+    while (word_ss >> word) {
+      size_t word_len = VisibleLength(word);
+      if (!first_word && current_line_visible_len + 1 + word_len > width) {
         finalize_line();
+        first_word = true;
+      }
+      if (!first_word) {
+        current_line += " ";
+        current_line_visible_len += 1;
+      }
+      current_line += word;
+      current_line_visible_len += word_len;
+      first_word = false;
     }
+    finalize_line();
+  }
 
-    return result;
+  return result;
 }
 
 std::string OpenInEditor(const std::string& initial_content) {
-    const char* editor = std::getenv("EDITOR");
-    if (!editor) editor = "vi";
+  const char* editor = std::getenv("EDITOR");
+  if (!editor) editor = "vi";
 
-    std::string tmp_path  = (std::filesystem::temp_directory_path()/ "slop_edit.txt").string();
-    {
-        std::ofstream out(tmp_path);
-        if (!initial_content.empty()) out << initial_content;
-    }
+  std::string tmp_path = (std::filesystem::temp_directory_path() / "slop_edit.txt").string();
+  {
+    std::ofstream out(tmp_path);
+    if (!initial_content.empty()) out << initial_content;
+  }
 
-    std::string cmd = std::string(editor) + " " + tmp_path;
-    int res = std::system(cmd.c_str());
-    if (res != 0) return "";
+  std::string cmd = std::string(editor) + " " + tmp_path;
+  int res = std::system(cmd.c_str());
+  if (res != 0) return "";
 
-    std::ifstream in(tmp_path);
-    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    std::filesystem::remove(tmp_path);
-    return content;
+  std::ifstream in(tmp_path);
+  std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::filesystem::remove(tmp_path);
+  return content;
 }
 
 void SmartDisplay(const std::string& content) {
-    const char* editor = std::getenv("EDITOR");
-    if (!editor || std::string(editor).empty()) {
-        std::cout << content << std::endl;
-        return;
-    }
-    OpenInEditor(content);
+  const char* editor = std::getenv("EDITOR");
+  if (!editor || std::string(editor).empty()) {
+    std::cout << content << std::endl;
+    return;
+  }
+  OpenInEditor(content);
 }
 
 std::string FormatAssembledContext(const std::string& json_str) {
-    auto j_top = nlohmann::json::parse(json_str, nullptr, false);
-    if (j_top.is_discarded()) {
-        return "Error parsing context JSON: " + json_str;
+  auto j_top = nlohmann::json::parse(json_str, nullptr, false);
+  if (j_top.is_discarded()) {
+    return "Error parsing context JSON: " + json_str;
+  }
+
+  const nlohmann::json* j_ptr = &j_top;
+  if (j_top.contains("request")) {
+    j_ptr = &j_top["request"];
+  }
+  const nlohmann::json& j = *j_ptr;
+
+  std::stringstream ss;
+  ss << "=== Assembled Context ===\n\n";
+
+  if (j.contains("system_instruction")) {
+    ss << "[SYSTEM INSTRUCTION]\n";
+    if (j["system_instruction"].contains("parts")) {
+      for (const auto& part : j["system_instruction"]["parts"]) {
+        if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
+      }
     }
+    ss << "\n";
+  }
 
-    const nlohmann::json* j_ptr = &j_top;
-    if (j_top.contains("request")) {
-        j_ptr = &j_top["request"];
-    }
-    const nlohmann::json& j = *j_ptr;
-
-    std::stringstream ss;
-    ss << "=== Assembled Context ===\n\n";
-
-    if (j.contains("system_instruction")) {
-        ss << "[SYSTEM INSTRUCTION]\n";
-        if (j["system_instruction"].contains("parts")) {
-            for (const auto& part : j["system_instruction"]["parts"]) {
-                if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
-            }
+  if (j.contains("contents") && j["contents"].is_array()) {
+    for (const auto& entry : j["contents"]) {
+      std::string role = entry.value("role", "unknown");
+      ss << "[" << role << "]\n";
+      if (entry.contains("parts")) {
+        for (const auto& part : entry["parts"]) {
+          if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
+          if (part.contains("functionCall")) ss << "Function Call: " << part["functionCall"].dump() << "\n";
+          if (part.contains("functionResponse")) ss << "Function Response: " << part["functionResponse"].dump() << "\n";
         }
-        ss << "\n";
+      }
+      ss << "\n";
     }
-
-    if (j.contains("contents") && j["contents"].is_array()) {
-        for (const auto& entry : j["contents"]) {
-            std::string role = entry.value("role", "unknown");
-            ss << "[" << role << "]\n";
-            if (entry.contains("parts")) {
-                for (const auto& part : entry["parts"]) {
-                    if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
-                    if (part.contains("functionCall")) ss << "Function Call: " << part["functionCall"].dump() << "\n";
-                    if (part.contains("functionResponse")) ss << "Function Response: " << part["functionResponse"].dump() << "\n";
-                }
-            }
-            ss << "\n";
-        }
-    } else if (j.contains("messages") && j["messages"].is_array()) {
-        for (const auto& msg : j["messages"]) {
-            std::string role = msg.value("role", "unknown");
-            ss << "[" << role << "]\n";
-            if (msg.contains("content") && !msg["content"].is_null()) {
-                ss << msg["content"].get<std::string>() << "\n";
-            }
-            if (msg.contains("tool_calls")) {
-                ss << "Tool Calls: " << msg["tool_calls"].dump() << "\n";
-            }
-            if (msg.contains("tool_call_id")) {
-                ss << "Tool Call ID: " << msg["tool_call_id"].get<std::string>() << "\n";
-            }
-            ss << "\n";
-        }
+  } else if (j.contains("messages") && j["messages"].is_array()) {
+    for (const auto& msg : j["messages"]) {
+      std::string role = msg.value("role", "unknown");
+      ss << "[" << role << "]\n";
+      if (msg.contains("content") && !msg["content"].is_null()) {
+        ss << msg["content"].get<std::string>() << "\n";
+      }
+      if (msg.contains("tool_calls")) {
+        ss << "Tool Calls: " << msg["tool_calls"].dump() << "\n";
+      }
+      if (msg.contains("tool_call_id")) {
+        ss << "Tool Call ID: " << msg["tool_call_id"].get<std::string>() << "\n";
+      }
+      ss << "\n";
     }
-    return ss.str();
+  }
+  return ss.str();
 }
 
-void DisplayAssembledContext(const std::string& json_str) {
-    SmartDisplay(FormatAssembledContext(json_str));
-}
+void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatAssembledContext(json_str)); }
 
 absl::Status PrintJsonAsTable(const std::string& json_str) {
-    auto j = nlohmann::json::parse(json_str, nullptr, false);
-    if (j.is_discarded()) {
-        return absl::InvalidArgumentError("Invalid JSON: " + json_str);
+  auto j = nlohmann::json::parse(json_str, nullptr, false);
+  if (j.is_discarded()) {
+    return absl::InvalidArgumentError("Invalid JSON: " + json_str);
+  }
+  if (!j.is_array() || j.empty()) {
+    std::cout << "No results found." << std::endl;
+    return absl::OkStatus();
+  }
+
+  std::vector<std::string> keys;
+  for (auto& [key, value] : j[0].items()) keys.push_back(key);
+
+  std::vector<size_t> widths(keys.size());
+  for (size_t i = 0; i < keys.size(); ++i) widths[i] = keys[i].length();
+
+  for (const auto& row : j) {
+    for (size_t i = 0; i < keys.size(); ++i) {
+      std::string val;
+      if (row.contains(keys[i])) {
+        if (row[keys[i]].is_null())
+          val = "NULL";
+        else if (row[keys[i]].is_string())
+          val = row[keys[i]].get<std::string>();
+        else
+          val = row[keys[i]].dump();
+      }
+      widths[i] = std::max(widths[i], val.length());
     }
-    if (!j.is_array() || j.empty()) {
-        std::cout << "No results found." << std::endl;
-        return absl::OkStatus();
-    }
+  }
 
-    std::vector<std::string> keys;
-    for (auto& [key, value] : j[0].items()) keys.push_back(key);
+  auto print_sep = [&]() {
+    std::cout << "+";
+    for (size_t w : widths) std::cout << std::string(w + 2, '-') << "+";
+    std::cout << std::endl;
+  };
 
-    std::vector<size_t> widths(keys.size());
-    for (size_t i = 0; i < keys.size(); ++i) widths[i] = keys[i].length();
+  print_sep();
+  std::cout << "|";
+  for (size_t i = 0; i < keys.size(); ++i) {
+    std::cout << " " << std::left << std::setw(widths[i]) << keys[i] << " |";
+  }
+  std::cout << std::endl;
+  print_sep();
 
-    for (const auto& row : j) {
-        for (size_t i = 0; i < keys.size(); ++i) {
-            std::string val;
-            if (row.contains(keys[i])) {
-                if (row[keys[i]].is_null()) val = "NULL";
-                else if (row[keys[i]].is_string()) val = row[keys[i]].get<std::string>();
-                else val = row[keys[i]].dump();
-            }
-            widths[i] = std::max(widths[i], val.length());
-        }
-    }
-
-    auto print_sep = [&]() {
-        std::cout << "+";
-        for (size_t w : widths) std::cout << std::string(w + 2, '-') << "+";
-        std::cout << std::endl;
-    };
-
-    print_sep();
+  for (const auto& row : j) {
     std::cout << "|";
     for (size_t i = 0; i < keys.size(); ++i) {
-        std::cout << " " << std::left << std::setw(widths[i]) << keys[i] << " |";
+      std::string val;
+      if (row.contains(keys[i])) {
+        if (row[keys[i]].is_null())
+          val = "NULL";
+        else if (row[keys[i]].is_string())
+          val = row[keys[i]].get<std::string>();
+        else
+          val = row[keys[i]].dump();
+      } else {
+        val = "";
+      }
+      if (val.length() > widths[i]) val = val.substr(0, widths[i] - 3) + "...";
+      std::cout << " " << std::left << std::setw(widths[i]) << val << " |";
     }
     std::cout << std::endl;
-    print_sep();
+  }
+  print_sep();
 
-    for (const auto& row : j) {
-        std::cout << "|";
-        for (size_t i = 0; i < keys.size(); ++i) {
-            std::string val;
-            if (row.contains(keys[i])) {
-                if (row[keys[i]].is_null()) val = "NULL";
-                else if (row[keys[i]].is_string()) val = row[keys[i]].get<std::string>();
-                else val = row[keys[i]].dump();
-            } else {
-                val = "";
-            }
-            if (val.length() > widths[i]) val = val.substr(0, widths[i]-3) + "...";
-            std::cout << " " << std::left << std::setw(widths[i]) << val << " |";
-        }
-        std::cout << std::endl;
-    }
-    print_sep();
-
-    return absl::OkStatus();
+  return absl::OkStatus();
 }
 
 void PrintAssistantMessage(const std::string& content, const std::string& skill_info) {
-    std::string label = "Assistant";
-    if (!skill_info.empty()) {
-        label = "Assistant (" + skill_info + ")";
-    }
-    PrintBorderedBlock(label, content, ansi::Cyan);
-    std::cout << std::endl;
+  std::string label = "Assistant";
+  if (!skill_info.empty()) {
+    label = "Assistant (" + skill_info + ")";
+  }
+  PrintBorderedBlock(label, content, ansi::Cyan);
+  std::cout << std::endl;
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
@@ -362,37 +366,38 @@ void PrintToolCallMessage(const std::string& name, const std::string& args) {
   if (args.length() > 80) {
     display_args = args.substr(0, 66) + "...[Truncated]";
   }
-    PrintBorderedBlock("Tool Call: " + name, display_args, ansi::Grey);
-    std::cout << std::endl;
+  PrintBorderedBlock("Tool Call: " + name, display_args, ansi::Grey);
+  std::cout << std::endl;
 }
 
 void PrintToolResultMessage(const std::string& result) {
-    PrintBorderedBlock("Tool Result", result, ansi::Grey);
-    std::cout << std::endl;
+  PrintBorderedBlock("Tool Result", result, ansi::Grey);
+  std::cout << std::endl;
 }
 
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit) {
-    auto history_or = db.GetConversationHistory(session_id);
-    if (!history_or.ok()) return history_or.status();
+  auto history_or = db.GetConversationHistory(session_id);
+  if (!history_or.ok()) return history_or.status();
 
-    size_t start = history_or->size() > static_cast<size_t>(limit) ? history_or->size() - limit : 0;
-    for (size_t i = start; i < history_or->size(); ++i) {
-        const auto& msg = (*history_or)[i];
-        if (msg.role == "user") {
-            std::cout << "\n" << Colorize("[User (GID: " + msg.group_id + ")]> ", "", ansi::Green) << msg.content << std::endl;
-        } else if (msg.role == "assistant") {
-            if (msg.status == "tool_call") {
-                 PrintToolCallMessage("LLM", msg.content);
-            } else {
-                 PrintAssistantMessage(msg.content);
-            }
-        } else if (msg.role == "tool") {
-            PrintToolResultMessage(msg.content);
-        } else if (msg.role == "system") {
-            std::cout << Colorize("[System]> ", "", ansi::Yellow) << msg.content << std::endl;
-        }
+  size_t start = history_or->size() > static_cast<size_t>(limit) ? history_or->size() - limit : 0;
+  for (size_t i = start; i < history_or->size(); ++i) {
+    const auto& msg = (*history_or)[i];
+    if (msg.role == "user") {
+      std::cout << "\n"
+                << Colorize("[User (GID: " + msg.group_id + ")]> ", "", ansi::Green) << msg.content << std::endl;
+    } else if (msg.role == "assistant") {
+      if (msg.status == "tool_call") {
+        PrintToolCallMessage("LLM", msg.content);
+      } else {
+        PrintAssistantMessage(msg.content);
+      }
+    } else if (msg.role == "tool") {
+      PrintToolResultMessage(msg.content);
+    } else if (msg.role == "system") {
+      std::cout << Colorize("[System]> ", "", ansi::Yellow) << msg.content << std::endl;
     }
-    return absl::OkStatus();
+  }
+  return absl::OkStatus();
 }
 
-} // namespace slop
+}  // namespace slop

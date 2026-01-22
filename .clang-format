@@ -1,0 +1,17 @@
+BasedOnStyle: Google
+ColumnLimit: 120
+IndentWidth: 2
+AllowShortFunctionsOnASingleLine: All
+Standard: Cpp17
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^"((command_handler|database|http_client|oauth_handler|orchestrator|orchestrator_gemini|orchestrator_openai|orchestrator_strategy|tool_executor|ui)\.h)"'
+    Priority:        -1
+  - Regex:           '^<[a-z_]*\.h>'
+    Priority:        1
+  - Regex:           '^<[a-z_]*>'
+    Priority:        2
+  - Regex:           '^"(absl|nlohmann|gtest|gmock)/'
+    Priority:        3
+  - Regex:           '^".*"'
+    Priority:        4
