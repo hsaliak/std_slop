@@ -31,6 +31,7 @@ Orchestrator::Builder::Builder(const Orchestrator& orchestrator)
     config_.project_id = orchestrator.project_id_;
     config_.base_url = orchestrator.base_url_;
     config_.throttle = orchestrator.throttle_;
+    config_.strip_reasoning = orchestrator.strip_reasoning_;
 }
 
 Orchestrator::Builder& Orchestrator::Builder::WithProvider(Provider provider) {
@@ -63,6 +64,11 @@ Orchestrator::Builder& Orchestrator::Builder::WithThrottle(int seconds) {
     return *this;
 }
 
+Orchestrator::Builder& Orchestrator::Builder::WithStripReasoning(bool enabled) {
+    config_.strip_reasoning = enabled;
+    return *this;
+}
+
 std::unique_ptr<Orchestrator> Orchestrator::Builder::Build() {
     auto orchestrator = std::unique_ptr<Orchestrator>(new Orchestrator(db_, http_client_));
     BuildInto(orchestrator.get());
@@ -76,6 +82,7 @@ void Orchestrator::Builder::BuildInto(Orchestrator* orchestrator) {
     orchestrator->project_id_ = config_.project_id;
     orchestrator->base_url_ = config_.base_url;
     orchestrator->throttle_ = config_.throttle;
+    orchestrator->strip_reasoning_ = config_.strip_reasoning;
     orchestrator->UpdateStrategy();
 }
 
@@ -91,7 +98,9 @@ void Orchestrator::UpdateStrategy() {
             strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, model_, base_url_);
         }
     } else {
-        strategy_ = std::make_unique<OpenAiOrchestrator>(db_, http_client_, model_, base_url_);
+        auto openai = std::make_unique<OpenAiOrchestrator>(db_, http_client_, model_, base_url_);
+        openai->SetStripReasoning(strip_reasoning_);
+        strategy_ = std::move(openai);
     }
 }
 

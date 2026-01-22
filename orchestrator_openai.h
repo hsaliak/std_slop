@@ -11,6 +11,8 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
  public:
   OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url);
 
+  void SetStripReasoning(bool enable) { strip_reasoning_ = enable; }
+
   std::string GetName() const override { return "openai"; }
 
   absl::StatusOr<nlohmann::json> AssemblePayload(
@@ -36,6 +38,7 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
   HttpClient* http_client_;
   std::string model_;
   std::string base_url_;
+  bool strip_reasoning_ = false;
   static constexpr size_t kMaxToolResultContext = 5000;
 };
 

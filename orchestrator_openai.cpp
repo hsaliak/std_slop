@@ -65,6 +65,10 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
   }
   if (!tools.empty()) payload["tools"] = tools;
   
+  if (strip_reasoning_) {
+      payload["transforms"] = {"strip_reasoning"};
+  }
+
   return payload;
 }
 

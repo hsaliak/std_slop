@@ -26,6 +26,7 @@ class Orchestrator {
     std::string project_id;
     std::string base_url;
     int throttle = 0;
+    bool strip_reasoning = false;
   };
 
   class Builder {
@@ -39,6 +40,7 @@ class Orchestrator {
     Builder& WithProjectId(const std::string& project_id);
     Builder& WithBaseUrl(const std::string& url);
     Builder& WithThrottle(int seconds);
+    Builder& WithStripReasoning(bool enabled);
 
     std::unique_ptr<Orchestrator> Build();
     void BuildInto(Orchestrator* orchestrator);
@@ -91,6 +93,7 @@ class Orchestrator {
   std::string project_id_;
   std::string base_url_;
   int throttle_ = 0;
+  bool strip_reasoning_ = false;
   std::vector<std::string> last_selected_groups_;
 
   std::unique_ptr<OrchestratorStrategy> strategy_;

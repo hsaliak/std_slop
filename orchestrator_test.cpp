@@ -394,4 +394,17 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
     EXPECT_EQ(usage_or->completion_tokens, 10);
 }
 
+TEST_F(OrchestratorTest, GeminiDoesNotIncludeTransforms) {
+    auto orchestrator = Orchestrator::Builder(&db, &http)
+        .WithProvider(Orchestrator::Provider::GEMINI)
+        .WithStripReasoning(true)
+        .Build();
+        
+    auto result = orchestrator->AssemblePrompt("s1");
+    ASSERT_TRUE(result.ok());
+    
+    nlohmann::json prompt = *result;
+    EXPECT_FALSE(prompt.contains("transforms"));
+}
+
 }  // namespace slop

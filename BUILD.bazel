@@ -106,6 +106,7 @@ cc_binary(
         "database_test",
         "http_client_test",
         "orchestrator_test",
+        "orchestrator_openai_test",
         "tool_executor_test",
         "command_handler_test",
         "ui_test",

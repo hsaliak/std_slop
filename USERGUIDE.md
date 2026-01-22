@@ -41,6 +41,13 @@ Set your API key:
 export OPENAI_API_KEY="your_api_key"
 ```
 
+### Recommended Settings for OpenRouter:
+When using newer models via OpenRouter, it is highly recommended to use the `--strip_reasoning` flag. This improves response focus and can reduce latency by preventing the reasoning chain from being included in the final output.
+
+```bash
+bazel run //:std_slop -- --strip_reasoning
+```
+
 ## Running
 Start a session by running the executable via Bazel. You can provide a session name to resume or categorize your work:
 ```bash

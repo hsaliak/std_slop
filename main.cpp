@@ -32,6 +32,7 @@ ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_
 ABSL_FLAG(std::string, google_api_key, "", "Google API key (overrides GOOGLE_API_KEY env var)");
 ABSL_FLAG(std::string, openai_api_key, "", "OpenAI API key (overrides OPENAI_API_KEY env var)");
 ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL (overrides OPENAI_BASE_URL env var)");
+ABSL_FLAG(bool, strip_reasoning, false, "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to improve response speed and focus)");
 
 std::string GetHelpText() {
   return "std::slop - The SQL-backed LLM CLI\n\n"
@@ -126,6 +127,7 @@ int main(int argc, char** argv) {
 
   slop::HttpClient http_client;
   slop::Orchestrator::Builder builder(&db, &http_client);
+  builder.WithStripReasoning(absl::GetFlag(FLAGS_strip_reasoning));
 
   if (google_auth) { // google OAuth
     builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
