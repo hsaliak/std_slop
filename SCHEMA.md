@@ -61,7 +61,7 @@ Tracks token usage for cost and performance monitoring.
 | created_at | DATETIME | Timestamp of the interaction. Default: `CURRENT_TIMESTAMP`. |
 
 ### 6. session_state
-Stores the persistent self-managed state block.
+Stores the persistent self-managed state block, per session.
 
 | Column | Type | Description |
 | :--- | :--- | :--- |

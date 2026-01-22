@@ -1,13 +1,13 @@
 # std::slop
 
-std::slop is a smart helper for your code. It lives in your terminal and helps you build things. It uses a small database to remember everything you do, so it never loses track of your work.
+std::slop is a sqlite based c++ cli agent. It uses a small per project database to remember everything you do, so it never loses track of your work. Most of the agentic work that it does is db driven, for persistence and longer term recall. It has first class support for git. First class support for planning and todos help you structure work for less capable (read free tier) agents. There is tooling to teach the LLM std::slop's schema, so you can just import and export data, such as skills, when needed.
 
-## Features
+## Distinguishing Features
 
 - **Ledger-Driven**: All interactions, tool calls, and system changes are stored in SQLite.
-- **Dual API**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter). Includes optimizations like `--strip_reasoning` for better compatibility with reasoning-enabled models via OpenRouter.
-- **Strategy-Aware Replay**: Automatically re-parses historical conversation text when switching models mid-session. Tool calls are isolated by provider to ensure high-fidelity execution and prevent cross-model parsing errors.
-- **Context Control**: Manage memory via group-based rebuild commands.
+- **Multi Model support**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter). Includes optimizations like `--strip_reasoning` for better compatibility with reasoning-enabled models via OpenRouter.
+- **Strategy-Aware Replay**: Automatically re-parses historical conversation text when switching models mid-session. Tool calls are isolated by provider to keep things simple while avoiding cross-model parsing errors.
+- **Context Control**: Read existing context, manipulate the ledger to remove things from the context, or have complete isolation for multiple context streams through sessions.
 - **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
 - **Historical Context Retrieval**: Unique ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
