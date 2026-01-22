@@ -12,3 +12,6 @@ bazel_dep(name = "curl", version = "8.8.0")
 bazel_dep(name = "mbedtls", version = "3.6.0")
 bazel_dep(name = "sqlite3", version = "3.51.1.bcr.1")
 bazel_dep(name = "readline", version = "8.2.bcr.3")
+
+bazel_dep(name = "cpplint", version = "2.0.2")
+

@@ -1,5 +1,20 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
+filegroup(
+    name = "all_srcs",
+    srcs = glob(["**/*.cpp", "**/*.h"]),
+)
+
+sh_test(
+    name = "cpplint_test",
+    srcs = ["scripts/cpplint_test_wrapper.sh"],
+    data = [
+        ":all_srcs",
+        "CPPLINT.cfg",
+        "@cpplint//:cpplint",
+    ],
+)
+
 genrule(
     name = "generate_system_prompt",
     srcs = ["system_prompt.md"],
