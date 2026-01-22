@@ -79,6 +79,29 @@ A helper script is provided to run all checks:
 ./scripts/lint.sh
 ```
 
+### Logging
+
+The project uses [Abseil Logging](https://abseil.io/docs/cpp/guides/logging).
+
+**Basic Usage:**
+- `LOG(INFO)`, `LOG(WARNING)`, `LOG(ERROR)` are used for general events and errors.
+- `VLOG(1)` is used for detailed tracking (e.g., request headers).
+- `VLOG(2)` is used for full data dumps (e.g., request/response bodies).
+
+**Viewing Logs:**
+By default, logs are written to stderr. You can control the verbosity and destination using standard Abseil flags:
+
+```bash
+# Show all INFO logs and above to stderr
+bazel run //:std_slop -- --stderrthreshold=0
+
+# Enable verbose logging for request/response bodies
+bazel run //:std_slop -- --v=2 --stderrthreshold=0
+
+# Log to a specific directory
+bazel run //:std_slop -- --log_dir=/tmp/slop_logs
+```
+
 ## Usage
 
 For a step-by-step guide, see the [WALKTHROUGH](WALKTHROUGH.md).

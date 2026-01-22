@@ -163,3 +163,15 @@ Ok, implement it.
     ```
 
     After each task is completed, the agent will mark it as `Complete` and you can prompt it to proceed to the next one.
+
+### Troubleshooting with Logs
+
+If you encounter issues (e.g., API errors, tool failures), you can enable verbose logging:
+
+```bash
+# See all internal events and request statuses
+bazel run //:std_slop -- --stderrthreshold=0
+
+# See full request and response bodies
+bazel run //:std_slop -- --v=2 --stderrthreshold=0
+```
