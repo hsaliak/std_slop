@@ -127,6 +127,7 @@ cc_binary(
         "oauth_handler_test",
         "input_parsing_test",
         "system_info_test",
+        "check_macro_test",
     ]
 ]
 

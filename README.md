@@ -1,6 +1,6 @@
 # std::slop
 
-std::slop is a C++17 AI coding agent driven by a persistent SQLite ledger for session management and transparency.
+std::slop is a smart helper for your code. It lives in your terminal and helps you build things. It uses a small database to remember everything you do, so it never loses track of your work.
 
 ## Features
 
@@ -200,3 +200,10 @@ bazel run //:std_slop -- [session_name]
 * [USERGUIDE](USERGUIDE.md)
 * [SCHEMA](SCHEMA.md)
 * [system_prompt](system_prompt.md)
+
+## Design Documents
+
+Detailed plans and architecture notes:
+- [TDD Plan: apply_patch Tool](apply_patch.md)
+- [Migration Plan: std::slop main.cpp to Clasp Common Lisp](clasp_migration.md)
+- [Orchestrator Strategy Pattern Refactor Plan](orchestrator_refactor.md)

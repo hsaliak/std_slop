@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <iostream>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -35,6 +36,7 @@ CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHa
       oauth_handler_(oauth_handler),
       google_api_key_(std::move(google_api_key)),
       openai_api_key_(std::move(openai_api_key)) {
+  CHECK_NE(db_, nullptr);
   RegisterCommands();
 }
 

@@ -5,6 +5,7 @@
 
 #include <string>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 
 #include <nlohmann/json.hpp>
@@ -13,7 +14,7 @@ namespace slop {
 
 class ToolExecutor {
  public:
-  explicit ToolExecutor(Database* db) : db_(db) {}
+  explicit ToolExecutor(Database* db) : db_(db) { CHECK_NE(db_, nullptr); }
 
   absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args);
 

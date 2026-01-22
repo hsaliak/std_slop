@@ -3,13 +3,20 @@
 
 #include <iostream>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 namespace slop {
 
 OpenAiOrchestrator::OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                                        const std::string& base_url)
-    : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {}
+    : db_(db),
+      http_client_(http_client),
+      model_(model),
+      base_url_(base_url) {
+  CHECK_NE(db_, nullptr);
+  CHECK_NE(http_client_, nullptr);
+}
 
 absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::string& session_id,
                                                                    const std::string& system_instruction,
@@ -93,6 +100,7 @@ absl::Status OpenAiOrchestrator::ProcessResponse(const std::string& session_id, 
 
   absl::Status status = absl::InternalError("No choices in response");
   if (j.contains("choices") && !j["choices"].empty()) {
+    CHECK(j["choices"][0].contains("message"));
     auto& msg = j["choices"][0]["message"];
     if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
       status = db_->AppendMessage(session_id, "assistant", msg.dump(),

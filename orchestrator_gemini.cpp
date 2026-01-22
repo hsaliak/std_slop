@@ -3,6 +3,7 @@
 
 #include <iostream>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
@@ -10,7 +11,13 @@ namespace slop {
 
 GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                                        const std::string& base_url)
-    : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {}
+    : db_(db),
+      http_client_(http_client),
+      model_(model),
+      base_url_(base_url) {
+  CHECK_NE(db_, nullptr);
+  CHECK_NE(http_client_, nullptr);
+}
 
 absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::string& session_id,
                                                                    const std::string& system_instruction,
@@ -99,6 +106,7 @@ absl::Status GeminiOrchestrator::ProcessResponse(const std::string& session_id, 
 
   absl::Status status = absl::InternalError("No candidates in response");
   if (target->contains("candidates") && !(*target)["candidates"].empty()) {
+    CHECK((*target)["candidates"][0].contains("content"));
     auto& parts = (*target)["candidates"][0]["content"]["parts"];
     for (const auto& part : parts) {
       if (part.contains("functionCall")) {
