@@ -1,9 +1,9 @@
-#include "http_client.h"
-#include <gtest/gtest.h>
 #include <cstdlib>
-#include <nlohmann/json.hpp>
 #include <thread>
 
+#include "gtest/gtest.h"
+#include "nlohmann/json.hpp"
+#include "http_client.h"
 namespace slop {
 
 TEST(HttpClientTest, PostInit) {
@@ -28,14 +28,14 @@ TEST(HttpClientTest, HttpsSupport) {
     auto res = client.Get("https://www.google.com", {});
     // If protocol is unsupported, it will return an InternalError with "Unsupported protocol"
     if (!res.ok()) {
-        EXPECT_FALSE(res.status().message().find("Unsupported protocol") != std::string::npos) 
+        EXPECT_FALSE(res.status().message().find("Unsupported protocol") != std::string::npos)
             << "HTTPS protocol is not supported in the current libcurl build: " << res.status().message();
     }
 }
 
 TEST(HttpClientTest, PostBasic) {
     HttpClient client;
-    // We don't have a mock server, but we can at least check if it handles 
+    // We don't have a mock server, but we can at least check if it handles
     // a non-existent endpoint correctly without crashing.
     auto res = client.Post("http://localhost:1", "{\"test\":true}", {"Content-Type: application/json"});
     EXPECT_FALSE(res.ok());

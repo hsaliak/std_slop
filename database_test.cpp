@@ -11,7 +11,7 @@ TEST(DatabaseTest, InitWorks) {
 TEST(DatabaseTest, TablesExist) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     // Check if tables exist by trying to insert/select
     EXPECT_TRUE(db.Execute("INSERT INTO tools (name, description) VALUES ('test_tool', 'a test tool')").ok());
     EXPECT_TRUE(db.Execute("INSERT INTO messages (session_id, role, content) VALUES ('session1', 'user', 'hello')").ok());
@@ -20,12 +20,12 @@ TEST(DatabaseTest, TablesExist) {
 TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     auto skills = db.GetSkills();
     ASSERT_TRUE(skills.ok());
     // We expect at least the 4 default skills we added
     EXPECT_GE(skills->size(), 4);
-    
+
     bool found_planner = false;
     for (const auto& s : *skills) {
         if (s.name == "planner") found_planner = true;
@@ -47,11 +47,11 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
 TEST(DatabaseTest, MessagePersistence) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Hi there!", "call_1").ok());
     ASSERT_TRUE(db.AppendMessage("s2", "user", "Different session").ok());
-    
+
     auto history = db.GetConversationHistory("s1");
     ASSERT_TRUE(history.ok());
     EXPECT_EQ(history->size(), 2);
@@ -59,7 +59,7 @@ TEST(DatabaseTest, MessagePersistence) {
     EXPECT_EQ((*history)[0].content, "Hello");
     EXPECT_EQ((*history)[1].role, "assistant");
     EXPECT_EQ((*history)[1].tool_call_id, "call_1");
-    
+
     auto history2 = db.GetConversationHistory("s2");
     ASSERT_TRUE(history2.ok());
     EXPECT_EQ(history2->size(), 1);
@@ -68,14 +68,14 @@ TEST(DatabaseTest, MessagePersistence) {
 TEST(DatabaseTest, GetConversationHistoryWindowed) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     // Create 3 groups of messages
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 1", "", "completed", "g1").ok());
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Resp 1", "", "completed", "g1").ok());
-    
+
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 2", "", "completed", "g2").ok());
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Resp 2", "", "completed", "g2").ok());
-    
+
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 3", "", "completed", "g3").ok());
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Resp 3", "", "completed", "g3").ok());
 
@@ -109,7 +109,7 @@ TEST(DatabaseTest, GetConversationHistoryWindowed) {
 TEST(DatabaseTest, GetConversationHistoryWindowedWithDropped) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     // g1: kept
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Msg 1", "", "completed", "g1").ok());
     // g2: dropped
@@ -137,21 +137,21 @@ TEST(DatabaseTest, GetConversationHistoryWindowedWithDropped) {
 TEST(DatabaseTest, UpdateMessageStatusWorks) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
     auto history = db.GetConversationHistory("s1");
     ASSERT_TRUE(history.ok());
     ASSERT_EQ(history->size(), 1);
     int msg_id = (*history)[0].id;
     EXPECT_EQ((*history)[0].status, "completed");
-    
+
     ASSERT_TRUE(db.UpdateMessageStatus(msg_id, "dropped").ok());
-    
+
     auto history2 = db.GetConversationHistory("s1", true);
     ASSERT_TRUE(history2.ok());
     ASSERT_EQ(history2->size(), 1);
     EXPECT_EQ((*history2)[0].status, "dropped");
-    
+
     auto history3 = db.GetConversationHistory("s1", false);
     ASSERT_TRUE(history3.ok());
     EXPECT_EQ(history3->size(), 0);
@@ -160,10 +160,10 @@ TEST(DatabaseTest, UpdateMessageStatusWorks) {
 TEST(DatabaseTest, GenericQuery) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     auto res = db.Query("SELECT 42 as answer, 'slop' as name");
     ASSERT_TRUE(res.ok());
-    
+
     nlohmann::json j = nlohmann::json::parse(*res, nullptr, false);
     ASSERT_FALSE(j.is_discarded());
     ASSERT_EQ(j.size(), 1);
@@ -174,17 +174,17 @@ TEST(DatabaseTest, GenericQuery) {
 TEST(DatabaseTest, UsageTracking) {
     slop::Database db;
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     ASSERT_TRUE(db.RecordUsage("s1", "model-a", 10, 20).ok());
     ASSERT_TRUE(db.RecordUsage("s1", "model-a", 5, 5).ok());
     ASSERT_TRUE(db.RecordUsage("s2", "model-b", 100, 200).ok());
-    
+
     auto s1_usage = db.GetTotalUsage("s1");
     ASSERT_TRUE(s1_usage.ok());
     EXPECT_EQ(s1_usage->prompt_tokens, 15);
     EXPECT_EQ(s1_usage->completion_tokens, 25);
     EXPECT_EQ(s1_usage->total_tokens, 40);
-    
+
     auto global_usage = db.GetTotalUsage();
     ASSERT_TRUE(global_usage.ok());
     EXPECT_EQ(global_usage->prompt_tokens, 115);

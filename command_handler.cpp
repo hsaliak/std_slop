@@ -1,19 +1,22 @@
-#include <cstdio>
 #include "command_handler.h"
-#include <iostream>
+
+#include <unistd.h>
+
+#include <cstdio>
 #include <algorithm>
-#include <nlohmann/json.hpp>
 #include <array>
+#include <iostream>
+
+#include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/substitute.h"
-#include "orchestrator.h"
+#include "nlohmann/json.hpp"
 #include "oauth_handler.h"
+#include "orchestrator.h"
 #include "ui.h"
-#include <unistd.h>
 
 namespace slop {
 
@@ -24,12 +27,12 @@ void log_status(const absl::Status& status) {
 
 } // namespace
 
-CommandHandler::CommandHandler(Database* db, 
+CommandHandler::CommandHandler(Database* db,
                                Orchestrator* orchestrator,
                                OAuthHandler* oauth_handler,
                                std::string google_api_key,
-                               std::string openai_api_key) 
-    : db_(db), orchestrator_(orchestrator), oauth_handler_(oauth_handler), 
+                               std::string openai_api_key)
+    : db_(db), orchestrator_(orchestrator), oauth_handler_(oauth_handler),
       google_api_key_(std::move(google_api_key)), openai_api_key_(std::move(openai_api_key)) {
     RegisterCommands();
 }
@@ -140,7 +143,7 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
     std::string sub_cmd = sub_parts[0];
     std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-    
+
     if (sub_cmd == "window") {
         int n = sub_args.empty() ? 0 : std::atoi(sub_args.c_str());
         log_status(db_->SetContextWindow(args.session_id, n));
@@ -148,12 +151,12 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
         else if (n == 0) std::cout << "Full Context Mode (infinite buffer)." << std::endl;
         else std::cout << "Context Hidden (None)." << std::endl;
         return Result::HANDLED;
-    } 
-    
+    }
+
     if (sub_cmd == "rebuild") {
         if (orchestrator_) {
-            auto status = orchestrator_->RebuildContext(args.session_id); 
-            if (status.ok()) std::cout << "Context rebuilt from history." << std::endl; 
+            auto status = orchestrator_->RebuildContext(args.session_id);
+            if (status.ok()) std::cout << "Context rebuilt from history." << std::endl;
             else std::cerr << "Error: " << status.message() << std::endl;
         } else {
             std::cerr << "Orchestrator not available for rebuilding context." << std::endl;
@@ -161,26 +164,26 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
         return Result::HANDLED;
     }
     if (sub_cmd == "show") {
-	    auto s = db_->GetContextSettings(args.session_id);
-	    std::stringstream ss;
-	    ss << "--- CONTEXT STATUS ---\n";
-	    ss  << "Session: " << args.session_id << "\n";
-	    ss << "Window Size: " ;
-	    ss << (s.ok() ? (s->size == 0 ? "Infinite" : std::to_string(s->size)) : "Error");
-	    ss <<  "\n";
-	    if (!args.active_skills.empty()) {
-		    ss << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
-	    }
+      auto s = db_->GetContextSettings(args.session_id);
+      std::stringstream ss;
+      ss << "--- CONTEXT STATUS ---\n";
+      ss  << "Session: " << args.session_id << "\n";
+      ss << "Window Size: ";
+      ss << (s.ok() ? (s->size == 0 ? "Infinite" : std::to_string(s->size)) : "Error");
+      ss <<  "\n";
+      if (!args.active_skills.empty()) {
+        ss << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
+      }
 
-	    if (orchestrator_) {
-		    auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
-		    if (prompt_or.ok()) {
-			    ss << "\n--- ASSEMBLED PROMPT ---" << std::endl;
-			    ss << prompt_or->dump(2) << std::endl;
-		    }
-	    }
-	    SmartDisplay(ss.str());
-	    return Result::HANDLED;
+      if (orchestrator_) {
+        auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
+        if (prompt_or.ok()) {
+          ss << "\n--- ASSEMBLED PROMPT ---" << std::endl;
+          ss << prompt_or->dump(2) << std::endl;
+        }
+      }
+      SmartDisplay(ss.str());
+      return Result::HANDLED;
     }
     return Result::HANDLED;
 }
@@ -310,29 +313,29 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
     }
 
     if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled()) {
-	    auto token_or = oauth_handler_->GetValidToken();
-	    if (token_or.ok()) {
-		    auto quota_or = orchestrator_->GetQuota(*token_or);
-		    if (quota_or.ok() && quota_or->is_object()) {
-			    std::cout << "\n--- Gemini User Quota ---" << std::endl;
-			    nlohmann::json table = nlohmann::json::array();
-			    if (quota_or->contains("buckets") && (*quota_or)["buckets"].is_array()) {
-				    for (const auto& b : (*quota_or)["buckets"]) {
-					    if (!b.is_object()) continue;
-					    nlohmann::json row;
-					    row["Model ID"] = b.value("modelId", "N/A");
-					    row["Remaining Amount"] = b.value("remainingAmount", "N/A");
-					    row["Remaining Fraction"] = b.value("remainingFraction", 0.0);
-					    row["Reset Time"] = b.value("resetTime", "N/A");
-					    row["Token Type"] = b.value("tokenType", "N/A");
-					    table.push_back(row);
-				    }
-			    }
-			    if (!table.empty()) log_status(PrintJsonAsTable(table.dump()));
-			    else std::cout << "No quota buckets found." << std::endl;
-		    } else {
-			    std::cout << "Could not fetch quota: " << quota_or.status().message() << std::endl;
-		    }
+      auto token_or = oauth_handler_->GetValidToken();
+      if (token_or.ok()) {
+        auto quota_or = orchestrator_->GetQuota(*token_or);
+        if (quota_or.ok() && quota_or->is_object()) {
+          std::cout << "\n--- Gemini User Quota ---" << std::endl;
+          nlohmann::json table = nlohmann::json::array();
+          if (quota_or->contains("buckets") && (*quota_or)["buckets"].is_array()) {
+            for (const auto& b : (*quota_or)["buckets"]) {
+              if (!b.is_object()) continue;
+              nlohmann::json row;
+              row["Model ID"] = b.value("modelId", "N/A");
+              row["Remaining Amount"] = b.value("remainingAmount", "N/A");
+              row["Remaining Fraction"] = b.value("remainingFraction", 0.0);
+              row["Reset Time"] = b.value("resetTime", "N/A");
+              row["Token Type"] = b.value("tokenType", "N/A");
+              table.push_back(row);
+            }
+          }
+          if (!table.empty()) log_status(PrintJsonAsTable(table.dump()));
+          else std::cout << "No quota buckets found." << std::endl;
+        } else {
+          std::cout << "Could not fetch quota: " << quota_or.status().message() << std::endl;
+        }
         }
     }
 
@@ -341,7 +344,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
 
 CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
     if (!orchestrator_) return Result::HANDLED;
-    
+
     std::string api_key = (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI) ? google_api_key_ : openai_api_key_;
     if (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled()) {
         auto token_or = oauth_handler_->GetValidToken();
@@ -415,7 +418,7 @@ CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
 CommandHandler::Result CommandHandler::HandleTodo(CommandArgs& args) {
     std::vector<std::string> parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
     std::string sub_cmd = parts[0];
-    
+
     if (sub_cmd == "list") {
         std::string group = (parts.size() > 1) ? parts[1] : "";
         auto res = db_->GetTodos(group);

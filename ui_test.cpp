@@ -17,7 +17,7 @@ TEST(UiTest, WrapTextSimple) {
 }
 
 TEST(UiTest, WrapTextAnsi) {
-    std::string red_hello = "\033[31mHello\033[0m"; 
+    std::string red_hello = "\033[31mHello\033[0m";
     std::string text = red_hello + " world " + red_hello + " again";
     std::string wrapped = WrapText(text, 12);
     std::stringstream ss(wrapped);
@@ -32,9 +32,9 @@ TEST(UiTest, PrintJsonAsTableEmpty) {
     std::string empty_json = "[]";
     std::stringstream buffer;
     std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-    
+
     auto status = PrintJsonAsTable(empty_json);
-    
+
     std::cout.rdbuf(old);
     EXPECT_TRUE(status.ok());
     EXPECT_TRUE(buffer.str().find("No results found.") != std::string::npos);
@@ -44,9 +44,9 @@ TEST(UiTest, PrintJsonAsTableValid) {
     std::string json = R"([{"id": 1, "name": "test"}, {"id": 2, "name": "example"}])";
     std::stringstream buffer;
     std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-    
+
     auto status = PrintJsonAsTable(json);
-    
+
     std::cout.rdbuf(old);
     EXPECT_TRUE(status.ok());
     EXPECT_TRUE(buffer.str().find("id") != std::string::npos);

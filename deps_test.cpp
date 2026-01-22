@@ -1,8 +1,8 @@
-#include <nlohmann/json.hpp>
 #include <curl/curl.h>
 #include <gtest/gtest.h>
-#include <iostream>
 
+#include <iostream>
+#include <nlohmann/json.hpp>
 TEST(DepsTest, JsonWorks) {
     nlohmann::json j = {{"test", "ok"}};
     EXPECT_EQ(j["test"], "ok");

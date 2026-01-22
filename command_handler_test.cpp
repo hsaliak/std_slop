@@ -1,8 +1,9 @@
-#include "command_handler.h"
-#include "orchestrator.h"
 #include <gtest/gtest.h>
+
 #include <nlohmann/json.hpp>
 
+#include "command_handler.h"
+#include "orchestrator.h"
 namespace slop {
 
 class CommandHandlerTest : public ::testing::Test {
@@ -55,7 +56,7 @@ TEST_F(CommandHandlerTest, HandlesContextWindow) {
     std::vector<std::string> active_skills;
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-    
+
     auto settings = db.GetContextSettings("s1");
     EXPECT_TRUE(settings.ok());
     EXPECT_EQ(settings->size, 10);
@@ -99,15 +100,15 @@ TEST_F(CommandHandlerTest, DetectsQuitExit) {
 
 TEST_F(CommandHandlerTest, ActivatesSkillByName) {
     CommandHandler handler(&db);
-    
+
     Database::Skill skill_obj = {0, "test_skill", "desc", "PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill_obj).ok());
-    
+
     std::string input = "/skill activate test_skill";
     std::string sid = "s1";
     std::vector<std::string> active_skills;
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
-    
+
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     ASSERT_EQ(active_skills.size(), 1);
     EXPECT_EQ(active_skills[0], "test_skill");
@@ -115,10 +116,10 @@ TEST_F(CommandHandlerTest, ActivatesSkillByName) {
 
 TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
     CommandHandler handler(&db);
-    
+
     Database::Skill skill_obj = {0, "extra_skill", "desc", "PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill_obj).ok());
-    
+
     auto skills = db.GetSkills();
     ASSERT_TRUE(skills.ok());
     int target_id = -1;
@@ -131,7 +132,7 @@ TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
     std::string sid = "s1";
     std::vector<std::string> active_skills;
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
-    
+
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     ASSERT_EQ(active_skills.size(), 1);
     EXPECT_EQ(active_skills[0], "extra_skill");
@@ -140,17 +141,17 @@ TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
 TEST_F(CommandHandlerTest, DeactivatesSkill) {
     CommandHandler handler(&db);
     std::string sid = "s1";
-    
+
     Database::Skill skill1 = {0, "skill1", "desc", "PATCH"};
     Database::Skill skill2 = {0, "skill2", "desc", "PATCH"};
     ASSERT_TRUE(db.RegisterSkill(skill1).ok());
     ASSERT_TRUE(db.RegisterSkill(skill2).ok());
-    
+
     std::vector<std::string> active_skills = {"skill1", "skill2"};
-    
+
     std::string input = "/skill deactivate skill1";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
-    
+
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     ASSERT_EQ(active_skills.size(), 1);
     EXPECT_EQ(active_skills[0], "skill2");
@@ -159,10 +160,10 @@ TEST_F(CommandHandlerTest, DeactivatesSkill) {
 TEST_F(CommandHandlerTest, HandlesThrottle) {
     auto orchestrator = Orchestrator::Builder(&db, &http_client).Build();
     CommandHandler handler(&db, orchestrator.get());
-    
+
     std::string sid = "s1";
     std::vector<std::string> active_skills;
-    
+
     // Test setting throttle
     std::string input = "/throttle 5";
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
@@ -209,7 +210,7 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
     auto res = handler.Handle(input, sid, active_skills, [](){}, {});
     EXPECT_EQ(res, CommandHandler::Result::HANDLED);
     EXPECT_EQ(sid, "default_session");
-    
+
     auto history = db.GetConversationHistory("test_sid");
     ASSERT_TRUE(history.ok());
     EXPECT_EQ(history->size(), 0);

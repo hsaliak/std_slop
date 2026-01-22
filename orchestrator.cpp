@@ -1,21 +1,23 @@
 #include "orchestrator.h"
-#include "orchestrator_gemini.h"
-#include "orchestrator_openai.h"
-#include "constants.h"
+
+#include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <map>
-#include <algorithm>
 #include <set>
-#include <unordered_set>
-#include <fstream>
 #include <sstream>
+#include <unordered_set>
+
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
-#ifdef HAVE_SYSTEM_PROMPT_H
+#include "constants.h"
+#include "orchestrator_gemini.h"
+#include "orchestrator_openai.h"
 #include "system_prompt_data.h"
+#ifdef HAVE_SYSTEM_PROMPT_H
 #endif
 
 namespace slop {
@@ -114,7 +116,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
 
   auto history_or = GetRelevantHistory(session_id, settings_or->size);
   if (!history_or.ok()) return history_or.status();
-  
+
   std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
   return strategy_->AssemblePayload(session_id, system_instruction, *history_or);
 }
@@ -218,7 +220,7 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(
 
   std::vector<Database::Message> history;
   history.reserve(hist_or->size());
-  
+
   const std::string& current_strategy = strategy_->GetName();
   std::set<std::string> group_ids;
 
@@ -227,7 +229,7 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(
       bool strategy_matches = (m.parsing_strategy.empty() || m.parsing_strategy == current_strategy ||
                                (current_strategy == "gemini_gca" && m.parsing_strategy == "gemini") ||
                                (current_strategy == "gemini" && m.parsing_strategy == "gemini_gca"));
-      
+
       if (!is_tool_related || strategy_matches) {
           if (!m.group_id.empty()) {
               group_ids.insert(m.group_id);

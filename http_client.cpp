@@ -1,14 +1,15 @@
 #include "http_client.h"
-#include "absl/status/status.h"
-#include "absl/strings/match.h"
-#include <iostream>
-#include <thread>
-#include <chrono>
 
+#include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <fcntl.h>
 
+#include <chrono>
+#include <iostream>
+#include <thread>
+
+#include "absl/status/status.h"
+#include "absl/strings/match.h"
 namespace slop {
 
 namespace {
@@ -29,7 +30,7 @@ HttpClient::~HttpClient() {
 }
 
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-  ((std::string*)userp)->append((char*)contents, size * nmemb);
+  static_cast<std::string*>(userp)->append(static_cast<const char*>(contents), size * nmemb);
   return size * nmemb;
 }
 
@@ -85,10 +86,10 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
                                                          const std::string& body,
                                                          const std::vector<std::string>& headers) {
   ResetAbort();
-  
+
   int max_retries = 3;
   int retry_count = 0;
-  long backoff_ms = 1000;
+  int64_t backoff_ms = 1000;
 
   std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
   if (!curl) return absl::InternalError("Failed to initialize CURL");
@@ -101,7 +102,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
   while (true) {
     std::string response_string;
-    
+
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
     if (method == "POST") {
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, body.c_str());
@@ -117,13 +118,13 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, 60L);
 
     CURLcode res = curl_easy_perform(curl.get());
-    
-    long response_code = 0;
+
+    long response_code = 0;  // NOLINT(runtime/int)
     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &response_code);
 
     if (res != CURLE_OK) {
       if (this->abort_requested_) return absl::CancelledError("Request cancelled by user");
-      
+
       if (retry_count < max_retries) {
           std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
           retry_count++;
@@ -146,7 +147,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       }
     }
 
-    return absl::Status(static_cast<absl::StatusCode>(response_code), 
+    return absl::Status(static_cast<absl::StatusCode>(response_code),
                        "HTTP error " + std::to_string(response_code) + ": " + response_string);
   }
 }

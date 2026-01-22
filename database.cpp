@@ -1,11 +1,13 @@
 #include "database.h"
+
 #include <sqlite3.h>
+
 #include <iostream>
 #include <nlohmann/json.hpp>
-#include "absl/strings/substitute.h"
-#include "absl/strings/str_split.h"
-#include "absl/strings/numbers.h"
 
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/substitute.h"
 namespace slop {
 
 absl::Status Database::Statement::Prepare() {
@@ -139,7 +141,7 @@ absl::Status Database::Init(const std::string& db_path) {
         total_tokens INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-    
+
     CREATE TABLE IF NOT EXISTS session_state (
         session_id TEXT PRIMARY KEY,
         state_blob TEXT
@@ -240,13 +242,22 @@ absl::Status Database::AppendMessage(const std::string& session_id,
   (void)stmt->BindText(1, session_id);
   (void)stmt->BindText(2, role);
   (void)stmt->BindText(3, content);
-  if (tool_call_id.empty()) (void)stmt->BindNull(4);
-  else (void)stmt->BindText(4, tool_call_id);
+  if (tool_call_id.empty()) {
+    (void)stmt->BindNull(4);
+  } else {
+    (void)stmt->BindText(4, tool_call_id);
+  }
   (void)stmt->BindText(5, status);
-  if (group_id.empty()) (void)stmt->BindNull(6);
-  else (void)stmt->BindText(6, group_id);
-  if (parsing_strategy.empty()) (void)stmt->BindNull(7);
-  else (void)stmt->BindText(7, parsing_strategy);
+  if (group_id.empty()) {
+    (void)stmt->BindNull(6);
+  } else {
+    (void)stmt->BindText(6, group_id);
+  }
+  if (parsing_strategy.empty()) {
+    (void)stmt->BindNull(7);
+  } else {
+    (void)stmt->BindText(7, parsing_strategy);
+  }
 
   return stmt->Run();
 }
@@ -266,7 +277,7 @@ absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
 absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(const std::string& session_id, bool include_dropped, int window_size) {
   std::string sql;
   std::string drop_filter = include_dropped ? "" : "AND status != 'dropped'";
-  
+
   if (window_size > 0) {
     sql = absl::Substitute(
         "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy "
@@ -315,14 +326,14 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
 
 absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(const std::vector<std::string>& group_ids) {
     if (group_ids.empty()) return std::vector<Message>();
-    
+
     std::string placeholders;
     for (size_t i = 0; i < group_ids.size(); ++i) {
         placeholders += (i == 0 ? "?" : ", ?");
     }
-    
+
     std::string sql = "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy FROM messages WHERE group_id IN (" + placeholders + ") ORDER BY created_at ASC, id ASC";
-    
+
     auto stmt_or = Prepare(sql);
     if (!stmt_or.ok()) return stmt_or.status();
     auto& stmt = *stmt_or;
@@ -397,7 +408,7 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-  
+
   TotalUsage usage = {0, 0, 0};
   if (*row_or) {
     usage.prompt_tokens = stmt->ColumnInt(0);

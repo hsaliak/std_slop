@@ -1,13 +1,13 @@
 #ifndef SLOP_SQL_HTTP_CLIENT_H_
 #define SLOP_SQL_HTTP_CLIENT_H_
 
-#include <string>
-#include <vector>
 #include <curl/curl.h>
-#include "absl/status/statusor.h"
 
 #include <atomic>
+#include <string>
+#include <vector>
 
+#include "absl/status/statusor.h"
 namespace slop {
 
 class HttpClient {

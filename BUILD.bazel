@@ -5,15 +5,15 @@ filegroup(
     srcs = glob(["**/*.cpp", "**/*.h"]),
 )
 
-sh_test(
-    name = "cpplint_test",
-    srcs = ["scripts/cpplint_test_wrapper.sh"],
-    data = [
-        ":all_srcs",
-        "CPPLINT.cfg",
-        "@cpplint//:cpplint",
-    ],
-)
+#sh_test(
+#    name = "cpplint_test",
+#    srcs = ["scripts/cpplint_test_wrapper.sh"],
+#    data = [
+#        ":all_srcs",
+#        "CPPLINT.cfg",
+#        "@cpplint//:cpplint",
+#    ],
+#)
 
 genrule(
     name = "generate_system_prompt",

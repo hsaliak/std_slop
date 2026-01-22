@@ -1,9 +1,11 @@
 #include "orchestrator_gemini.h"
-#include "absl/strings/substitute.h"
-#include "absl/time/clock.h"
-#include "orchestrator.h"
+
 #include <iostream>
 
+#include "absl/strings/substitute.h"
+#include "absl/time/clock.h"
+
+#include "orchestrator.h"
 namespace slop {
 
 GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url)
@@ -16,7 +18,7 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(
   (void)session_id;
   nlohmann::json payload;
   nlohmann::json contents = nlohmann::json::array();
-  
+
   for (size_t i = 0; i < history.size(); ++i) {
       const auto& msg = history[i];
       std::string display_content = msg.content;
@@ -26,11 +28,11 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(
           display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
       }
 
-      if (msg.role == "system") continue; 
+      if (msg.role == "system") continue;
 
       std::string role = (msg.role == "assistant") ? "model" : (msg.role == "tool" ? "function" : msg.role);
       nlohmann::json part;
-      
+
       if (msg.status == "tool_call") {
           auto j = nlohmann::json::parse(msg.content, nullptr, false);
           if (!j.is_discarded()) {
@@ -56,7 +58,7 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(
 
   payload["contents"] = valid_contents;
   if (!system_instruction.empty()) payload["system_instruction"] = {{"parts", {{{"text", system_instruction}}}}};
-  
+
   nlohmann::json f_decls = nlohmann::json::array();
   auto tools_or = db_->GetEnabledTools();
   if (tools_or.ok()) {
@@ -66,7 +68,7 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(
       }
   }
   if (!f_decls.empty()) payload["tools"] = {{{"function_declarations", f_decls}}};
-  
+
   return payload;
 }
 
@@ -93,11 +95,12 @@ absl::Status GeminiOrchestrator::ProcessResponse(
   if (target->contains("candidates") && !(*target)["candidates"].empty()) {
       auto& parts = (*target)["candidates"][0]["content"]["parts"];
       for (const auto& part : parts) {
-          if (part.contains("functionCall")) status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call", group_id, GetName());
-          else if (part.contains("text")) {
+          if (part.contains("functionCall")) {
+              status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call", group_id, GetName());
+          } else if (part.contains("text")) {
               std::string text = part["text"];
               status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName());
-              
+
               size_t start_pos = text.find("---STATE---");
               if (start_pos != std::string::npos) {
                   size_t end_pos = text.find("---END STATE---", start_pos);
@@ -119,7 +122,7 @@ absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const D
     if (msg.status != "tool_call") return absl::InvalidArgumentError("Not a tool call");
     auto j = nlohmann::json::parse(msg.content, nullptr, false);
     if (j.is_discarded()) return absl::InternalError("JSON error");
-    
+
     std::vector<ToolCall> calls;
     ToolCall tc;
     tc.name = msg.tool_call_id;

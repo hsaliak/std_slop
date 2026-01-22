@@ -1,18 +1,20 @@
 #include "ui.h"
-#include <algorithm>
+
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <iostream>
-#include <fstream>
-#include <sstream>
+
+#include <algorithm>
 #include <filesystem>
-#include <nlohmann/json.hpp>
+#include <fstream>
 #include <iomanip>
-#include "readline/readline.h"
-#include "readline/history.h"
+#include <iostream>
+#include <sstream>
+
 #include "absl/status/status.h"
 #include "color.h"
-
+#include "nlohmann/json.hpp"
+#include "readline/history.h"
+#include "readline/readline.h"
 namespace slop {
 
 namespace {
@@ -36,7 +38,7 @@ size_t VisibleLength(const std::string& s) {
 void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "") {
     if (width == 0) width = GetTerminalWidth() - 1;
     std::string bold_fg = std::string(ansi::Bold) + color_fg;
-    
+
     if (header.empty()) {
         std::string line;
         for (size_t i = 0; i < width; ++i) line += "─";
@@ -96,10 +98,10 @@ size_t GetTerminalWidth() {
 
 std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
     if (width == 0) width = GetTerminalWidth() - 1;
-    
+
     std::string line = text;
     std::replace(line.begin(), line.end(), '\n', ' ');
-    
+
     size_t visible_len = VisibleLength(line);
     if (visible_len > width) {
         size_t current_visible = 0;
@@ -117,11 +119,11 @@ std::string FormatLine(const std::string& text, const char* color_bg, size_t wid
         line = line.substr(0, i) + "...";
         visible_len = VisibleLength(line);
     }
-    
+
     if (visible_len < width) {
         line += std::string(width - visible_len, ' ');
     }
-    
+
     return Colorize(line, color_bg, color_fg);
 }
 
@@ -196,9 +198,9 @@ std::string WrapText(const std::string& text, size_t width) {
 std::string OpenInEditor(const std::string& initial_content) {
     const char* editor = std::getenv("EDITOR");
     if (!editor) editor = "vi";
-    
+
     std::string tmp_path  = (std::filesystem::temp_directory_path()/ "slop_edit.txt").string();
-    { 
+    {
         std::ofstream out(tmp_path);
         if (!initial_content.empty()) out << initial_content;
     }
@@ -236,7 +238,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
     std::stringstream ss;
     ss << "=== Assembled Context ===\n\n";
-    
+
     if (j.contains("system_instruction")) {
         ss << "[SYSTEM INSTRUCTION]\n";
         if (j["system_instruction"].contains("parts")) {
@@ -356,10 +358,10 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
-	std::string display_args = args;
-	if (args.length() > 80) {
-		display_args = args.substr(0,66) + "...[Truncated]";
-	}
+  std::string display_args = args;
+  if (args.length() > 80) {
+    display_args = args.substr(0, 66) + "...[Truncated]";
+  }
     PrintBorderedBlock("Tool Call: " + name, display_args, ansi::Grey);
     std::cout << std::endl;
 }

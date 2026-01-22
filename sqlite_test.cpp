@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
+
+#include <string>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include <string>
-#include "sqlite3.h"
 
+#include "sqlite3.h"
 TEST(SqliteTest, CanOpenAndQueryVersion) {
     sqlite3* db;
     int rc = sqlite3_open(":memory:", &db);

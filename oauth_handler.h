@@ -12,7 +12,7 @@ namespace slop {
 struct OAuthTokens {
   std::string access_token;
   std::string refresh_token;
-  long long expiry_time = 0; // Epoch time in seconds
+  int64_t expiry_time = 0;  // Epoch time in seconds
   std::string project_id;
 };
 
@@ -27,7 +27,7 @@ class OAuthHandler {
   void SetProjectId(const std::string& project_id) { manual_project_id_ = project_id; }
   bool IsEnabled() const { return enabled_; }
   void SetEnabled(bool enabled) { enabled_ = enabled; }
-  
+
   std::string GetTokenPath() const { return token_path_; }
 
  protected:

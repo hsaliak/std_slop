@@ -100,11 +100,11 @@ int main(int argc, char** argv) {
   const char* env_google_key = std::getenv("GOOGLE_API_KEY");
   const char* env_openai_key = std::getenv("OPENAI_API_KEY");
   const char* env_openai_base_url = std::getenv("OPENAI_BASE_URL");
-  
+
   std::string google_key = !flag_google_api_key.empty() ? flag_google_api_key : (env_google_key ? env_google_key : "");
   std::string openai_key = !flag_openai_api_key.empty() ? flag_openai_api_key : (env_openai_key ? env_openai_key : "");
   std::string openai_base_url = !flag_openai_base_url.empty() ? flag_openai_base_url : (env_openai_base_url ? env_openai_base_url : "");
-  
+
   std::string model = flag_model;
   if (model.empty()) {
       const char* env_gemini = std::getenv("GEMINI_MODEL");

@@ -1,28 +1,27 @@
 #include "oauth_handler.h"
-#include "constants.h"
 
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
-#include "absl/strings/match.h"
-#include "absl/strings/str_split.h"
-#include "absl/strings/str_cat.h"
-#include "absl/time/clock.h"
-#include <nlohmann/json.hpp>
-#include <filesystem>
 #include <system_error>
 
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
+#include "absl/time/clock.h"
+#include "constants.h"
+#include "nlohmann/json.hpp"
 namespace slop {
 
 namespace {
 const char* kGeminiClientId = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
-const char* kGeminiClientSecret = "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"; 
+const char* kGeminiClientSecret = "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";
 
 std::string GetHomeDir() {
   const char* home = std::getenv("HOME");
@@ -38,7 +37,7 @@ absl::Status MaybeCreateDirectory(const std::string& dir_path) {
   return absl::OkStatus();
 }
 
-OAuthHandler::OAuthHandler(HttpClient* http_client) 
+OAuthHandler::OAuthHandler(HttpClient* http_client)
     : http_client_(http_client) {
   std::string home = GetHomeDir();
   if (!home.empty()) {
@@ -52,7 +51,7 @@ absl::Status OAuthHandler::LoadTokens() {
   if (!f.is_open()) {
       return absl::NotFoundError("Token file not found. Please run ./slop_auth.sh");
   }
-  
+
   std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   auto j = nlohmann::json::parse(content, nullptr, false);
   if (j.is_discarded()) {
@@ -68,7 +67,7 @@ absl::Status OAuthHandler::LoadTokens() {
 
 absl::Status OAuthHandler::SaveTokens(const OAuthTokens& tokens) {
   if (token_path_.empty()) return absl::InternalError("No token path");
-  
+
   std::string dir = token_path_.substr(0, token_path_.find_last_of('/'));
   auto mkdir_status = MaybeCreateDirectory(dir);
   if (!mkdir_status.ok()) return mkdir_status;
@@ -122,14 +121,14 @@ absl::Status OAuthHandler::RefreshToken() {
 
   tokens_.access_token = j.value("access_token", "");
   tokens_.expiry_time = absl::ToUnixSeconds(absl::Now()) + j.value("expires_in", 3600);
-  
+
   return SaveTokens(tokens_);
 }
 
 absl::StatusOr<std::string> OAuthHandler::GetProjectId() {
-  if (!manual_project_id_.empty()) return manual_project_id_; 
+  if (!manual_project_id_.empty()) return manual_project_id_;
   if (!tokens_.project_id.empty()) return tokens_.project_id;
-  
+
   auto token = GetValidToken();
   if (!token.ok()) return token.status();
 
@@ -158,7 +157,7 @@ std::string OAuthHandler::GetGcpProjectFromGcloud() {
 absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& access_token) {
   // 1. Try loadCodeAssist (the authoritative way for GCA / Managed Project)
   std::string gca_url = absl::StrCat(kCloudCodeBaseUrl, "/v1internal:loadCodeAssist");
-  
+
   // GCA identification headers
   std::vector<std::string> headers = {
       "Authorization: Bearer " + access_token,
@@ -175,7 +174,7 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
           {"pluginType", "GEMINI"}
       }}
   };
-  
+
   const char* env_p = std::getenv("GOOGLE_CLOUD_PROJECT");
   if (!env_p) env_p = std::getenv("GOOGLE_CLOUD_PROJECT_ID");
   if (env_p) {
@@ -230,7 +229,7 @@ absl::Status OAuthHandler::ProvisionProject() {
 
   std::string enable_url = absl::StrCat(kServiceUsageBaseUrl, "/projects/", project_id, "/services/generativelanguage.googleapis.com:enable");
   (void)http_client_->Post(enable_url, "", {"Authorization: Bearer " + token});
-  
+
   return absl::OkStatus();
 }
 

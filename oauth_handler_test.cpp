@@ -1,11 +1,11 @@
-#include "oauth_handler.h"
-#include "http_client.h"
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
 #include <cstdlib>
 #include <fstream>
-#include "absl/strings/match.h"
 
+#include "absl/strings/match.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "http_client.h"
+#include "oauth_handler.h"
 namespace slop {
 
 using ::testing::_;
@@ -55,9 +55,9 @@ TEST_F(OAuthHandlerTest, DiscoverProjectIdObjectFormat) {
 
   // 1. Test Object Format Discovery
   std::string object_json = R"({"cloudaicompanionProject": {"id": "managed-project-456"}})";
-  
+
   // Expect headers verification as well
-  EXPECT_CALL(mock_http, Post(HasSubstr("loadCodeAssist"), _, 
+  EXPECT_CALL(mock_http, Post(HasSubstr("loadCodeAssist"), _,
       AllOf(Contains(HasSubstr("X-Goog-Api-Client")),
             Contains(HasSubstr("Client-Metadata")))))
       .WillOnce(Return(object_json));

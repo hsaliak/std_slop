@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
+
+#include <string>
+#include <vector>
+
 #include "command_handler.h"
 #include "database.h"
-#include <vector>
-#include <string>
-
 namespace slop {
 
 class InputParsingTest : public ::testing::Test {
@@ -14,7 +15,7 @@ protected:
 
     void SetUp() override {
         auto status = db.Init(":memory:");
-	ASSERT_TRUE(status.ok());
+  ASSERT_TRUE(status.ok());
     }
 };
 
@@ -22,7 +23,7 @@ TEST_F(InputParsingTest, SquareBracesInNormalInput) {
     CommandHandler handler(&db, nullptr, nullptr, "", "");
     std::string input = "This is a test [with square braces]";
     auto result = handler.Handle(input, session_id, active_skills, [](){}, {});
-    
+
     // Should NOT be handled as a command
     EXPECT_EQ(result, CommandHandler::Result::NOT_A_COMMAND);
 }
@@ -32,7 +33,7 @@ TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
     // Many commands just take the rest of the line as args
     std::string input = "/session activate session[1]";
     auto result = handler.Handle(input, session_id, active_skills, [](){}, {});
-    
+
     EXPECT_EQ(result, CommandHandler::Result::HANDLED);
     EXPECT_EQ(session_id, "session[1]");
 }
@@ -42,7 +43,7 @@ TEST_F(InputParsingTest, SingleQuotesInCommandArgs) {
     // This tests if the manual SQL construction fails or is vulnerable
     std::string input = "/session activate session' OR '1'='1";
     auto result = handler.Handle(input, session_id, active_skills, [](){}, {});
-    
+
     EXPECT_EQ(result, CommandHandler::Result::HANDLED);
     EXPECT_EQ(session_id, "session' OR '1'='1");
 }
@@ -51,7 +52,7 @@ TEST_F(InputParsingTest, MalformedCommand) {
     CommandHandler handler(&db, nullptr, nullptr, "", "");
     std::string input = "/nonexistent_command [arg]";
     auto result = handler.Handle(input, session_id, active_skills, [](){}, {});
-    
+
     EXPECT_EQ(result, CommandHandler::Result::UNKNOWN);
 }
 

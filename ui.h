@@ -1,12 +1,13 @@
 #ifndef SLOP_SQL_UI_H_
 #define SLOP_SQL_UI_H_
 
-#include "absl/status/status.h"
 #include <string>
 #include <vector>
-#include "database.h"
-#include "color.h"
 
+#include "absl/status/status.h"
+
+#include "color.h"
+#include "database.h"
 namespace slop {
 
 void SetupTerminal();
@@ -33,7 +34,7 @@ size_t GetTerminalWidth();
 
 /**
  * @brief Formats a single line with truncation, padding, and coloring.
- * 
+ *
  * @param text The text to format.
  * @param color_bg ANSI background color code.
  * @param width Target width (0 to use GetTerminalWidth()).

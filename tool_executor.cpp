@@ -1,15 +1,16 @@
 #include "tool_executor.h"
-#include <fstream>
-#include <sstream>
+
 #include <cstdio>
-#include <memory>
+
 #include <array>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <memory>
+#include <sstream>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-
-#include <filesystem>
-
 namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
@@ -31,10 +32,10 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     result = ApplyPatch(args["path"], args["patches"]);
   } else if (name == "grep_tool") {
     if (!args.contains("pattern")) return absl::InvalidArgumentError("Missing 'pattern' argument");
-    
+
     std::string path = args.contains("path") ? args["path"].get<std::string>() : ".";
     int context = args.contains("context") ? args["context"].get<int>() : 0;
-    
+
     // Delegate to GitGrep if in a git repo
     auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
     if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
@@ -73,7 +74,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
 absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, bool add_line_numbers) {
   std::ifstream file(path);
   if (!file.is_open()) return absl::NotFoundError("Could not open file: " + path);
-  
+
   std::stringstream ss;
   std::string line;
   int line_num = 1;
@@ -189,7 +190,7 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   }
 
   std::string cmd = "git grep";
-  
+
   if (args.value("line_number", true)) cmd += " -n";
   if (args.value("case_insensitive", false)) cmd += " -i";
   if (args.value("count", false)) cmd += " -c";
@@ -199,24 +200,24 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   if (args.value("pcre", false)) cmd += " -P";
   if (args.value("cached", false)) cmd += " --cached";
   if (args.value("all_match", false)) cmd += " --all-match";
-  
+
   if (args.contains("context")) {
     cmd += " -C " + std::to_string(args["context"].get<int>());
   } else {
     if (args.contains("before")) cmd += " -B " + std::to_string(args["before"].get<int>());
     if (args.contains("after")) cmd += " -A " + std::to_string(args["after"].get<int>());
   }
-  
+
   if (args.contains("branch")) {
     cmd += " " + args["branch"].get<std::string>();
   }
-  
+
   cmd += " -e \"" + args["pattern"].get<std::string>() + "\"";
-  
+
   if (args.contains("path")) {
     cmd += " -- \"" + args["path"].get<std::string>() + "\"";
   }
-  
+
   return ExecuteBash(cmd);
 }
 } // namespace slop

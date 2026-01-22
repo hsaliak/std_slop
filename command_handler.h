@@ -33,7 +33,7 @@ class CommandHandler {
 
   using CommandFunc = std::function<Result(CommandArgs&)>;
 
-  explicit CommandHandler(Database* db, 
+  explicit CommandHandler(Database* db,
                           class Orchestrator* orchestrator = nullptr,
                           OAuthHandler* oauth_handler = nullptr,
                           std::string google_api_key = "",

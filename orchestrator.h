@@ -51,7 +51,7 @@ class Orchestrator {
     Config config_;
   };
 
-  // Constructor is public to allow stack allocation if desired, 
+  // Constructor is public to allow stack allocation if desired,
   // but Builder is preferred for complex configuration.
   Orchestrator(Database* db, HttpClient* http_client);
 
@@ -63,7 +63,7 @@ class Orchestrator {
 
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id, const std::vector<std::string>& active_skills = {});
   absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json, const std::string& group_id = "");
-  
+
   // Rebuilds the session state (---STATE--- anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);
 
@@ -78,7 +78,7 @@ class Orchestrator {
 
   // Exposed for rebuilding and testing
   absl::StatusOr<std::vector<Database::Message>> GetRelevantHistory(const std::string& session_id, int window_size);
-  
+
   // Refactored: UpdateStrategy is now called by Build() or BuildInto()
   void UpdateStrategy();
 

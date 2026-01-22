@@ -30,12 +30,12 @@ class Database {
   class Statement {
    public:
     Statement(sqlite3* db, const std::string& sql) : db_(db), sql_(sql) {}
-    
+
     absl::Status Prepare();
     absl::Status BindInt(int index, int value);
     absl::Status BindText(int index, const std::string& value);
     absl::Status BindNull(int index);
-    
+
     absl::StatusOr<bool> Step(); // Returns true if a row is available (SQLITE_ROW)
     absl::Status Run();      // For operations that don't return rows (SQLITE_DONE)
 
@@ -121,7 +121,7 @@ class Database {
 
   // Context Settings
   absl::Status SetContextWindow(const std::string& session_id, int size);
-  struct ContextSettings { 
+  struct ContextSettings {
       int size;
   };
   absl::StatusOr<ContextSettings> GetContextSettings(const std::string& session_id);

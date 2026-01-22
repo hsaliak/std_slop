@@ -1,8 +1,10 @@
 #include "orchestrator_openai.h"
-#include "absl/strings/substitute.h"
-#include "orchestrator.h"
+
 #include <iostream>
 
+#include "absl/strings/substitute.h"
+
+#include "orchestrator.h"
 namespace slop {
 
 OpenAiOrchestrator::OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url)
@@ -28,7 +30,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
       if (msg.role == "system") continue;
 
       nlohmann::json msg_obj;
-      
+
       if (msg.status == "tool_call") {
           auto j = nlohmann::json::parse(msg.content, nullptr, false);
           if (!j.is_discarded()) {
@@ -38,7 +40,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
           }
       } else if (msg.role == "tool") {
           msg_obj = {{"role", msg.role}};
-          msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|')); 
+          msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|'));
           msg_obj["content"] = SmarterTruncate(msg.content, kMaxToolResultContext);
       } else {
           msg_obj = {{"role", msg.role}, {"content", display_content}};
@@ -52,7 +54,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
   }
 
   nlohmann::json payload = {{"model", model_}, {"messages", messages}};
-  
+
   nlohmann::json tools = nlohmann::json::array();
   auto tools_or = db_->GetEnabledTools();
   if (tools_or.ok()) {
@@ -64,7 +66,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(
       }
   }
   if (!tools.empty()) payload["tools"] = tools;
-  
+
   if (strip_reasoning_) {
       payload["transforms"] = {"strip_reasoning"};
   }
@@ -90,8 +92,8 @@ absl::Status OpenAiOrchestrator::ProcessResponse(
   if (j.contains("choices") && !j["choices"].empty()) {
       auto& msg = j["choices"][0]["message"];
       if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
-          status = db_->AppendMessage(session_id, "assistant", msg.dump(), 
-              msg["tool_calls"][0]["id"].get<std::string>() + "|" + msg["tool_calls"][0]["function"]["name"].get<std::string>(), 
+          status = db_->AppendMessage(session_id, "assistant", msg.dump(),
+              msg["tool_calls"][0]["id"].get<std::string>() + "|" + msg["tool_calls"][0]["function"]["name"].get<std::string>(),
               "tool_call", group_id, GetName());
       } else if (msg.contains("content") && !msg["content"].is_null()) {
           std::string text = msg["content"];
@@ -117,7 +119,7 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const D
     if (msg.status != "tool_call") return absl::InvalidArgumentError("Not a tool call");
     auto j = nlohmann::json::parse(msg.content, nullptr, false);
     if (j.is_discarded()) return absl::InternalError("JSON error");
-    
+
     std::vector<ToolCall> calls;
     if (j.contains("tool_calls")) {
         for (const auto& call : j["tool_calls"]) {
