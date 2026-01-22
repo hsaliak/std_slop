@@ -1,10 +1,8 @@
 #include "command_handler.h"
+#include "orchestrator.h"
 
 #include <gtest/gtest.h>
-
 #include <nlohmann/json.hpp>
-
-#include "orchestrator.h"
 namespace slop {
 
 class CommandHandlerTest : public ::testing::Test {

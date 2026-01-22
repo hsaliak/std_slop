@@ -1,3 +1,11 @@
+#include "command_handler.h"
+#include "database.h"
+#include "http_client.h"
+#include "oauth_handler.h"
+#include "orchestrator.h"
+#include "tool_executor.h"
+#include "ui.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -16,15 +24,9 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/time/clock.h"
+
 #include "color.h"
-#include "command_handler.h"
 #include "constants.h"
-#include "database.h"
-#include "http_client.h"
-#include "oauth_handler.h"
-#include "orchestrator.h"
-#include "tool_executor.h"
-#include "ui.h"
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
 ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");

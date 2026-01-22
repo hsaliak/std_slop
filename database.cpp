@@ -1,13 +1,13 @@
 #include "database.h"
 
-#include <sqlite3.h>
-
 #include <iostream>
-#include <nlohmann/json.hpp>
 
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
+
+#include <nlohmann/json.hpp>
+#include <sqlite3.h>
 namespace slop {
 
 absl::Status Database::Statement::Prepare() {

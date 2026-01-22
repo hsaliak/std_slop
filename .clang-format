@@ -2,7 +2,7 @@ BasedOnStyle: Google
 ColumnLimit: 120
 IndentWidth: 2
 AllowShortFunctionsOnASingleLine: All
-Standard: Cpp17
+Standard: c++17
 IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^"((command_handler|database|http_client|oauth_handler|orchestrator|orchestrator_gemini|orchestrator_openai|orchestrator_strategy|tool_executor|ui)\.h)"'

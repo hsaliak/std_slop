@@ -1,8 +1,7 @@
+#include "database.h"
 #include "orchestrator.h"
 
 #include <gtest/gtest.h>
-
-#include "database.h"
 namespace slop {
 
 class OrchestratorTest : public ::testing::Test {

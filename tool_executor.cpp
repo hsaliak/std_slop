@@ -121,7 +121,7 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, co
   std::ifstream::pos_type fileSize = ifs.tellg();
   ifs.seekg(0, std::ios::beg);
   std::string content(static_cast<size_t>(fileSize), '\0');
-  ifs.read(&content[0], fileSize);
+  ifs.read(content.data(), fileSize);
 
   if (!patches.is_array()) return absl::InvalidArgumentError("'patches' must be an array");
 

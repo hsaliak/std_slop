@@ -1,10 +1,10 @@
 #include "tool_executor.h"
 
-#include <gtest/gtest.h>
-
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+
+#include <gtest/gtest.h>
 
 namespace slop {
 

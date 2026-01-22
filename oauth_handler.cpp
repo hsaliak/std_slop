@@ -1,8 +1,5 @@
 #include "oauth_handler.h"
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include <filesystem>
@@ -15,8 +12,13 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
-#include "constants.h"
 #include "nlohmann/json.hpp"
+
+#include "constants.h"
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 namespace slop {
 
 namespace {

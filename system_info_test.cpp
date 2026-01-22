@@ -1,8 +1,9 @@
-#include <gtest/gtest.h>
-
-#include "absl/strings/match.h"
 #include "database.h"
 #include "orchestrator.h"
+
+#include "absl/strings/match.h"
+
+#include <gtest/gtest.h>
 namespace slop {
 
 class SystemInfoTest : public ::testing::Test {

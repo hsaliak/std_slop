@@ -1,7 +1,6 @@
 #include "database.h"
 
 #include <gtest/gtest.h>
-
 #include <nlohmann/json.hpp>
 
 TEST(DatabaseTest, InitWorks) {

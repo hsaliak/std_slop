@@ -1,9 +1,9 @@
+#include "orchestrator.h"
 #include "orchestrator_openai.h"
 
 #include <iostream>
 
 #include "absl/strings/substitute.h"
-#include "orchestrator.h"
 namespace slop {
 
 OpenAiOrchestrator::OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,

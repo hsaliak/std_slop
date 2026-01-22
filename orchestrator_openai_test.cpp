@@ -1,9 +1,8 @@
+#include "database.h"
+#include "http_client.h"
 #include "orchestrator_openai.h"
 
 #include <gtest/gtest.h>
-
-#include "database.h"
-#include "http_client.h"
 namespace slop {
 
 class OpenAiOrchestratorTest : public ::testing::Test {

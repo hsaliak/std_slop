@@ -1,2 +1,65 @@
-Checks: '-*,bugprone-argument-selection,bugprone-assert-side-effect'
+Checks: >
+  -*,
+  abseil-*,
+  bugprone-*,
+  google-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -abseil-duration-addition,
+  -abseil-time-comparison,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -google-build-using-namespace,
+  -google-explicit-constructor,
+  -google-readability-braces-around-statements,
+  -google-readability-todo,
+  -google-runtime-int,
+  -misc-const-correctness,
+  -misc-include-cleaner,
+  -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
+  -modernize-make-unique,
+  -modernize-pass-by-value,
+  -modernize-use-auto,
+  -modernize-use-default-member-init,
+  -modernize-use-trailing-return-type,
+  -performance-avoid-endl,
+  -performance-inefficient-string-concatenation,
+  -performance-unnecessary-value-param,
+  -readability-braces-around-statements,
+  -readability-convert-member-functions-to-static,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-identifier-naming,
+  -readability-implicit-bool-conversion,
+  -readability-isolate-declaration,
+  -readability-magic-numbers,
+  -readability-make-member-function-const,
+  -readability-todo
 WarningsAsErrors: '*'
+CheckOptions:
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.ConstantCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.ConstantPrefix
+    value:           k
+  - key:             readability-identifier-naming.FunctionCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.MemberCase
+    value:           lower_case
+  - key:             readability-identifier-naming.MemberSuffix
+    value:           _
+  - key:             readability-identifier-naming.NamespaceCase
+    value:           lower_case
+  - key:             readability-identifier-naming.StructCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.VariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.GlobalConstantCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.GlobalConstantPrefix
+    value:           k

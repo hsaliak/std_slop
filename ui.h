@@ -1,12 +1,14 @@
 #ifndef SLOP_SQL_UI_H_
 #define SLOP_SQL_UI_H_
 
+#include "database.h"
+
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
+
 #include "color.h"
-#include "database.h"
 namespace slop {
 
 void SetupTerminal();

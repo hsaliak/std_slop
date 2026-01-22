@@ -1,10 +1,10 @@
-#include <gtest/gtest.h>
+#include "command_handler.h"
+#include "database.h"
 
 #include <string>
 #include <vector>
 
-#include "command_handler.h"
-#include "database.h"
+#include <gtest/gtest.h>
 namespace slop {
 
 class InputParsingTest : public ::testing::Test {

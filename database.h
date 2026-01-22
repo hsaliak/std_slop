@@ -1,14 +1,14 @@
 #ifndef SLOP_SQL_DATABASE_H_
 #define SLOP_SQL_DATABASE_H_
 
-#include <sqlite3.h>
-
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+
+#include <sqlite3.h>
 
 namespace slop {
 

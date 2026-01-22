@@ -1,11 +1,13 @@
 #ifndef SLOP_SQL_TOOL_EXECUTOR_H_
 #define SLOP_SQL_TOOL_EXECUTOR_H_
 
-#include <nlohmann/json.hpp>
+#include "database.h"
+
 #include <string>
 
 #include "absl/status/statusor.h"
-#include "database.h"
+
+#include <nlohmann/json.hpp>
 
 namespace slop {
 

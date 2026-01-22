@@ -1,10 +1,10 @@
 #include "ui.h"
 
-#include <gtest/gtest.h>
-
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
+
+#include <gtest/gtest.h>
 
 namespace slop {
 

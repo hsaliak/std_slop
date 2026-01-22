@@ -1,10 +1,10 @@
+#include "orchestrator.h"
 #include "orchestrator_gemini.h"
 
 #include <iostream>
 
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
-#include "orchestrator.h"
 namespace slop {
 
 GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,

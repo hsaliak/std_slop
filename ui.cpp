@@ -1,6 +1,5 @@
 #include "ui.h"
 
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -11,10 +10,13 @@
 #include <sstream>
 
 #include "absl/status/status.h"
-#include "color.h"
 #include "nlohmann/json.hpp"
+
+#include "color.h"
 #include "readline/history.h"
 #include "readline/readline.h"
+
+#include <sys/ioctl.h>
 namespace slop {
 
 namespace {
@@ -294,7 +296,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
   }
 
   std::vector<std::string> keys;
-  for (auto& [key, value] : j[0].items()) keys.push_back(key);
+  for (const auto& [key, value] : j[0].items()) keys.push_back(key);
 
   std::vector<size_t> widths(keys.size());
   for (size_t i = 0; i < keys.size(); ++i) widths[i] = keys[i].length();

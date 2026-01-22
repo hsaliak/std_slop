@@ -9,7 +9,7 @@ build --copt="-O2"
 
 # 2. Universal Hardening (Safe for modern Clang and GCC)
 build --copt="-fstack-protector-strong"
-build --copt="-D_FORTIFY_SOURCE=3"
+build --copt="-D_FORTIFY_SOURCE=2"
 build --copt="-D_GLIBCXX_ASSERTIONS"
 
 # 3. Handle the "Unused Argument" error for Clang

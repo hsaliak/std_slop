@@ -1,12 +1,14 @@
 #ifndef SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
 #define SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
 
-#include <nlohmann/json.hpp>
+#include "database.h"
+
 #include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "database.h"
+
+#include <nlohmann/json.hpp>
 
 namespace slop {
 
