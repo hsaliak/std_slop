@@ -8,6 +8,7 @@
 #include <iostream>
 #include <thread>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 namespace slop {
@@ -84,18 +85,24 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
                                                          const std::string& body,
                                                          const std::vector<std::string>& headers) {
   ResetAbort();
+  LOG(INFO) << "Executing HTTP " << method << " to " << url;
 
   int max_retries = 3;
   int retry_count = 0;
   int64_t backoff_ms = 1000;
 
   std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
-  if (!curl) return absl::InternalError("Failed to initialize CURL");
+  if (!curl) {
+    LOG(ERROR) << "Failed to initialize CURL";
+    return absl::InternalError("Failed to initialize CURL");
+  }
 
   struct curl_slist* raw_chunk = nullptr;
   for (const auto& header : headers) {
     raw_chunk = curl_slist_append(raw_chunk, header.c_str());
+    VLOG(1) << "Header: " << header;
   }
+  VLOG(2) << "Request Body: " << body;
   std::unique_ptr<struct curl_slist, SlistDeleter> chunk(raw_chunk);
 
   while (true) {
@@ -121,23 +128,36 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &response_code);
 
     if (res != CURLE_OK) {
-      if (this->abort_requested_) return absl::CancelledError("Request cancelled by user");
+      if (this->abort_requested_) {
+        LOG(INFO) << "Request cancelled by user";
+        return absl::CancelledError("Request cancelled by user");
+      }
 
+      LOG(WARNING) << "CURL error: " << curl_easy_strerror(res) << " (res=" << res << ")";
       if (retry_count < max_retries) {
+        LOG(INFO) << "Retrying in " << backoff_ms << "ms... (Attempt " << retry_count + 1 << "/" << max_retries << ")";
         std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
         retry_count++;
         backoff_ms *= 2;
         continue;
       }
+      LOG(ERROR) << "Maximum retries reached for CURL error: " << curl_easy_strerror(res);
       return absl::InternalError("CURL error: " + std::string(curl_easy_strerror(res)));
     }
+
+    LOG(INFO) << "HTTP Status: " << response_code;
+    VLOG(2) << "Response Body: " << response_string;
 
     if (response_code >= 200 && response_code < 300) {
       return response_string;
     }
 
+    LOG(ERROR) << "HTTP error " << response_code << ": " << response_string;
+
     if (response_code >= 500 || response_code == 429) {
       if (retry_count < max_retries) {
+        LOG(INFO) << "Retrying " << response_code << " in " << backoff_ms << "ms... (Attempt " << retry_count + 1 << "/"
+                  << max_retries << ")";
         std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
         retry_count++;
         backoff_ms *= 2;

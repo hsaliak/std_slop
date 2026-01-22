@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
@@ -14,7 +15,9 @@ absl::Status Database::Statement::Prepare() {
   sqlite3_stmt* raw_stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql_.c_str(), -1, &raw_stmt, nullptr);
   if (rc != SQLITE_OK) {
-    return absl::InternalError("Prepare error: " + std::string(sqlite3_errmsg(db_)) + " (SQL: " + sql_ + ")");
+    std::string err = sqlite3_errmsg(db_);
+    LOG(ERROR) << "Prepare error: " << err << " (SQL: " << sql_ << ")";
+    return absl::InternalError("Prepare error: " + err + " (SQL: " + sql_ + ")");
   }
   stmt_.reset(raw_stmt);
   return absl::OkStatus();
@@ -79,11 +82,14 @@ absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std
 }
 
 absl::Status Database::Init(const std::string& db_path) {
+  LOG(INFO) << "Initializing database at " << db_path;
   sqlite3* raw_db = nullptr;
   int rc = sqlite3_open(db_path.c_str(), &raw_db);
   db_.reset(raw_db);
   if (rc != SQLITE_OK) {
-    return absl::InternalError("Failed to open database: " + std::string(sqlite3_errmsg(db_.get())));
+    std::string err = sqlite3_errmsg(db_.get());
+    LOG(ERROR) << "Failed to open database: " << err;
+    return absl::InternalError("Failed to open database: " + err);
   }
 
   sqlite3_exec(db_.get(), "DROP TABLE IF EXISTS code_search;", nullptr, nullptr, nullptr);

@@ -3,6 +3,7 @@
 
 #include <iostream>
 
+#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 namespace slop {
 
@@ -78,7 +79,10 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
 absl::Status OpenAiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                  const std::string& group_id) {
   auto j = nlohmann::json::parse(response_json, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse LLM response");
+  if (j.is_discarded()) {
+    LOG(ERROR) << "Failed to parse OpenAI response: " << response_json;
+    return absl::InternalError("Failed to parse LLM response");
+  }
 
   if (j.contains("usage")) {
     auto& usage = j["usage"];

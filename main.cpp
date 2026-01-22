@@ -18,6 +18,7 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/log/initialize.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -84,6 +85,7 @@ std::string GetHelpText() {
 void ShowHelp() { std::cout << GetHelpText() << std::endl; }
 
 int main(int argc, char** argv) {
+  absl::InitializeLog();
   absl::SetProgramUsageMessage(GetHelpText());
   std::vector<char*> positional_args = absl::ParseCommandLine(argc, argv);
 

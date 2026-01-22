@@ -67,6 +67,9 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:initialize",
         "@curl//:curl",
         "@nlohmann_json//:json",
     ],
@@ -88,6 +91,8 @@ cc_binary(
         "@abseil-cpp//absl/flags:usage",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:initialize",
         "@nlohmann_json//:json",
     ],
 )

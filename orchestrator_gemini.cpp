@@ -3,6 +3,7 @@
 
 #include <iostream>
 
+#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 namespace slop {
@@ -79,7 +80,10 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
 absl::Status GeminiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                  const std::string& group_id) {
   auto j = nlohmann::json::parse(response_json, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse LLM response");
+  if (j.is_discarded()) {
+    LOG(ERROR) << "Failed to parse Gemini response: " << response_json;
+    return absl::InternalError("Failed to parse LLM response");
+  }
 
   nlohmann::json* target = &j;
   if (j.contains("response") && j["response"].is_object()) {

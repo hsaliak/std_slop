@@ -8,6 +8,7 @@
 #include <sstream>
 #include <system_error>
 
+#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -48,8 +49,10 @@ OAuthHandler::OAuthHandler(HttpClient* http_client) : http_client_(http_client) 
 
 absl::Status OAuthHandler::LoadTokens() {
   if (token_path_.empty()) return absl::NotFoundError("No home directory found");
+  LOG(INFO) << "Loading tokens from " << token_path_;
   std::ifstream f(token_path_);
   if (!f.is_open()) {
+    LOG(WARNING) << "Token file not found at " << token_path_;
     return absl::NotFoundError("Token file not found. Please run ./slop_auth.sh");
   }
 
@@ -103,17 +106,21 @@ absl::StatusOr<std::string> OAuthHandler::GetValidToken() {
 
 absl::Status OAuthHandler::RefreshToken() {
   if (tokens_.refresh_token.empty()) {
+    LOG(ERROR) << "No refresh token available";
     return absl::UnauthenticatedError("No refresh token available. Please run ./slop_auth.sh");
   }
 
+  LOG(INFO) << "Refreshing OAuth token...";
   std::string token_url = kGoogleOAuthTokenUrl;
   std::string body = "refresh_token=" + tokens_.refresh_token + "&client_id=" + std::string(kGeminiClientId) +
                      "&client_secret=" + std::string(kGeminiClientSecret) + "&grant_type=refresh_token";
 
   auto res = http_client_->Post(token_url, body, {"Content-Type: application/x-www-form-urlencoded"});
   if (!res.ok()) {
+    LOG(ERROR) << "Token refresh failed: " << res.status().ToString();
     return absl::UnauthenticatedError("Token refresh failed. Please run ./slop_auth.sh");
   }
+  LOG(INFO) << "Token refreshed successfully.";
 
   auto j = nlohmann::json::parse(*res, nullptr, false);
   if (j.is_discarded()) return absl::InternalError("Failed to parse refresh response");

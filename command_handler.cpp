@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <iostream>
 
+#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_join.h"
@@ -22,7 +23,7 @@ namespace slop {
 
 namespace {
 void log_status(const absl::Status& status) {
-  if (!status.ok()) std::cerr << "Error: " << status.message() << std::endl;
+  if (!status.ok()) LOG(ERROR) << status.message();
 }
 
 }  // namespace

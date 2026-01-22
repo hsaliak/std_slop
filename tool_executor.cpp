@@ -8,11 +8,13 @@
 #include <memory>
 #include <sstream>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
+  LOG(INFO) << "Executing tool: " << name << " with args: " << args.dump();
   auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
     return "---TOOL_RESULT: " + tool_name + "---\n" + content + "\n---END_RESULT---";
   };
@@ -65,8 +67,10 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   }
 
   if (!result.ok()) {
+    LOG(ERROR) << "Tool " << name << " failed: " << result.status().ToString();
     return wrap_result(name, "Error: " + result.status().ToString());
   }
+  LOG(INFO) << "Tool " << name << " succeeded.";
   return wrap_result(name, *result);
 }
 
