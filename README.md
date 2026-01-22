@@ -204,6 +204,5 @@ bazel run //:std_slop -- [session_name]
 ## Design Documents
 
 Detailed plans and architecture notes:
-- [TDD Plan: apply_patch Tool](apply_patch.md)
 - [Migration Plan: std::slop main.cpp to Clasp Common Lisp](clasp_migration.md)
 - [Orchestrator Strategy Pattern Refactor Plan](orchestrator_refactor.md)
