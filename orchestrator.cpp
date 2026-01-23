@@ -280,20 +280,7 @@ void Orchestrator::InjectRelevantMemos(const std::vector<Database::Message>& his
   }
   if (last_user_text.empty()) return;
 
-  // Simple tag extraction: words in the message
-  std::vector<std::string> words = absl::StrSplit(last_user_text, absl::ByAnyChar(" \t\n\r.,;:()[]{}<>\"'"));
-  std::vector<std::string> tags;
-  std::set<std::string> seen;
-  for (const auto& w : words) {
-    if (w.length() > 3) {
-      std::string word = absl::AsciiStrToLower(absl::StripAsciiWhitespace(w));
-      if (seen.find(word) == seen.end()) {
-        tags.push_back(word);
-        seen.insert(word);
-      }
-    }
-  }
-
+  std::vector<std::string> tags = Database::ExtractTags(last_user_text);
   if (tags.empty()) return;
 
   auto memos_or = db_->GetMemosByTags(tags);

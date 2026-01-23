@@ -151,6 +151,9 @@ class Database {
     std::string created_at;
   };
 
+  static std::vector<std::string> ExtractTags(const std::string& text);
+  static bool IsStopWord(const std::string& word);
+
   absl::Status AddMemo(const std::string& content, const std::string& semantic_tags);
   absl::StatusOr<std::vector<Memo>> GetMemosByTags(const std::vector<std::string>& tags);
   absl::StatusOr<std::vector<Memo>> GetAllMemos();

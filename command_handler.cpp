@@ -539,18 +539,28 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
     std::cout << "Memo added." << std::endl;
   } else if (sub_cmd == "search") {
     if (parts.size() < 2) {
-      std::cerr << "Usage: /memo search <tags>" << std::endl;
+      std::cerr << "Usage: /memo search <tags or keywords>" << std::endl;
       return Result::HANDLED;
     }
-    std::vector<std::string> tags = absl::StrSplit(parts[1], ',');
-    for (auto& t : tags) t = std::string(absl::StripAsciiWhitespace(t));
-    auto memos_or = db_->GetMemosByTags(tags);
+    // Try splitting by comma first, if no comma, use the whole string which will be split by ExtractTags
+    std::vector<std::string> tags_input;
+    if (absl::StrContains(parts[1], ',')) {
+      tags_input = absl::StrSplit(parts[1], ',');
+    } else {
+      tags_input.push_back(parts[1]);
+    }
+    
+    auto memos_or = db_->GetMemosByTags(tags_input);
     if (!memos_or.ok()) {
       HandleStatus(memos_or.status(), "Error");
       return Result::HANDLED;
     }
-    for (const auto& m : *memos_or) {
-      std::cout << "[" << m.id << "] (" << m.semantic_tags << ") " << m.content << std::endl;
+    if (memos_or->empty()) {
+      std::cout << "No matching memos found." << std::endl;
+    } else {
+      for (const auto& m : *memos_or) {
+        std::cout << "[" << m.id << "] (" << m.semantic_tags << ") " << m.content << std::endl;
+      }
     }
   } else {
     std::cerr << "Unknown memo sub-command: " << sub_cmd << std::endl;

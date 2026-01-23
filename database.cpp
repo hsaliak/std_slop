@@ -1,6 +1,7 @@
 #include "database.h"
 
 #include <iostream>
+#include <unordered_set>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -74,6 +75,35 @@ int Database::Statement::ColumnType(int index) { return sqlite3_column_type(stmt
 const char* Database::Statement::ColumnName(int index) { return sqlite3_column_name(stmt_.get(), index); }
 
 int Database::Statement::ColumnCount() { return sqlite3_column_count(stmt_.get()); }
+
+bool Database::IsStopWord(const std::string& word) {
+  static const std::unordered_set<std::string> kStopWords = {
+      "about", "above", "after", "again", "against", "all", "and", "any", "because", "been",
+      "before", "being", "below", "between", "both", "but", "could", "did", "does", "doing",
+      "down", "during", "each", "few", "for", "from", "further", "had", "has", "have", "having",
+      "here", "how", "into", "its", "just", "more", "most", "now", "off", "once", "only", "other",
+      "ought", "our", "ours", "out", "over", "own", "same", "she", "should", "some", "such", "than",
+      "that", "the", "their", "theirs", "them", "then", "there", "these", "they", "this", "those",
+      "through", "too", "under", "until", "very", "was", "were", "what", "when", "where", "which",
+      "while", "who", "whom", "why", "with", "would", "you", "your", "yours", "yourself", "yourselves"};
+  return kStopWords.find(word) != kStopWords.end();
+}
+
+std::vector<std::string> Database::ExtractTags(const std::string& text) {
+  std::vector<std::string> words = absl::StrSplit(text, absl::ByAnyChar(" \t\n\r.,;:()[]{}<>\"'-"));
+  std::vector<std::string> tags;
+  std::set<std::string> seen;
+  for (const auto& w : words) {
+    std::string word = absl::AsciiStrToLower(absl::StripAsciiWhitespace(w));
+    if (word.length() > 3 && !IsStopWord(word)) {
+      if (seen.find(word) == seen.end()) {
+        tags.push_back(word);
+        seen.insert(word);
+      }
+    }
+  }
+  return tags;
+}
 
 absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std::string& sql) {
   auto stmt = std::make_unique<Statement>(db_.get(), sql);
@@ -755,8 +785,22 @@ absl::Status Database::AddMemo(const std::string& content, const std::string& se
   return stmt->Run();
 }
 
-absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::vector<std::string>& tags) {
-  if (tags.empty()) return std::vector<Memo>();
+absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::vector<std::string>& tags_input) {
+  if (tags_input.empty()) return std::vector<Memo>();
+
+  std::set<std::string> unique_tags;
+  for (const auto& t : tags_input) {
+    auto extracted = ExtractTags(t);
+    unique_tags.insert(extracted.begin(), extracted.end());
+    // Also add the raw tag if it's not a stopword and long enough
+    std::string lower_t = absl::AsciiStrToLower(absl::StripAsciiWhitespace(t));
+    if (lower_t.length() > 2 && !IsStopWord(lower_t)) {
+      unique_tags.insert(lower_t);
+    }
+  }
+
+  if (unique_tags.empty()) return std::vector<Memo>();
+  std::vector<std::string> tags(unique_tags.begin(), unique_tags.end());
 
   std::string sql =
       "SELECT DISTINCT m.id, m.content, m.semantic_tags, m.created_at "
