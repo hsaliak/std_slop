@@ -143,6 +143,17 @@ class Database {
   };
 
   absl::Status AddTodo(const std::string& group_name, const std::string& description);
+
+  struct Memo {
+    int id;
+    std::string content;
+    std::string semantic_tags;
+    std::string created_at;
+  };
+
+  absl::Status AddMemo(const std::string& content, const std::string& semantic_tags);
+  absl::StatusOr<std::vector<Memo>> GetMemosByTags(const std::vector<std::string>& tags);
+  absl::StatusOr<std::vector<Memo>> GetAllMemos();
   absl::StatusOr<std::vector<Todo>> GetTodos(const std::string& group_name);
   absl::Status UpdateTodo(int id, const std::string& group_name, const std::string& description);
   absl::Status UpdateTodoStatus(int id, const std::string& group_name, const std::string& status);

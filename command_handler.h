@@ -44,9 +44,7 @@ class CommandHandler {
 
   std::vector<std::string> GetCommandNames() const;
   std::vector<std::string> GetSubCommands(const std::string& command) const;
-  const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const {
-    return sub_commands_;
-  }
+  const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
 
  private:
   void RegisterCommands();
@@ -68,6 +66,7 @@ class CommandHandler {
   Result HandleModel(CommandArgs& args);
   Result HandleThrottle(CommandArgs& args);
   Result HandleTodo(CommandArgs& args);
+  Result HandleMemo(CommandArgs& args);
 
   Database* db_;
   class Orchestrator* orchestrator_;

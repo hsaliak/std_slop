@@ -27,6 +27,25 @@ TEST_F(OrchestratorTest, AssemblePromptBasic) {
   EXPECT_EQ(prompt["contents"][1]["role"], "model");
 }
 
+TEST_F(OrchestratorTest, MemoInjection) {
+  auto orchestrator = Orchestrator::Builder(&db, &http).Build();
+
+  // 1. Add a memo
+  ASSERT_TRUE(db.AddMemo("SQLite is awesome", "[\"sqlite\", \"database\"]").ok());
+
+  // 2. Add a user message that should trigger retrieval
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "database").ok());
+
+  // 3. Assemble prompt
+  auto result = orchestrator->AssemblePrompt("s1", {});
+  ASSERT_TRUE(result.ok());
+
+  // 4. Verify system instruction contains the memo
+  std::string instr = (*result)["system_instruction"]["parts"][0]["text"];
+  EXPECT_TRUE(instr.find("---RELEVANT MEMOS---") != std::string::npos);
+  EXPECT_TRUE(instr.find("SQLite is awesome") != std::string::npos);
+}
+
 TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
   auto orchestrator = Orchestrator::Builder(&db, &http).Build();
 

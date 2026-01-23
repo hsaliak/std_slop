@@ -30,6 +30,14 @@ void SmartDisplay(const std::string& content);
 // Convenience wrapper for FormatAssembledContext + SmartDisplay.
 void DisplayAssembledContext(const std::string& json_str);
 
+/**
+ * @brief Logs an error status if it is not OK.
+ *
+ * @param status The status to handle.
+ * @param context Optional context message to prepend to the error.
+ */
+void HandleStatus(const absl::Status& status, const std::string& context = "");
+
 // Wraps text to a specific width, preserving newlines and being ANSI-aware.
 std::string WrapText(const std::string& text, size_t width = 80);
 

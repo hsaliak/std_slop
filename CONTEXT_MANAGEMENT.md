@@ -103,7 +103,30 @@ The `/undo` command is a high-level shortcut for:
 This is the primary way to "roll back" an interaction that went wrong or to retry a prompt with different instructions.
 
 ### The `/message remove <GID>` Command
-For more granular control, users can remove any specific message group by its ID. This is useful for removing "noise" from the middle of a history that might be confusing the LLM.
+For more granular control, users can remove any specific message group by its ID.
+
+## 6. Semantic Memo System
+
+Beyond session-specific state and rolling history, `std::slop` provides a **Semantic Memo System** for long-term knowledge persistence across sessions and projects.
+
+### Purpose
+Memos are designed for information that is:
+- **High-Value**: Architectural decisions, non-obvious "gotchas," or complex API designs.
+- **Persistent**: Information that should remain available even if the original conversation is deleted or archived.
+- **Discoverable**: Tagged semantically for easy retrieval by the LLM during future tasks.
+
+### Mechanism
+- **Creation**: Memos are created using the `save_memo` tool. Each memo consists of content and a set of semantic tags (e.g., `arch-decision`, `gotcha`, `api-design`).
+- **Retrieval**:
+    - **Automatic**: The orchestrator extracts keywords from user prompts and automatically injects up to 5 relevant memos into the system instructions.
+    - **Manual/Explicit**: The LLM can also use the `retrieve_memos` tool to find specific information based on tags.
+- **Persistence**: Memos are stored in the `llm_memos` table and are independent of any specific session.
+
+### Strategic Usage
+The system prompt instructs the LLM to:
+1. **Check Memos**: Look for existing knowledge before making assumptions about architectural patterns or system behavior.
+2. **Record Knowledge**: Save new memos when a significant discovery is made or an important decision is finalized.
+3. **Avoid Redundancy**: Only save memos for information that is NOT easily discoverable in the codebase itself (e.g., the "why" behind a design).ul for removing "noise" from the middle of a history that might be confusing the LLM.
 
 ### The `/context rebuild` Command
 Since the `---STATE---` block is derived from the *last* assistant message, removing messages can leave the persistent state out of sync with the now-current history. `/context rebuild` asks the LLM to look at the *entire current window* and generate a new, accurate `---STATE---` block.

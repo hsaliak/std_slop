@@ -10,8 +10,10 @@
 #include <sstream>
 #include <unordered_set>
 
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
@@ -116,6 +118,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   if (!history_or.ok()) return history_or.status();
 
   std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
+  InjectRelevantMemos(*history_or, &system_instruction);
   return strategy_->AssemblePayload(session_id, system_instruction, *history_or);
 }
 
@@ -262,6 +265,49 @@ absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
     }
   }
   return absl::OkStatus();
+}
+
+void Orchestrator::InjectRelevantMemos(const std::vector<Database::Message>& history, std::string* system_instruction) {
+  if (history.empty()) return;
+
+  // Find the last user message
+  std::string last_user_text;
+  for (auto it = history.rbegin(); it != history.rend(); ++it) {
+    if (it->role == "user") {
+      last_user_text = it->content;
+      break;
+    }
+  }
+  if (last_user_text.empty()) return;
+
+  // Simple tag extraction: words in the message
+  std::vector<std::string> words = absl::StrSplit(last_user_text, absl::ByAnyChar(" \t\n\r.,;:()[]{}<>\"'"));
+  std::vector<std::string> tags;
+  std::set<std::string> seen;
+  for (const auto& w : words) {
+    if (w.length() > 3) {
+      std::string word = absl::AsciiStrToLower(absl::StripAsciiWhitespace(w));
+      if (seen.find(word) == seen.end()) {
+        tags.push_back(word);
+        seen.insert(word);
+      }
+    }
+  }
+
+  if (tags.empty()) return;
+
+  auto memos_or = db_->GetMemosByTags(tags);
+  if (memos_or.ok() && !memos_or->empty()) {
+    absl::StrAppend(system_instruction, "\n---RELEVANT MEMOS---\n",
+                    "The following memos were automatically retrieved as they might be relevant to the "
+                    "current context:\n");
+    // Limit to top 5 memos to avoid clutter
+    int count = 0;
+    for (const auto& m : *memos_or) {
+      absl::StrAppend(system_instruction, "- [", m.semantic_tags, "] ", m.content, "\n");
+      if (++count >= 5) break;
+    }
+  }
 }
 
 }  // namespace slop

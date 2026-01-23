@@ -11,10 +11,7 @@ namespace slop {
 
 GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                                        const std::string& base_url)
-    : db_(db),
-      http_client_(http_client),
-      model_(model),
-      base_url_(base_url) {
+    : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {
   CHECK_NE(db_, nullptr);
   CHECK_NE(http_client_, nullptr);
 }

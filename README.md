@@ -12,6 +12,7 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 - **Historical Context Retrieval**: Unique ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
 - **Todo-Driven Workflows**: Integrated todo management system allowing for sequential execution of tasks via specialized skills.
+- **Semantic Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
 - **Enhanced UI**: ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions.
@@ -19,6 +20,7 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 - **Tool Execution**: Autonomous local file system and shell operations.
 - **Readline Support**: Command history and line auto-completion.
 - **Skills System**: Inject specialized personas and instructions into the session.
+- **Knowledge Management**: Use `/memo` to save and search for cross-session knowledge, architectural decisions, and patterns.
 
 ## Architecture
 

@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_split.h"
 #include "nlohmann/json.hpp"
@@ -157,7 +158,8 @@ char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] i
   if (start == 0 && text[0] == '/') {
     g_active_completion_list = g_completion_commands;
     return rl_completion_matches(text, CommandGenerator);
-  } else if (start > 0) {
+  }
+  if (start > 0) {
     std::string line(rl_line_buffer);
     std::vector<std::string> parts = absl::StrSplit(line, absl::MaxSplits(' ', 1));
     if (!parts.empty()) {
@@ -180,7 +182,7 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
   g_sub_commands = sub_commands;
   rl_attempted_completion_function = CommandCompletionProvider;
   // Ensure '/' is not a word break character so we can complete /commands
-  rl_basic_word_break_characters = (char*)" \t\n\"\\'`@$><=;|&{(";
+  rl_basic_word_break_characters = const_cast<char*>(" \t\n\"\\'`@$><=;|&{(");
 }
 
 void ShowBanner() {
@@ -451,6 +453,15 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     }
   }
   return absl::OkStatus();
+}
+
+void HandleStatus(const absl::Status& status, const std::string& context) {
+  if (status.ok()) return;
+  if (!context.empty()) {
+    LOG(ERROR) << context << ": " << status.message();
+  } else {
+    LOG(ERROR) << status.message();
+  }
 }
 
 }  // namespace slop

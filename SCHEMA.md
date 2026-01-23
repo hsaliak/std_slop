@@ -81,6 +81,16 @@ Sequential task management system.
 
 **Primary Key**: `(id, group_name)`
 
+### 8. llm_memos
+Long-term knowledge persistence through tag-based memos.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| id | INTEGER | Primary Key (Autoincrement). |
+| content | TEXT | Memo text content. |
+| semantic_tags | TEXT | JSON-formatted array of tags for search and retrieval. |
+| created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
+
 ## Default Tools
 
 The following tools are registered by default during database initialization:
@@ -158,5 +168,12 @@ CREATE TABLE IF NOT EXISTS todos (
     description TEXT,
     status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',
     PRIMARY KEY (id, group_name)
+);
+
+CREATE TABLE IF NOT EXISTS llm_memos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT NOT NULL,
+    semantic_tags TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```

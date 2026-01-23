@@ -149,6 +149,13 @@ absl::Status Database::Init(const std::string& db_path) {
         status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',
         PRIMARY KEY (id, group_name)
     );
+
+    CREATE TABLE IF NOT EXISTS llm_memos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT NOT NULL,
+        semantic_tags TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   )";
 
   rc = sqlite3_exec(db_.get(), schema, nullptr, nullptr, nullptr);
@@ -190,6 +197,12 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true},
       {"apply_patch", "Applies partial changes to a file by matching a specific block of text and replacing it.",
        R"({"type":"object","properties":{"path":{"type":"string"},"patches":{"type":"array","items":{"type":"object","properties":{"find":{"type":"string"},"replace":{"type":"string"}},"required":["find","replace"]}}},"required":["path","patches"]})",
+       true},
+      {"save_memo", "Save a memo with semantic tags for later retrieval.",
+       R"({"type":"object","properties":{"content":{"type":"string"},"tags":{"type":"array","items":{"type":"string"}}},"required":["content","tags"]})",
+       true},
+      {"retrieve_memos", "Retrieve memos based on semantic tags.",
+       R"({"type":"object","properties":{"tags":{"type":"array","items":{"type":"string"}}},"required":["tags"]})",
        true}};
 
   for (const auto& t : default_tools) {
@@ -609,7 +622,7 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   {
     std::string sql = "DELETE FROM messages WHERE session_id = ?";
     auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
+    CHECK_OK(stmt_or.status());
     (void)(*stmt_or)->BindText(1, session_id);
     auto status = (*stmt_or)->Run();
     if (!status.ok()) return status;
@@ -618,7 +631,7 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   {
     std::string sql = "DELETE FROM usage WHERE session_id = ?";
     auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
+    CHECK_OK(stmt_or.status());
     (void)(*stmt_or)->BindText(1, session_id);
     auto status = (*stmt_or)->Run();
     if (!status.ok()) return status;
@@ -627,7 +640,7 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   {
     std::string sql = "DELETE FROM sessions WHERE id = ?";
     auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
+    CHECK_OK(stmt_or.status());
     (void)(*stmt_or)->BindText(1, session_id);
     auto status = (*stmt_or)->Run();
     if (!status.ok()) return status;
@@ -636,7 +649,7 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   {
     std::string sql = "DELETE FROM session_state WHERE session_id = ?";
     auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
+    CHECK_OK(stmt_or.status());
     (void)(*stmt_or)->BindText(1, session_id);
     auto status = (*stmt_or)->Run();
     if (!status.ok()) return status;
@@ -731,6 +744,72 @@ absl::Status Database::DeleteTodoGroup(const std::string& group_name) {
   (void)stmt->BindText(1, group_name);
 
   return stmt->Run();
+}
+
+absl::Status Database::AddMemo(const std::string& content, const std::string& semantic_tags) {
+  auto stmt_or = Prepare("INSERT INTO llm_memos (content, semantic_tags) VALUES (?, ?)");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+  (void)stmt->BindText(1, content);
+  (void)stmt->BindText(2, semantic_tags);
+  return stmt->Run();
+}
+
+absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::vector<std::string>& tags) {
+  if (tags.empty()) return std::vector<Memo>();
+
+  std::string sql =
+      "SELECT DISTINCT m.id, m.content, m.semantic_tags, m.created_at "
+      "FROM llm_memos m, json_each(m.semantic_tags) j "
+      "WHERE j.value IN (";
+  for (size_t i = 0; i < tags.size(); ++i) {
+    sql += "?";
+    if (i < tags.size() - 1) sql += ", ";
+  }
+  sql += ")";
+
+  auto stmt_or = Prepare(sql);
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+  for (size_t i = 0; i < tags.size(); ++i) {
+    (void)stmt->BindText(i + 1, tags[i]);
+  }
+
+  std::vector<Memo> results;
+  while (true) {
+    auto res = stmt->Step();
+    if (!res.ok()) return res.status();
+    if (!*res) break;
+
+    results.push_back({
+        stmt->ColumnInt(0),
+        stmt->ColumnText(1),
+        stmt->ColumnText(2),
+        stmt->ColumnText(3),
+    });
+  }
+  return results;
+}
+
+absl::StatusOr<std::vector<Database::Memo>> Database::GetAllMemos() {
+  auto stmt_or = Prepare("SELECT id, content, semantic_tags, created_at FROM llm_memos");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+
+  std::vector<Memo> results;
+  while (true) {
+    auto res = stmt->Step();
+    if (!res.ok()) return res.status();
+    if (!*res) break;
+
+    results.push_back({
+        stmt->ColumnInt(0),
+        stmt->ColumnText(1),
+        stmt->ColumnText(2),
+        stmt->ColumnText(3),
+    });
+  }
+  return results;
 }
 
 absl::StatusOr<std::string> Database::Query(const std::string& sql) {

@@ -1,4 +1,3 @@
-#include "command_definitions.h"
 #include "command_handler.h"
 #include "database.h"
 #include "http_client.h"
@@ -28,6 +27,7 @@
 #include "absl/time/clock.h"
 
 #include "color.h"
+#include "command_definitions.h"
 #include "constants.h"
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
@@ -61,7 +61,8 @@ std::string GetHelpText() {
         for (const auto& alias : def.aliases) {
           name_part += " " + alias;
         }
-        help += "  " + name_part + std::string(std::max(1, 25 - (int)name_part.length()), ' ') + line + "\n";
+        help += "  " + name_part +
+                std::string(std::max(1, 25 - static_cast<int>(name_part.length())), ' ') + line + "\n";
       }
     }
   }
@@ -115,7 +116,7 @@ int main(int argc, char** argv) {
   slop::Database db;
   auto status = db.Init(db_path);
   if (!status.ok()) {
-    std::cerr << "Database Error: " << status.message() << std::endl;
+    slop::HandleStatus(status, "Database Error");
     return 1;
   }
 
@@ -199,7 +200,7 @@ int main(int argc, char** argv) {
     while (true) {
       auto prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);
       if (!prompt_or.ok()) {
-        std::cerr << "Prompt Error: " << prompt_or.status().message() << std::endl;
+        slop::HandleStatus(prompt_or.status(), "Prompt Error");
         break;
       }
 
@@ -224,7 +225,7 @@ int main(int argc, char** argv) {
 
       auto resp_or = http_client.Post(url, prompt_or->dump(), headers);
       if (!resp_or.ok()) {
-        std::cerr << "HTTP Error: " << resp_or.status().message() << std::endl;
+        slop::HandleStatus(resp_or.status(), "HTTP Error");
         if (google_auth && (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
           std::cout << "Refreshing OAuth token..." << std::endl;
           (void)oauth_handler->GetValidToken();
@@ -234,7 +235,7 @@ int main(int argc, char** argv) {
 
       auto status = orchestrator->ProcessResponse(session_id, *resp_or, group_id);
       if (!status.ok()) {
-        std::cerr << "Process Error: " << status.message() << std::endl;
+        slop::HandleStatus(status, "Process Error");
         break;
       }
 

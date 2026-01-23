@@ -28,6 +28,8 @@ class ToolExecutor {
   absl::StatusOr<std::string> ExecuteBash(const std::string& command);
   absl::StatusOr<std::string> SearchCode(const std::string& query);
   absl::StatusOr<std::string> GitGrep(const nlohmann::json& args);
+  absl::StatusOr<std::string> SaveMemo(const std::string& content, const std::vector<std::string>& tags);
+  absl::StatusOr<std::string> RetrieveMemos(const std::vector<std::string>& tags);
 };
 
 }  // namespace slop

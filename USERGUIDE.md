@@ -101,6 +101,16 @@ If no session name is provided, it defaults to `default_session`.
 - `/todo complete <group> <id>`: Mark a todo as finished.
 - `/todo drop <group>`: Delete all tasks in a group.
 
+### Knowledge Management (Memos)
+- `/memo list`: List all saved memos and their tags.
+- `/memo show <id>`: View the full content of a specific memo.
+- `/memo search <query>`: Search for memos containing a specific keyword or tag.
+- `/memo remove <id>`: Permanently delete a memo.
+- `/memo add`: Manually add a new memo via your system `$EDITOR`.
+- `/memo edit <id>`: Edit an existing memo in your system `$EDITOR`.
+
+Memos are long-term, cross-session pieces of knowledge. While you can manage them via these commands, the LLM is also equipped with `save_memo` and `retrieve_memos` tools to autonomously manage knowledge for you.
+
 ### Skills (Personas)
 - `/skill list`: List all available and active skills.
 - `/skill activate <name|id>`: Enable a skill for the current session.

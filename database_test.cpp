@@ -237,3 +237,40 @@ TEST(DatabaseTest, ApplyPatchToolSchema) {
   }
   EXPECT_TRUE(found) << "apply_patch tool not found in registered tools";
 }
+
+TEST(DatabaseTest, MemoStorageAndFiltering) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  // Test AddMemo
+  EXPECT_TRUE(db.AddMemo("Memo 1", "[\"tag1\", \"tag2\"]").ok());
+  EXPECT_TRUE(db.AddMemo("Memo 2", "[\"tag2\", \"tag3\"]").ok());
+  EXPECT_TRUE(db.AddMemo("Memo 3", "[\"tag4\"]").ok());
+
+  // Test GetAllMemos
+  auto all_memos = db.GetAllMemos();
+  ASSERT_TRUE(all_memos.ok());
+  EXPECT_EQ(all_memos->size(), 3);
+
+  // Test GetMemosByTags with single tag
+  auto tag2_memos = db.GetMemosByTags({"tag2"});
+  ASSERT_TRUE(tag2_memos.ok());
+  EXPECT_EQ(tag2_memos->size(), 2);
+  bool found1 = false, found2 = false;
+  for (const auto& m : *tag2_memos) {
+    if (m.content == "Memo 1") found1 = true;
+    if (m.content == "Memo 2") found2 = true;
+  }
+  EXPECT_TRUE(found1);
+  EXPECT_TRUE(found2);
+
+  // Test GetMemosByTags with multiple tags
+  auto multi_tag_memos = db.GetMemosByTags({"tag1", "tag4"});
+  ASSERT_TRUE(multi_tag_memos.ok());
+  EXPECT_EQ(multi_tag_memos->size(), 2);
+
+  // Test GetMemosByTags with no matches
+  auto no_match_memos = db.GetMemosByTags({"nonexistent"});
+  ASSERT_TRUE(no_match_memos.ok());
+  EXPECT_EQ(no_match_memos->size(), 0);
+}

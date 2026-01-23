@@ -1,13 +1,15 @@
 #include "completer.h"
-#include <gtest/gtest.h>
-#include <vector>
+
 #include <string>
+#include <vector>
+
+#include <gtest/gtest.h>
 
 namespace slop {
 
 TEST(CompleterTest, FiltersByPrefix) {
   std::vector<std::string> commands = {"/help", "/session", "/skill", "/stats", "/undo"};
-  
+
   auto result = FilterCommands("/s", commands);
   EXPECT_EQ(result.size(), 3);
   EXPECT_EQ(result[0], "/session");
@@ -34,4 +36,4 @@ TEST(CompleterTest, ExactMatch) {
   EXPECT_EQ(result[0], "/help");
 }
 
-} // namespace slop
+}  // namespace slop

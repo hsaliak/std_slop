@@ -102,6 +102,7 @@ class Orchestrator {
 
   // Helper methods for AssemblePrompt
   std::string BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills);
+  void InjectRelevantMemos(const std::vector<Database::Message>& history, std::string* system_instruction);
 };
 
 }  // namespace slop

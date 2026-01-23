@@ -1,5 +1,4 @@
 #include "command_handler.h"
-#include "command_definitions.h"
 #include "oauth_handler.h"
 #include "orchestrator.h"
 #include "ui.h"
@@ -21,13 +20,11 @@
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 
+#include "command_definitions.h"
+
 namespace slop {
 
 namespace {
-void log_status(const absl::Status& status) {
-  if (!status.ok()) LOG(ERROR) << status.message();
-}
-
 }  // namespace
 
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
@@ -58,6 +55,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
   commands_["/todo"] = [this](CommandArgs& args) { return HandleTodo(args); };
+  commands_["/memo"] = [this](CommandArgs& args) { return HandleMemo(args); };
 
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
@@ -138,7 +136,7 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
         "GROUP BY group_id ORDER BY created_at DESC LIMIT $1",
         args.session_id, n);
     auto res = db_->Query(sql);
-    if (res.ok()) log_status(PrintJsonAsTable(*res));
+    if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
   } else if (sub_cmd == "view" || sub_cmd == "show") {
     auto res =
         db_->Query("SELECT role, content FROM messages WHERE group_id = '" + sub_args + "' ORDER BY created_at ASC");
@@ -152,7 +150,7 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "remove") {
-    log_status(db_->Execute("DELETE FROM messages WHERE group_id = '" + sub_args + "'"));
+    HandleStatus(db_->Execute("DELETE FROM messages WHERE group_id = '" + sub_args + "'"));
     std::cout << "Message group " << sub_args << " deleted." << std::endl;
   }
   return Result::HANDLED;
@@ -162,14 +160,14 @@ CommandHandler::Result CommandHandler::HandleUndo(CommandArgs& args) {
   auto gid_or = db_->GetLastGroupId(args.session_id);
   if (gid_or.ok()) {
     std::string gid = *gid_or;
-    log_status(db_->Execute("DELETE FROM messages WHERE group_id = '" + gid + "'"));
+    HandleStatus(db_->Execute("DELETE FROM messages WHERE group_id = '" + gid + "'"));
     std::cout << "Undid last interaction (Group ID: " + gid + ")" << std::endl;
     if (orchestrator_) {
       auto status = orchestrator_->RebuildContext(args.session_id);
       if (status.ok())
         std::cout << "Context rebuilt." << std::endl;
       else
-        std::cerr << "Error rebuilding context: " << status.message() << std::endl;
+        HandleStatus(status, "Error rebuilding context");
     }
   } else {
     std::cout << "Nothing to undo." << std::endl;
@@ -184,7 +182,7 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
 
   if (sub_cmd == "window") {
     int n = sub_args.empty() ? 0 : std::atoi(sub_args.c_str());
-    log_status(db_->SetContextWindow(args.session_id, n));
+    HandleStatus(db_->SetContextWindow(args.session_id, n));
     if (n > 0)
       std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
     else if (n == 0)
@@ -200,7 +198,7 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
       if (status.ok())
         std::cout << "Context rebuilt from history." << std::endl;
       else
-        std::cerr << "Error: " << status.message() << std::endl;
+        HandleStatus(status, "Error");
     } else {
       std::cerr << "Orchestrator not available for rebuilding context." << std::endl;
     }
@@ -238,7 +236,7 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
 
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
-    if (res.ok()) log_status(PrintJsonAsTable(*res));
+    if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
   } else if (sub_cmd == "show") {
     auto res = db_->Query("SELECT name, description, json_schema FROM tools WHERE name = '" + sub_args + "'");
     if (res.ok()) {
@@ -268,7 +266,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
                                   row["name"].get<std::string>()) != args.active_skills.end();
           row["status"] = active ? "ACTIVE" : "inactive";
         }
-        log_status(PrintJsonAsTable(j.dump()));
+        HandleStatus(PrintJsonAsTable(j.dump()));
       }
     }
   } else if (sub_cmd == "activate") {
@@ -306,7 +304,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "delete") {
-    log_status(db_->DeleteSkill(sub_args));
+    HandleStatus(db_->DeleteSkill(sub_args));
     std::cout << "Skill deleted." << std::endl;
   } else if (sub_cmd == "add") {
     std::string name, desc, patch;
@@ -318,7 +316,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
     std::string line;
     while (std::getline(std::cin, line)) patch += line + "\n";
     Database::Skill s{0, name, desc, patch};
-    log_status(db_->RegisterSkill(s));
+    HandleStatus(db_->RegisterSkill(s));
   }
   return Result::HANDLED;
 }
@@ -330,20 +328,20 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
 
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT DISTINCT session_id FROM messages UNION SELECT DISTINCT id FROM sessions");
-    if (res.ok()) log_status(PrintJsonAsTable(*res));
+    if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
   } else if (sub_cmd == "activate") {
     args.session_id = sub_args;
     std::cout << "Session switched to: " << sub_args << std::endl;
     if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
   } else if (sub_cmd == "remove") {
-    log_status(db_->DeleteSession(sub_args));
+    HandleStatus(db_->DeleteSession(sub_args));
     std::cout << "Session " << sub_args << " deleted." << std::endl;
     if (args.session_id == sub_args) {
       args.session_id = "default_session";
       std::cout << "Returning to default_session." << std::endl;
     }
   } else if (sub_cmd == "clear") {
-    log_status(db_->DeleteSession(args.session_id));
+    HandleStatus(db_->DeleteSession(args.session_id));
     std::cout << "Session " << args.session_id << " history and state cleared." << std::endl;
     if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
   }
@@ -358,7 +356,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
                                   args.session_id));
   if (res.ok()) {
     std::cout << "Usage Stats for Session [" << args.session_id << "]" << std::endl;
-    log_status(PrintJsonAsTable(*res));
+    HandleStatus(PrintJsonAsTable(*res));
   }
 
   if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ &&
@@ -382,7 +380,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
           }
         }
         if (!table.empty())
-          log_status(PrintJsonAsTable(table.dump()));
+          HandleStatus(PrintJsonAsTable(table.dump()));
         else
           std::cout << "No quota buckets found." << std::endl;
       } else {
@@ -406,7 +404,7 @@ CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
 
   auto models_or = orchestrator_->GetModels(api_key);
   if (!models_or.ok()) {
-    std::cerr << "Error fetching models: " << models_or.status().message() << std::endl;
+    HandleStatus(models_or.status(), "Error fetching models");
     return Result::HANDLED;
   }
 
@@ -480,31 +478,82 @@ CommandHandler::Result CommandHandler::HandleTodo(CommandArgs& args) {
       for (const auto& t : *res) {
         j.push_back({{"id", t.id}, {"group", t.group_name}, {"status", t.status}, {"description", t.description}});
       }
-      log_status(PrintJsonAsTable(j.dump()));
+      HandleStatus(PrintJsonAsTable(j.dump()));
     }
   } else if (sub_cmd == "add") {
     std::vector<std::string> add_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 1));
     if (add_parts.size() == 2) {
-      log_status(db_->AddTodo(add_parts[0], add_parts[1]));
+      HandleStatus(db_->AddTodo(add_parts[0], add_parts[1]));
       std::cout << "Todo added to group: " << add_parts[0] << std::endl;
     }
   } else if (sub_cmd == "edit") {
     std::vector<std::string> edit_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 2));
     if (edit_parts.size() == 3) {
       int id = std::atoi(edit_parts[1].c_str());
-      log_status(db_->UpdateTodo(id, edit_parts[0], edit_parts[2]));
+      HandleStatus(db_->UpdateTodo(id, edit_parts[0], edit_parts[2]));
       std::cout << "Todo " << id << " in group " << edit_parts[0] << " updated." << std::endl;
     }
   } else if (sub_cmd == "complete") {
     std::vector<std::string> comp_parts = absl::StrSplit(parts[1], ' ');
     if (comp_parts.size() == 2) {
       int id = std::atoi(comp_parts[1].c_str());
-      log_status(db_->UpdateTodoStatus(id, comp_parts[0], "Complete"));
+      HandleStatus(db_->UpdateTodoStatus(id, comp_parts[0], "Complete"));
       std::cout << "Todo " << id << " in group " << comp_parts[0] << " marked as Complete." << std::endl;
     }
   } else if (sub_cmd == "drop") {
-    log_status(db_->DeleteTodoGroup(parts[1]));
+    HandleStatus(db_->DeleteTodoGroup(parts[1]));
     std::cout << "All todos in group " << parts[1] << " deleted." << std::endl;
+  }
+  return Result::HANDLED;
+}
+
+CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
+  std::vector<std::string> parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
+  std::string sub_cmd = parts[0];
+
+  if (sub_cmd == "list") {
+    auto memos_or = db_->GetAllMemos();
+    if (!memos_or.ok()) {
+      HandleStatus(memos_or.status(), "Error");
+      return Result::HANDLED;
+    }
+    for (const auto& m : *memos_or) {
+      std::cout << "[" << m.id << "] (" << m.semantic_tags << ") " << m.content << std::endl;
+    }
+  } else if (sub_cmd == "add") {
+    if (parts.size() < 2) {
+      std::cerr << "Usage: /memo add <tags> <content>" << std::endl;
+      return Result::HANDLED;
+    }
+    std::vector<std::string> add_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 1));
+    if (add_parts.size() < 2) {
+      std::cerr << "Usage: /memo add <tags> <content>" << std::endl;
+      return Result::HANDLED;
+    }
+    std::string tags_str = add_parts[0];
+    std::string content = add_parts[1];
+    std::vector<std::string> tags = absl::StrSplit(tags_str, ',');
+    for (auto& t : tags) t = std::string(absl::StripAsciiWhitespace(t));
+    nlohmann::json tags_json = tags;
+    HandleStatus(db_->AddMemo(content, tags_json.dump()));
+    std::cout << "Memo added." << std::endl;
+  } else if (sub_cmd == "search") {
+    if (parts.size() < 2) {
+      std::cerr << "Usage: /memo search <tags>" << std::endl;
+      return Result::HANDLED;
+    }
+    std::vector<std::string> tags = absl::StrSplit(parts[1], ',');
+    for (auto& t : tags) t = std::string(absl::StripAsciiWhitespace(t));
+    auto memos_or = db_->GetMemosByTags(tags);
+    if (!memos_or.ok()) {
+      HandleStatus(memos_or.status(), "Error");
+      return Result::HANDLED;
+    }
+    for (const auto& m : *memos_or) {
+      std::cout << "[" << m.id << "] (" << m.semantic_tags << ") " << m.content << std::endl;
+    }
+  } else {
+    std::cerr << "Unknown memo sub-command: " << sub_cmd << std::endl;
   }
   return Result::HANDLED;
 }

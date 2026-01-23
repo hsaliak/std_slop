@@ -62,6 +62,13 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   } else if (name == "query_db") {
     if (!args.contains("sql")) return absl::InvalidArgumentError("Missing 'sql' argument");
     result = db_->Query(args["sql"]);
+  } else if (name == "save_memo") {
+    if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' argument");
+    if (!args.contains("tags")) return absl::InvalidArgumentError("Missing 'tags' argument");
+    result = SaveMemo(args["content"], args["tags"].get<std::vector<std::string>>());
+  } else if (name == "retrieve_memos") {
+    if (!args.contains("tags")) return absl::InvalidArgumentError("Missing 'tags' argument");
+    result = RetrieveMemos(args["tags"].get<std::vector<std::string>>());
   } else {
     return absl::NotFoundError("Tool not found: " + name);
   }
@@ -220,5 +227,28 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   }
 
   return ExecuteBash(cmd);
+}
+
+absl::StatusOr<std::string> ToolExecutor::SaveMemo(const std::string& content, const std::vector<std::string>& tags) {
+  nlohmann::json tags_json = tags;
+  auto status = db_->AddMemo(content, tags_json.dump());
+  if (!status.ok()) return status;
+  return "Memo saved successfully.";
+}
+
+absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const std::vector<std::string>& tags) {
+  auto memos_or = db_->GetMemosByTags(tags);
+  if (!memos_or.ok()) return memos_or.status();
+
+  nlohmann::json result = nlohmann::json::array();
+  for (const auto& m : *memos_or) {
+    result.push_back({
+        {"id", m.id},
+        {"content", m.content},
+        {"tags", nlohmann::json::parse(m.semantic_tags)},
+        {"created_at", m.created_at},
+    });
+  }
+  return result.dump(2);
 }
 }  // namespace slop

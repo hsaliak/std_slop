@@ -8,6 +8,6 @@ namespace slop {
 
 std::vector<std::string> FilterCommands(const std::string& prefix, const std::vector<std::string>& commands);
 
-} // namespace slop
+}  // namespace slop
 
-#endif // SLOP_COMPLETER_H_
+#endif  // SLOP_COMPLETER_H_
