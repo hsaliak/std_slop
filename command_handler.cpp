@@ -1,4 +1,5 @@
 #include "command_handler.h"
+#include "command_definitions.h"
 #include "oauth_handler.h"
 #include "orchestrator.h"
 #include "ui.h"
@@ -43,37 +44,32 @@ CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHa
 void CommandHandler::RegisterCommands() {
   commands_["/help"] = [this](CommandArgs& args) { return HandleHelp(args); };
   commands_["/exit"] = [this](CommandArgs& args) { return HandleExit(args); };
-  commands_["/quit"] = [this](CommandArgs& args) { return HandleExit(args); };
   commands_["/edit"] = [this](CommandArgs& args) { return HandleEdit(args); };
-
   commands_["/message"] = [this](CommandArgs& args) { return HandleMessage(args); };
-  sub_commands_["/message"] = {"list", "show", "remove"};
-
   commands_["/undo"] = [this](CommandArgs& args) { return HandleUndo(args); };
-
   commands_["/context"] = [this](CommandArgs& args) { return HandleContext(args); };
-  sub_commands_["/context"] = {"show", "window", "rebuild"};
-
   commands_["/tool"] = [this](CommandArgs& args) { return HandleTool(args); };
-  sub_commands_["/tool"] = {"list", "show"};
-
   commands_["/skill"] = [this](CommandArgs& args) { return HandleSkill(args); };
-  sub_commands_["/skill"] = {"list", "activate", "deactivate", "add", "edit", "delete"};
-
   commands_["/session"] = [this](CommandArgs& args) { return HandleSession(args); };
-  sub_commands_["/session"] = {"list", "activate", "remove", "clear"};
-
   commands_["/stats"] = [this](CommandArgs& args) { return HandleStats(args); };
-  commands_["/usage"] = [this](CommandArgs& args) { return HandleStats(args); };
-
   commands_["/models"] = [this](CommandArgs& args) { return HandleModels(args); };
   commands_["/exec"] = [this](CommandArgs& args) { return HandleExec(args); };
   commands_["/schema"] = [this](CommandArgs& args) { return HandleSchema(args); };
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
-
   commands_["/todo"] = [this](CommandArgs& args) { return HandleTodo(args); };
-  sub_commands_["/todo"] = {"list", "add", "edit", "complete", "drop"};
+
+  for (const auto& def : GetCommandDefinitions()) {
+    auto it = commands_.find(def.name);
+    if (it != commands_.end()) {
+      for (const auto& alias : def.aliases) {
+        commands_[alias] = it->second;
+      }
+      if (!def.sub_commands.empty()) {
+        sub_commands_[def.name] = def.sub_commands;
+      }
+    }
+  }
 }
 
 std::vector<std::string> CommandHandler::GetCommandNames() const {

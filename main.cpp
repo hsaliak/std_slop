@@ -1,3 +1,4 @@
+#include "command_definitions.h"
 #include "command_handler.h"
 #include "database.h"
 #include "http_client.h"
@@ -41,45 +42,30 @@ ABSL_FLAG(bool, strip_reasoning, false,
           "improve response speed and focus)");
 
 std::string GetHelpText() {
-  return "std::slop - The SQL-backed LLM CLI\n\n"
-         "Usage:\n"
-         "  std_slop [session_id] [options]\n\n"
-         "Options:\n"
-         "  Use --helpfull to see all available command-line flags.\n\n"
-         "Slash Commands:\n"
-         "  /message list [N]      List last N messages\n"
-         "  /message show <GID>    View full content of a group\n"
-         "  /message remove <GID>  Delete a message group\n"
-         "  /undo                  Remove last message and rebuild context\n"
-         "  /context show          Show context status and assembled prompt\n"
-         "  /context window <N>    Set context to a rolling window of last N groups (0 for full)\n"
-         "  /context rebuild       Rebuild session state from conversation history\n"
-         "  /session list          List all unique session names in the DB\n"
-         "  /session activate <name> Switch to or create a new session named <name>\n"
-         "  /session remove <name> Delete a session and all its data\n"
-         "  /session clear         Clear all history and state for current session\n"
-         "  /skill list            List all available skills\n"
-         "  /skill activate <ID|Name> Set active skill\n"
-         "  /skill deactivate <ID|Name> Disable active skill\n"
-         "  /skill add             Create new skill\n"
-         "  /skill edit <ID|Name>  Modify existing skill\n"
-         "  /skill delete <ID|Name> Remove skill\n"
-         "  /todo                  Manage your personal task list\n"
-         "  /todo list [group]     List todos (optionally by group)\n"
-         "  /todo add <group> <desc> Add a new todo to the specified group\n"
-         "  /todo edit <group> <id> <desc> Edit the description of a todo by its ID within a group\n"
-         "  /todo complete <group> <id> Mark a todo as complete by its ID within a group\n"
-         "  /todo drop <group>     Delete all todos in the specified group\n"
-         "  /tool list             List available tools\n"
-         "  /tool show <name>      Show tool details\n"
-         "  /stats /usage          Show session usage statistics\n"
-         "  /schema                Show current database schema\n"
-         "  /models [filter]       List available models\n"
-         "  /model <name>          Change active model\n"
-         "  /throttle [N]          Set/show request throttle\n"
-         "  /exec <command>        Execute shell command\n"
-         "  /edit                  Open last input in EDITOR\n"
-         "  /exit /quit            Exit the program\n";
+  std::string help =
+      "std::slop - The SQL-backed LLM CLI\n\n"
+      "Usage:\n"
+      "  std_slop [session_id] [options]\n\n"
+      "Options:\n"
+      "  Use --helpfull to see all available command-line flags.\n\n"
+      "Slash Commands:\n";
+
+  for (const auto& def : slop::GetCommandDefinitions()) {
+    for (const auto& line : def.help_lines) {
+      if (line.empty()) continue;
+      if (line[0] == '/') {
+        help += "  " + line + "\n";
+      } else {
+        // Simple description without subcommands
+        std::string name_part = def.name;
+        for (const auto& alias : def.aliases) {
+          name_part += " " + alias;
+        }
+        help += "  " + name_part + std::string(std::max(1, 25 - (int)name_part.length()), ' ') + line + "\n";
+      }
+    }
+  }
+  return help;
 }
 
 void ShowHelp() { std::cout << GetHelpText() << std::endl; }

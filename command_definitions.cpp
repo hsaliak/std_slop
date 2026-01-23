@@ -1,0 +1,55 @@
+#include "command_definitions.h"
+
+namespace slop {
+
+const std::vector<CommandDefinition>& GetCommandDefinitions() {
+  static const std::vector<CommandDefinition> kDefinitions = {
+      {"/help", {}, {}, {"Show this help message"}},
+      {"/exit", {}, {"/quit"}, {"Exit the program"}},
+      {"/edit", {}, {}, {"Open last input in EDITOR"}},
+      {"/message",
+       {"list", "show", "remove"},
+       {},
+       {"/message list [N]      List last N messages",
+        "/message show <GID>    View full content of a group",
+        "/message remove <GID>  Delete a message group"}},
+      {"/undo", {}, {}, {"Remove last message and rebuild context"}},
+      {"/context",
+       {"show", "window", "rebuild"},
+       {},
+       {"/context show          Show context status and assembled prompt",
+        "/context window <N>    Set context to a rolling window of last N groups (0 for full)",
+        "/context rebuild       Rebuild session state from conversation history"}},
+      {"/tool", {"list", "show"}, {}, {"/tool list             List available tools", "/tool show <name>      Show tool details"}},
+      {"/skill",
+       {"list", "activate", "deactivate", "add", "edit", "delete"},
+       {},
+       {"/skill list            List all available skills", "/skill activate <ID|Name> Set active skill",
+        "/skill deactivate <ID|Name> Disable active skill", "/skill add             Create new skill",
+        "/skill edit <ID|Name>  Modify existing skill", "/skill delete <ID|Name> Remove skill"}},
+      {"/session",
+       {"list", "activate", "remove", "clear"},
+       {},
+       {"/session list          List all unique session names in the DB",
+        "/session activate <name> Switch to or create a new session named <name>",
+        "/session remove <name> Delete a session and all its data",
+        "/session clear         Clear all history and state for current session"}},
+      {"/stats", {}, {"/usage"}, {"Show session usage statistics"}},
+      {"/models", {}, {}, {"/models [filter]       List available models"}},
+      {"/exec", {}, {}, {"/exec <command>        Execute shell command"}},
+      {"/schema", {}, {}, {"Show current database schema"}},
+      {"/model", {}, {}, {"/model <name>          Change active model"}},
+      {"/throttle", {}, {}, {"/throttle [N]          Set/show request throttle"}},
+      {"/todo",
+       {"list", "add", "edit", "complete", "drop"},
+       {},
+       {"/todo list [group]     List todos (optionally by group)",
+        "/todo add <group> <desc> Add a new todo to the specified group",
+        "/todo edit <group> <id> <desc> Edit the description of a todo by its ID within a group",
+        "/todo complete <group> <id> Mark a todo as complete by its ID within a group",
+        "/todo drop <group>     Delete all todos in the specified group"}},
+  };
+  return kDefinitions;
+}
+
+}  // namespace slop

@@ -34,10 +34,12 @@ cc_library(
         "tool_executor.cpp",
         "ui.cpp",
         "completer.cpp",
+        "command_definitions.cpp",
     ],
     hdrs = [
         "command_handler.h",
         "completer.h",
+        "command_definitions.h",
         "database.h",
         "http_client.h",
         "oauth_handler.h",
