@@ -21,6 +21,14 @@ TEST_F(CommandHandlerTest, DetectsCommand) {
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
+TEST_F(CommandHandlerTest, ReturnsCommandNames) {
+  CommandHandler handler(&db);
+  auto names = handler.GetCommandNames();
+  EXPECT_FALSE(names.empty());
+  EXPECT_NE(std::find(names.begin(), names.end(), "/help"), names.end());
+  EXPECT_NE(std::find(names.begin(), names.end(), "/session"), names.end());
+}
+
 TEST_F(CommandHandlerTest, IgnoresNormalText) {
   CommandHandler handler(&db);
   std::string input = "Just some text";

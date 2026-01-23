@@ -42,6 +42,8 @@ class CommandHandler {
   Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills,
                 std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
 
+  std::vector<std::string> GetCommandNames() const;
+
  private:
   void RegisterCommands();
 

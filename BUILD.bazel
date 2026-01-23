@@ -33,9 +33,11 @@ cc_library(
         "orchestrator_openai.cpp",
         "tool_executor.cpp",
         "ui.cpp",
+        "completer.cpp",
     ],
     hdrs = [
         "command_handler.h",
+        "completer.h",
         "database.h",
         "http_client.h",
         "oauth_handler.h",
@@ -128,6 +130,7 @@ cc_binary(
         "input_parsing_test",
         "system_info_test",
         "check_macro_test",
+        "completer_test",
     ]
 ]
 

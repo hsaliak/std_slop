@@ -13,6 +13,7 @@
 #include "nlohmann/json.hpp"
 
 #include "color.h"
+#include "completer.h"
 #include "readline/history.h"
 #include "readline/readline.h"
 
@@ -130,7 +131,41 @@ std::string FormatLine(const std::string& text, const char* color_bg, size_t wid
   return Colorize(line, color_bg, color_fg);
 }
 
+namespace {
+std::vector<std::string> g_completion_commands;
+
+char* CommandGenerator(const char* text, int state) {
+  static size_t list_index;
+  static std::vector<std::string> matches;
+
+  if (!state) {
+    list_index = 0;
+    matches = FilterCommands(text, g_completion_commands);
+  }
+
+  if (list_index < matches.size()) {
+    return strdup(matches[list_index++].c_str());
+  }
+
+  return nullptr;
+}
+
+char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] int end) {
+  if (start == 0 && text[0] == '/') {
+    return rl_completion_matches(text, CommandGenerator);
+  }
+  return nullptr;
+}
+}  // namespace
+
 void SetupTerminal() {}
+
+void SetCompletionCommands(const std::vector<std::string>& commands) {
+  g_completion_commands = commands;
+  rl_attempted_completion_function = CommandCompletionProvider;
+  // Ensure '/' is not a word break character so we can complete /commands
+  rl_basic_word_break_characters = (char*)" \t\n\"\\'`@$><=;|&{(";
+}
 
 void ShowBanner() {
   std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Cyan) << std::endl;

@@ -61,6 +61,15 @@ void CommandHandler::RegisterCommands() {
   commands_["/todo"] = [this](CommandArgs& args) { return HandleTodo(args); };
 }
 
+std::vector<std::string> CommandHandler::GetCommandNames() const {
+  std::vector<std::string> names;
+  for (const auto& [name, _] : commands_) {
+    names.push_back(name);
+  }
+  std::sort(names.begin(), names.end());
+  return names;
+}
+
 CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id,
                                               std::vector<std::string>& active_skills,
                                               std::function<void()> show_help_fn,

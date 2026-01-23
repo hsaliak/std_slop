@@ -13,6 +13,7 @@ namespace slop {
 
 void SetupTerminal();
 void ShowBanner();
+void SetCompletionCommands(const std::vector<std::string>& commands);
 std::string ReadLine(const std::string& modeline);
 std::string OpenInEditor(const std::string& initial_content = "");
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit = 5);

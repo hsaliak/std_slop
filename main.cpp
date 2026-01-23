@@ -177,6 +177,7 @@ int main(int argc, char** argv) {
 
   slop::ToolExecutor tool_executor(&db);
   slop::CommandHandler cmd_handler(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
+  slop::SetCompletionCommands(cmd_handler.GetCommandNames());
   std::vector<std::string> active_skills;
 
   slop::ShowBanner();
