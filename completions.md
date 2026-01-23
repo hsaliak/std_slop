@@ -27,3 +27,14 @@ This document outlines the TDD-based approach to implementing command autocomple
 
 - **Step 4.1: Manual Test**. Verify completion with single and double `Tab` presses, and with different prefixes.
 - **Step 4.2: Context Sensitivity (Optional)**. Explore completing session IDs or tool names.
+
+## Phase 5: Sub-command Logic (TDD)
+**Goal:** Support autocompletion for sub-commands like `/session list`.
+
+- **Step 5.1: Refactor `CommandHandler`**. Update it to store and expose sub-commands for each top-level command.
+- **Step 5.2: Verification**. Add tests in `command_handler_test.cpp` for `GetSubCommands("/session")`.
+- **Step 5.3: Update `UI` Bridge**. Update `SetCompletionCommands` to pass the full command/sub-command map.
+- **Step 5.4: Implement Sub-command Completion in `ui.cpp`**. Update `CommandCompletionProvider` to handle `start > 0` by identifying the primary command and filtering its sub-commands.
+
+## Phase 6: Advanced Context (Optional)
+**Goal:** Complete dynamic data like session IDs or skill names.

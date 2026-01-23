@@ -43,6 +43,10 @@ class CommandHandler {
                 std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
 
   std::vector<std::string> GetCommandNames() const;
+  std::vector<std::string> GetSubCommands(const std::string& command) const;
+  const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const {
+    return sub_commands_;
+  }
 
  private:
   void RegisterCommands();
@@ -71,6 +75,7 @@ class CommandHandler {
   std::string google_api_key_;
   std::string openai_api_key_;
   absl::flat_hash_map<std::string, CommandFunc> commands_;
+  absl::flat_hash_map<std::string, std::vector<std::string>> sub_commands_;
 };
 
 }  // namespace slop

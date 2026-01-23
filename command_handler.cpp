@@ -45,20 +45,35 @@ void CommandHandler::RegisterCommands() {
   commands_["/exit"] = [this](CommandArgs& args) { return HandleExit(args); };
   commands_["/quit"] = [this](CommandArgs& args) { return HandleExit(args); };
   commands_["/edit"] = [this](CommandArgs& args) { return HandleEdit(args); };
+
   commands_["/message"] = [this](CommandArgs& args) { return HandleMessage(args); };
+  sub_commands_["/message"] = {"list", "show", "remove"};
+
   commands_["/undo"] = [this](CommandArgs& args) { return HandleUndo(args); };
+
   commands_["/context"] = [this](CommandArgs& args) { return HandleContext(args); };
+  sub_commands_["/context"] = {"show", "window", "rebuild"};
+
   commands_["/tool"] = [this](CommandArgs& args) { return HandleTool(args); };
+  sub_commands_["/tool"] = {"list", "show"};
+
   commands_["/skill"] = [this](CommandArgs& args) { return HandleSkill(args); };
+  sub_commands_["/skill"] = {"list", "activate", "deactivate", "add", "edit", "delete"};
+
   commands_["/session"] = [this](CommandArgs& args) { return HandleSession(args); };
+  sub_commands_["/session"] = {"list", "activate", "remove", "clear"};
+
   commands_["/stats"] = [this](CommandArgs& args) { return HandleStats(args); };
   commands_["/usage"] = [this](CommandArgs& args) { return HandleStats(args); };
+
   commands_["/models"] = [this](CommandArgs& args) { return HandleModels(args); };
   commands_["/exec"] = [this](CommandArgs& args) { return HandleExec(args); };
   commands_["/schema"] = [this](CommandArgs& args) { return HandleSchema(args); };
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
+
   commands_["/todo"] = [this](CommandArgs& args) { return HandleTodo(args); };
+  sub_commands_["/todo"] = {"list", "add", "edit", "complete", "drop"};
 }
 
 std::vector<std::string> CommandHandler::GetCommandNames() const {
@@ -68,6 +83,16 @@ std::vector<std::string> CommandHandler::GetCommandNames() const {
   }
   std::sort(names.begin(), names.end());
   return names;
+}
+
+std::vector<std::string> CommandHandler::GetSubCommands(const std::string& command) const {
+  auto it = sub_commands_.find(command);
+  if (it != sub_commands_.end()) {
+    std::vector<std::string> subs = it->second;
+    std::sort(subs.begin(), subs.end());
+    return subs;
+  }
+  return {};
 }
 
 CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id,

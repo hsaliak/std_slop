@@ -29,6 +29,14 @@ TEST_F(CommandHandlerTest, ReturnsCommandNames) {
   EXPECT_NE(std::find(names.begin(), names.end(), "/session"), names.end());
 }
 
+TEST_F(CommandHandlerTest, ReturnsSubCommands) {
+  CommandHandler handler(&db);
+  auto subs = handler.GetSubCommands("/session");
+  EXPECT_FALSE(subs.empty());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "list"), subs.end());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "activate"), subs.end());
+}
+
 TEST_F(CommandHandlerTest, IgnoresNormalText) {
   CommandHandler handler(&db);
   std::string input = "Just some text";
