@@ -82,7 +82,7 @@ bool Database::IsStopWord(const std::string& word) {
       "before", "being", "below", "between", "both", "but", "could", "did", "does", "doing",
       "down", "during", "each", "few", "for", "from", "further", "had", "has", "have", "having",
       "here", "how", "into", "its", "just", "more", "most", "now", "off", "once", "only", "other",
-      "ought", "our", "ours", "out", "over", "own", "same", "she", "should", "some", "such", "than",
+      "ought", "our", "ours", "out", "own", "same", "she", "should", "some", "such", "than",
       "that", "the", "their", "theirs", "them", "then", "there", "these", "they", "this", "those",
       "through", "too", "under", "until", "very", "was", "were", "what", "when", "where", "which",
       "while", "who", "whom", "why", "with", "would", "you", "your", "yours", "yourself", "yourselves"};
@@ -805,18 +805,21 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::
   std::string sql =
       "SELECT DISTINCT m.id, m.content, m.semantic_tags, m.created_at "
       "FROM llm_memos m, json_each(m.semantic_tags) j "
-      "WHERE j.value IN (";
+      "WHERE ";
   for (size_t i = 0; i < tags.size(); ++i) {
-    sql += "?";
-    if (i < tags.size() - 1) sql += ", ";
+    sql += "(j.value = ? OR j.value LIKE ? OR j.value LIKE ? OR j.value LIKE ?)";
+    if (i < tags.size() - 1) sql += " OR ";
   }
-  sql += ")";
 
   auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
   for (size_t i = 0; i < tags.size(); ++i) {
-    (void)stmt->BindText(i + 1, tags[i]);
+    int base = i * 4 + 1;
+    (void)stmt->BindText(base, tags[i]);                  // Exact
+    (void)stmt->BindText(base + 1, tags[i] + "-%");       // Prefix: arch-
+    (void)stmt->BindText(base + 2, "%-" + tags[i]);       // Suffix: -arch
+    (void)stmt->BindText(base + 3, "%-" + tags[i] + "-%"); // Middle: -arch-
   }
 
   std::vector<Memo> results;

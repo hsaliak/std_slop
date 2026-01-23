@@ -274,3 +274,38 @@ TEST(DatabaseTest, MemoStorageAndFiltering) {
   ASSERT_TRUE(no_match_memos.ok());
   EXPECT_EQ(no_match_memos->size(), 0);
 }
+
+TEST(DatabaseTest, ExtractTags) {
+  auto tags = slop::Database::ExtractTags("The quick brown fox jumps-over the lazy dog, arch-decision.");
+  std::set<std::string> tag_set(tags.begin(), tags.end());
+
+  // "The", "the" are stopwords
+  // "quick", "brown", "fox", "jumps", "over", "lazy", "dog", "arch", "decision" should be tags
+  EXPECT_TRUE(tag_set.count("quick"));
+  EXPECT_TRUE(tag_set.count("brown"));
+  EXPECT_TRUE(tag_set.count("jumps"));
+  EXPECT_TRUE(tag_set.count("over"));
+  EXPECT_TRUE(tag_set.count("arch"));
+  EXPECT_TRUE(tag_set.count("decision"));
+  
+  EXPECT_FALSE(tag_set.count("the"));
+  EXPECT_FALSE(tag_set.count("dog")); // "dog" is length 3, and word.length() > 3
+}
+
+TEST(DatabaseTest, MemoSearchCompoundTags) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  nlohmann::json tags = {"arch-decision", "api-design"};
+  ASSERT_TRUE(db.AddMemo("Complex architecture decisions", tags.dump()).ok());
+
+  // Search by exact compound tag
+  auto exact = db.GetMemosByTags({"arch-decision"});
+  ASSERT_TRUE(exact.ok());
+  EXPECT_EQ(exact->size(), 1);
+
+  // Search by component
+  auto partial = db.GetMemosByTags({"arch"});
+  ASSERT_TRUE(partial.ok());
+  EXPECT_EQ(partial->size(), 1);
+}
