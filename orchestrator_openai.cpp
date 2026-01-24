@@ -133,6 +133,7 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const D
   if (j.contains("tool_calls")) {
     for (const auto& call : j["tool_calls"]) {
       ToolCall tc;
+      tc.id = call["id"];
       tc.name = call["function"]["name"];
       tc.args = nlohmann::json::parse(call["function"]["arguments"].get<std::string>(), nullptr, false);
       calls.push_back(tc);

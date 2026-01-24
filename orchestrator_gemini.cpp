@@ -137,6 +137,7 @@ absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const D
 
   std::vector<ToolCall> calls;
   ToolCall tc;
+  tc.id = msg.tool_call_id;
   tc.name = msg.tool_call_id;
   tc.args = (j.contains("functionCall") && j["functionCall"].contains("args"))
                 ? j["functionCall"]["args"]

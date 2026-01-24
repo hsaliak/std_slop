@@ -15,6 +15,7 @@ namespace slop {
 class Orchestrator;  // Forward declaration
 
 struct ToolCall {
+  std::string id;
   std::string name;
   nlohmann::json args;
 };

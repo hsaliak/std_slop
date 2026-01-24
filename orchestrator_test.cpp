@@ -404,4 +404,108 @@ TEST_F(OrchestratorTest, GeminiDoesNotIncludeTransforms) {
   EXPECT_FALSE(prompt.contains("transforms"));
 }
 
+TEST_F(OrchestratorTest, GeminiMultiToolCallProcessing) {
+  auto orchestrator = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
+
+  // Mock response with two function calls
+  std::string mock_response = R"({
+    "candidates": [{
+      "content": {
+        "parts": [
+          {"functionCall": {"name": "tool1", "args": {"a": 1}}},
+          {"functionCall": {"name": "tool2", "args": {"b": 2}}}
+        ]
+      }
+    }]
+  })";
+
+  ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response, "g1").ok());
+
+  auto history = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history.ok());
+  // Should have 2 assistant messages in the same group
+  int count = 0;
+  for (const auto& msg : *history) {
+    if (msg.role == "assistant" && msg.status == "tool_call") {
+      count++;
+    }
+  }
+  EXPECT_EQ(count, 2);
+}
+
+TEST_F(OrchestratorTest, GeminiMultiToolResponseAssembly) {
+  auto orchestrator = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
+
+  // 1. Add user message
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "run tools", "", "completed", "g1").ok());
+
+  // 2. Add assistant multi-tool call (simulating what ProcessResponse would do)
+  // Part 1
+  nlohmann::json call1 = {{"functionCall", {{"name", "tool1"}, {"args", {{"a", 1}}}}}};
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", call1.dump(), "tool1", "tool_call", "g2", "gemini").ok());
+  // Part 2
+  nlohmann::json call2 = {{"functionCall", {{"name", "tool2"}, {"args", {{"b", 2}}}}}};
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", call2.dump(), "tool2", "tool_call", "g2", "gemini").ok());
+
+  // 3. Add tool responses
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", "result1", "tool1", "completed", "g2", "gemini").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", "result2", "tool2", "completed", "g2", "gemini").ok());
+
+  // 4. Assemble prompt
+  auto result = orchestrator->AssemblePrompt("s1");
+  ASSERT_TRUE(result.ok());
+
+  nlohmann::json prompt = *result;
+  // contents should have:
+  // 0: user (text)
+  // 1: model (2 parts: tool1 call, tool2 call)
+  // 2: function (2 parts: tool1 response, tool2 response)
+  ASSERT_EQ(prompt["contents"].size(), 3);
+
+  EXPECT_EQ(prompt["contents"][1]["role"], "model");
+  ASSERT_EQ(prompt["contents"][1]["parts"].size(), 2);
+  EXPECT_TRUE(prompt["contents"][1]["parts"][0].contains("functionCall"));
+  EXPECT_EQ(prompt["contents"][1]["parts"][0]["functionCall"]["name"], "tool1");
+  EXPECT_TRUE(prompt["contents"][1]["parts"][1].contains("functionCall"));
+  EXPECT_EQ(prompt["contents"][1]["parts"][1]["functionCall"]["name"], "tool2");
+
+  EXPECT_EQ(prompt["contents"][2]["role"], "function");
+  ASSERT_EQ(prompt["contents"][2]["parts"].size(), 2);
+  EXPECT_TRUE(prompt["contents"][2]["parts"][0].contains("functionResponse"));
+  EXPECT_EQ(prompt["contents"][2]["parts"][0]["functionResponse"]["name"], "tool1");
+  EXPECT_TRUE(prompt["contents"][2]["parts"][1].contains("functionResponse"));
+  EXPECT_EQ(prompt["contents"][2]["parts"][1]["functionResponse"]["name"], "tool2");
+}
+
+TEST_F(OrchestratorTest, OpenAIIdNameHandling) {
+    auto orchestrator = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
+
+    // Mock response with a tool call
+    std::string mock_response = R"({
+      "choices": [{
+        "message": {
+          "role": "assistant",
+          "tool_calls": [{
+            "id": "call_123",
+            "type": "function",
+            "function": {"name": "my_tool", "arguments": "{}"}
+          }]
+        }
+      }]
+    })";
+
+    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response, "g1").ok());
+
+    auto history = db.GetConversationHistory("s1");
+    ASSERT_TRUE(history.ok());
+    ASSERT_EQ(history->back().tool_call_id, "call_123|my_tool");
+
+    // Test parsing it back
+    auto calls_or = orchestrator->ParseToolCalls(history->back());
+    ASSERT_TRUE(calls_or.ok());
+    ASSERT_EQ(calls_or->size(), 1);
+    EXPECT_EQ((*calls_or)[0].id, "call_123");
+    EXPECT_EQ((*calls_or)[0].name, "my_tool");
+}
+
 }  // namespace slop

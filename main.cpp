@@ -233,34 +233,48 @@ int main(int argc, char** argv) {
         break;
       }
 
+      auto history_before_or = db.GetMessagesByGroups({group_id});
+      size_t start_idx = history_before_or.ok() ? history_before_or->size() : 0;
+
       auto status = orchestrator->ProcessResponse(session_id, *resp_or, group_id);
       if (!status.ok()) {
         slop::HandleStatus(status, "Process Error");
         break;
       }
 
-      auto history_or = db.GetMessagesByGroups({group_id});
-      if (!history_or.ok() || history_or->empty()) break;
+      auto history_after_or = db.GetMessagesByGroups({group_id});
+      if (!history_after_or.ok() || history_after_or->empty()) break;
 
-      const auto& last_msg = history_or->back();
-      if (last_msg.role == "assistant" && last_msg.status == "tool_call") {
-        auto calls_or = orchestrator->ParseToolCalls(last_msg);
-        if (calls_or.ok()) {
-          for (const auto& call : *calls_or) {
-            slop::PrintToolCallMessage(call.name, call.args.dump());
-            auto result_or = tool_executor.Execute(call.name, call.args);
-            std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-            slop::PrintToolResultMessage(result);
-            (void)db.AppendMessage(session_id, "tool", result, last_msg.tool_call_id, "completed", group_id,
-                                   last_msg.parsing_strategy);
+      bool has_tool_calls = false;
+      for (size_t i = start_idx; i < history_after_or->size(); ++i) {
+        const auto& msg = (*history_after_or)[i];
+        if (msg.role == "assistant" && msg.status == "tool_call") {
+          auto calls_or = orchestrator->ParseToolCalls(msg);
+          if (calls_or.ok()) {
+            for (const auto& call : *calls_or) {
+              slop::PrintToolCallMessage(call.name, call.args.dump());
+              auto result_or = tool_executor.Execute(call.name, call.args);
+              std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
+              slop::PrintToolResultMessage(result);
+              std::string combined_id = call.id;
+              if (call.id != call.name) {
+                combined_id = call.id + "|" + call.name;
+              }
+              (void)db.AppendMessage(session_id, "tool", result, combined_id, "completed", group_id,
+                                     msg.parsing_strategy);
+            }
+            has_tool_calls = true;
           }
-          if (orchestrator->GetThrottle() > 0) {
-            std::this_thread::sleep_for(std::chrono::seconds(orchestrator->GetThrottle()));
-          }
-          continue;  // Loop for next LLM turn
+        } else if (msg.role == "assistant") {
+          slop::PrintAssistantMessage(msg.content);
         }
-      } else if (last_msg.role == "assistant") {
-        slop::PrintAssistantMessage(last_msg.content);
+      }
+
+      if (has_tool_calls) {
+        if (orchestrator->GetThrottle() > 0) {
+          std::this_thread::sleep_for(std::chrono::seconds(orchestrator->GetThrottle()));
+        }
+        continue;  // Loop for next LLM turn
       }
       break;
     }
