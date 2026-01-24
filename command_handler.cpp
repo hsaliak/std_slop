@@ -321,6 +321,17 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
   return Result::HANDLED;
 }
 
+/**
+ * @brief Handles session management commands (/session).
+ * 
+ * Supports:
+ * - list: Lists all sessions.
+ * - activate <id>: Switches the current active session.
+ * - remove <id>: Deletes a session and its history.
+ * - clear: Clears history/state for the current session.
+ * 
+ * @param args Command arguments containing the sub-command and optional session ID.
+ */
 CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
   std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
   std::string sub_cmd = sub_parts[0];
@@ -348,6 +359,15 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
   return Result::HANDLED;
 }
 
+/**
+ * @brief Displays usage statistics and Gemini user quota.
+ * 
+ * Fetches token usage from the local database grouped by model.
+ * If the provider is Gemini and OAuth is active, it also fetches and displays
+ * real-time quota information from the Google API.
+ * 
+ * @param args Command arguments providing the session ID.
+ */
 CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
   auto res =
       db_->Query(absl::Substitute("SELECT model, SUM(prompt_tokens) as prompt, SUM(completion_tokens) as completion, "

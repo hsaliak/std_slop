@@ -333,6 +333,17 @@ absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
   return stmt->Run();
 }
 
+/**
+ * @brief Retrieves messages for a specific session, optionally windowed.
+ * 
+ * If window_size > 0, it retrieves messages from the most recent 'window_size' groups.
+ * A 'group' typically corresponds to one full interaction (user prompt + assistant response).
+ * 
+ * @param session_id The session to query.
+ * @param include_dropped If true, includes messages marked as 'dropped'.
+ * @param window_size Number of recent groups to include. 0 for all history.
+ * @return absl::StatusOr<std::vector<Message>> A list of messages ordered by time.
+ */
 absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(const std::string& session_id,
                                                                                 bool include_dropped, int window_size) {
   std::string sql;
@@ -630,6 +641,15 @@ absl::Status Database::SetSessionState(const std::string& session_id, const std:
   return stmt->Run();
 }
 
+/**
+ * @brief Retrieves the persisted state blob for a session.
+ * 
+ * Used to store and recover intermediate session state (like partially 
+ * constructed responses or temporary context) across restarts.
+ * 
+ * @param session_id The session ID.
+ * @return absl::StatusOr<std::string> The state blob string, or NotFoundError if missing.
+ */
 absl::StatusOr<std::string> Database::GetSessionState(const std::string& session_id) {
   std::string sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
   auto stmt_or = Prepare(sql);

@@ -105,6 +105,20 @@ void Orchestrator::UpdateStrategy() {
   }
 }
 
+/**
+ * @brief Constructs the full prompt payload for the LLM.
+ * 
+ * Orchestrates the prompt assembly by:
+ * 1. Fetching session context settings (e.g., window size).
+ * 2. Retrieving relevant conversation history from the database.
+ * 3. Building system instructions including skills and history guidelines.
+ * 4. Injecting relevant memos based on history context.
+ * 5. delegating the final payload formatting to the strategy (Gemini/OpenAI).
+ * 
+ * @param session_id The active session ID.
+ * @param active_skills List of skills currently active for the turn.
+ * @return absl::StatusOr<nlohmann::json> The prepared JSON payload for the LLM API.
+ */
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id,
                                                             const std::vector<std::string>& active_skills) {
   auto settings_or = db_->GetContextSettings(session_id);
@@ -141,6 +155,16 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
 
 int Orchestrator::CountTokens(const nlohmann::json& prompt) { return strategy_->CountTokens(prompt); }
 
+/**
+ * @brief Constructs the system instruction string for the LLM.
+ * 
+ * Combines the builtin system prompt, conversation history guidelines,
+ * and the definitions/usage instructions for any active skills.
+ * 
+ * @param session_id The active session ID.
+ * @param active_skills List of skill names to include in the instructions.
+ * @return std::string The complete system instruction string.
+ */
 std::string Orchestrator::BuildSystemInstructions(const std::string& session_id,
                                                   const std::vector<std::string>& active_skills) {
   static constexpr absl::string_view kHistoryInstructions = R"(

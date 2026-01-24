@@ -23,6 +23,15 @@
 namespace slop {
 
 namespace {
+/**
+ * @brief Calculates the printable length of a string, excluding ANSI escape codes.
+ * 
+ * Handles multi-byte UTF-8 characters and standard ANSI SGR (Select Graphic Rendition)
+ * sequences to determine how many columns the string will occupy in the terminal.
+ * 
+ * @param s The string to measure.
+ * @return size_t The number of visible terminal columns.
+ */
 size_t VisibleLength(const std::string& s) {
   size_t len = 0;
   for (size_t i = 0; i < s.length(); ++i) {
@@ -40,6 +49,13 @@ size_t VisibleLength(const std::string& s) {
   return len;
 }
 
+/**
+ * @brief Prints a horizontal separator line to the terminal.
+ * 
+ * @param width The width of the line. If 0, uses the current terminal width.
+ * @param color_fg The ANSI color code for the line.
+ * @param header Optional text to display centered within the line.
+ */
 void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "") {
   if (width == 0) width = GetTerminalWidth() - 1;
   std::string bold_fg = std::string(ansi::Bold) + color_fg;
@@ -58,6 +74,16 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const 
   }
 }
 
+/**
+ * @brief Renders text within a stylized ASCII box with a header.
+ * 
+ * Automatically wraps the body text to fit within the terminal boundaries
+ * and draws a border using the specified color.
+ * 
+ * @param header The title displayed at the top of the box.
+ * @param body The main content of the box.
+ * @param color_fg The ANSI color code for the border and header.
+ */
 void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg) {
   size_t width = GetTerminalWidth() - 1;
   size_t content_width = (width > 4) ? width - 4 : width;
@@ -102,6 +128,18 @@ size_t GetTerminalWidth() {
   return 80;
 }
 
+/**
+ * @brief Formats a single line of text with background and foreground colors.
+ * 
+ * Truncates the text with "..." if it exceeds the specified width, ensuring 
+ * the truncation accounts for invisible ANSI sequences.
+ * 
+ * @param text The text to format.
+ * @param color_bg The ANSI background color code.
+ * @param width The target width. If 0, uses terminal width.
+ * @param color_fg The ANSI foreground color code.
+ * @return std::string The formatted and colorized line.
+ */
 std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
   if (width == 0) width = GetTerminalWidth() - 1;
 
