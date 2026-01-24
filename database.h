@@ -138,15 +138,6 @@ class Database {
   absl::Status UpdateScratchpad(const std::string& session_id, const std::string& scratchpad);
   absl::StatusOr<std::string> GetScratchpad(const std::string& session_id);
 
-  struct Todo {
-    int id;
-    std::string group_name;
-    std::string description;
-    std::string status;
-  };
-
-  absl::Status AddTodo(const std::string& group_name, const std::string& description);
-
   struct Memo {
     int id;
     std::string content;
@@ -160,11 +151,6 @@ class Database {
   absl::Status AddMemo(const std::string& content, const std::string& semantic_tags);
   absl::StatusOr<std::vector<Memo>> GetMemosByTags(const std::vector<std::string>& tags);
   absl::StatusOr<std::vector<Memo>> GetAllMemos();
-  absl::StatusOr<std::vector<Todo>> GetTodos(const std::string& group_name);
-  absl::Status UpdateTodo(int id, const std::string& group_name, const std::string& description);
-  absl::Status UpdateTodoStatus(int id, const std::string& group_name, const std::string& status);
-  absl::Status DeleteTodoGroup(const std::string& group_name);
-
   // Full Text Search
   absl::StatusOr<std::string> Query(const std::string& sql);
 

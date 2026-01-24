@@ -46,6 +46,7 @@ Persists user settings for each conversation session.
 | :--- | :--- | :--- |
 | id | TEXT | Primary Key. Session ID. |
 | context_size | INTEGER | Size of the sequential rolling window (number of groups). Default: 5. |
+| scratchpad | TEXT | A flexible workspace for the LLM to store plans and notes. |
 
 ### 5. usage
 Tracks token usage for cost and performance monitoring.
@@ -69,19 +70,7 @@ Stores the persistent self-managed state block, per session.
 | state_blob | TEXT | The persistent `---STATE---` block. |
 | last_updated | TIMESTAMP | Timestamp of last update. Default: `CURRENT_TIMESTAMP`. |
 
-### 7. todos
-Sequential task management system.
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| id | INTEGER | Task ID (Sequential per group). |
-| group_name | TEXT | Group identifier (e.g., `feature_x`, `code_todos`). |
-| description | TEXT | Task details. |
-| status | TEXT | `Open` or `Complete`. Default: `Open`. |
-
-**Primary Key**: `(id, group_name)`
-
-### 8. llm_memos
+### 7. llm_memos
 Long-term knowledge persistence through tag-based memos.
 
 | Column | Type | Description |
@@ -102,6 +91,7 @@ The following tools are registered by default during database initialization:
 - `execute_bash`: Execute a bash command on the local system.
 - `search_code`: Search for code snippets in the codebase using grep.
 - `query_db`: Query the local SQLite database using SQL.
+- `manage_scratchpad`: Read or update the persistent session-specific scratchpad.
 
 ## Default Skills
 
@@ -110,7 +100,6 @@ The following skills are registered by default:
 - `planner`: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.
 - `dba`: Database Administrator specializing in SQLite schema design and data integrity.
 - `c++_expert`: Enforces strict adherence to project C++17 constraints and Google style.
-- `todo_processor`: Sequential task automation via the `todos` table.
 
 ## SQL Initialization
 
@@ -143,7 +132,8 @@ CREATE TABLE IF NOT EXISTS skills (
 
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
-    context_size INTEGER DEFAULT 5
+    context_size INTEGER DEFAULT 5,
+    scratchpad TEXT
 );
 
 CREATE TABLE IF NOT EXISTS usage (
@@ -160,14 +150,6 @@ CREATE TABLE IF NOT EXISTS session_state (
     session_id TEXT PRIMARY KEY,
     state_blob TEXT,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS todos (
-    id INTEGER NOT NULL,
-    group_name TEXT,
-    description TEXT,
-    status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',
-    PRIMARY KEY (id, group_name)
 );
 
 CREATE TABLE IF NOT EXISTS llm_memos (

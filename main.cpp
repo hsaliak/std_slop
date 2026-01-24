@@ -163,6 +163,7 @@ int main(int argc, char** argv) {
   }
 
   slop::ToolExecutor tool_executor(&db);
+  tool_executor.SetSessionId(session_id);
   slop::CommandHandler cmd_handler(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
   slop::SetCompletionCommands(cmd_handler.GetCommandNames(), cmd_handler.GetSubCommandMap());
   std::vector<std::string> active_skills;
@@ -189,6 +190,7 @@ int main(int argc, char** argv) {
     if (input.empty()) continue;
 
     auto res = cmd_handler.Handle(input, session_id, active_skills, ShowHelp, orchestrator->GetLastSelectedGroups());
+    tool_executor.SetSessionId(session_id);
     if (res == slop::CommandHandler::Result::HANDLED || res == slop::CommandHandler::Result::UNKNOWN) {
       continue;
     }

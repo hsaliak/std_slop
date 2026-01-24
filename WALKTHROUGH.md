@@ -138,31 +138,17 @@ Ok, implement it.
 **Note 2:** You can have multiple skills active (e.g., `planner` AND `expert_rust_developer`), but instructions might conflict as they all go into the system prompt.
 **Note 3:** If you get rate limit errors, the `/throttle` command allows you to add wait times between requests. This is useful for free tier plans.
 
-### Sequential Workflows with Todos
+### Planning with the Scratchpad
 
-`std::slop` includes a built-in task management system that can be used to automate complex workflows.
+As you work on complex features, you can use the **Scratchpad** to maintain an evolving plan. This has replaced the older, more rigid `/todo` system.
 
-1.  **Add tasks to a group:**
+1.  **Create a plan**: Ask the LLM to create a plan for a feature.
+2.  **Save to Scratchpad**: Tell the LLM "Save this plan to the scratchpad so we can track our progress."
+3.  **Autonomous Updates**: The LLM will use the `manage_scratchpad` tool to update the plan as you go, checking off items or adding new details.
+4.  **Manual View**: You can see what's currently in the scratchpad at any time with:
     ```bash
-    /todo add my_feature "design the interface"
-    /todo add my_feature "implement core logic"
-    /todo add my_feature "write unit tests"
+    /session scratchpad read
     ```
-
-2.  **View your tasks:**
-    ```bash
-    /todo list my_feature
-    ```
-
-3.  **Automate execution:**
-    Activate the `todo_processor` skill. This skill instructs the agent to fetch the first 'Open' task from the specified group, plan its implementation, and ask for your approval to proceed.
-
-    **Prompt:**
-    ```text
-    Do the next todo on my_feature
-    ```
-
-    After each task is completed, the agent will mark it as `Complete` and you can prompt it to proceed to the next one.
 
 ### Troubleshooting with Logs
 

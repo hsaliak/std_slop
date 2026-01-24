@@ -24,8 +24,8 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
 
   auto skills = db.GetSkills();
   ASSERT_TRUE(skills.ok());
-  // We expect at least the 4 default skills we added
-  EXPECT_GE(skills->size(), 4);
+  // We expect at least the 3 default skills we added
+  EXPECT_GE(skills->size(), 3);
 
   bool found_planner = false;
   for (const auto& s : *skills) {
@@ -193,26 +193,6 @@ TEST(DatabaseTest, UsageTracking) {
   EXPECT_EQ(global_usage->total_tokens, 340);
 }
 
-TEST(DatabaseTest, GetTodosAllGroups) {
-  slop::Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-
-  ASSERT_TRUE(db.AddTodo("group1", "task1").ok());
-  ASSERT_TRUE(db.AddTodo("group1", "task2").ok());
-  ASSERT_TRUE(db.AddTodo("group2", "task3").ok());
-
-  auto all_todos = db.GetTodos("");
-  ASSERT_TRUE(all_todos.ok());
-  EXPECT_EQ(all_todos->size(), 3);
-
-  auto group1_todos = db.GetTodos("group1");
-  ASSERT_TRUE(group1_todos.ok());
-  EXPECT_EQ(group1_todos->size(), 2);
-
-  auto group2_todos = db.GetTodos("group2");
-  ASSERT_TRUE(group2_todos.ok());
-  EXPECT_EQ(group2_todos->size(), 1);
-}
 
 TEST(DatabaseTest, ApplyPatchToolSchema) {
   slop::Database db;

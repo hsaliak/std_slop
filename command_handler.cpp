@@ -53,7 +53,6 @@ void CommandHandler::RegisterCommands() {
   commands_["/schema"] = [this](CommandArgs& args) { return HandleSchema(args); };
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
-  commands_["/todo"] = [this](CommandArgs& args) { return HandleTodo(args); };
   commands_["/memo"] = [this](CommandArgs& args) { return HandleMemo(args); };
 
   for (const auto& def : GetCommandDefinitions()) {
@@ -540,79 +539,6 @@ CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
     } else {
       std::cerr << "Invalid throttle value: " << args.args << std::endl;
     }
-  }
-  return Result::HANDLED;
-}
-
-CommandHandler::Result CommandHandler::HandleTodo(CommandArgs& args) {
-  std::vector<std::string> parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
-  std::string sub_cmd = parts[0];
-
-  if (sub_cmd == "list") {
-    std::string group = (parts.size() > 1) ? parts[1] : "";
-    auto res = db_->GetTodos(group);
-    if (res.ok()) {
-      nlohmann::json j = nlohmann::json::array();
-      for (const auto& t : *res) {
-        j.push_back({{"id", t.id}, {"group", t.group_name}, {"status", t.status}, {"description", t.description}});
-      }
-      HandleStatus(PrintJsonAsTable(j.dump()));
-    }
-  } else if (sub_cmd == "add") {
-    std::vector<std::string> add_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 1));
-    if (add_parts.size() == 2) {
-      HandleStatus(db_->AddTodo(add_parts[0], add_parts[1]));
-      std::cout << "Todo added to group: " << add_parts[0] << std::endl;
-    }
-  } else if (sub_cmd == "edit") {
-    std::vector<std::string> edit_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 2));
-    if (edit_parts.size() == 3) {
-      int id = std::atoi(edit_parts[1].c_str());
-      HandleStatus(db_->UpdateTodo(id, edit_parts[0], edit_parts[2]));
-      std::cout << "Todo " << id << " in group " << edit_parts[0] << " updated." << std::endl;
-    } else if (edit_parts.size() == 2) {
-      int id = std::atoi(edit_parts[1].c_str());
-      std::string group = edit_parts[0];
-      auto todos_or = db_->GetTodos(group);
-      if (todos_or.ok()) {
-        std::string current_desc;
-        bool found = false;
-        for (const auto& t : *todos_or) {
-          if (t.id == id) {
-            current_desc = t.description;
-            found = true;
-            break;
-          }
-        }
-        if (found) {
-          std::string new_desc = TriggerEditor(current_desc);
-          if (!new_desc.empty() && new_desc != current_desc) {
-            // Trim newlines if editor added them at the end
-            while (!new_desc.empty() && new_desc.back() == '\n') {
-              new_desc.pop_back();
-            }
-            HandleStatus(db_->UpdateTodo(id, group, new_desc));
-            std::cout << "Todo " << id << " in group " << group << " updated." << std::endl;
-          } else {
-            std::cout << "No changes made." << std::endl;
-          }
-        } else {
-          std::cerr << "Todo " << id << " not found in group " << group << std::endl;
-        }
-      } else {
-        HandleStatus(todos_or.status());
-      }
-    }
-  } else if (sub_cmd == "complete") {
-    std::vector<std::string> comp_parts = absl::StrSplit(parts[1], ' ');
-    if (comp_parts.size() == 2) {
-      int id = std::atoi(comp_parts[1].c_str());
-      HandleStatus(db_->UpdateTodoStatus(id, comp_parts[0], "Complete"));
-      std::cout << "Todo " << id << " in group " << comp_parts[0] << " marked as Complete." << std::endl;
-    }
-  } else if (sub_cmd == "drop") {
-    HandleStatus(db_->DeleteTodoGroup(parts[1]));
-    std::cout << "All todos in group " << parts[1] << " deleted." << std::endl;
   }
   return Result::HANDLED;
 }

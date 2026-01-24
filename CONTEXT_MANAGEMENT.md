@@ -51,7 +51,8 @@ When building the prompt, the Orchestrator assembles multiple layers of context:
 1.  **System Prompt**: The hard-coded base instructions for the assistant.
 2.  **History Guidelines**: Instructions for the LLM on how to interpret the history and the requirement to maintain the state block.
 3.  **Global Anchor (`---STATE---`)**: The persistent state blob retrieved from the `session_state` table.
-4.  **Conversation History**: The sequential messages retrieved via the rolling window.
+4.  **The Scratchpad**: A flexible, persistent workspace for evolving plans and task tracking.
+5.  **Conversation History**: The sequential messages retrieved via the rolling window.
 
 ### State Persistence and Extraction
 
@@ -71,7 +72,19 @@ Technical Anchors: [Ports, IPs, constant values]
 ---END STATE---
 ```
 
-## 4. Historical Context Retrieval (SQL-based Retrieval)
+## 4. The Scratchpad: Evolutionary Planning
+
+As the system evolved, we replaced the structured, rigid `/todo` table with a more flexible **Scratchpad**. This shift represents a move from human-managed task lists to LLM-managed architectural and implementation plans.
+
+### Flexible Workspace
+- **Evolution**: Unlike the fixed schema of the `todos` table, the scratchpad is a raw text/markdown field in the `sessions` table. It allows for hierarchical plans, notes, and evolving implementation details that don't fit into a simple "Open/Complete" status.
+- **Persistence**: The scratchpad is specific to the session and persists across model switches and session restarts.
+- **LLM Introspection**: The LLM is equipped with tools (`manage_scratchpad`) to read, update, and append to the scratchpad. This allows it to "think out loud" or maintain a checklist that stays in context even as messages roll off the window.
+
+### User Transparency
+The scratchpad functionality is designed to be transparent. While the user can interact with it via `/session scratchpad`, the primary use case is for the LLM to autonomously maintain its own plan. The user simply ensures the plan is initialized or updated by asking the LLM to "update the scratchpad" or "save the plan to the scratchpad."
+
+## 5. Historical Context Retrieval (SQL-based Retrieval)
 
 Unique to `std::slop`, the agent has the capability to query its own message history directly via SQL when the rolling window is insufficient.
 
@@ -90,7 +103,7 @@ WHERE status != 'dropped' AND content LIKE '%refactor plan%'
 ORDER BY id DESC LIMIT 5;
 ```
 
-## 5. Manual Context Intervention
+## 6. Manual Context Intervention
 
 Users have several tools to manually prune or repair the context:
 
@@ -105,7 +118,7 @@ This is the primary way to "roll back" an interaction that went wrong or to retr
 ### The `/message remove <GID>` Command
 For more granular control, users can remove any specific message group by its ID.
 
-## 6. Semantic Memo System
+## 7. Semantic Memo System
 
 Beyond session-specific state and rolling history, `std::slop` provides a **Semantic Memo System** for long-term knowledge persistence across sessions and projects.
 

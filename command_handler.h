@@ -65,7 +65,6 @@ class CommandHandler {
   Result HandleSchema(CommandArgs& args);
   Result HandleModel(CommandArgs& args);
   Result HandleThrottle(CommandArgs& args);
-  Result HandleTodo(CommandArgs& args);
   Result HandleMemo(CommandArgs& args);
 
   Database* db_;

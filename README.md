@@ -1,6 +1,6 @@
 # std::slop
 
-std::slop is a sqlite based c++ cli agent. It uses a small per project database to remember everything you do, so it never loses track of your work. Most of the agentic work that it does is db driven, for persistence and longer term recall. It has first class support for git. First class support for planning and todos help you structure work for less capable (read free tier) agents. There is tooling to teach the LLM std::slop's schema, so you can just import and export data, such as skills, when needed.
+std::slop is a sqlite based c++ cli agent. It uses a small per project database to remember everything you do, so it never loses track of your work. Most of the agentic work that it does is db driven, for persistence and longer term recall. It has first class support for git. There is tooling to teach the LLM std::slop's schema, so you can just import and export data, such as skills, when needed.
 
 ## Distinguishing Features
 
@@ -11,7 +11,7 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 - **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
 - **Historical Context Retrieval**: Unique ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
-- **Todo-Driven Workflows**: Integrated todo management system allowing for sequential execution of tasks via specialized skills.
+- **Session Scratchpad**: A flexible, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously.
 - **Semantic Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
@@ -24,7 +24,7 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 
 ## Architecture
 
-- **Storage**: SQLite3 (Ledger, Tools, Skills, State, Todos).
+- **Storage**: SQLite3 (Ledger, Tools, Skills, State, Scratchpad).
 - **Orchestrator**: Unified logic for prompt assembly and response processing.
 - **Execution**: Secure tool execution engine.
 - **Network**: Asynchronous HTTP client with automatic exponential backoff for 429/5xx errors.
@@ -146,12 +146,6 @@ bazel run //:std_slop -- [session_name]
 - `/tool list`       List enabled tools.
 - `/tool show <name>` Show tool schema and description.
 
-### Todo Management
-- `/todo list [group]` List todos (optionally by group).
-- `/todo add <group> <desc>` Add a new todo to a group.
-- `/todo edit <group> <id> <desc>` Update a todo's description.
-- `/todo complete <group> <id>` Mark a todo as Complete.
-- `/todo drop <group>` Delete all todos in a group.
 
 ### Models and Settings
 - `/models`          List available models from the provider.
@@ -181,7 +175,6 @@ bazel run //:std_slop -- [session_name]
 | `planner` | Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery. |
 | `dba` | Database Administrator specializing in SQLite schema design and data integrity. |
 | `c++_expert` | Enforces strict adherence to project C++17 constraints (Google Style, no exceptions). |
-| `todo_processor` | Sequential task automation; reads 'Open' todos and executes them upon approval. |
 
 ## Project Constraints
 

@@ -264,4 +264,29 @@ TEST(ToolExecutorTest, ApplyPatch_WhitespaceSensitivity) {
   std::filesystem::remove(test_file);
 }
 
+TEST(ToolExecutorTest, ManageScratchpadSessionHandling) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ToolExecutor executor(&db);
+
+  // Without SetSessionId, manage_scratchpad should return an error message in the result string
+  auto res = executor.Execute("manage_scratchpad", {{"action", "read"}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(res->find("Error: FAILED_PRECONDITION: No active session") != std::string::npos);
+
+  // With SetSessionId, it should work
+  executor.SetSessionId("default_session");
+  auto res2 = executor.Execute("manage_scratchpad", {{"action", "read"}});
+  ASSERT_TRUE(res2.ok());
+  EXPECT_TRUE(res2->find("Scratchpad is empty") != std::string::npos);
+
+  // Switch session
+  executor.SetSessionId("other_session");
+  ASSERT_TRUE(executor.Execute("manage_scratchpad", {{"action", "update"}, {"content", "other content"}}).ok());
+  
+  auto res3 = executor.Execute("manage_scratchpad", {{"action", "read"}});
+  ASSERT_TRUE(res3.ok());
+  EXPECT_TRUE(res3->find("other content") != std::string::npos);
+}
+
 }  // namespace slop

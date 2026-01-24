@@ -62,10 +62,10 @@ If no session name is provided, it defaults to `default_session`.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. While conversational text is preserved across models, tool calls and results are isolated by provider (e.g., Gemini vs. OpenAI) to ensure reliable parsing and execution. Switching providers will hide previous tool interactions from the new model's immediate context.
 - **State**: The persistent "Long-term RAM" for each session.
+- **Scratchpad**: A flexible, persistent markdown workspace for evolving plans and task tracking.
 - **Skills**: Persona patches that inject specific instructions into the system prompt.
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
-- **Todos**: A sequential task list managed in the database, enabling automated workflows.
 
 ## User Interface
 
@@ -81,6 +81,8 @@ If no session name is provided, it defaults to `default_session`.
 - `/session activate <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
 - `/session remove <name>`: Delete a session and all its associated data (history, usage, state).
 - `/session clear`: Wipe all messages and state for the *current* session, effectively starting fresh while keeping the same session ID.
+- `/session scratchpad read`: Display the current content of the session's scratchpad.
+- `/session scratchpad edit`: Open the session's scratchpad in your system `$EDITOR`.
 
 ### Message Operations
 - `/message list [N]`: List the prompts of the last `N` message groups.
@@ -94,12 +96,6 @@ If no session name is provided, it defaults to `default_session`.
 - `/context window <N>`: Limit the context to the last `N` interaction groups. Set to `0` for infinite history.
 - `/context rebuild`: Force a rebuild of the in-memory session state from the SQL message history. Useful if the database was modified externally.
 
-### Todo Management
-- `/todo list [group]`: List all todos, optionally filtered by group.
-- `/todo add <group> <description>`: Add a new task to a specific group.
-- `/todo edit <group> <id> <description>`: Update the text of an existing todo.
-- `/todo complete <group> <id>`: Mark a todo as finished.
-- `/todo drop <group>`: Delete all tasks in a group.
 
 ### Knowledge Management (Memos)
 - `/memo list`: List all saved memos and their tags.
@@ -151,19 +147,12 @@ You MUST adhere to these constraints in every code change:
 You ALWAYS run all the tests and ensure the affected targets compiles correctly.
 ```
 
-**todo_processor**
-- **Description**: Reads open todos from the database and executes them sequentially after user confirmation.
-- **System Prompt Patch**:
-```text
-You are now in Todo Processing mode. Your task is to fetch the next 'Open' todo from the 'todos' table (ordered by id) for the specified group. Once fetched, treat its description as your next goal. Plan the implementation, present it to the user, and wait for approval. After successful completion, update the todo's status to 'Complete' and proceed to the next 'Open' todo.
-```
-
 ### Automation Workflow
-The Planner and the Todo Processor work well together to automate complex tasks:
-1.  **Decompose**: Use the `planner` skill to break a large feature into small, atomic tasks.
-2.  **Add Todos**: Ask the LLM to use the `add_todo` tool for each task.
-3.  **Execute**: Enable the `todo_processor` skill and ask the agent to start working on the group.
-4.  **Confirm**: The agent will pick the first open task, propose a plan, and wait for your approval before executing and marking it complete.
+The Planner can be used to break a large feature into small, atomic tasks which can then be implemented iteratively. These plans can be stored and evolved in the **Scratchpad**, allowing the LLM to track its progress across many turns.
+
+1.  **Decompose**: Use the `planner` skill to break a large feature into steps.
+2.  **Initialize Scratchpad**: Ask the LLM to "save this plan to the scratchpad."
+3.  **Execute & Iterate**: As the LLM works, it will autonomously use the `manage_scratchpad` tool to check its progress and update the plan as steps are completed.
 
 ### Other Commands
 - `/models`: List all models available for your current provider.
