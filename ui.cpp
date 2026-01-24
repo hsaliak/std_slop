@@ -57,66 +57,36 @@ size_t VisibleLength(const std::string& s) {
  * @param header Optional text to display centered within the line.
  */
 void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "") {
-  if (width == 0) width = GetTerminalWidth() - 1;
+  if (width == 0) width = static_cast<size_t>(GetTerminalWidth() * 0.9);
   std::string bold_fg = std::string(ansi::Bold) + color_fg;
 
   if (header.empty()) {
-    std::string line;
-    for (size_t i = 0; i < width; ++i) line += "─";
+    std::string line(width, '-');
     std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
   } else {
-    std::string line = "── [ " + header + " ] ";
+    std::string line = "--[ " + header + " ]--";
     size_t visible = VisibleLength(line);
     if (visible < width) {
-      for (size_t i = visible; i < width; ++i) line += "─";
+      line += std::string(width - visible, '-');
     }
     std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
   }
 }
 
 /**
- * @brief Renders text within a stylized ASCII box with a header.
+ * @brief Renders text within a stylized section with a header.
  * 
  * Automatically wraps the body text to fit within the terminal boundaries
- * and draws a border using the specified color.
+ * and draws a horizontal separator using the specified color.
  * 
- * @param header The title displayed at the top of the box.
- * @param body The main content of the box.
- * @param color_fg The ANSI color code for the border and header.
+ * @param header The title displayed at the top of the block.
+ * @param body The main content of the block.
+ * @param color_fg The ANSI color code for the header.
  */
 void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg) {
-  size_t width = GetTerminalWidth() - 1;
-  size_t content_width = (width > 4) ? width - 4 : width;
-  std::string bold_fg = std::string(ansi::Bold) + color_fg;
-
-  std::string top_line = "┌─ [ " + header + " ] ";
-  size_t top_visible = VisibleLength(top_line);
-  if (top_visible < width - 1) {
-    for (size_t i = top_visible; i < width - 1; ++i) {
-      top_line += "─";
-    }
-    top_line += "┐";
-  } else {
-    top_line = top_line.substr(0, width - 2) + "┐";
-  }
-  std::cout << Colorize(top_line, "", bold_fg.c_str()) << std::endl;
-
-  std::string wrapped = WrapText(body, content_width);
-  if (!wrapped.empty()) {
-    std::stringstream ss(wrapped);
-    std::string line;
-    while (std::getline(ss, line)) {
-      size_t visible = VisibleLength(line);
-      std::string padding = (visible < content_width) ? std::string(content_width - visible, ' ') : "";
-      std::cout << Colorize("│ ", "", bold_fg.c_str()) << line << padding << Colorize(" │", "", bold_fg.c_str())
-                << std::endl;
-    }
-  }
-
-  std::string bottom = "└";
-  for (size_t i = 0; i < width - 2; ++i) bottom += "─";
-  bottom += "┘";
-  std::cout << Colorize(bottom, "", bold_fg.c_str()) << std::endl;
+  size_t width = static_cast<size_t>(GetTerminalWidth() * 0.9);
+  PrintHorizontalLine(width, color_fg, header);
+  std::cout << WrapText(body, width) << std::endl;
 }
 }  // namespace
 
@@ -141,7 +111,7 @@ size_t GetTerminalWidth() {
  * @return std::string The formatted and colorized line.
  */
 std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
-  if (width == 0) width = GetTerminalWidth() - 1;
+  if (width == 0) width = static_cast<size_t>(GetTerminalWidth() * 0.9);
 
   std::string line = text;
   std::replace(line.begin(), line.end(), '\n', ' ');
@@ -333,7 +303,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
   ss << "=== Assembled Context ===\n\n";
 
   if (j.contains("system_instruction")) {
-    ss << "[SYSTEM INSTRUCTION]\n";
+    ss << "SYSTEM INSTRUCTION:\n";
     if (j["system_instruction"].contains("parts")) {
       for (const auto& part : j["system_instruction"]["parts"]) {
         if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
@@ -345,7 +315,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
   if (j.contains("contents") && j["contents"].is_array()) {
     for (const auto& entry : j["contents"]) {
       std::string role = entry.value("role", "unknown");
-      ss << "[" << role << "]\n";
+      ss << "Role: " << role << "\n";
       if (entry.contains("parts")) {
         for (const auto& part : entry["parts"]) {
           if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
@@ -358,7 +328,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
   } else if (j.contains("messages") && j["messages"].is_array()) {
     for (const auto& msg : j["messages"]) {
       std::string role = msg.value("role", "unknown");
-      ss << "[" << role << "]\n";
+      ss << "Role: " << role << "\n";
       if (msg.contains("content") && !msg["content"].is_null()) {
         ss << msg["content"].get<std::string>() << "\n";
       }
@@ -457,7 +427,7 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
   std::string display_args = args;
   if (args.length() > 80) {
-    display_args = args.substr(0, 66) + "...[Truncated]";
+    display_args = args.substr(0, 66) + "... (Truncated)";
   }
   PrintBorderedBlock("Tool Call: " + name, display_args, ansi::Grey);
   std::cout << std::endl;
@@ -476,8 +446,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
   for (size_t i = start; i < history_or->size(); ++i) {
     const auto& msg = (*history_or)[i];
     if (msg.role == "user") {
-      std::cout << "\n"
-                << Colorize("[User (GID: " + msg.group_id + ")]> ", "", ansi::Green) << msg.content << std::endl;
+      std::cout << "\n" << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::Green) << msg.content << std::endl;
     } else if (msg.role == "assistant") {
       if (msg.status == "tool_call") {
         PrintToolCallMessage("LLM", msg.content);
@@ -487,7 +456,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     } else if (msg.role == "tool") {
       PrintToolResultMessage(msg.content);
     } else if (msg.role == "system") {
-      std::cout << Colorize("[System]> ", "", ansi::Yellow) << msg.content << std::endl;
+      std::cout << Colorize("System> ", "", ansi::Yellow) << msg.content << std::endl;
     }
   }
   return absl::OkStatus();

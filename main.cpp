@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
       }
 
       int context_tokens = orchestrator->CountTokens(*prompt_or);
-      std::cout << "[context: " << context_tokens << " tokens] Thinking...\n " << std::flush;
+      std::cout << "Context: " << context_tokens << " tokens | Thinking...\n " << std::flush;
 
       std::vector<std::string> headers = {"Content-Type: application/json"};
       std::string url;

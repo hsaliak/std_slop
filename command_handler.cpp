@@ -118,7 +118,7 @@ CommandHandler::Result CommandHandler::HandleHelp(CommandArgs& args) {
 CommandHandler::Result CommandHandler::HandleExit([[maybe_unused]] CommandArgs& args) { return Result::HANDLED; }
 
 CommandHandler::Result CommandHandler::HandleEdit(CommandArgs& args) {
-  std::string edited = slop::OpenInEditor();
+  std::string edited = TriggerEditor("");
   if (edited.empty()) return Result::HANDLED;
   args.input = edited;
   return Result::PROCEED_TO_LLM;
@@ -301,6 +301,42 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         std::cout << "Skill: " << j[0]["name"].get<std::string>() << std::endl;
         std::cout << "Description: " << j[0]["description"].get<std::string>() << std::endl;
         std::cout << "Patch:\n" << j[0]["system_prompt_patch"].get<std::string>() << std::endl;
+      }
+    }
+  } else if (sub_cmd == "edit") {
+    auto res = db_->Query("SELECT id, name, description, system_prompt_patch FROM skills WHERE name = '" + sub_args +
+                          "' OR id = '" + sub_args + "'");
+    if (res.ok()) {
+      auto j = nlohmann::json::parse(*res, nullptr, false);
+      if (!j.is_discarded() && !j.empty()) {
+        auto& skill_data = j[0];
+        int id = skill_data["id"].get<int>();
+        
+        nlohmann::json edit_obj;
+        edit_obj["name"] = skill_data["name"];
+        edit_obj["description"] = skill_data["description"];
+        edit_obj["system_prompt_patch"] = skill_data["system_prompt_patch"];
+
+        std::string edited_json = TriggerEditor(edit_obj.dump(2));
+        if (!edited_json.empty()) {
+          auto edited_j = nlohmann::json::parse(edited_json, nullptr, false);
+          if (!edited_j.is_discarded()) {
+             Database::Skill s{
+                 id,
+                 edited_j.value("name", skill_data["name"].get<std::string>()),
+                 edited_j.value("description", skill_data["description"].get<std::string>()),
+                 edited_j.value("system_prompt_patch", skill_data["system_prompt_patch"].get<std::string>())
+             };
+             HandleStatus(db_->UpdateSkill(s));
+             std::cout << "Skill updated." << std::endl;
+          } else {
+             std::cerr << "Invalid JSON. Update aborted." << std::endl;
+          }
+        } else {
+          std::cout << "No changes made." << std::endl;
+        }
+      } else {
+        std::cerr << "Skill not found: " << sub_args << std::endl;
       }
     }
   } else if (sub_cmd == "delete") {
@@ -512,6 +548,38 @@ CommandHandler::Result CommandHandler::HandleTodo(CommandArgs& args) {
       int id = std::atoi(edit_parts[1].c_str());
       HandleStatus(db_->UpdateTodo(id, edit_parts[0], edit_parts[2]));
       std::cout << "Todo " << id << " in group " << edit_parts[0] << " updated." << std::endl;
+    } else if (edit_parts.size() == 2) {
+      int id = std::atoi(edit_parts[1].c_str());
+      std::string group = edit_parts[0];
+      auto todos_or = db_->GetTodos(group);
+      if (todos_or.ok()) {
+        std::string current_desc;
+        bool found = false;
+        for (const auto& t : *todos_or) {
+          if (t.id == id) {
+            current_desc = t.description;
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          std::string new_desc = TriggerEditor(current_desc);
+          if (!new_desc.empty() && new_desc != current_desc) {
+            // Trim newlines if editor added them at the end
+            while (!new_desc.empty() && new_desc.back() == '\n') {
+              new_desc.pop_back();
+            }
+            HandleStatus(db_->UpdateTodo(id, group, new_desc));
+            std::cout << "Todo " << id << " in group " << group << " updated." << std::endl;
+          } else {
+            std::cout << "No changes made." << std::endl;
+          }
+        } else {
+          std::cerr << "Todo " << id << " not found in group " << group << std::endl;
+        }
+      } else {
+        HandleStatus(todos_or.status());
+      }
     }
   } else if (sub_cmd == "complete") {
     std::vector<std::string> comp_parts = absl::StrSplit(parts[1], ' ');
@@ -586,6 +654,10 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
     std::cerr << "Unknown memo sub-command: " << sub_cmd << std::endl;
   }
   return Result::HANDLED;
+}
+
+std::string CommandHandler::TriggerEditor(const std::string& initial_content) {
+  return slop::OpenInEditor(initial_content);
 }
 
 }  // namespace slop

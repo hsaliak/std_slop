@@ -71,9 +71,9 @@ TEST(UiTest, FormatAssembledContextGemini) {
         "system_instruction": {"parts": [{"text": "You are a helper."}]}
     })";
   std::string formatted = FormatAssembledContext(json);
-  EXPECT_TRUE(formatted.find("[SYSTEM INSTRUCTION]") != std::string::npos);
+  EXPECT_TRUE(formatted.find("SYSTEM INSTRUCTION:") != std::string::npos);
   EXPECT_TRUE(formatted.find("You are a helper.") != std::string::npos);
-  EXPECT_TRUE(formatted.find("[user]") != std::string::npos);
+  EXPECT_TRUE(formatted.find("Role: user") != std::string::npos);
   EXPECT_TRUE(formatted.find("Hello!") != std::string::npos);
 }
 
@@ -88,9 +88,9 @@ TEST(UiTest, FormatAssembledContextGCA) {
         "model": "model-id"
     })";
   std::string formatted = FormatAssembledContext(json);
-  EXPECT_TRUE(formatted.find("[SYSTEM INSTRUCTION]") != std::string::npos);
+  EXPECT_TRUE(formatted.find("SYSTEM INSTRUCTION:") != std::string::npos);
   EXPECT_TRUE(formatted.find("GCA system prompt.") != std::string::npos);
-  EXPECT_TRUE(formatted.find("[user]") != std::string::npos);
+  EXPECT_TRUE(formatted.find("Role: user") != std::string::npos);
   EXPECT_TRUE(formatted.find("GCA hello!") != std::string::npos);
 }
 
@@ -104,9 +104,9 @@ TEST(UiTest, FormatAssembledContextOpenAI) {
     })";
   std::string formatted = FormatAssembledContext(json);
   EXPECT_TRUE(formatted.find("OpenAI System") != std::string::npos);
-  EXPECT_TRUE(formatted.find("[user]") != std::string::npos);
+  EXPECT_TRUE(formatted.find("Role: user") != std::string::npos);
   EXPECT_TRUE(formatted.find("OpenAI User") != std::string::npos);
-  EXPECT_TRUE(formatted.find("[assistant]") != std::string::npos);
+  EXPECT_TRUE(formatted.find("Role: assistant") != std::string::npos);
   EXPECT_TRUE(formatted.find("Tool Calls:") != std::string::npos);
   EXPECT_TRUE(formatted.find("test_tool") != std::string::npos);
 }

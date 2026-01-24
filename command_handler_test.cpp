@@ -5,6 +5,22 @@
 #include <nlohmann/json.hpp>
 namespace slop {
 
+class TestableCommandHandler : public CommandHandler {
+ public:
+  using CommandHandler::CommandHandler;
+
+  std::string next_editor_output;
+  std::string last_initial_content;
+  bool editor_was_called = false;
+
+ protected:
+  std::string TriggerEditor(const std::string& initial_content) override {
+    editor_was_called = true;
+    last_initial_content = initial_content;
+    return next_editor_output;
+  }
+};
+
 class CommandHandlerTest : public ::testing::Test {
  protected:
   Database db;
@@ -268,4 +284,90 @@ TEST_F(CommandHandlerTest, HandlesTodoCommands) {
   EXPECT_EQ(todos->size(), 0);
 }
 
+TEST_F(CommandHandlerTest, TodoEditUsingEditor) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  // Add a todo
+  std::string input = "/todo add mygroup Original description";
+  handler.Handle(input, sid, active_skills, []() {}, {});
+
+  // Set up mock editor
+  handler.next_editor_output = "Edited description\n"; // Editor might add newline
+  handler.editor_was_called = false;
+
+  // Edit it
+  input = "/todo edit mygroup 1"; // No description provided
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(handler.editor_was_called);
+  EXPECT_EQ(handler.last_initial_content, "Original description");
+
+  // Verify update
+  auto todos = db.GetTodos("mygroup");
+  ASSERT_TRUE(todos.ok());
+  ASSERT_EQ(todos->size(), 1);
+  EXPECT_EQ((*todos)[0].description, "Edited description"); // Newline should be trimmed
+}
+
+TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  // Register a skill
+  Database::Skill s{0, "myskill", "A test skill", "ORIGINAL PATCH"};
+  ASSERT_TRUE(db.RegisterSkill(s).ok());
+
+  // Set up mock editor
+  // We expect the editor to receive a JSON dump.
+  // We return a modified JSON.
+  nlohmann::json edited_json;
+  edited_json["name"] = "myskill";
+  edited_json["description"] = "A test skill";
+  edited_json["system_prompt_patch"] = "EDITED PATCH";
+  
+  handler.next_editor_output = edited_json.dump(2);
+  handler.editor_was_called = false;
+
+  // Edit it
+  std::string input = "/skill edit myskill";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(handler.editor_was_called);
+  // We don't strictly assert exact JSON format of last_initial_content as it might vary, 
+  // but we can check if it contains the original patch.
+  EXPECT_TRUE(handler.last_initial_content.find("ORIGINAL PATCH") != std::string::npos);
+
+  // Verify update
+  auto skills = db.GetSkills();
+  ASSERT_TRUE(skills.ok());
+  bool found = false;
+  for (const auto& sk : *skills) {
+    if (sk.name == "myskill") {
+      EXPECT_EQ(sk.system_prompt_patch, "EDITED PATCH");
+      found = true;
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(CommandHandlerTest, EditCommandUsingEditor) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  handler.next_editor_output = "New input from editor";
+  handler.editor_was_called = false;
+
+  std::string input = "/edit";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+  EXPECT_TRUE(handler.editor_was_called);
+  EXPECT_EQ(input, "New input from editor");
+}
 }  // namespace slop

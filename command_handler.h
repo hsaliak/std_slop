@@ -75,6 +75,10 @@ class CommandHandler {
   std::string openai_api_key_;
   absl::flat_hash_map<std::string, CommandFunc> commands_;
   absl::flat_hash_map<std::string, std::vector<std::string>> sub_commands_;
+
+ protected:
+  // Testing hook for dependency injection. Overridden in tests to mock editor input.
+  virtual std::string TriggerEditor(const std::string& initial_content);
 };
 
 }  // namespace slop
