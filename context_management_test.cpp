@@ -1,7 +1,9 @@
 #include "tool_executor.h"
-#include <gtest/gtest.h>
+
 #include <filesystem>
 #include <fstream>
+
+#include <gtest/gtest.h>
 
 namespace slop {
 
@@ -18,7 +20,7 @@ class ContextManagementTest : public ::testing::Test {
 
 TEST_F(ContextManagementTest, ListDirectoryBasic) {
   ToolExecutor executor(&db_);
-  
+
   // Create a dummy directory structure
   std::filesystem::create_directory("test_dir");
   std::ofstream("test_dir/file1.txt") << "content";
@@ -37,7 +39,7 @@ TEST_F(ContextManagementTest, ListDirectoryBasic) {
 
 TEST_F(ContextManagementTest, ListDirectoryRecursive) {
   ToolExecutor executor(&db_);
-  
+
   std::filesystem::create_directory("test_dir_rec");
   std::filesystem::create_directory("test_dir_rec/subdir");
   std::ofstream("test_dir_rec/subdir/subfile.txt") << "content";
@@ -81,7 +83,7 @@ TEST_F(ContextManagementTest, ScratchpadBasic) {
 
 TEST_F(ContextManagementTest, DescribeDb) {
   ToolExecutor executor(&db_);
-  
+
   auto res = executor.Execute("describe_db", {});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(res->find("\"name\":\"messages\"") != std::string::npos);
@@ -90,7 +92,7 @@ TEST_F(ContextManagementTest, DescribeDb) {
 
 TEST_F(ContextManagementTest, ReadFileWarning) {
   ToolExecutor executor(&db_);
-  
+
   std::ofstream f("large_file.txt");
   for (int i = 0; i < 150; ++i) {
     f << "Line " << i << "\n";
@@ -112,7 +114,7 @@ TEST_F(ContextManagementTest, ReadFileWarning) {
 
 TEST_F(ContextManagementTest, GrepTruncation) {
   ToolExecutor executor(&db_);
-  
+
   std::ofstream f("large_grep.txt");
   for (int i = 0; i < 100; ++i) {
     f << "match " << i << "\n";

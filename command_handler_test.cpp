@@ -115,10 +115,10 @@ TEST_F(CommandHandlerTest, SessionScratchpadEditSaves) {
   TestableCommandHandler handler(&db);
   std::string sid = "test_scratch_session";
   std::vector<std::string> active_skills;
-  
+
   handler.next_editor_output = "New scratchpad content";
   std::string input = "/session scratchpad edit";
-  
+
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(handler.editor_was_called);
@@ -263,7 +263,6 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
   ASSERT_TRUE(history.ok());
   EXPECT_EQ(history->size(), 0);
 }
-
 
 TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
   TestableCommandHandler handler(&db);

@@ -395,7 +395,8 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     if (scratch_op == "read") {
       auto res = db_->GetScratchpad(args.session_id);
       if (res.ok()) {
-        std::cout << "--- Scratchpad [" << args.session_id << "] ---\n" << *res << "\n----------------------" << std::endl;
+        std::cout << "--- Scratchpad [" << args.session_id << "] ---\n"
+                  << *res << "\n----------------------" << std::endl;
       } else {
         std::cout << "Scratchpad is empty or session not found." << std::endl;
       }

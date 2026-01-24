@@ -114,11 +114,11 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std:
     current_line++;
     if (end_line && current_line > *end_line) break;
   }
-  
+
   std::string result = ss.str();
   if (!start_line && !end_line && current_line > 100) {
-      result = "[NOTICE: This is a large file (" + std::to_string(current_line - 1) + 
-               " lines). Consider using line ranges in future calls to preserve context space]\n" + result;
+    result = "[NOTICE: This is a large file (" + std::to_string(current_line - 1) +
+             " lines). Consider using line ranges in future calls to preserve context space]\n" + result;
   }
   return result;
 }
@@ -206,7 +206,7 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
   cmd += " \"" + pattern + "\" " + path;
   auto res = ExecuteBash(cmd);
   if (!res.ok()) return res;
-  
+
   std::stringstream ss(*res);
   std::string line;
   std::string output;
@@ -314,27 +314,27 @@ absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& ar
   if (git_only && git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
     std::string cmd = "git ls-files --cached --others --exclude-standard";
     if (path != ".") {
-        cmd += " " + path;
+      cmd += " " + path;
     }
     auto git_res = ExecuteBash(cmd);
     if (git_res.ok()) {
-        return git_res;
+      return git_res;
     }
   }
 
   // Fallback to std::filesystem
   std::stringstream ss;
   if (!std::filesystem::exists(path)) return absl::NotFoundError("Directory not found: " + path);
-  
+
   for (const auto& entry : std::filesystem::recursive_directory_iterator(path)) {
     auto relative = std::filesystem::relative(entry.path(), path);
     int depth = std::distance(relative.begin(), relative.end());
     if (depth > max_depth) continue;
 
     if (entry.is_directory()) {
-        ss << "Directory: " << relative.string() << "/\n";
+      ss << "Directory: " << relative.string() << "/\n";
     } else {
-        ss << "File: " << relative.string() << "\n";
+      ss << "File: " << relative.string() << "\n";
     }
   }
 

@@ -703,8 +703,6 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   return absl::OkStatus();
 }
 
-
-
 absl::Status Database::AddMemo(const std::string& content, const std::string& semantic_tags) {
   auto stmt_or = Prepare("INSERT INTO llm_memos (content, semantic_tags) VALUES (?, ?)");
   if (!stmt_or.ok()) return stmt_or.status();
@@ -791,7 +789,7 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetAllMemos() {
 absl::StatusOr<std::string> Database::Query(const std::string& sql) {
   auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) {
-      return stmt_or.status();
+    return stmt_or.status();
   }
   auto& stmt = *stmt_or;
 
@@ -820,8 +818,9 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql) {
 }
 
 absl::Status Database::UpdateScratchpad(const std::string& session_id, const std::string& scratchpad) {
-  auto stmt_or = Prepare("INSERT INTO sessions (id, scratchpad) VALUES (?, ?) "
-                         "ON CONFLICT(id) DO UPDATE SET scratchpad=excluded.scratchpad");
+  auto stmt_or = Prepare(
+      "INSERT INTO sessions (id, scratchpad) VALUES (?, ?) "
+      "ON CONFLICT(id) DO UPDATE SET scratchpad=excluded.scratchpad");
   if (!stmt_or.ok()) return stmt_or.status();
   auto stmt = std::move(*stmt_or);
   (void)stmt->BindText(1, session_id);

@@ -193,7 +193,6 @@ TEST(DatabaseTest, UsageTracking) {
   EXPECT_EQ(global_usage->total_tokens, 340);
 }
 
-
 TEST(DatabaseTest, ApplyPatchToolSchema) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

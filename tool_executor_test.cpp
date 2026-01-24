@@ -283,7 +283,7 @@ TEST(ToolExecutorTest, ManageScratchpadSessionHandling) {
   // Switch session
   executor.SetSessionId("other_session");
   ASSERT_TRUE(executor.Execute("manage_scratchpad", {{"action", "update"}, {"content", "other content"}}).ok());
-  
+
   auto res3 = executor.Execute("manage_scratchpad", {{"action", "read"}});
   ASSERT_TRUE(res3.ok());
   EXPECT_TRUE(res3->find("other content") != std::string::npos);
