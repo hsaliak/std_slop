@@ -403,7 +403,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     } else if (scratch_op == "edit") {
       auto current = db_->GetScratchpad(args.session_id);
       std::string initial = current.ok() ? *current : "";
-      std::string updated = OpenInEditor(initial);
+      std::string updated = TriggerEditor(initial);
       if (!updated.empty()) {
         HandleStatus(db_->UpdateScratchpad(args.session_id, updated));
         std::cout << "Scratchpad updated." << std::endl;

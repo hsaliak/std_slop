@@ -111,6 +111,23 @@ TEST_F(CommandHandlerTest, ContextShowIsHandled) {
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
 
+TEST_F(CommandHandlerTest, SessionScratchpadEditSaves) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "test_scratch_session";
+  std::vector<std::string> active_skills;
+  
+  handler.next_editor_output = "New scratchpad content";
+  std::string input = "/session scratchpad edit";
+  
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(handler.editor_was_called);
+
+  auto saved = db.GetScratchpad(sid);
+  ASSERT_TRUE(saved.ok()) << saved.status().message();
+  EXPECT_EQ(*saved, "New scratchpad content");
+}
+
 TEST_F(CommandHandlerTest, WindowAliasIsRemoved) {
   CommandHandler handler(&db);
   std::string input = "/window 10";

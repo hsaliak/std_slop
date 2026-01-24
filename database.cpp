@@ -921,11 +921,12 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql) {
 }
 
 absl::Status Database::UpdateScratchpad(const std::string& session_id, const std::string& scratchpad) {
-  auto stmt_or = Prepare("UPDATE sessions SET scratchpad = ? WHERE id = ?");
+  auto stmt_or = Prepare("INSERT INTO sessions (id, scratchpad) VALUES (?, ?) "
+                         "ON CONFLICT(id) DO UPDATE SET scratchpad=excluded.scratchpad");
   if (!stmt_or.ok()) return stmt_or.status();
   auto stmt = std::move(*stmt_or);
-  (void)stmt->BindText(1, scratchpad);
-  (void)stmt->BindText(2, session_id);
+  (void)stmt->BindText(1, session_id);
+  (void)stmt->BindText(2, scratchpad);
   return stmt->Run();
 }
 
@@ -936,7 +937,7 @@ absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_i
   (void)stmt->BindText(1, session_id);
   auto res = stmt->Step();
   if (!res.ok()) return res.status();
-  if (!*res) return absl::NotFoundError("Session not found: " + session_id);
+  if (!*res) return "";  // Return empty string if session not found
   return stmt->ColumnText(0);
 }
 
