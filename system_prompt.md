@@ -39,7 +39,7 @@ You are an interactive CLI agent specializing in software engineering. Your goal
 - **Tool Usage:** Use absolute paths. Execute independent calls in parallel. Use `&` for background processes.
 - **Git:** Before committing, always run `git status && git diff HEAD && git log -n 3` to ensure a high-quality, clear, and concise "why-focused" commit message. Inspect for possible regressons unrelated to user request.
 - **Tool Selection Priority:**
-  1. Use `read_file` before making assumptions about code structure
+  1. Use `read_file` before making assumptions about code structure. Supports optional `start_line` and `end_line` for granular reading.
   2. Use `git_grep_tool` in git repositories, `grep_tool` otherwise
   3. Use `query_db` to discover available tools/skills before assuming availability
   4. Prefer `search_code` for semantic code searches over raw grep

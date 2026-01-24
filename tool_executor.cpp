@@ -22,7 +22,11 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   absl::StatusOr<std::string> result;
   if (name == "read_file") {
     if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
-    result = ReadFile(args["path"], true);
+    std::optional<int> start_line;
+    if (args.contains("start_line")) start_line = args["start_line"].get<int>();
+    std::optional<int> end_line;
+    if (args.contains("end_line")) end_line = args["end_line"].get<int>();
+    result = ReadFile(args["path"], start_line, end_line, true);
   } else if (name == "write_file") {
     if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
     if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' argument");
@@ -81,19 +85,28 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   return wrap_result(name, *result);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, bool add_line_numbers) {
+absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std::optional<int> start_line,
+                                               std::optional<int> end_line, bool add_line_numbers) {
+  if (start_line && end_line && *start_line > *end_line) {
+    return absl::InvalidArgumentError("start_line must be less than or equal to end_line");
+  }
+
   std::ifstream file(path);
   if (!file.is_open()) return absl::NotFoundError("Could not open file: " + path);
 
   std::stringstream ss;
   std::string line;
-  int line_num = 1;
+  int current_line = 1;
   while (std::getline(file, line)) {
-    if (add_line_numbers) {
-      ss << line_num++ << ": " << line << "\n";
-    } else {
-      ss << line << "\n";
+    if ((!start_line || current_line >= *start_line) && (!end_line || current_line <= *end_line)) {
+      if (add_line_numbers) {
+        ss << current_line << ": " << line << "\n";
+      } else {
+        ss << line << "\n";
+      }
     }
+    current_line++;
+    if (end_line && current_line > *end_line) break;
   }
   return ss.str();
 }

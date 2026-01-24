@@ -28,6 +28,51 @@ TEST(ToolExecutorTest, ReadWriteFile) {
   std::filesystem::remove(test_file);
 }
 
+TEST(ToolExecutorTest, ReadFileGranular) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ToolExecutor executor(&db);
+
+  std::string test_file = "test_granular.txt";
+  std::string content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
+
+  // Test: Specific range
+  auto res1 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 2}, {"end_line", 4}});
+  ASSERT_TRUE(res1.ok());
+  EXPECT_TRUE(res1->find("2: Line 2") != std::string::npos);
+  EXPECT_TRUE(res1->find("3: Line 3") != std::string::npos);
+  EXPECT_TRUE(res1->find("4: Line 4") != std::string::npos);
+  EXPECT_TRUE(res1->find("1: Line 1") == std::string::npos);
+  EXPECT_TRUE(res1->find("5: Line 5") == std::string::npos);
+
+  // Test: Start only
+  auto res2 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 4}});
+  ASSERT_TRUE(res2.ok());
+  EXPECT_TRUE(res2->find("4: Line 4") != std::string::npos);
+  EXPECT_TRUE(res2->find("5: Line 5") != std::string::npos);
+  EXPECT_TRUE(res2->find("3: Line 3") == std::string::npos);
+
+  // Test: End only
+  auto res3 = executor.Execute("read_file", {{"path", test_file}, {"end_line", 2}});
+  ASSERT_TRUE(res3.ok());
+  EXPECT_TRUE(res3->find("1: Line 1") != std::string::npos);
+  EXPECT_TRUE(res3->find("2: Line 2") != std::string::npos);
+  EXPECT_TRUE(res3->find("3: Line 3") == std::string::npos);
+
+  // Test: Out of bounds
+  auto res4 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 10}});
+  ASSERT_TRUE(res4.ok());
+  EXPECT_TRUE(res4->find("10: ") == std::string::npos);
+
+  // Test: Invalid range
+  auto res5 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 5}, {"end_line", 2}});
+  ASSERT_TRUE(res5.ok());
+  EXPECT_TRUE(res5->find("Error: INVALID_ARGUMENT") != std::string::npos);
+
+  std::filesystem::remove(test_file);
+}
+
 TEST(ToolExecutorTest, ExecuteBash) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

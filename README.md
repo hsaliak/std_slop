@@ -166,7 +166,7 @@ bazel run //:std_slop -- [session_name]
 
 | Tool | Description |
 | :--- | :--- |
-| `read_file` | Read local file contents with automatic line numbering. |
+| `read_file` | Read local file contents with automatic line numbering. Supports `start_line` and `end_line`. |
 | `write_file` | Create or overwrite local files. |
 | `grep_tool` | Search for patterns with context (delegates to `git grep` when possible). |
 | `git_grep_tool` | Advanced git-based search with support for branches and history. |

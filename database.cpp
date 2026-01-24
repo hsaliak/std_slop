@@ -205,7 +205,8 @@ absl::Status Database::Init(const std::string& db_path) {
 absl::Status Database::RegisterDefaultTools() {
   std::vector<Tool> default_tools = {
       {"read_file", "Read the content of a file from the local filesystem.",
-       R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})", true},
+       R"({"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"}},"required":["path"]})",
+       true},
       {"write_file", "Write content to a file in the local filesystem.",
        R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",
        true},
