@@ -154,7 +154,9 @@ absl::Status Database::Init(const std::string& db_path) {
 
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
-        context_size INTEGER DEFAULT 5
+        name TEXT,
+        context_size INTEGER DEFAULT 5,
+        scratchpad TEXT
     );
 
     CREATE TABLE IF NOT EXISTS usage (
@@ -234,7 +236,14 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"retrieve_memos", "Retrieve memos based on semantic tags.",
        R"({"type":"object","properties":{"tags":{"type":"array","items":{"type":"string"}}},"required":["tags"]})",
-       true}};
+       true},
+      {"list_directory", "List files and directories with optional depth and git awareness.",
+       R"({"type":"object","properties":{"path":{"type":"string"},"depth":{"type":"integer"},"git_only":{"type":"boolean"}},"required":[]})",
+       true},
+      {"manage_scratchpad", "Manage a persistent markdown scratchpad for the current session.",
+       R"({"type":"object","properties":{"action":{"type":"string","enum":["read","update","append"]},"content":{"type":"string"}},"required":["action"]})",
+       true},
+      {"describe_db", "Describe the database schema and tables.", R"({"type":"object","properties":{}})", true}};
 
   for (const auto& t : default_tools) {
     absl::Status s = RegisterTool(t);
@@ -882,7 +891,9 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetAllMemos() {
 
 absl::StatusOr<std::string> Database::Query(const std::string& sql) {
   auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
+  if (!stmt_or.ok()) {
+      return stmt_or.status();
+  }
   auto& stmt = *stmt_or;
 
   nlohmann::json results = nlohmann::json::array();
@@ -907,6 +918,26 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql) {
     results.push_back(row);
   }
   return results.dump();
+}
+
+absl::Status Database::UpdateScratchpad(const std::string& session_id, const std::string& scratchpad) {
+  auto stmt_or = Prepare("UPDATE sessions SET scratchpad = ? WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto stmt = std::move(*stmt_or);
+  (void)stmt->BindText(1, scratchpad);
+  (void)stmt->BindText(2, session_id);
+  return stmt->Run();
+}
+
+absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_id) {
+  auto stmt_or = Prepare("SELECT scratchpad FROM sessions WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto stmt = std::move(*stmt_or);
+  (void)stmt->BindText(1, session_id);
+  auto res = stmt->Step();
+  if (!res.ok()) return res.status();
+  if (!*res) return absl::NotFoundError("Session not found: " + session_id);
+  return stmt->ColumnText(0);
 }
 
 }  // namespace slop

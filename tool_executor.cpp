@@ -73,6 +73,12 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   } else if (name == "retrieve_memos") {
     if (!args.contains("tags")) return absl::InvalidArgumentError("Missing 'tags' argument");
     result = RetrieveMemos(args["tags"].get<std::vector<std::string>>());
+  } else if (name == "list_directory") {
+    result = ListDirectory(args);
+  } else if (name == "manage_scratchpad") {
+    result = ManageScratchpad(args);
+  } else if (name == "describe_db") {
+    result = DescribeDb();
   } else {
     return absl::NotFoundError("Tool not found: " + name);
   }
@@ -108,7 +114,13 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std:
     current_line++;
     if (end_line && current_line > *end_line) break;
   }
-  return ss.str();
+  
+  std::string result = ss.str();
+  if (!start_line && !end_line && current_line > 100) {
+      result = "[NOTICE: This is a large file (" + std::to_string(current_line - 1) + 
+               " lines). Consider using line ranges in future calls to preserve context space]\n" + result;
+  }
+  return result;
 }
 
 absl::StatusOr<std::string> ToolExecutor::WriteFile(const std::string& path, const std::string& content) {
@@ -192,7 +204,21 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
     cmd += " -C " + std::to_string(context);
   }
   cmd += " \"" + pattern + "\" " + path;
-  return ExecuteBash(cmd);
+  auto res = ExecuteBash(cmd);
+  if (!res.ok()) return res;
+  
+  std::stringstream ss(*res);
+  std::string line;
+  std::string output;
+  int count = 0;
+  while (std::getline(ss, line) && count < 50) {
+    output += line + "\n";
+    count++;
+  }
+  if (std::getline(ss, line)) {
+    output += "\n[TRUNCATED: Use a more specific pattern or path to narrow results]\n";
+  }
+  return output;
 }
 
 absl::StatusOr<std::string> ToolExecutor::SearchCode(const std::string& query) { return Grep(query, ".", 0); }
@@ -239,7 +265,21 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
     cmd += " -- \"" + args["path"].get<std::string>() + "\"";
   }
 
-  return ExecuteBash(cmd);
+  auto res = ExecuteBash(cmd);
+  if (!res.ok()) return res;
+
+  std::stringstream ss(*res);
+  std::string line;
+  std::string output;
+  int count = 0;
+  while (std::getline(ss, line) && count < 50) {
+    output += line + "\n";
+    count++;
+  }
+  if (std::getline(ss, line)) {
+    output += "\n[TRUNCATED: Use a more specific pattern or path to narrow results]\n";
+  }
+  return output;
 }
 
 absl::StatusOr<std::string> ToolExecutor::SaveMemo(const std::string& content, const std::vector<std::string>& tags) {
@@ -264,4 +304,77 @@ absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const std::vector<std::s
   }
   return result.dump(2);
 }
+
+absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& args) {
+  std::string path = args.contains("path") ? args["path"].get<std::string>() : ".";
+  int max_depth = args.contains("depth") ? args["depth"].get<int>() : 1;
+  bool git_only = args.contains("git_only") ? args["git_only"].get<bool>() : true;
+
+  auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
+  if (git_only && git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
+    std::string cmd = "git ls-files --cached --others --exclude-standard";
+    if (path != ".") {
+        cmd += " " + path;
+    }
+    auto git_res = ExecuteBash(cmd);
+    if (git_res.ok()) {
+        return git_res;
+    }
+  }
+
+  // Fallback to std::filesystem
+  std::stringstream ss;
+  if (!std::filesystem::exists(path)) return absl::NotFoundError("Directory not found: " + path);
+  
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(path)) {
+    auto relative = std::filesystem::relative(entry.path(), path);
+    int depth = std::distance(relative.begin(), relative.end());
+    if (depth > max_depth) continue;
+
+    if (entry.is_directory()) {
+        ss << "Directory: " << relative.string() << "/\n";
+    } else {
+        ss << "File: " << relative.string() << "\n";
+    }
+  }
+
+  return ss.str();
+}
+
+absl::StatusOr<std::string> ToolExecutor::ManageScratchpad(const nlohmann::json& args) {
+  if (session_id_.empty()) return absl::FailedPreconditionError("No active session");
+  std::string action = args.contains("action") ? args["action"].get<std::string>() : "read";
+
+  if (action == "read") {
+    auto res = db_->GetScratchpad(session_id_);
+    if (!res.ok()) {
+      if (absl::IsNotFound(res.status())) return "Scratchpad is empty.";
+      return res.status();
+    }
+    if (res->empty()) return "Scratchpad is empty.";
+    return *res;
+  }
+  if (action == "update") {
+    if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' for update");
+    std::string content = args["content"].get<std::string>();
+    auto status = db_->UpdateScratchpad(session_id_, content);
+    if (!status.ok()) return status;
+    return "Scratchpad updated.";
+  }
+  if (action == "append") {
+    if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' for append");
+    std::string content = args["content"].get<std::string>();
+    auto current = db_->GetScratchpad(session_id_);
+    std::string new_content = (current.ok() ? *current : "") + content;
+    auto status = db_->UpdateScratchpad(session_id_, new_content);
+    if (!status.ok()) return status;
+    return "Content appended to scratchpad.";
+  }
+  return absl::InvalidArgumentError("Unknown action: " + action);
+}
+
+absl::StatusOr<std::string> ToolExecutor::DescribeDb() {
+  return db_->Query("SELECT name, sql FROM sqlite_master WHERE type='table'");
+}
+
 }  // namespace slop

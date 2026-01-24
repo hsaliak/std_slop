@@ -135,6 +135,9 @@ class Database {
   // Session Deletion
   absl::Status DeleteSession(const std::string& session_id);
 
+  absl::Status UpdateScratchpad(const std::string& session_id, const std::string& scratchpad);
+  absl::StatusOr<std::string> GetScratchpad(const std::string& session_id);
+
   struct Todo {
     int id;
     std::string group_name;

@@ -388,6 +388,31 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     HandleStatus(db_->DeleteSession(args.session_id));
     std::cout << "Session " << args.session_id << " history and state cleared." << std::endl;
     if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
+  } else if (sub_cmd == "scratchpad") {
+    std::vector<std::string> scratch_parts = absl::StrSplit(sub_args, absl::MaxSplits(' ', 1));
+    std::string scratch_op = scratch_parts[0];
+    std::string scratch_val = (scratch_parts.size() > 1) ? scratch_parts[1] : "";
+
+    if (scratch_op == "read") {
+      auto res = db_->GetScratchpad(args.session_id);
+      if (res.ok()) {
+        std::cout << "--- Scratchpad [" << args.session_id << "] ---\n" << *res << "\n----------------------" << std::endl;
+      } else {
+        std::cout << "Scratchpad is empty or session not found." << std::endl;
+      }
+    } else if (scratch_op == "edit") {
+      auto current = db_->GetScratchpad(args.session_id);
+      std::string initial = current.ok() ? *current : "";
+      std::string updated = OpenInEditor(initial);
+      if (!updated.empty()) {
+        HandleStatus(db_->UpdateScratchpad(args.session_id, updated));
+        std::cout << "Scratchpad updated." << std::endl;
+      } else {
+        std::cout << "Scratchpad not updated (empty or editor error)." << std::endl;
+      }
+    } else {
+      std::cout << "Unknown scratchpad operation: " << scratch_op << ". Use read or edit." << std::endl;
+    }
   }
   return Result::HANDLED;
 }

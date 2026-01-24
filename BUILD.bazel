@@ -133,6 +133,7 @@ cc_binary(
         "system_info_test",
         "check_macro_test",
         "completer_test",
+        "context_management_test",
     ]
 ]
 
