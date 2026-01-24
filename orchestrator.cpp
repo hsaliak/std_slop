@@ -72,7 +72,13 @@ Orchestrator::Builder& Orchestrator::Builder::WithStripReasoning(bool enabled) {
   return *this;
 }
 
-std::unique_ptr<Orchestrator> Orchestrator::Builder::Build() {
+absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
+  if (db_ == nullptr) {
+    return absl::InvalidArgumentError("Database cannot be null");
+  }
+  if (http_client_ == nullptr) {
+    return absl::InvalidArgumentError("HttpClient cannot be null");
+  }
   auto orchestrator = std::unique_ptr<Orchestrator>(new Orchestrator(db_, http_client_));
   BuildInto(orchestrator.get());
   return orchestrator;

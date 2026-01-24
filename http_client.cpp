@@ -56,18 +56,24 @@ int HttpClient::ProgressCallback(void* clientp, [[maybe_unused]] curl_off_t dlto
   }
 
   struct termios oldt, newt;
-  PCHECK(tcgetattr(STDIN_FILENO, &oldt) == 0);
+  if (tcgetattr(STDIN_FILENO, &oldt) != 0) return 0;
   newt = oldt;
   newt.c_lflag &= ~(ICANON | ECHO);
-  PCHECK(tcsetattr(STDIN_FILENO, TCSANOW, &newt) == 0);
+  if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) != 0) return 0;
   int oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-  PCHECK(oldf != -1);
-  PCHECK(fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) != -1);
+  if (oldf == -1) {
+    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return 0;
+  }
+  if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) {
+    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return 0;
+  }
 
   int ch = getchar();
 
-  PCHECK(tcsetattr(STDIN_FILENO, TCSANOW, &oldt) == 0);
-  PCHECK(fcntl(STDIN_FILENO, F_SETFL, oldf) != -1);
+  (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  (void)fcntl(STDIN_FILENO, F_SETFL, oldf);
 
   if (ch == 27) {
     std::cout << "\n[Cancelled by user]" << std::endl;
@@ -98,7 +104,9 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
   int64_t backoff_ms = 1000;
 
   std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
-  CHECK(curl) << "Failed to initialize CURL";
+  if (!curl) {
+    return absl::InternalError("Failed to initialize CURL");
+  }
 
   struct curl_slist* raw_chunk = nullptr;
   for (const auto& header : headers) {

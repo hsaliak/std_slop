@@ -15,10 +15,19 @@ namespace slop {
 
 class ToolExecutor {
  public:
-  explicit ToolExecutor(Database* db) : db_(db) { CHECK_NE(db_, nullptr); }
+  static absl::StatusOr<std::unique_ptr<ToolExecutor>> Create(Database* db) {
+    if (db == nullptr) {
+      return absl::InvalidArgumentError("Database cannot be null");
+    }
+    return std::unique_ptr<ToolExecutor>(new ToolExecutor(db));
+  }
 
   void SetSessionId(const std::string& session_id) { session_id_ = session_id; }
 
+ private:
+  explicit ToolExecutor(Database* db) : db_(db) {}
+
+ public:
   absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args);
 
  private:

@@ -7,7 +7,10 @@ namespace slop {
 
 class TestableCommandHandler : public CommandHandler {
  public:
-  using CommandHandler::CommandHandler;
+  explicit TestableCommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
+                                  OAuthHandler* oauth_handler = nullptr, std::string google_api_key = "",
+                                  std::string openai_api_key = "")
+      : CommandHandler(db, orchestrator, oauth_handler, std::move(google_api_key), std::move(openai_api_key)) {}
 
   std::string next_editor_output;
   std::string last_initial_content;
@@ -29,7 +32,9 @@ class CommandHandlerTest : public ::testing::Test {
 };
 
 TEST_F(CommandHandlerTest, DetectsCommand) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/help";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -38,7 +43,9 @@ TEST_F(CommandHandlerTest, DetectsCommand) {
 }
 
 TEST_F(CommandHandlerTest, ReturnsCommandNames) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   auto names = handler.GetCommandNames();
   EXPECT_FALSE(names.empty());
   EXPECT_NE(std::find(names.begin(), names.end(), "/help"), names.end());
@@ -46,7 +53,9 @@ TEST_F(CommandHandlerTest, ReturnsCommandNames) {
 }
 
 TEST_F(CommandHandlerTest, ReturnsSubCommands) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   auto subs = handler.GetSubCommands("/session");
   EXPECT_FALSE(subs.empty());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "list"), subs.end());
@@ -54,7 +63,9 @@ TEST_F(CommandHandlerTest, ReturnsSubCommands) {
 }
 
 TEST_F(CommandHandlerTest, IgnoresNormalText) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "Just some text";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -63,7 +74,9 @@ TEST_F(CommandHandlerTest, IgnoresNormalText) {
 }
 
 TEST_F(CommandHandlerTest, HandlesUnknownCommand) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/unknown_xyz";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -72,7 +85,9 @@ TEST_F(CommandHandlerTest, HandlesUnknownCommand) {
 }
 
 TEST_F(CommandHandlerTest, HandlesCommandWithWhitespace) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "   /help   ";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -81,7 +96,9 @@ TEST_F(CommandHandlerTest, HandlesCommandWithWhitespace) {
 }
 
 TEST_F(CommandHandlerTest, HandlesContextWindow) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/context window 10";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -94,7 +111,9 @@ TEST_F(CommandHandlerTest, HandlesContextWindow) {
 }
 
 TEST_F(CommandHandlerTest, ContextWithoutSubcommandShowsUsage) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/context";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -103,7 +122,9 @@ TEST_F(CommandHandlerTest, ContextWithoutSubcommandShowsUsage) {
 }
 
 TEST_F(CommandHandlerTest, ContextShowIsHandled) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/context show";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -129,7 +150,9 @@ TEST_F(CommandHandlerTest, SessionScratchpadEditSaves) {
 }
 
 TEST_F(CommandHandlerTest, WindowAliasIsRemoved) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/window 10";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -138,7 +161,9 @@ TEST_F(CommandHandlerTest, WindowAliasIsRemoved) {
 }
 
 TEST_F(CommandHandlerTest, DetectsQuitExit) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/quit";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -147,7 +172,9 @@ TEST_F(CommandHandlerTest, DetectsQuitExit) {
 }
 
 TEST_F(CommandHandlerTest, ActivatesSkillByName) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
 
   Database::Skill skill_obj = {0, "test_skill", "desc", "PATCH"};
   ASSERT_TRUE(db.RegisterSkill(skill_obj).ok());
@@ -163,7 +190,9 @@ TEST_F(CommandHandlerTest, ActivatesSkillByName) {
 }
 
 TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
 
   Database::Skill skill_obj = {0, "extra_skill", "desc", "PATCH"};
   ASSERT_TRUE(db.RegisterSkill(skill_obj).ok());
@@ -187,7 +216,9 @@ TEST_F(CommandHandlerTest, ActivatesSkillByNumericId) {
 }
 
 TEST_F(CommandHandlerTest, DeactivatesSkill) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string sid = "s1";
 
   Database::Skill skill1 = {0, "skill1", "desc", "PATCH"};
@@ -206,8 +237,12 @@ TEST_F(CommandHandlerTest, DeactivatesSkill) {
 }
 
 TEST_F(CommandHandlerTest, HandlesThrottle) {
-  auto orchestrator = Orchestrator::Builder(&db, &http_client).Build();
-  CommandHandler handler(&db, orchestrator.get());
+  auto orchestrator_or = Orchestrator::Builder(&db, &http_client).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto& orchestrator = *orchestrator_or;
+  auto handler_or = CommandHandler::Create(&db, orchestrator.get());
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
 
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -220,7 +255,9 @@ TEST_F(CommandHandlerTest, HandlesThrottle) {
 }
 
 TEST_F(CommandHandlerTest, HandlesUndo) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string sid = "s1";
   std::vector<std::string> active_skills;
 
@@ -247,7 +284,9 @@ TEST_F(CommandHandlerTest, HandlesUndo) {
 }
 
 TEST_F(CommandHandlerTest, HandlesSessionRemove) {
-  CommandHandler handler(&db);
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string sid = "test_sid";
   std::vector<std::string> active_skills;
 

@@ -35,9 +35,19 @@ class CommandHandler {
 
   using CommandFunc = std::function<Result(CommandArgs&)>;
 
-  explicit CommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
-                          OAuthHandler* oauth_handler = nullptr, std::string google_api_key = "",
-                          std::string openai_api_key = "");
+  virtual ~CommandHandler() = default;
+
+  static absl::StatusOr<std::unique_ptr<CommandHandler>> Create(Database* db,
+                                                                class Orchestrator* orchestrator = nullptr,
+                                                                OAuthHandler* oauth_handler = nullptr,
+                                                                std::string google_api_key = "",
+                                                                std::string openai_api_key = "") {
+    if (db == nullptr) {
+      return absl::InvalidArgumentError("Database cannot be null");
+    }
+    return std::unique_ptr<CommandHandler>(
+        new CommandHandler(db, orchestrator, oauth_handler, std::move(google_api_key), std::move(openai_api_key)));
+  }
 
   Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills,
                 std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
@@ -76,6 +86,10 @@ class CommandHandler {
   absl::flat_hash_map<std::string, std::vector<std::string>> sub_commands_;
 
  protected:
+  explicit CommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
+                          OAuthHandler* oauth_handler = nullptr, std::string google_api_key = "",
+                          std::string openai_api_key = "");
+
   // Testing hook for dependency injection. Overridden in tests to mock editor input.
   virtual std::string TriggerEditor(const std::string& initial_content);
 };

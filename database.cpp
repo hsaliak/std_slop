@@ -9,6 +9,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 
+#include "status_macros.h"
+
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
 namespace slop {
@@ -290,28 +292,26 @@ absl::Status Database::AppendMessage(const std::string& session_id, const std::s
   std::string sql =
       "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy) VALUES (?, "
       "?, ?, ?, ?, ?, ?)";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, session_id);
-  (void)stmt->BindText(2, role);
-  (void)stmt->BindText(3, content);
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  RETURN_IF_ERROR(stmt->BindText(2, role));
+  RETURN_IF_ERROR(stmt->BindText(3, content));
   if (tool_call_id.empty()) {
-    (void)stmt->BindNull(4);
+    RETURN_IF_ERROR(stmt->BindNull(4));
   } else {
-    (void)stmt->BindText(4, tool_call_id);
+    RETURN_IF_ERROR(stmt->BindText(4, tool_call_id));
   }
-  (void)stmt->BindText(5, status);
+  RETURN_IF_ERROR(stmt->BindText(5, status));
   if (group_id.empty()) {
-    (void)stmt->BindNull(6);
+    RETURN_IF_ERROR(stmt->BindNull(6));
   } else {
-    (void)stmt->BindText(6, group_id);
+    RETURN_IF_ERROR(stmt->BindText(6, group_id));
   }
   if (parsing_strategy.empty()) {
-    (void)stmt->BindNull(7);
+    RETURN_IF_ERROR(stmt->BindNull(7));
   } else {
-    (void)stmt->BindText(7, parsing_strategy);
+    RETURN_IF_ERROR(stmt->BindText(7, parsing_strategy));
   }
 
   return stmt->Run();
@@ -319,12 +319,10 @@ absl::Status Database::AppendMessage(const std::string& session_id, const std::s
 
 absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
   std::string sql = "UPDATE messages SET status = ? WHERE id = ?";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, status);
-  (void)stmt->BindInt(2, id);
+  RETURN_IF_ERROR(stmt->BindText(1, status));
+  RETURN_IF_ERROR(stmt->BindInt(2, id));
 
   return stmt->Run();
 }
@@ -361,14 +359,12 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
         drop_filter);
   }
 
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, session_id);
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
   if (window_size > 0) {
-    (void)stmt->BindText(2, session_id);
-    (void)stmt->BindInt(3, window_size);
+    RETURN_IF_ERROR(stmt->BindText(2, session_id));
+    RETURN_IF_ERROR(stmt->BindInt(3, window_size));
   }
 
   std::vector<Message> history;
@@ -406,12 +402,10 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(
       "messages WHERE group_id IN (" +
       placeholders + ") ORDER BY created_at ASC, id ASC";
 
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
   for (size_t i = 0; i < group_ids.size(); ++i) {
-    (void)stmt->BindText(i + 1, group_ids[i]);
+    RETURN_IF_ERROR(stmt->BindText(i + 1, group_ids[i]));
   }
 
   std::vector<Message> messages;
@@ -439,10 +433,8 @@ absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_
   std::string sql =
       "SELECT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL ORDER BY created_at DESC, id DESC "
       "LIMIT 1";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
-  (void)stmt->BindText(1, session_id);
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
   if (*row_or) {
@@ -455,15 +447,13 @@ absl::Status Database::RecordUsage(const std::string& session_id, const std::str
                                    int completion_tokens) {
   std::string sql =
       "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, session_id);
-  (void)stmt->BindText(2, model);
-  (void)stmt->BindInt(3, prompt_tokens);
-  (void)stmt->BindInt(4, completion_tokens);
-  (void)stmt->BindInt(5, prompt_tokens + completion_tokens);
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  RETURN_IF_ERROR(stmt->BindText(2, model));
+  RETURN_IF_ERROR(stmt->BindInt(3, prompt_tokens));
+  RETURN_IF_ERROR(stmt->BindInt(4, completion_tokens));
+  RETURN_IF_ERROR(stmt->BindInt(5, prompt_tokens + completion_tokens));
 
   return stmt->Run();
 }
@@ -474,12 +464,10 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
     sql += " WHERE session_id = ?";
   }
 
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
   if (!session_id.empty()) {
-    (void)stmt->BindText(1, session_id);
+    RETURN_IF_ERROR(stmt->BindText(1, session_id));
   }
 
   auto row_or = stmt->Step();
@@ -496,23 +484,19 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 
 absl::Status Database::RegisterTool(const Tool& tool) {
   std::string sql = "INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?)";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, tool.name);
-  (void)stmt->BindText(2, tool.description);
-  (void)stmt->BindText(3, tool.json_schema);
-  (void)stmt->BindInt(4, tool.is_enabled ? 1 : 0);
+  RETURN_IF_ERROR(stmt->BindText(1, tool.name));
+  RETURN_IF_ERROR(stmt->BindText(2, tool.description));
+  RETURN_IF_ERROR(stmt->BindText(3, tool.json_schema));
+  RETURN_IF_ERROR(stmt->BindInt(4, tool.is_enabled ? 1 : 0));
 
   return stmt->Run();
 }
 
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
   std::string sql = "SELECT name, description, json_schema, is_enabled FROM tools WHERE is_enabled = 1";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
   std::vector<Tool> tools;
   while (true) {
@@ -532,42 +516,36 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 
 absl::Status Database::RegisterSkill(const Skill& skill) {
   std::string sql = "INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, skill.name);
-  (void)stmt->BindText(2, skill.description);
-  (void)stmt->BindText(3, skill.system_prompt_patch);
+  RETURN_IF_ERROR(stmt->BindText(1, skill.name));
+  RETURN_IF_ERROR(stmt->BindText(2, skill.description));
+  RETURN_IF_ERROR(stmt->BindText(3, skill.system_prompt_patch));
 
   return stmt->Run();
 }
 
 absl::Status Database::UpdateSkill(const Skill& skill) {
   std::string sql = "UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, skill.description);
-  (void)stmt->BindText(2, skill.system_prompt_patch);
-  (void)stmt->BindText(3, skill.name);
+  RETURN_IF_ERROR(stmt->BindText(1, skill.description));
+  RETURN_IF_ERROR(stmt->BindText(2, skill.system_prompt_patch));
+  RETURN_IF_ERROR(stmt->BindText(3, skill.name));
 
   return stmt->Run();
 }
 
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
   std::string sql = "DELETE FROM skills WHERE name = ? OR id = ?";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, name_or_id);
+  RETURN_IF_ERROR(stmt->BindText(1, name_or_id));
   int id = 0;
   if (absl::SimpleAtoi(name_or_id, &id)) {
-    (void)stmt->BindInt(2, id);
+    RETURN_IF_ERROR(stmt->BindInt(2, id));
   } else {
-    (void)stmt->BindNull(2);
+    RETURN_IF_ERROR(stmt->BindNull(2));
   }
 
   return stmt->Run();
@@ -575,9 +553,7 @@ absl::Status Database::DeleteSkill(const std::string& name_or_id) {
 
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
   std::string sql = "SELECT id, name, description, system_prompt_patch FROM skills";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
   std::vector<Skill> skills;
   while (true) {
@@ -597,23 +573,19 @@ absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
 
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
   std::string sql = "INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?)";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, session_id);
-  (void)stmt->BindInt(2, size);
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  RETURN_IF_ERROR(stmt->BindInt(2, size));
 
   return stmt->Run();
 }
 
 absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
   std::string sql = "SELECT context_size FROM sessions WHERE id = ?";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, session_id);
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
 
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
@@ -627,12 +599,10 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
 
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
   std::string sql = "INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?)";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, session_id);
-  (void)stmt->BindText(2, state_blob);
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  RETURN_IF_ERROR(stmt->BindText(2, state_blob));
 
   return stmt->Run();
 }
@@ -648,11 +618,9 @@ absl::Status Database::SetSessionState(const std::string& session_id, const std:
  */
 absl::StatusOr<std::string> Database::GetSessionState(const std::string& session_id) {
   std::string sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
-  auto stmt_or = Prepare(sql);
-  CHECK_OK(stmt_or.status());
-  auto& stmt = *stmt_or;
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
-  (void)stmt->BindText(1, session_id);
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
 
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
@@ -667,38 +635,30 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   // 1. Delete messages
   {
     std::string sql = "DELETE FROM messages WHERE session_id = ?";
-    auto stmt_or = Prepare(sql);
-    CHECK_OK(stmt_or.status());
-    (void)(*stmt_or)->BindText(1, session_id);
-    auto status = (*stmt_or)->Run();
-    if (!status.ok()) return status;
+    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+    RETURN_IF_ERROR(stmt->BindText(1, session_id));
+    RETURN_IF_ERROR(stmt->Run());
   }
   // 2. Delete usage
   {
     std::string sql = "DELETE FROM usage WHERE session_id = ?";
-    auto stmt_or = Prepare(sql);
-    CHECK_OK(stmt_or.status());
-    (void)(*stmt_or)->BindText(1, session_id);
-    auto status = (*stmt_or)->Run();
-    if (!status.ok()) return status;
+    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+    RETURN_IF_ERROR(stmt->BindText(1, session_id));
+    RETURN_IF_ERROR(stmt->Run());
   }
   // 3. Delete session settings
   {
     std::string sql = "DELETE FROM sessions WHERE id = ?";
-    auto stmt_or = Prepare(sql);
-    CHECK_OK(stmt_or.status());
-    (void)(*stmt_or)->BindText(1, session_id);
-    auto status = (*stmt_or)->Run();
-    if (!status.ok()) return status;
+    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+    RETURN_IF_ERROR(stmt->BindText(1, session_id));
+    RETURN_IF_ERROR(stmt->Run());
   }
   // 4. Delete session state
   {
     std::string sql = "DELETE FROM session_state WHERE session_id = ?";
-    auto stmt_or = Prepare(sql);
-    CHECK_OK(stmt_or.status());
-    (void)(*stmt_or)->BindText(1, session_id);
-    auto status = (*stmt_or)->Run();
-    if (!status.ok()) return status;
+    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+    RETURN_IF_ERROR(stmt->BindText(1, session_id));
+    RETURN_IF_ERROR(stmt->Run());
   }
   return absl::OkStatus();
 }

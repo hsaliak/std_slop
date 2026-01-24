@@ -15,7 +15,9 @@ class SystemInfoTest : public ::testing::Test {
 };
 
 TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
-  auto orchestrator = Orchestrator::Builder(&db, &http).Build();
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto& orchestrator = *orchestrator_or;
 
   // Create a dummy session
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());

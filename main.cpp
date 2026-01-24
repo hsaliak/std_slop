@@ -19,6 +19,7 @@
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 #include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -139,7 +140,12 @@ int main(int argc, char** argv) {
         .WithBaseUrl(slop::kPublicGeminiBaseUrl);
   }
 
-  auto orchestrator = builder.Build();
+  auto orchestrator_or = builder.Build();
+  if (!orchestrator_or.ok()) {
+    LOG(ERROR) << "Failed to create orchestrator: " << orchestrator_or.status().message();
+    return 1;
+  }
+  auto orchestrator = std::move(*orchestrator_or);
 
   std::unique_ptr<slop::OAuthHandler> oauth_handler;
   if (google_auth) {
@@ -162,9 +168,20 @@ int main(int argc, char** argv) {
     }
   }
 
-  slop::ToolExecutor tool_executor(&db);
+  auto tool_executor_or = slop::ToolExecutor::Create(&db);
+  if (!tool_executor_or.ok()) {
+    LOG(ERROR) << "Failed to create tool executor: " << tool_executor_or.status().message();
+    return 1;
+  }
+  auto& tool_executor = **tool_executor_or;
   tool_executor.SetSessionId(session_id);
-  slop::CommandHandler cmd_handler(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
+  auto cmd_handler_or =
+      slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
+  if (!cmd_handler_or.ok()) {
+    LOG(ERROR) << "Failed to create command handler: " << cmd_handler_or.status().message();
+    return 1;
+  }
+  auto& cmd_handler = **cmd_handler_or;
   slop::SetCompletionCommands(cmd_handler.GetCommandNames(), cmd_handler.GetSubCommandMap());
   std::vector<std::string> active_skills;
 

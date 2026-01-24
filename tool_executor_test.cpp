@@ -11,7 +11,9 @@ namespace slop {
 TEST(ToolExecutorTest, ReadWriteFile) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::string test_file = "test_executor.txt";
   std::string content = "Hello from ToolExecutor";
@@ -31,7 +33,9 @@ TEST(ToolExecutorTest, ReadWriteFile) {
 TEST(ToolExecutorTest, ReadFileGranular) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::string test_file = "test_granular.txt";
   std::string content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n";
@@ -76,7 +80,9 @@ TEST(ToolExecutorTest, ReadFileGranular) {
 TEST(ToolExecutorTest, ExecuteBash) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   auto res = executor.Execute("execute_bash", {{"command", "echo 'slop'"}});
   ASSERT_TRUE(res.ok());
@@ -87,7 +93,9 @@ TEST(ToolExecutorTest, ExecuteBash) {
 TEST(ToolExecutorTest, ToolNotFound) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   auto res = executor.Execute("non_existent", {});
   EXPECT_FALSE(res.ok());
@@ -97,7 +105,9 @@ TEST(ToolExecutorTest, ToolNotFound) {
 TEST(ToolExecutorTest, IndexAndSearch) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   ASSERT_TRUE(
       executor.Execute("write_file", {{"path", "search_test.cpp"}, {"content", "void slop_function() {}"}}).ok());
@@ -112,7 +122,9 @@ TEST(ToolExecutorTest, IndexAndSearch) {
 TEST(ToolExecutorTest, QueryDb) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   auto res = executor.Execute("query_db", {{"sql", "SELECT 1 as val"}});
   ASSERT_TRUE(res.ok());
@@ -122,7 +134,9 @@ TEST(ToolExecutorTest, QueryDb) {
 TEST(ToolExecutorTest, GrepToolWorks) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   auto write_res =
       executor.Execute("write_file", {{"path", "grep_test.txt"}, {"content", "line 1\npattern here\nline 3"}});
@@ -138,7 +152,9 @@ TEST(ToolExecutorTest, GrepToolWorks) {
 TEST(ToolExecutorTest, GitGrepToolWorks) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   // git_grep_tool should work for tracked files in this repo.
   // We search for "GitGrep" which we know is in tool_executor.cpp
@@ -156,7 +172,9 @@ TEST(ToolExecutorTest, GitGrepToolWorks) {
 TEST(ToolExecutorTest, ApplyPatch_Success) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::string test_file = "patch_success.txt";
   std::string initial_content = "void function1() {\n  // First\n}\n\nvoid function2() {\n  // Second\n}\n";
@@ -181,7 +199,9 @@ TEST(ToolExecutorTest, ApplyPatch_Success) {
 TEST(ToolExecutorTest, ApplyPatch_FindNotFound) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::string test_file = "patch_not_found.txt";
   std::string initial_content = "some content\n";
@@ -200,7 +220,9 @@ TEST(ToolExecutorTest, ApplyPatch_FindNotFound) {
 TEST(ToolExecutorTest, ApplyPatch_AmbiguousMatch) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::string test_file = "patch_ambiguous.txt";
   std::string initial_content = "duplicate\nduplicate\n";
@@ -219,7 +241,9 @@ TEST(ToolExecutorTest, ApplyPatch_AmbiguousMatch) {
 TEST(ToolExecutorTest, ApplyPatch_MultiplePatches) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::string test_file = "patch_multiple.txt";
   std::string initial_content = "line1\nline2\nline3\n";
@@ -244,7 +268,9 @@ TEST(ToolExecutorTest, ApplyPatch_MultiplePatches) {
 TEST(ToolExecutorTest, ApplyPatch_WhitespaceSensitivity) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::string test_file = "patch_whitespace.txt";
   std::string initial_content = "  indented\n";
@@ -267,7 +293,9 @@ TEST(ToolExecutorTest, ApplyPatch_WhitespaceSensitivity) {
 TEST(ToolExecutorTest, ManageScratchpadSessionHandling) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ToolExecutor executor(&db);
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   // Without SetSessionId, manage_scratchpad should return an error message in the result string
   auto res = executor.Execute("manage_scratchpad", {{"action", "read"}});

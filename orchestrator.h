@@ -42,7 +42,7 @@ class Orchestrator {
     Builder& WithThrottle(int seconds);
     Builder& WithStripReasoning(bool enabled);
 
-    std::unique_ptr<Orchestrator> Build();
+    absl::StatusOr<std::unique_ptr<Orchestrator>> Build();
     void BuildInto(Orchestrator* orchestrator);
 
    private:

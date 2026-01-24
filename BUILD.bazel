@@ -51,6 +51,7 @@ cc_library(
         "ui.h",
         "constants.h",
         "color.h",
+        "status_macros.h",
 	":generate_system_prompt",
     ],
     copts = [

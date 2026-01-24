@@ -19,7 +19,9 @@ class ContextManagementTest : public ::testing::Test {
 };
 
 TEST_F(ContextManagementTest, ListDirectoryBasic) {
-  ToolExecutor executor(&db_);
+  auto executor_or = ToolExecutor::Create(&db_);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   // Create a dummy directory structure
   std::filesystem::create_directory("test_dir");
@@ -38,7 +40,9 @@ TEST_F(ContextManagementTest, ListDirectoryBasic) {
 }
 
 TEST_F(ContextManagementTest, ListDirectoryRecursive) {
-  ToolExecutor executor(&db_);
+  auto executor_or = ToolExecutor::Create(&db_);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::filesystem::create_directory("test_dir_rec");
   std::filesystem::create_directory("test_dir_rec/subdir");
@@ -52,7 +56,9 @@ TEST_F(ContextManagementTest, ListDirectoryRecursive) {
 }
 
 TEST_F(ContextManagementTest, ScratchpadBasic) {
-  ToolExecutor executor(&db_);
+  auto executor_or = ToolExecutor::Create(&db_);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
   executor.SetSessionId("test-session");
 
   // Read empty scratchpad
@@ -82,7 +88,9 @@ TEST_F(ContextManagementTest, ScratchpadBasic) {
 }
 
 TEST_F(ContextManagementTest, DescribeDb) {
-  ToolExecutor executor(&db_);
+  auto executor_or = ToolExecutor::Create(&db_);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   auto res = executor.Execute("describe_db", {});
   ASSERT_TRUE(res.ok());
@@ -91,7 +99,9 @@ TEST_F(ContextManagementTest, DescribeDb) {
 }
 
 TEST_F(ContextManagementTest, ReadFileWarning) {
-  ToolExecutor executor(&db_);
+  auto executor_or = ToolExecutor::Create(&db_);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::ofstream f("large_file.txt");
   for (int i = 0; i < 150; ++i) {
@@ -113,7 +123,9 @@ TEST_F(ContextManagementTest, ReadFileWarning) {
 }
 
 TEST_F(ContextManagementTest, GrepTruncation) {
-  ToolExecutor executor(&db_);
+  auto executor_or = ToolExecutor::Create(&db_);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
 
   std::ofstream f("large_grep.txt");
   for (int i = 0; i < 100; ++i) {

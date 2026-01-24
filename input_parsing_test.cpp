@@ -20,7 +20,9 @@ class InputParsingTest : public ::testing::Test {
 };
 
 TEST_F(InputParsingTest, SquareBracesInNormalInput) {
-  CommandHandler handler(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "This is a test [with square braces]";
   auto result = handler.Handle(input, session_id, active_skills, []() {}, {});
 
@@ -29,7 +31,9 @@ TEST_F(InputParsingTest, SquareBracesInNormalInput) {
 }
 
 TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
-  CommandHandler handler(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   // Many commands just take the rest of the line as args
   std::string input = "/session activate session[1]";
   auto result = handler.Handle(input, session_id, active_skills, []() {}, {});
@@ -39,7 +43,9 @@ TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
 }
 
 TEST_F(InputParsingTest, SingleQuotesInCommandArgs) {
-  CommandHandler handler(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   // This tests if the manual SQL construction fails or is vulnerable
   std::string input = "/session activate session' OR '1'='1";
   auto result = handler.Handle(input, session_id, active_skills, []() {}, {});
@@ -49,7 +55,9 @@ TEST_F(InputParsingTest, SingleQuotesInCommandArgs) {
 }
 
 TEST_F(InputParsingTest, MalformedCommand) {
-  CommandHandler handler(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
   std::string input = "/nonexistent_command [arg]";
   auto result = handler.Handle(input, session_id, active_skills, []() {}, {});
 
