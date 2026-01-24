@@ -287,9 +287,9 @@ TEST(DatabaseTest, ExtractTags) {
   EXPECT_TRUE(tag_set.count("over"));
   EXPECT_TRUE(tag_set.count("arch"));
   EXPECT_TRUE(tag_set.count("decision"));
-  
+
   EXPECT_FALSE(tag_set.count("the"));
-  EXPECT_FALSE(tag_set.count("dog")); // "dog" is length 3, and word.length() > 3
+  EXPECT_FALSE(tag_set.count("dog"));  // "dog" is length 3, and word.length() > 3
 }
 
 TEST(DatabaseTest, MemoSearchCompoundTags) {

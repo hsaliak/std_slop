@@ -24,8 +24,7 @@
 
 namespace slop {
 
-namespace {
-}  // namespace
+namespace {}  // namespace
 
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
                                std::string google_api_key, std::string openai_api_key)
@@ -311,7 +310,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       if (!j.is_discarded() && !j.empty()) {
         auto& skill_data = j[0];
         int id = skill_data["id"].get<int>();
-        
+
         nlohmann::json edit_obj;
         edit_obj["name"] = skill_data["name"];
         edit_obj["description"] = skill_data["description"];
@@ -321,16 +320,14 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         if (!edited_json.empty()) {
           auto edited_j = nlohmann::json::parse(edited_json, nullptr, false);
           if (!edited_j.is_discarded()) {
-             Database::Skill s{
-                 id,
-                 edited_j.value("name", skill_data["name"].get<std::string>()),
-                 edited_j.value("description", skill_data["description"].get<std::string>()),
-                 edited_j.value("system_prompt_patch", skill_data["system_prompt_patch"].get<std::string>())
-             };
-             HandleStatus(db_->UpdateSkill(s));
-             std::cout << "Skill updated." << std::endl;
+            Database::Skill s{
+                id, edited_j.value("name", skill_data["name"].get<std::string>()),
+                edited_j.value("description", skill_data["description"].get<std::string>()),
+                edited_j.value("system_prompt_patch", skill_data["system_prompt_patch"].get<std::string>())};
+            HandleStatus(db_->UpdateSkill(s));
+            std::cout << "Skill updated." << std::endl;
           } else {
-             std::cerr << "Invalid JSON. Update aborted." << std::endl;
+            std::cerr << "Invalid JSON. Update aborted." << std::endl;
           }
         } else {
           std::cout << "No changes made." << std::endl;
@@ -359,13 +356,13 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
 
 /**
  * @brief Handles session management commands (/session).
- * 
+ *
  * Supports:
  * - list: Lists all sessions.
  * - activate <id>: Switches the current active session.
  * - remove <id>: Deletes a session and its history.
  * - clear: Clears history/state for the current session.
- * 
+ *
  * @param args Command arguments containing the sub-command and optional session ID.
  */
 CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
@@ -397,11 +394,11 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
 
 /**
  * @brief Displays usage statistics and Gemini user quota.
- * 
+ *
  * Fetches token usage from the local database grouped by model.
  * If the provider is Gemini and OAuth is active, it also fetches and displays
  * real-time quota information from the Google API.
- * 
+ *
  * @param args Command arguments providing the session ID.
  */
 CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
@@ -637,7 +634,7 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
     } else {
       tags_input.push_back(parts[1]);
     }
-    
+
     auto memos_or = db_->GetMemosByTags(tags_input);
     if (!memos_or.ok()) {
       HandleStatus(memos_or.status(), "Error");

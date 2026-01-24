@@ -78,14 +78,14 @@ int Database::Statement::ColumnCount() { return sqlite3_column_count(stmt_.get()
 
 bool Database::IsStopWord(const std::string& word) {
   static const std::unordered_set<std::string> kStopWords = {
-      "about", "above", "after", "again", "against", "all", "and", "any", "because", "been",
-      "before", "being", "below", "between", "both", "but", "could", "did", "does", "doing",
-      "down", "during", "each", "few", "for", "from", "further", "had", "has", "have", "having",
-      "here", "how", "into", "its", "just", "more", "most", "now", "off", "once", "only", "other",
-      "ought", "our", "ours", "out", "own", "same", "she", "should", "some", "such", "than",
-      "that", "the", "their", "theirs", "them", "then", "there", "these", "they", "this", "those",
-      "through", "too", "under", "until", "very", "was", "were", "what", "when", "where", "which",
-      "while", "who", "whom", "why", "with", "would", "you", "your", "yours", "yourself", "yourselves"};
+      "about", "above", "after",   "again", "against", "all",   "and",    "any",   "because",  "been",      "before",
+      "being", "below", "between", "both",  "but",     "could", "did",    "does",  "doing",    "down",      "during",
+      "each",  "few",   "for",     "from",  "further", "had",   "has",    "have",  "having",   "here",      "how",
+      "into",  "its",   "just",    "more",  "most",    "now",   "off",    "once",  "only",     "other",     "ought",
+      "our",   "ours",  "out",     "own",   "same",    "she",   "should", "some",  "such",     "than",      "that",
+      "the",   "their", "theirs",  "them",  "then",    "there", "these",  "they",  "this",     "those",     "through",
+      "too",   "under", "until",   "very",  "was",     "were",  "what",   "when",  "where",    "which",     "while",
+      "who",   "whom",  "why",     "with",  "would",   "you",   "your",   "yours", "yourself", "yourselves"};
   return kStopWords.find(word) != kStopWords.end();
 }
 
@@ -336,10 +336,10 @@ absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
 
 /**
  * @brief Retrieves messages for a specific session, optionally windowed.
- * 
+ *
  * If window_size > 0, it retrieves messages from the most recent 'window_size' groups.
  * A 'group' typically corresponds to one full interaction (user prompt + assistant response).
- * 
+ *
  * @param session_id The session to query.
  * @param include_dropped If true, includes messages marked as 'dropped'.
  * @param window_size Number of recent groups to include. 0 for all history.
@@ -644,10 +644,10 @@ absl::Status Database::SetSessionState(const std::string& session_id, const std:
 
 /**
  * @brief Retrieves the persisted state blob for a session.
- * 
- * Used to store and recover intermediate session state (like partially 
+ *
+ * Used to store and recover intermediate session state (like partially
  * constructed responses or temporary context) across restarts.
- * 
+ *
  * @param session_id The session ID.
  * @return absl::StatusOr<std::string> The state blob string, or NotFoundError if missing.
  */
@@ -837,10 +837,10 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::
   auto& stmt = *stmt_or;
   for (size_t i = 0; i < tags.size(); ++i) {
     int base = i * 4 + 1;
-    (void)stmt->BindText(base, tags[i]);                  // Exact
-    (void)stmt->BindText(base + 1, tags[i] + "-%");       // Prefix: arch-
-    (void)stmt->BindText(base + 2, "%-" + tags[i]);       // Suffix: -arch
-    (void)stmt->BindText(base + 3, "%-" + tags[i] + "-%"); // Middle: -arch-
+    (void)stmt->BindText(base, tags[i]);                    // Exact
+    (void)stmt->BindText(base + 1, tags[i] + "-%");         // Prefix: arch-
+    (void)stmt->BindText(base + 2, "%-" + tags[i]);         // Suffix: -arch
+    (void)stmt->BindText(base + 3, "%-" + tags[i] + "-%");  // Middle: -arch-
   }
 
   std::vector<Memo> results;

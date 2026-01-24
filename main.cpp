@@ -61,8 +61,8 @@ std::string GetHelpText() {
         for (const auto& alias : def.aliases) {
           name_part += " " + alias;
         }
-        help += "  " + name_part +
-                std::string(std::max(1, 25 - static_cast<int>(name_part.length())), ' ') + line + "\n";
+        help +=
+            "  " + name_part + std::string(std::max(1, 25 - static_cast<int>(name_part.length())), ' ') + line + "\n";
       }
     }
   }

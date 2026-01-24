@@ -478,10 +478,10 @@ TEST_F(OrchestratorTest, GeminiMultiToolResponseAssembly) {
 }
 
 TEST_F(OrchestratorTest, OpenAIIdNameHandling) {
-    auto orchestrator = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
+  auto orchestrator = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
 
-    // Mock response with a tool call
-    std::string mock_response = R"({
+  // Mock response with a tool call
+  std::string mock_response = R"({
       "choices": [{
         "message": {
           "role": "assistant",
@@ -494,18 +494,18 @@ TEST_F(OrchestratorTest, OpenAIIdNameHandling) {
       }]
     })";
 
-    ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response, "g1").ok());
+  ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response, "g1").ok());
 
-    auto history = db.GetConversationHistory("s1");
-    ASSERT_TRUE(history.ok());
-    ASSERT_EQ(history->back().tool_call_id, "call_123|my_tool");
+  auto history = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history.ok());
+  ASSERT_EQ(history->back().tool_call_id, "call_123|my_tool");
 
-    // Test parsing it back
-    auto calls_or = orchestrator->ParseToolCalls(history->back());
-    ASSERT_TRUE(calls_or.ok());
-    ASSERT_EQ(calls_or->size(), 1);
-    EXPECT_EQ((*calls_or)[0].id, "call_123");
-    EXPECT_EQ((*calls_or)[0].name, "my_tool");
+  // Test parsing it back
+  auto calls_or = orchestrator->ParseToolCalls(history->back());
+  ASSERT_TRUE(calls_or.ok());
+  ASSERT_EQ(calls_or->size(), 1);
+  EXPECT_EQ((*calls_or)[0].id, "call_123");
+  EXPECT_EQ((*calls_or)[0].name, "my_tool");
 }
 
 }  // namespace slop

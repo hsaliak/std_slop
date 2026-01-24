@@ -294,11 +294,11 @@ TEST_F(CommandHandlerTest, TodoEditUsingEditor) {
   handler.Handle(input, sid, active_skills, []() {}, {});
 
   // Set up mock editor
-  handler.next_editor_output = "Edited description\n"; // Editor might add newline
+  handler.next_editor_output = "Edited description\n";  // Editor might add newline
   handler.editor_was_called = false;
 
   // Edit it
-  input = "/todo edit mygroup 1"; // No description provided
+  input = "/todo edit mygroup 1";  // No description provided
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
 
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
@@ -309,7 +309,7 @@ TEST_F(CommandHandlerTest, TodoEditUsingEditor) {
   auto todos = db.GetTodos("mygroup");
   ASSERT_TRUE(todos.ok());
   ASSERT_EQ(todos->size(), 1);
-  EXPECT_EQ((*todos)[0].description, "Edited description"); // Newline should be trimmed
+  EXPECT_EQ((*todos)[0].description, "Edited description");  // Newline should be trimmed
 }
 
 TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
@@ -328,7 +328,7 @@ TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
   edited_json["name"] = "myskill";
   edited_json["description"] = "A test skill";
   edited_json["system_prompt_patch"] = "EDITED PATCH";
-  
+
   handler.next_editor_output = edited_json.dump(2);
   handler.editor_was_called = false;
 
@@ -338,7 +338,7 @@ TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
 
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(handler.editor_was_called);
-  // We don't strictly assert exact JSON format of last_initial_content as it might vary, 
+  // We don't strictly assert exact JSON format of last_initial_content as it might vary,
   // but we can check if it contains the original patch.
   EXPECT_TRUE(handler.last_initial_content.find("ORIGINAL PATCH") != std::string::npos);
 

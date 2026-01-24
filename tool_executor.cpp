@@ -86,7 +86,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
 }
 
 absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std::optional<int> start_line,
-                                               std::optional<int> end_line, bool add_line_numbers) {
+                                                   std::optional<int> end_line, bool add_line_numbers) {
   if (start_line && end_line && *start_line > *end_line) {
     return absl::InvalidArgumentError("start_line must be less than or equal to end_line");
   }

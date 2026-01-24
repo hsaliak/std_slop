@@ -25,10 +25,10 @@ namespace slop {
 namespace {
 /**
  * @brief Calculates the printable length of a string, excluding ANSI escape codes.
- * 
+ *
  * Handles multi-byte UTF-8 characters and standard ANSI SGR (Select Graphic Rendition)
  * sequences to determine how many columns the string will occupy in the terminal.
- * 
+ *
  * @param s The string to measure.
  * @return size_t The number of visible terminal columns.
  */
@@ -51,7 +51,7 @@ size_t VisibleLength(const std::string& s) {
 
 /**
  * @brief Prints a horizontal separator line to the terminal.
- * 
+ *
  * @param width The width of the line. If 0, uses the current terminal width.
  * @param color_fg The ANSI color code for the line.
  * @param header Optional text to display centered within the line.
@@ -75,10 +75,10 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const 
 
 /**
  * @brief Renders text within a stylized section with a header.
- * 
+ *
  * Automatically wraps the body text to fit within the terminal boundaries
  * and draws a horizontal separator using the specified color.
- * 
+ *
  * @param header The title displayed at the top of the block.
  * @param body The main content of the block.
  * @param color_fg The ANSI color code for the header.
@@ -100,10 +100,10 @@ size_t GetTerminalWidth() {
 
 /**
  * @brief Formats a single line of text with background and foreground colors.
- * 
- * Truncates the text with "..." if it exceeds the specified width, ensuring 
+ *
+ * Truncates the text with "..." if it exceeds the specified width, ensuring
  * the truncation accounts for invisible ANSI sequences.
- * 
+ *
  * @param text The text to format.
  * @param color_bg The ANSI background color code.
  * @param width The target width. If 0, uses terminal width.
