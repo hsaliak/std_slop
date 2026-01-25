@@ -387,6 +387,9 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     std::cout << "Session " << args.session_id << " history and state cleared." << std::endl;
     if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
   } else if (sub_cmd == "scratchpad") {
+    // Scratchpad is a per-session persistent markdown-based text area.
+    // It allows maintaining a long-running plan or state that isn't lost
+    // when the context window shifts.
     std::vector<std::string> scratch_parts = absl::StrSplit(sub_args, absl::MaxSplits(' ', 1));
     std::string scratch_op = scratch_parts[0];
     std::string scratch_val = (scratch_parts.size() > 1) ? scratch_parts[1] : "";

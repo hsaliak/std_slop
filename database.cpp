@@ -239,6 +239,9 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"describe_db", "Describe the database schema and tables.", R"({"type":"object","properties":{}})", true}};
 
+  // Automatically register all core tools defined in the default_tools list.
+  // This ensures the agent always has access to the fundamental building blocks
+  // for code manipulation and system interaction.
   for (const auto& t : default_tools) {
     absl::Status s = RegisterTool(t);
     if (!s.ok()) return s;
@@ -344,6 +347,10 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
   std::string drop_filter = include_dropped ? "" : "AND status != 'dropped'";
 
   if (window_size > 0) {
+    // This query retrieves the history with a turn-based windowing logic.
+    // Instead of limiting by raw message count, it limits by 'group_id' count.
+    // Each 'group_id' represents a full turn (user prompt + multiple tool calls/responses).
+    // This ensures that we don't truncate a conversation in the middle of a tool-calling sequence.
     sql = absl::Substitute(
         "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy "
         "FROM messages WHERE session_id = ? $0 "

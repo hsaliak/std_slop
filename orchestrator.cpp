@@ -189,6 +189,9 @@ Technical Anchors: [Ports, IPs, constant values]
   std::string system_instruction;
 #ifdef HAVE_SYSTEM_PROMPT_H
   {
+    // The builtin system prompt may contain metadata headers like #patch: or #purpose:.
+    // This loop extracts only the content that follows these headers, allowing
+    // for a clean separation of the actual instruction from development-time notes.
     std::stringstream ss(kBuiltinSystemPrompt);
     std::string line;
     bool in_patch = false;
