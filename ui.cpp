@@ -73,7 +73,7 @@ size_t VisibleLength(const std::string& s) {
  */
 void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "") {
   if (width == 0) width = GetTerminalWidth();
-  const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+  const char* bg = g_turbo_mode ? ansi::GreyBg : "";
   const char* fg = g_turbo_mode ? ansi::Yellow : color_fg;
   std::string bold_fg = std::string(ansi::Bold) + fg;
 
@@ -155,7 +155,7 @@ std::string FormatLine(const std::string& text, const char* color_bg, size_t wid
     line += std::string(width - visible_len, ' ');
   }
 
-  const char* final_bg = g_turbo_mode ? ansi::BlueBg : color_bg;
+  const char* final_bg = g_turbo_mode ? ansi::GreyBg : color_bg;
   const char* final_fg = g_turbo_mode ? ansi::White : color_fg;
 
   return Colorize(line, final_bg, final_fg);
@@ -217,7 +217,7 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
 }
 
 void ShowBanner() {
-  const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+  const char* bg = g_turbo_mode ? ansi::GreyBg : "";
   const char* fg = g_turbo_mode ? ansi::White : ansi::Cyan;
 
   std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", bg, fg) << std::endl;
@@ -230,14 +230,14 @@ void ShowBanner() {
   std::string version = " std::slop version ";
   version += SLOP_VERSION;
   if (g_turbo_mode) {
-    std::cout << Colorize(version, ansi::BlueBg, ansi::White) << std::endl;
+    std::cout << Colorize(version, ansi::GreyBg, ansi::White) << std::endl;
   } else {
     std::cout << version << std::endl;
   }
 #endif
   if (g_turbo_mode) {
-    std::cout << Colorize(" Welcome to std::slop - The SQL-backed LLM CLI", ansi::BlueBg, ansi::White) << std::endl;
-    std::cout << Colorize(" Type /help for a list of commands.", ansi::BlueBg, ansi::White) << std::endl;
+    std::cout << Colorize(" Welcome to std::slop - The SQL-backed LLM CLI", ansi::GreyBg, ansi::White) << std::endl;
+    std::cout << Colorize(" Type /help for a list of commands.", ansi::GreyBg, ansi::White) << std::endl;
   } else {
     std::cout << " Welcome to std::slop - The SQL-backed LLM CLI" << std::endl;
     std::cout << " Type /help for a list of commands." << std::endl;
@@ -423,7 +423,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
     std::string line = "+";
     for (size_t w : widths) line += std::string(w + 2, '-') + "+";
     if (g_turbo_mode) {
-      std::cout << Colorize(line, ansi::BlueBg, ansi::White) << std::endl;
+      std::cout << Colorize(line, ansi::GreyBg, ansi::White) << std::endl;
     } else {
       std::cout << line << std::endl;
     }
@@ -437,7 +437,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
       ss << " " << std::left << std::setw(widths[i]) << keys[i] << " |";
     }
     if (g_turbo_mode) {
-      std::cout << Colorize(ss.str(), ansi::BlueBg, ansi::Yellow) << std::endl;
+      std::cout << Colorize(ss.str(), ansi::GreyBg, ansi::Yellow) << std::endl;
     } else {
       std::cout << ss.str() << std::endl;
     }
@@ -463,7 +463,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
       ss << " " << std::left << std::setw(widths[i]) << val << " |";
     }
     if (g_turbo_mode) {
-      std::cout << Colorize(ss.str(), ansi::BlueBg, ansi::White) << std::endl;
+      std::cout << Colorize(ss.str(), ansi::GreyBg, ansi::White) << std::endl;
     } else {
       std::cout << ss.str() << std::endl;
     }
@@ -504,11 +504,11 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
   for (size_t i = start; i < history_or->size(); ++i) {
     const auto& msg = (*history_or)[i];
     if (msg.role == "user") {
-      const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+      const char* bg = g_turbo_mode ? ansi::GreyBg : "";
       const char* fg = g_turbo_mode ? ansi::White : ansi::Green;
       std::cout << "\n"
                 << Colorize("User (GID: " + msg.group_id + ")> ", bg, fg)
-                << (g_turbo_mode ? Colorize(msg.content, ansi::BlueBg, ansi::White) : msg.content) << std::endl;
+                << (g_turbo_mode ? Colorize(msg.content, ansi::GreyBg, ansi::White) : msg.content) << std::endl;
     } else if (msg.role == "assistant") {
       if (msg.status == "tool_call") {
         PrintToolCallMessage("LLM", msg.content);
@@ -518,10 +518,10 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     } else if (msg.role == "tool") {
       PrintToolResultMessage(msg.content);
     } else if (msg.role == "system") {
-      const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+      const char* bg = g_turbo_mode ? ansi::GreyBg : "";
       const char* fg = ansi::Yellow;
       std::cout << Colorize("System> ", bg, fg)
-                << (g_turbo_mode ? Colorize(msg.content, ansi::BlueBg, ansi::White) : msg.content) << std::endl;
+                << (g_turbo_mode ? Colorize(msg.content, ansi::GreyBg, ansi::White) : msg.content) << std::endl;
     }
   }
   return absl::OkStatus();
