@@ -41,7 +41,6 @@ ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL (overrides OPENAI_B
 ABSL_FLAG(bool, strip_reasoning, false,
           "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to "
           "improve response speed and focus)");
-ABSL_FLAG(bool, turbo, false, "Enable Turbo C++ color theme");
 
 std::string GetHelpText() {
   std::string help =
@@ -77,8 +76,6 @@ int main(int argc, char** argv) {
   absl::InitializeLog();
   absl::SetProgramUsageMessage(GetHelpText());
   std::vector<char*> positional_args = absl::ParseCommandLine(argc, argv);
-
-  slop::SetTurboMode(absl::GetFlag(FLAGS_turbo));
 
   std::string session_id = "default_session";
   if (positional_args.size() > 1) {

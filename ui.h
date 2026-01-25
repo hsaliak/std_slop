@@ -13,8 +13,7 @@
 namespace slop {
 
 void SetupTerminal();
-void SetTurboMode(bool enable);
-bool IsTurboMode();
+
 void ShowBanner();
 void SetCompletionCommands(const std::vector<std::string>& commands,
                            const absl::flat_hash_map<std::string, std::vector<std::string>>& sub_commands = {});
@@ -46,16 +45,7 @@ std::string WrapText(const std::string& text, size_t width = 0);
 // Returns terminal width or 80 if detection fails.
 size_t GetTerminalWidth();
 
-/**
- * @brief Formats a single line with truncation, padding, and coloring.
- *
- * @param text The text to format.
- * @param color_bg ANSI background color code.
- * @param width Target width (0 to use GetTerminalWidth()).
- * @param color_fg ANSI foreground color code.
- */
-std::string FormatLine(const std::string& text, const char* color_bg, size_t width = 0,
-                       const char* color_fg = ansi::White);
+
 
 /**
  * @brief High-level methods for centralized UI message formatting.

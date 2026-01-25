@@ -127,22 +127,7 @@ TEST(UiTest, SmartDisplayFallback) {
   EXPECT_TRUE(buffer.str().find(test_content) != std::string::npos);
 }
 
-TEST(UiTest, FormatLinePadding) {
-  std::string text = "Short";
-  std::string formatted = FormatLine(text, "\033[44m", 20);
-  // visible length of formatted (excluding ANSI) should be 20
-  // Actually FormatLine returns Colorized text.
-  // We expect \033[44m + \033[37m + "Short               " + \033[0m
-  EXPECT_EQ(formatted, std::string("\033[44m\033[37mShort               \033[0m"));
-}
 
-TEST(UiTest, FormatLineTruncation) {
-  std::string text = "This is a very long line that needs truncation";
-  std::string formatted = FormatLine(text, "\033[44m", 10);
-  // Expected: \033[44m\033[37mThis is...\033[0m
-  // Wait, "This is..." is 10 chars.
-  EXPECT_EQ(formatted, std::string("\033[44m\033[37mThis is...\033[0m"));
-}
 
 TEST(UiTest, GetTerminalWidth) {
   size_t width = GetTerminalWidth();
