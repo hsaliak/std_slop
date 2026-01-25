@@ -13,6 +13,8 @@
 namespace slop {
 
 void SetupTerminal();
+void SetTurboMode(bool enable);
+bool IsTurboMode();
 void ShowBanner();
 void SetCompletionCommands(const std::vector<std::string>& commands,
                            const absl::flat_hash_map<std::string, std::vector<std::string>>& sub_commands = {});
@@ -39,7 +41,7 @@ void DisplayAssembledContext(const std::string& json_str);
 void HandleStatus(const absl::Status& status, const std::string& context = "");
 
 // Wraps text to a specific width, preserving newlines and being ANSI-aware.
-std::string WrapText(const std::string& text, size_t width = 80);
+std::string WrapText(const std::string& text, size_t width = 0);
 
 // Returns terminal width or 80 if detection fails.
 size_t GetTerminalWidth();

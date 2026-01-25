@@ -23,6 +23,18 @@
 namespace slop {
 
 namespace {
+
+bool g_turbo_mode = false;
+
+/**
+ * @brief Calculates the printable length of a string, excluding ANSI escape codes.
+ *
+ * Handles multi-byte UTF-8 characters and standard ANSI SGR (Select Graphic Rendition)
+ * sequences to determine how many columns the string will occupy in the terminal.
+ *
+ * @param s The string to measure.
+ * @return size_t The number of visible terminal columns.
+ */
 /**
  * @brief Calculates the printable length of a string, excluding ANSI escape codes.
  *
@@ -35,12 +47,15 @@ namespace {
 size_t VisibleLength(const std::string& s) {
   size_t len = 0;
   for (size_t i = 0; i < s.length(); ++i) {
+    // Detect start of ANSI escape sequence
     if (s[i] == '\033' && i + 1 < s.length() && s[i + 1] == '[') {
       i += 2;
+      // Skip characters until the termination character of the sequence (0x40-0x7E)
       while (i < s.length() && (s[i] < 0x40 || s[i] > 0x7E)) {
         i++;
       }
     } else {
+      // For UTF-8, only count the start byte of a character sequence (bytes not 10xxxxxx)
       if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
         len++;
       }
@@ -57,19 +72,21 @@ size_t VisibleLength(const std::string& s) {
  * @param header Optional text to display centered within the line.
  */
 void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "") {
-  if (width == 0) width = static_cast<size_t>(GetTerminalWidth() * 0.9);
-  std::string bold_fg = std::string(ansi::Bold) + color_fg;
+  if (width == 0) width = GetTerminalWidth();
+  const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+  const char* fg = g_turbo_mode ? ansi::Yellow : color_fg;
+  std::string bold_fg = std::string(ansi::Bold) + fg;
 
   if (header.empty()) {
     std::string line(width, '-');
-    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+    std::cout << Colorize(line, bg, bold_fg.c_str()) << std::endl;
   } else {
     std::string line = "--[ " + header + " ]--";
     size_t visible = VisibleLength(line);
     if (visible < width) {
       line += std::string(width - visible, '-');
     }
-    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
+    std::cout << Colorize(line, bg, bold_fg.c_str()) << std::endl;
   }
 }
 
@@ -84,7 +101,7 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const 
  * @param color_fg The ANSI color code for the header.
  */
 void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg) {
-  size_t width = static_cast<size_t>(GetTerminalWidth() * 0.9);
+  size_t width = GetTerminalWidth();
   PrintHorizontalLine(width, color_fg, header);
   std::cout << WrapText(body, width) << std::endl;
 }
@@ -111,7 +128,7 @@ size_t GetTerminalWidth() {
  * @return std::string The formatted and colorized line.
  */
 std::string FormatLine(const std::string& text, const char* color_bg, size_t width, const char* color_fg) {
-  if (width == 0) width = static_cast<size_t>(GetTerminalWidth() * 0.9);
+  if (width == 0) width = GetTerminalWidth();
 
   std::string line = text;
   std::replace(line.begin(), line.end(), '\n', ' ');
@@ -138,7 +155,10 @@ std::string FormatLine(const std::string& text, const char* color_bg, size_t wid
     line += std::string(width - visible_len, ' ');
   }
 
-  return Colorize(line, color_bg, color_fg);
+  const char* final_bg = g_turbo_mode ? ansi::BlueBg : color_bg;
+  const char* final_fg = g_turbo_mode ? ansi::White : color_fg;
+
+  return Colorize(line, final_bg, final_fg);
 }
 
 namespace {
@@ -184,6 +204,9 @@ char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] i
 
 void SetupTerminal() {}
 
+void SetTurboMode(bool enable) { g_turbo_mode = enable; }
+bool IsTurboMode() { return g_turbo_mode; }
+
 void SetCompletionCommands(const std::vector<std::string>& commands,
                            const absl::flat_hash_map<std::string, std::vector<std::string>>& sub_commands) {
   g_completion_commands = commands;
@@ -194,17 +217,31 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
 }
 
 void ShowBanner() {
-  std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", "", ansi::Cyan) << std::endl;
+  const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+  const char* fg = g_turbo_mode ? ansi::White : ansi::Cyan;
+
+  std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", bg, fg) << std::endl;
+  std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", bg, fg) << std::endl;
+  std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", bg, fg) << std::endl;
+  std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", bg, fg) << std::endl;
+  std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", bg, fg) << std::endl;
   std::cout << std::endl;
 #ifdef SLOP_VERSION
-  std::cout << " std::slop version " << SLOP_VERSION << std::endl;
+  std::string version = " std::slop version ";
+  version += SLOP_VERSION;
+  if (g_turbo_mode) {
+    std::cout << Colorize(version, ansi::BlueBg, ansi::White) << std::endl;
+  } else {
+    std::cout << version << std::endl;
+  }
 #endif
-  std::cout << " Welcome to std::slop - The SQL-backed LLM CLI" << std::endl;
-  std::cout << " Type /help for a list of commands." << std::endl;
+  if (g_turbo_mode) {
+    std::cout << Colorize(" Welcome to std::slop - The SQL-backed LLM CLI", ansi::BlueBg, ansi::White) << std::endl;
+    std::cout << Colorize(" Type /help for a list of commands.", ansi::BlueBg, ansi::White) << std::endl;
+  } else {
+    std::cout << " Welcome to std::slop - The SQL-backed LLM CLI" << std::endl;
+    std::cout << " Type /help for a list of commands." << std::endl;
+  }
   std::cout << std::endl;
 }
 
@@ -217,10 +254,15 @@ std::string ReadLine(const std::string& modeline) {
   if (!line.empty()) {
     add_history(line.c_str());
   }
+  if (g_turbo_mode && !line.empty() && line[0] != '/') {
+    // Just a fun touch, echo the line in turbo colors if it's not a command
+    // Actually, maybe not, let's keep it simple.
+  }
   return line;
 }
 
 std::string WrapText(const std::string& text, size_t width) {
+  if (width == 0) width = GetTerminalWidth();
   std::string result;
   std::string current_line;
   size_t current_line_visible_len = 0;
@@ -378,21 +420,33 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
   }
 
   auto print_sep = [&]() {
-    std::cout << "+";
-    for (size_t w : widths) std::cout << std::string(w + 2, '-') << "+";
-    std::cout << std::endl;
+    std::string line = "+";
+    for (size_t w : widths) line += std::string(w + 2, '-') + "+";
+    if (g_turbo_mode) {
+      std::cout << Colorize(line, ansi::BlueBg, ansi::White) << std::endl;
+    } else {
+      std::cout << line << std::endl;
+    }
   };
 
   print_sep();
-  std::cout << "|";
-  for (size_t i = 0; i < keys.size(); ++i) {
-    std::cout << " " << std::left << std::setw(widths[i]) << keys[i] << " |";
+  {
+    std::stringstream ss;
+    ss << "|";
+    for (size_t i = 0; i < keys.size(); ++i) {
+      ss << " " << std::left << std::setw(widths[i]) << keys[i] << " |";
+    }
+    if (g_turbo_mode) {
+      std::cout << Colorize(ss.str(), ansi::BlueBg, ansi::Yellow) << std::endl;
+    } else {
+      std::cout << ss.str() << std::endl;
+    }
   }
-  std::cout << std::endl;
   print_sep();
 
   for (const auto& row : j) {
-    std::cout << "|";
+    std::stringstream ss;
+    ss << "|";
     for (size_t i = 0; i < keys.size(); ++i) {
       std::string val;
       if (row.contains(keys[i])) {
@@ -406,9 +460,13 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
         val = "";
       }
       if (val.length() > widths[i]) val = val.substr(0, widths[i] - 3) + "...";
-      std::cout << " " << std::left << std::setw(widths[i]) << val << " |";
+      ss << " " << std::left << std::setw(widths[i]) << val << " |";
     }
-    std::cout << std::endl;
+    if (g_turbo_mode) {
+      std::cout << Colorize(ss.str(), ansi::BlueBg, ansi::White) << std::endl;
+    } else {
+      std::cout << ss.str() << std::endl;
+    }
   }
   print_sep();
 
@@ -446,7 +504,11 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
   for (size_t i = start; i < history_or->size(); ++i) {
     const auto& msg = (*history_or)[i];
     if (msg.role == "user") {
-      std::cout << "\n" << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::Green) << msg.content << std::endl;
+      const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+      const char* fg = g_turbo_mode ? ansi::White : ansi::Green;
+      std::cout << "\n"
+                << Colorize("User (GID: " + msg.group_id + ")> ", bg, fg)
+                << (g_turbo_mode ? Colorize(msg.content, ansi::BlueBg, ansi::White) : msg.content) << std::endl;
     } else if (msg.role == "assistant") {
       if (msg.status == "tool_call") {
         PrintToolCallMessage("LLM", msg.content);
@@ -456,7 +518,10 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     } else if (msg.role == "tool") {
       PrintToolResultMessage(msg.content);
     } else if (msg.role == "system") {
-      std::cout << Colorize("System> ", "", ansi::Yellow) << msg.content << std::endl;
+      const char* bg = g_turbo_mode ? ansi::BlueBg : "";
+      const char* fg = ansi::Yellow;
+      std::cout << Colorize("System> ", bg, fg)
+                << (g_turbo_mode ? Colorize(msg.content, ansi::BlueBg, ansi::White) : msg.content) << std::endl;
     }
   }
   return absl::OkStatus();
