@@ -172,6 +172,18 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "termbox_smoke_test",
+    srcs = ["termbox_smoke_test.cpp"],
+    copts = [
+        "-std=c++17",
+        "-fno-exceptions",
+    ],
+    deps = [
+        "@termbox2//:termbox2",
+    ],
+)
+
 sh_binary(
     name = "clang_format_hermetic",
     srcs = ["scripts/clang_format_wrapper.sh"],
