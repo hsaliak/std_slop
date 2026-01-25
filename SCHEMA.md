@@ -100,6 +100,7 @@ The following skills are registered by default:
 - `planner`: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.
 - `dba`: Database Administrator specializing in SQLite schema design and data integrity.
 - `c++_expert`: Enforces strict adherence to project C++17 constraints and Google style.
+- `code_reviewer`: Multilingual code reviewer enforcing language-specific standards (Google C++, PEP8, etc.).
 
 ## SQL Initialization
 

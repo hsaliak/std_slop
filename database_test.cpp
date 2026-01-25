@@ -24,14 +24,17 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
 
   auto skills = db.GetSkills();
   ASSERT_TRUE(skills.ok());
-  // We expect at least the 3 default skills we added
-  EXPECT_GE(skills->size(), 3);
+  // We expect at least the 4 default skills we added
+  EXPECT_GE(skills->size(), 4);
 
   bool found_planner = false;
+  bool found_code_reviewer = false;
   for (const auto& s : *skills) {
     if (s.name == "planner") found_planner = true;
+    if (s.name == "code_reviewer") found_code_reviewer = true;
   }
   EXPECT_TRUE(found_planner);
+  EXPECT_TRUE(found_code_reviewer);
 
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());

@@ -269,7 +269,16 @@ absl::Status Database::RegisterDefaultSkills() {
        "for all fallible operations.\n- Threading: Avoid threading and async primitives. If necessary, use absl based "
        "primitives with std::thread and provide tsan tests.\n- Design: Prefer simple, readable code over complex "
        "template metaprogramming or deep inheritance.\nYou ALWAYS run all tests. You ALWAYS ensure affected targets "
-       "compile."}};
+       "compile."},
+      {0, "code_reviewer",
+       "Multilingual code reviewer enforcing language-specific standards (Google C++, PEP8, etc.) and project "
+       "conventions.",
+       "You are a strict code reviewer. Your goal is to review code changes against industry-standard style guides and "
+       "project conventions.\nStandards to follow:\n- C++: Google C++ Style Guide.\n- Python: PEP 8.\n- Others: "
+       "Appropriate de-facto industry standards (e.g., Effective Java, Airbnb JS Style Guide).\nYou do NOT implement "
+       "changes. You ONLY provide an annotated set of required changes or comments. Only after explicit user approval "
+       "can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, "
+       "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
 
   for (const auto& s : default_skills) {
     absl::Status status = RegisterSkill(s);
