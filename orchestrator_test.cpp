@@ -571,7 +571,7 @@ TEST_F(OrchestratorTest, GeminiProactiveFiltering) {
   // Add "tool1" (valid) and "tool2" (invalid) calls
   nlohmann::json tool_call1 = {{"functionCall", {{"name", "tool1"}, {"args", {{"a", 1}}}}}};
   nlohmann::json tool_call2 = {{"functionCall", {{"name", "tool2"}, {"args", {{"b", 2}}}}}};
-  
+
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", tool_call1.dump(), "call1|tool1", "tool_call").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "tool", "res1", "call1|tool1", "completed").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", tool_call2.dump(), "call2|tool2", "tool_call").ok());

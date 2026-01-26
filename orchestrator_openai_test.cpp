@@ -93,10 +93,12 @@ TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
   ASSERT_TRUE(db.RegisterTool({"tool1", "desc1", "{}", true}).ok());
 
   // Add "tool1" (valid) and "tool2" (invalid) calls
-  nlohmann::json tool_call1 = {{"role", "assistant"},
-                               {"tool_calls", {{{"id", "c1"}, {"type", "function"}, {"function", {{"name", "tool1"}, {"arguments", "{}"}}}}}}};
-  nlohmann::json tool_call2 = {{"role", "assistant"},
-                               {"tool_calls", {{{"id", "c2"}, {"type", "function"}, {"function", {{"name", "tool2"}, {"arguments", "{}"}}}}}}};
+  nlohmann::json tool_call1 = {
+      {"role", "assistant"},
+      {"tool_calls", {{{"id", "c1"}, {"type", "function"}, {"function", {{"name", "tool1"}, {"arguments", "{}"}}}}}}};
+  nlohmann::json tool_call2 = {
+      {"role", "assistant"},
+      {"tool_calls", {{{"id", "c2"}, {"type", "function"}, {"function", {{"name", "tool2"}, {"arguments", "{}"}}}}}}};
 
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", tool_call1.dump(), "c1|tool1", "tool_call").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "tool", "res1", "c1|tool1", "completed").ok());

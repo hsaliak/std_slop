@@ -63,8 +63,7 @@ std::string GetHelpText() {
       if (line[0] == '/') {
         size_t sep = line.find("  ");
         if (sep != std::string::npos) {
-          rows.push_back({line.substr(0, sep),
-                          std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep)))});
+          rows.push_back({line.substr(0, sep), std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep)))});
         } else {
           rows.push_back({line, ""});
         }
@@ -89,11 +88,8 @@ std::string GetHelpText() {
   max_cmd_width = std::min(max_cmd_width, kMaxCommandWidth);
 
   // Header
-  help += "  " + kCommandHeader +
-          std::string(max_cmd_width - kCommandHeader.length(), ' ') +
-          "  Description\n";
-  help += "  " + std::string(max_cmd_width, '-') + "  " +
-          std::string(kDescriptionSeparatorWidth, '-') + "\n";
+  help += "  " + kCommandHeader + std::string(max_cmd_width - kCommandHeader.length(), ' ') + "  Description\n";
+  help += "  " + std::string(max_cmd_width, '-') + "  " + std::string(kDescriptionSeparatorWidth, '-') + "\n";
 
   for (const auto& row : rows) {
     help += "  " + row.command;
@@ -234,9 +230,8 @@ int main(int argc, char** argv) {
     std::string model_name = orchestrator->GetModel();
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
-    std::string modeline =
-        absl::StrCat("std::slop<W:", window_str, ", M:", model_name, ", P:", persona,
-                     ", S:", session_id, ", T:", orchestrator->GetThrottle(), "s>");
+    std::string modeline = absl::StrCat("std::slop<W:", window_str, ", M:", model_name, ", P:", persona,
+                                        ", S:", session_id, ", T:", orchestrator->GetThrottle(), "s>");
 
     std::string input = slop::ReadLine(modeline);
     if (input == "/exit" || input == "/quit") break;
@@ -303,7 +298,7 @@ int main(int argc, char** argv) {
                     }
                   }
                 }
-                break; // Only drop the most recent pair
+                break;  // Only drop the most recent pair
               }
             }
 
@@ -324,7 +319,8 @@ int main(int argc, char** argv) {
 
         if (!resp_or.ok()) {
           slop::HandleStatus(resp_or.status(), "HTTP Error");
-          if (google_auth && (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
+          if (google_auth &&
+              (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
             std::cout << "Refreshing OAuth token..." << std::endl;
             (void)oauth_handler->GetValidToken();
           }

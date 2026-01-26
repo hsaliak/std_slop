@@ -127,8 +127,6 @@ TEST(UiTest, SmartDisplayFallback) {
   EXPECT_TRUE(buffer.str().find(test_content) != std::string::npos);
 }
 
-
-
 TEST(UiTest, GetTerminalWidth) {
   size_t width = GetTerminalWidth();
   EXPECT_GT(width, 0);

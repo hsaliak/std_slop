@@ -45,8 +45,6 @@ std::string WrapText(const std::string& text, size_t width = 0);
 // Returns terminal width or 80 if detection fails.
 size_t GetTerminalWidth();
 
-
-
 /**
  * @brief High-level methods for centralized UI message formatting.
  */

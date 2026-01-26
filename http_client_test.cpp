@@ -55,7 +55,7 @@ TEST(HttpClientTest, ParseRetryAfterDate) {
   absl::Time future = absl::Now() + absl::Seconds(60);
   std::string date_str = absl::FormatTime("%a, %d %b %Y %H:%M:%S GMT", future, absl::UTCTimeZone());
   absl::flat_hash_map<std::string, std::string> headers = {{"retry-after", date_str}};
-  
+
   int64_t delay = client.ParseRetryAfter(headers);
   // Should be around 60000ms, allow some slack for execution time
   EXPECT_GT(delay, 55000);
@@ -72,7 +72,7 @@ TEST(HttpClientTest, HeaderCallback) {
   absl::flat_hash_map<std::string, std::string> headers;
   std::string h1 = "Content-Type: application/json\r\n";
   HttpClient::HeaderCallback(const_cast<char*>(h1.data()), 1, h1.size(), &headers);
-  
+
   std::string h2 = "Retry-After: 120\r\n";
   HttpClient::HeaderCallback(const_cast<char*>(h2.data()), 1, h2.size(), &headers);
 
