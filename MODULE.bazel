@@ -28,11 +28,3 @@ register_toolchains("@llvm_toolchain//:all")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-http_archive(
-    name = "termbox2",
-    build_file = "//third_party/termbox2:termbox2.BUILD",
-    sha256 = "229690c0d87446f4bd3d41e48c41a9775061039cb9b14bd8f99e6a1a6b0f9b36",
-    strip_prefix = "termbox2-918369f9697dc8bb5927f69b3277a3ffbb920df4",
-    urls = ["https://github.com/termbox/termbox2/archive/918369f9697dc8bb5927f69b3277a3ffbb920df4.tar.gz"],
-)
-
