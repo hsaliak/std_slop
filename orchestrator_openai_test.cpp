@@ -86,4 +86,47 @@ TEST_F(OpenAiOrchestratorTest, PayloadStructureWithoutStripReasoning) {
   std::cout << payload.dump(2) << std::endl;
 }
 
+TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
+  OpenAiOrchestrator orchestrator(&db, &http, "gpt-4", "https://api.openai.com/v1");
+
+  // Register only "tool1"
+  ASSERT_TRUE(db.RegisterTool({"tool1", "desc1", "{}", true}).ok());
+
+  // Add "tool1" (valid) and "tool2" (invalid) calls
+  nlohmann::json tool_call1 = {{"role", "assistant"},
+                               {"tool_calls", {{{"id", "c1"}, {"type", "function"}, {"function", {{"name", "tool1"}, {"arguments", "{}"}}}}}}};
+  nlohmann::json tool_call2 = {{"role", "assistant"},
+                               {"tool_calls", {{{"id", "c2"}, {"type", "function"}, {"function", {{"name", "tool2"}, {"arguments", "{}"}}}}}}};
+
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", tool_call1.dump(), "c1|tool1", "tool_call").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", "res1", "c1|tool1", "completed").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", tool_call2.dump(), "c2|tool2", "tool_call").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", "res2", "c2|tool2", "completed").ok());
+
+  auto history_or = db.GetConversationHistory("s1", false);
+  ASSERT_TRUE(history_or.ok());
+
+  auto result = orchestrator.AssemblePayload("s1", "System prompt", *history_or);
+  ASSERT_TRUE(result.ok());
+
+  nlohmann::json payload = *result;
+  nlohmann::json messages = payload["messages"];
+
+  // Index 0: system
+  EXPECT_EQ(messages[0]["role"], "system");
+  // Index 1: assistant (tool1 call)
+  EXPECT_EQ(messages[1]["role"], "assistant");
+  EXPECT_TRUE(messages[1].contains("tool_calls"));
+  // Index 2: tool (tool1 response)
+  EXPECT_EQ(messages[2]["role"], "tool");
+  EXPECT_EQ(messages[2]["tool_call_id"], "c1");
+  // Index 3: assistant (tool2 call - suppressed)
+  EXPECT_EQ(messages[3]["role"], "assistant");
+  EXPECT_FALSE(messages[3].contains("tool_calls"));
+  EXPECT_TRUE(messages[3]["content"].get<std::string>().find("suppressed") != std::string::npos);
+  // Index 4: user (tool2 response - suppressed and role changed)
+  EXPECT_EQ(messages[4]["role"], "user");
+  EXPECT_TRUE(messages[4]["content"].get<std::string>().find("suppressed") != std::string::npos);
+}
+
 }  // namespace slop

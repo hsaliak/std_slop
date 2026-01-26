@@ -260,10 +260,10 @@ TEST_F(OrchestratorTest, GeminiHistoryNormalization) {
   ASSERT_TRUE(result.ok());
 
   nlohmann::json prompt = *result;
-  // Should have 1 user turn (merged) and the tool response should be PRUNED (no preceding model call)
+  // Should have 1 user turn (merged) and the tool response should be suppressed (changed to user role) and merged.
   ASSERT_EQ(prompt["contents"].size(), 1);
   EXPECT_EQ(prompt["contents"][0]["role"], "user");
-  EXPECT_EQ(prompt["contents"][0]["parts"].size(), 2);
+  EXPECT_EQ(prompt["contents"][0]["parts"].size(), 3);
 }
 
 TEST_F(OrchestratorTest, ParseToolCallsGemini) {
@@ -482,6 +482,10 @@ TEST_F(OrchestratorTest, GeminiMultiToolResponseAssembly) {
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
 
+  // Register tools so they aren't filtered out
+  ASSERT_TRUE(db.RegisterTool({"tool1", "desc1", "{}", true}).ok());
+  ASSERT_TRUE(db.RegisterTool({"tool2", "desc2", "{}", true}).ok());
+
   // 1. Add user message
   ASSERT_TRUE(db.AppendMessage("s1", "user", "run tools", "", "completed", "g1").ok());
 
@@ -554,6 +558,42 @@ TEST_F(OrchestratorTest, OpenAIIdNameHandling) {
   ASSERT_EQ(calls_or->size(), 1);
   EXPECT_EQ((*calls_or)[0].id, "call_123");
   EXPECT_EQ((*calls_or)[0].name, "my_tool");
+}
+
+TEST_F(OrchestratorTest, GeminiProactiveFiltering) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+
+  // Register only "tool1"
+  ASSERT_TRUE(db.RegisterTool({"tool1", "desc1", "{}", true}).ok());
+
+  // Add "tool1" (valid) and "tool2" (invalid) calls
+  nlohmann::json tool_call1 = {{"functionCall", {{"name", "tool1"}, {"args", {{"a", 1}}}}}};
+  nlohmann::json tool_call2 = {{"functionCall", {{"name", "tool2"}, {"args", {{"b", 2}}}}}};
+  
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", tool_call1.dump(), "call1|tool1", "tool_call").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", "res1", "call1|tool1", "completed").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", tool_call2.dump(), "call2|tool2", "tool_call").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", "res2", "call2|tool2", "completed").ok());
+
+  auto result = orchestrator->AssemblePrompt("s1", {});
+  ASSERT_TRUE(result.ok());
+
+  nlohmann::json prompt = *result;
+  // Index 0: model (tool1 call)
+  EXPECT_EQ(prompt["contents"][0]["role"], "model");
+  EXPECT_TRUE(prompt["contents"][0]["parts"][0].contains("functionCall"));
+  // Index 1: function (tool1 response)
+  EXPECT_EQ(prompt["contents"][1]["role"], "function");
+  EXPECT_TRUE(prompt["contents"][1]["parts"][0].contains("functionResponse"));
+  // Index 2: model (tool2 call - suppressed)
+  EXPECT_EQ(prompt["contents"][2]["role"], "model");
+  EXPECT_TRUE(prompt["contents"][2]["parts"][0].contains("text"));
+  EXPECT_FALSE(prompt["contents"][2]["parts"][0].contains("functionCall"));
+  // Index 3: user (tool2 response - suppressed and role changed)
+  EXPECT_EQ(prompt["contents"][3]["role"], "user");
+  EXPECT_TRUE(prompt["contents"][3]["parts"][0].contains("text"));
 }
 
 }  // namespace slop

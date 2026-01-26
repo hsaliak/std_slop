@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "absl/log/check.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
@@ -19,6 +20,14 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
   (void)session_id;
   nlohmann::json payload;
   nlohmann::json contents = nlohmann::json::array();
+
+  absl::flat_hash_set<std::string> enabled_tool_names;
+  auto tools_or = db_->GetEnabledTools();
+  if (tools_or.ok()) {
+    for (const auto& t : *tools_or) {
+      enabled_tool_names.insert(t.name);
+    }
+  }
 
   for (size_t i = 0; i < history.size(); ++i) {
     const auto& msg = history[i];
@@ -37,14 +46,37 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
     if (msg.status == "tool_call") {
       auto j = nlohmann::json::parse(msg.content, nullptr, false);
       if (!j.is_discarded()) {
-        part = j;
+        bool valid = true;
+        if (j.contains("functionCall")) {
+          std::string name = j["functionCall"]["name"];
+          if (!enabled_tool_names.contains(name)) {
+            LOG(WARNING) << "Filtering out invalid tool call: " << name;
+            valid = false;
+          }
+        }
+        if (valid) {
+          part = j;
+        } else {
+          part = {{"text", "[Invalid tool call suppressed: " + msg.content + "]"}};
+        }
       } else {
         part = {{"text", display_content}};
       }
     } else if (msg.role == "tool") {
-      part = {{"functionResponse",
-               {{"name", msg.tool_call_id.substr(msg.tool_call_id.find('|') + 1)},
-                {"response", {{"content", SmarterTruncate(msg.content, kMaxToolResultContext)}}}}}};
+      bool valid = true;
+      std::string name = msg.tool_call_id.substr(msg.tool_call_id.find('|') + 1);
+      if (!enabled_tool_names.contains(name)) {
+        LOG(WARNING) << "Filtering out invalid tool response: " << name;
+        valid = false;
+      }
+
+      if (valid) {
+        part = {{"functionResponse",
+                 {{"name", name}, {"response", {{"content", SmarterTruncate(msg.content, kMaxToolResultContext)}}}}}};
+      } else {
+        role = "user";
+        part = {{"text", "[Invalid tool response suppressed]"}};
+      }
     } else {
       part = {{"text", display_content}};
     }
@@ -65,7 +97,6 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
   if (!system_instruction.empty()) payload["system_instruction"] = {{"parts", {{{"text", system_instruction}}}}};
 
   nlohmann::json f_decls = nlohmann::json::array();
-  auto tools_or = db_->GetEnabledTools();
   if (tools_or.ok()) {
     for (const auto& t : *tools_or) {
       auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);

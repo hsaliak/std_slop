@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "absl/log/check.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 namespace slop {
@@ -18,6 +19,14 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
   (void)session_id;
   nlohmann::json messages = nlohmann::json::array();
   if (!system_instruction.empty()) messages.push_back({{"role", "system"}, {"content", system_instruction}});
+
+  absl::flat_hash_set<std::string> enabled_tool_names;
+  auto tools_or = db_->GetEnabledTools();
+  if (tools_or.ok()) {
+    for (const auto& t : *tools_or) {
+      enabled_tool_names.insert(t.name);
+    }
+  }
 
   for (size_t i = 0; i < history.size(); ++i) {
     const auto& msg = history[i];
@@ -35,14 +44,40 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
     if (msg.status == "tool_call") {
       auto j = nlohmann::json::parse(msg.content, nullptr, false);
       if (!j.is_discarded()) {
-        msg_obj = j;
+        bool valid = true;
+        if (j.contains("tool_calls")) {
+          for (auto& tc : j["tool_calls"]) {
+            std::string name = tc["function"]["name"];
+            if (!enabled_tool_names.contains(name)) {
+              LOG(WARNING) << "Filtering out invalid tool call: " << name;
+              valid = false;
+              break;
+            }
+          }
+        }
+        if (valid) {
+          msg_obj = j;
+        } else {
+          msg_obj = {{"role", "assistant"}, {"content", "[Invalid tool call suppressed]"}};
+        }
       } else {
         msg_obj = {{"role", msg.role}, {"content", display_content}};
       }
     } else if (msg.role == "tool") {
-      msg_obj = {{"role", msg.role}};
-      msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|'));
-      msg_obj["content"] = SmarterTruncate(msg.content, kMaxToolResultContext);
+      bool valid = true;
+      std::string name = msg.tool_call_id.substr(msg.tool_call_id.find('|') + 1);
+      if (!enabled_tool_names.contains(name)) {
+        LOG(WARNING) << "Filtering out invalid tool response: " << name;
+        valid = false;
+      }
+
+      if (valid) {
+        msg_obj = {{"role", msg.role}};
+        msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|'));
+        msg_obj["content"] = SmarterTruncate(msg.content, kMaxToolResultContext);
+      } else {
+        msg_obj = {{"role", "user"}, {"content", "[Invalid tool response suppressed]"}};
+      }
     } else {
       msg_obj = {{"role", msg.role}, {"content", display_content}};
     }
@@ -58,7 +93,6 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
   nlohmann::json payload = {{"model", model_}, {"messages", messages}};
 
   nlohmann::json tools = nlohmann::json::array();
-  auto tools_or = db_->GetEnabledTools();
   if (tools_or.ok()) {
     for (const auto& t : *tools_or) {
       auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);

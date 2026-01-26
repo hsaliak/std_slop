@@ -200,7 +200,8 @@ int main(int argc, char** argv) {
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
     std::string modeline =
-        absl::StrCat("std::slop<window<", window_str, ">, ", model_name, ", ", persona, ", ", session_id, ">");
+        absl::StrCat("std::slop<W:", window_str, ", M:", model_name, ", P:", persona,
+                     ", S:", session_id, ", T:", orchestrator->GetThrottle(), "s>");
 
     std::string input = slop::ReadLine(modeline);
     if (input == "/exit" || input == "/quit") break;
@@ -244,12 +245,56 @@ int main(int argc, char** argv) {
 
       auto resp_or = http_client.Post(url, prompt_or->dump(), headers);
       if (!resp_or.ok()) {
-        slop::HandleStatus(resp_or.status(), "HTTP Error");
-        if (google_auth && (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
-          std::cout << "Refreshing OAuth token..." << std::endl;
-          (void)oauth_handler->GetValidToken();
+        if (resp_or.status().code() == absl::StatusCode::kInvalidArgument) {
+          LOG(WARNING) << "HTTP 400 error detected. Attempting to auto-fix history...";
+          auto history_or = db.GetConversationHistory(session_id, false, 10);
+          if (history_or.ok() && !history_or->empty()) {
+            // Find the most recent tool call and drop it.
+            bool dropped = false;
+            for (auto it = history_or->rbegin(); it != history_or->rend(); ++it) {
+              if (it->status == "tool_call" || it->role == "tool") {
+                LOG(INFO) << "Dropping message " << it->id << " to fix 400 error.";
+                (void)db.UpdateMessageStatus(it->id, "dropped");
+                dropped = true;
+
+                // Also drop its pair if it's a tool response/call
+                if (it->role == "tool") {
+                  // Try to find the matching tool_call
+                  for (auto it2 = it + 1; it2 != history_or->rend(); ++it2) {
+                    if (it2->status == "tool_call" && it2->tool_call_id == it->tool_call_id) {
+                      LOG(INFO) << "Dropping matching tool call " << it2->id;
+                      (void)db.UpdateMessageStatus(it2->id, "dropped");
+                      break;
+                    }
+                  }
+                }
+                break; // Only drop the most recent pair
+              }
+            }
+
+            if (!dropped) {
+              // If no tool call was found, maybe it's just too much context.
+              // Try to drop the oldest message in the window?
+              // Or just let it fail.
+            }
+
+            // Re-assemble and retry
+            prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);
+            if (prompt_or.ok()) {
+              std::cout << slop::Colorize("Retrying with adjusted history...", "", ansi::Yellow) << std::endl;
+              resp_or = http_client.Post(url, prompt_or->dump(), headers);
+            }
+          }
         }
-        break;
+
+        if (!resp_or.ok()) {
+          slop::HandleStatus(resp_or.status(), "HTTP Error");
+          if (google_auth && (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
+            std::cout << "Refreshing OAuth token..." << std::endl;
+            (void)oauth_handler->GetValidToken();
+          }
+          break;
+        }
       }
 
       auto history_before_or = db.GetMessagesByGroups({group_id});

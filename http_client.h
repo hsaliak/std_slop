@@ -5,7 +5,9 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 
 #include <curl/curl.h>
 namespace slop {
@@ -27,6 +29,10 @@ class HttpClient {
 
   void Abort() { abort_requested_ = true; }
   void ResetAbort() { abort_requested_ = false; }
+
+  // Public for testing
+  int64_t ParseRetryAfter(const absl::flat_hash_map<std::string, std::string>& headers);
+  static size_t HeaderCallback(void* contents, size_t size, size_t nmemb, void* userp);
 
  private:
   absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,
