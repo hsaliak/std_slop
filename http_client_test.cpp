@@ -80,4 +80,34 @@ TEST(HttpClientTest, HeaderCallback) {
   EXPECT_EQ(headers["retry-after"], "120");
 }
 
+TEST(HttpClientTest, ParseXRateLimitResetTimestamp) {
+  HttpClient client;
+  int64_t future_ts = absl::ToUnixSeconds(absl::Now()) + 60;
+  absl::flat_hash_map<std::string, std::string> headers = {{"x-ratelimit-reset", std::to_string(future_ts)}};
+  int64_t delay = client.ParseXRateLimitReset(headers);
+  EXPECT_GT(delay, 55000);
+  EXPECT_LE(delay, 65000);
+}
+
+TEST(HttpClientTest, ParseXRateLimitResetRelative) {
+  HttpClient client;
+  absl::flat_hash_map<std::string, std::string> headers = {{"x-ratelimit-reset", "5.5"}};
+  EXPECT_EQ(client.ParseXRateLimitReset(headers), 5500);
+}
+
+TEST(HttpClientTest, ParseGoogleRetryInfo) {
+  HttpClient client;
+  std::string body = R"({
+  "error": {
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.RetryInfo",
+        "retryDelay": "0.421239755s"
+      }
+    ]
+  }
+})";
+  EXPECT_EQ(client.ParseGoogleRetryDelay(body), 421);
+}
+
 }  // namespace slop

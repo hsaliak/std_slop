@@ -32,6 +32,8 @@ class HttpClient {
 
   // Public for testing
   int64_t ParseRetryAfter(const absl::flat_hash_map<std::string, std::string>& headers);
+  int64_t ParseXRateLimitReset(const absl::flat_hash_map<std::string, std::string>& headers);
+  int64_t ParseGoogleRetryDelay(const std::string& response_body);
   static size_t HeaderCallback(void* contents, size_t size, size_t nmemb, void* userp);
 
  private:

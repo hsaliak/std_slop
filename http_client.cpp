@@ -15,6 +15,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/strip.h"
+#include "nlohmann/json.hpp"
 namespace slop {
 
 namespace {
@@ -189,10 +190,17 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     if (response_code >= 500 || response_code == 429) {
       if (retry_count < max_retries) {
         int64_t wait_ms = backoff_ms;
-        int64_t retry_after_ms = ParseRetryAfter(response_headers);
-        if (retry_after_ms > 0) {
-          LOG(INFO) << "Respecting Retry-After: " << retry_after_ms << "ms";
-          wait_ms = std::max(wait_ms, retry_after_ms);
+
+        if (response_code == 429) {
+          int64_t retry_after_ms = ParseRetryAfter(response_headers);
+          int64_t x_reset_ms = ParseXRateLimitReset(response_headers);
+          int64_t google_retry_ms = ParseGoogleRetryDelay(response_string);
+
+          int64_t extra_wait = std::max({retry_after_ms, x_reset_ms, google_retry_ms});
+          if (extra_wait > 0) {
+            LOG(INFO) << "Respecting rate limit signal: " << extra_wait << "ms";
+            wait_ms = std::max(wait_ms, extra_wait);
+          }
         }
 
         LOG(INFO) << "Retrying " << response_code << " in " << wait_ms << "ms... (Attempt " << retry_count + 1 << "/"
@@ -231,6 +239,44 @@ int64_t HttpClient::ParseRetryAfter(const absl::flat_hash_map<std::string, std::
     return std::max<int64_t>(0, diff_ms);
   }
 
+  return -1;
+}
+
+int64_t HttpClient::ParseXRateLimitReset(const absl::flat_hash_map<std::string, std::string>& headers) {
+  auto it = headers.find("x-ratelimit-reset");
+  if (it == headers.end()) return -1;
+
+  const std::string& value = it->second;
+  double reset_val = 0;
+  if (!absl::SimpleAtod(value, &reset_val)) return -1;
+
+  // If it's a large value, it's likely a Unix timestamp
+  if (reset_val > 1000000000) {
+    int64_t now_ts = absl::ToUnixSeconds(absl::Now());
+    int64_t diff = static_cast<int64_t>(reset_val) - now_ts;
+    return std::max<int64_t>(0, diff * 1000);
+  }
+
+  // Otherwise, treat as relative seconds
+  return static_cast<int64_t>(reset_val * 1000);
+}
+
+int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
+  auto j = nlohmann::json::parse(response_body, nullptr, false);
+  if (j.is_discarded()) return -1;
+
+  if (!j.contains("error") || !j["error"].contains("details")) return -1;
+
+  for (const auto& detail : j["error"]["details"]) {
+    if (detail.contains("@type") && detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" &&
+        detail.contains("retryDelay")) {
+      std::string delay_str = detail["retryDelay"];
+      absl::Duration d;
+      if (absl::ParseDuration(delay_str, &d)) {
+        return absl::ToInt64Milliseconds(d);
+      }
+    }
+  }
   return -1;
 }
 
