@@ -201,9 +201,3 @@ bazel run //:std_slop -- [session_name]
 * [SCHEMA](SCHEMA.md)
 * [system_prompt](system_prompt.md)
 
-## Design Documents
-
-Detailed plans and architecture notes:
-- [Migration Plan: std::slop main.cpp to Clasp Common Lisp](clasp_migration.md)
-- [Orchestrator Strategy Pattern Refactor Plan](orchestrator_refactor.md)
-- [Autocompletion for / commands](completions.md)
