@@ -11,6 +11,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "nlohmann/json.hpp"
 
@@ -140,6 +141,20 @@ char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] i
     }
   }
   return nullptr;
+}
+
+std::string TruncateToLines(const std::string& text, int max_lines) {
+  std::vector<absl::string_view> lines = absl::StrSplit(text, '\n');
+  if (lines.size() <= static_cast<size_t>(max_lines)) {
+    return text;
+  }
+
+  std::string result;
+  for (int i = 0; i < max_lines; ++i) {
+    absl::StrAppend(&result, lines[i], "\n");
+  }
+  absl::StrAppend(&result, "... [", lines.size() - max_lines, " lines omitted] ...");
+  return result;
 }
 }  // namespace
 
@@ -396,7 +411,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args) {
 }
 
 void PrintToolResultMessage(const std::string& result) {
-  PrintBorderedBlock("Tool Result", result, ansi::Grey);
+  PrintBorderedBlock("Tool Result", TruncateToLines(result, 3), ansi::Grey);
   std::cout << std::endl;
 }
 

@@ -132,4 +132,43 @@ TEST(UiTest, GetTerminalWidth) {
   EXPECT_GT(width, 0);
 }
 
+TEST(UiTest, PrintToolResultMessageTruncatesToThreeLines) {
+  std::string long_result = "line 1\nline 2\nline 3\nline 4\nline 5";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(long_result);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  // Verify that it contains first 3 lines
+  EXPECT_TRUE(output.find("line 1") != std::string::npos);
+  EXPECT_TRUE(output.find("line 2") != std::string::npos);
+  EXPECT_TRUE(output.find("line 3") != std::string::npos);
+
+  // Verify that it DOES NOT contain line 4 or 5
+  EXPECT_TRUE(output.find("line 4") == std::string::npos);
+  EXPECT_TRUE(output.find("line 5") == std::string::npos);
+
+  // Verify truncation summary
+  EXPECT_TRUE(output.find("... [2 lines omitted] ...") != std::string::npos);
+}
+
+TEST(UiTest, PrintToolResultMessageDoesNotTruncateThreeLines) {
+  std::string exact_result = "line 1\nline 2\nline 3";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(exact_result);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("line 1") != std::string::npos);
+  EXPECT_TRUE(output.find("line 2") != std::string::npos);
+  EXPECT_TRUE(output.find("line 3") != std::string::npos);
+  EXPECT_TRUE(output.find("omitted") == std::string::npos);
+}
+
 }  // namespace slop
