@@ -93,15 +93,16 @@ cc_binary(
     ],
     deps = [
         ":slop_lib",
-	    "@sqlite3//:sqlite3",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:initialize",
         "@nlohmann_json//:json",
+        "@sqlite3//:sqlite3",
     ],
 )
 

@@ -104,9 +104,9 @@ std::string GetHelpText() {
 void ShowHelp() { std::cout << GetHelpText() << std::endl; }
 
 int main(int argc, char** argv) {
-  absl::InitializeLog();
   absl::SetProgramUsageMessage(GetHelpText());
   std::vector<char*> positional_args = absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   std::string session_id = "default_session";
   if (positional_args.size() > 1) {
