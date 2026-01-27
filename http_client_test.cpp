@@ -148,7 +148,9 @@ TEST(HttpClientTest, ParseGoogleRetryDelayRobustness) {
   // Test with non-array details
   EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": {"details": "not an array"}})"), -1);
   // Test with missing metadata
-  EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": {"details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo"}]}})"), -1);
+  EXPECT_EQ(client.ParseGoogleRetryDelay(
+                R"({"error": {"details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo"}]}})"),
+            -1);
   // Test with malformed duration
   EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": {"message": "Your quota will reset after infinity."}})"), -1);
 }

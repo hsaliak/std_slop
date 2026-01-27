@@ -293,7 +293,7 @@ int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
       constexpr absl::string_view kPrefix = "Your quota will reset after ";
       size_t pos = msg.find(kPrefix);
       if (pos != std::string::npos) {
-        absl::string_view delay_part = absl::string_view(msg).substr(pos + kPrefix.size());
+        absl::string_view delay_part = static_cast<absl::string_view>(msg).substr(pos + kPrefix.size());
         delay_part = absl::StripSuffix(delay_part, ".");
         update_max_delay(std::string(delay_part));
       }
