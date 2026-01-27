@@ -210,16 +210,14 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", true},
       {"grep_tool",
        "Search for a pattern in the codebase using grep. Delegates to git_grep_tool if available in a git repository. "
-       "Returns matching lines with context.",
+       "If not in a git repository, it is highly recommended to initialize one with 'git init' for better performance and feature support.",
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":"integer"}},"required":["pattern"]})",
        true},
       {"git_grep_tool",
        "Comprehensive search using git grep. Optimized for git repositories, honors .gitignore, and can search "
        "history.",
-       R"({"type":"object","properties":{"pattern":{"type":"string"},"patterns":{"type":"array","items":{"type":"string"}},"path":{"type":"string"},"case_insensitive":{"type":"boolean"},"word_regexp":{"type":"boolean"},"line_number":{"type":"boolean","default":true},"count":{"type":"boolean"},"before":{"type":"integer"},"after":{"type":"integer"},"context":{"type":"integer"},"files_with_matches":{"type":"boolean"},"all_match":{"type":"boolean"},"pcre":{"type":"boolean"},"show_function":{"type":"boolean"},"cached":{"type":"boolean"},"branch":{"type":"string"}},"required":["pattern"]})",
+       R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"case_insensitive":{"type":"boolean"},"word_regexp":{"type":"boolean"},"line_number":{"type":"boolean","default":true},"count":{"type":"boolean"},"before":{"type":"integer"},"after":{"type":"integer"},"context":{"type":"integer"},"files_with_matches":{"type":"boolean"},"all_match":{"type":"boolean"},"pcre":{"type":"boolean"},"show_function":{"type":"boolean"},"function_context":{"type":"boolean"},"cached":{"type":"boolean"},"branch":{"type":"string"}},"required":["pattern"]})",
        true},
-      {"search_code", "Search for code snippets in the codebase using grep.",
-       R"({"type":"object","properties":{"query":{"type":"string"}},"required":["query"]})", true},
       {"query_db", "Query the local SQLite database using SQL.",
        R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true},
       {"apply_patch", "Applies partial changes to a file by matching a specific block of text and replacing it.",

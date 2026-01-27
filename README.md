@@ -167,8 +167,8 @@ bazel run //:std_slop -- [session_name]
 | `read_file` | Read local file contents with automatic line numbering. Supports `start_line` and `end_line`. |
 | `write_file` | Create or overwrite local files. |
 | `grep_tool` | Search for patterns with context (delegates to `git grep` when possible). |
-| `git_grep_tool` | Advanced git-based search with support for branches and history. |
-| `search_code` | Live codebase search using optimized_grep logic. |
+| `git_grep_tool` | Advanced git-based search with support for branches, history, and function-level context. |
+
 | `execute_bash` | Run arbitrary shell commands. |
 | `query_db` | Query the session ledger using SQL. Used for data analysis and **historical context retrieval**. |
 

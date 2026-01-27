@@ -102,22 +102,6 @@ TEST(ToolExecutorTest, ToolNotFound) {
   EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
 }
 
-TEST(ToolExecutorTest, IndexAndSearch) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  ASSERT_TRUE(
-      executor.Execute("write_file", {{"path", "search_test.cpp"}, {"content", "void slop_function() {}"}}).ok());
-
-  auto search_res = executor.Execute("search_code", {{"query", "slop_function"}});
-  ASSERT_TRUE(search_res.ok());
-  EXPECT_TRUE(search_res->find("search_test.cpp") != std::string::npos);
-
-  std::filesystem::remove("search_test.cpp");
-}
 
 TEST(ToolExecutorTest, QueryDb) {
   Database db;

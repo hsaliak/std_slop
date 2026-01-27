@@ -52,18 +52,18 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
         result = Grep(args["pattern"], path, context);
       }
     } else {
-      result = Grep(args["pattern"], path, context);
+      auto grep_res = Grep(args["pattern"], path, context);
+      if (grep_res.ok()) {
+        result = "Notice: Not a git repository. Consider running 'git init' for better search performance and feature support.\n\n" + *grep_res;
+      } else {
+        result = grep_res;
+      }
     }
   } else if (name == "git_grep_tool") {
     result = GitGrep(args);
   } else if (name == "execute_bash") {
     if (!args.contains("command")) return absl::InvalidArgumentError("Missing 'command' argument");
     result = ExecuteBash(args["command"]);
-  } else if (name == "search_code") {
-    if (!args.contains("query")) return absl::InvalidArgumentError("Missing 'query' argument");
-    nlohmann::json grep_args = args;
-    grep_args["pattern"] = args["query"];
-    result = Execute("grep_tool", grep_args);
   } else if (name == "query_db") {
     if (!args.contains("sql")) return absl::InvalidArgumentError("Missing 'sql' argument");
     result = db_->Query(args["sql"]);
@@ -234,6 +234,7 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   if (args.value("case_insensitive", false)) cmd += " -i";
   if (args.value("count", false)) cmd += " -c";
   if (args.value("show_function", false)) cmd += " -p";
+  if (args.value("function_context", false)) cmd += " -W";
   if (args.value("files_with_matches", false)) cmd += " -l";
   if (args.value("word_regexp", false)) cmd += " -w";
   if (args.value("pcre", false)) cmd += " -P";

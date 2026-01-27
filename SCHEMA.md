@@ -84,12 +84,12 @@ Long-term knowledge persistence through tag-based memos.
 
 The following tools are registered by default during database initialization:
 
-- `grep_tool`: Search for a pattern in the codebase using grep. Delegates to `git_grep_tool` if available in a git repository.
-- `git_grep_tool`: Comprehensive search using `git grep`. Optimized for git repositories, honors `.gitignore`, and can search history.
+- `grep_tool`: Search for a pattern in the codebase using grep. Delegates to `git_grep_tool` if available in a git repository. If not in a git repository, it is highly recommended to initialize one with `git init` for better performance and feature support.
+- `git_grep_tool`: Comprehensive search using `git grep`. Optimized for git repositories, honors `.gitignore`, and can search history. Supports function-level context (`-W`).
 - `read_file`: Read the content of a file from the local filesystem. Returns content with line numbers. Supports optional `start_line` and `end_line` parameters for granular reading.
 - `write_file`: Write content to a file in the local filesystem.
 - `execute_bash`: Execute a bash command on the local system.
-- `search_code`: Search for code snippets in the codebase using grep.
+
 - `query_db`: Query the local SQLite database using SQL.
 - `manage_scratchpad`: Read or update the persistent session-specific scratchpad.
 
