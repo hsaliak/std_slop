@@ -180,4 +180,25 @@ TEST(UiTest, PrintToolResultMessageShowsOnlySummaryExact) {
   EXPECT_TRUE(output.find("line 1") == std::string::npos);
 }
 
+TEST(UiTest, PrintAssistantMessageWithThoughts) {
+  std::string content = "---THOUGHT---\nI am thinking.\n---\nHello, user!";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintAssistantMessage(content);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  // Verify it contains both the thought and the message
+  EXPECT_TRUE(output.find("I am thinking.") != std::string::npos);
+  EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
+
+  // Verify color codes for white (thought) and cyan (assistant)
+  // white: \033[37m
+  // cyan: \033[36m
+  EXPECT_TRUE(output.find("\033[37m") != std::string::npos);
+  EXPECT_TRUE(output.find("\033[36m") != std::string::npos);
+}
+
 }  // namespace slop

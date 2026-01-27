@@ -397,6 +397,15 @@ int main(int argc, char** argv) {
       for (size_t i = start_idx; i < history_after_or->size(); ++i) {
         const auto& msg = (*history_after_or)[i];
         if (msg.role == "assistant" && msg.status == "tool_call") {
+          // Check for bundled content (thoughts) in the tool call message
+          auto j = nlohmann::json::parse(msg.content, nullptr, false);
+          if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
+            std::string content = j["content"];
+            if (!content.empty()) {
+              slop::PrintAssistantMessage(content);
+            }
+          }
+
           auto calls_or = orchestrator->ParseToolCalls(msg);
           if (calls_or.ok()) {
             for (const auto& call : *calls_or) {

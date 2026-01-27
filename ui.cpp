@@ -13,6 +13,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
@@ -388,13 +389,57 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
   return absl::OkStatus();
 }
 
+void PrintThoughtMessage(const std::string& content) {
+  if (content.empty()) return;
+  std::string thought = content;
+  // Clean up markers if present
+  thought = absl::StrReplaceAll(thought, {{"---THOUGHT---", ""}, {"---THOUGHT", ""}, {"---THOUGHTS---", ""}});
+  // We keep it simple: just print in white, wrapped.
+  std::cout << Colorize(WrapText(thought, GetTerminalWidth()), "", ansi::White) << std::endl;
+}
+
 void PrintAssistantMessage(const std::string& content, const std::string& skill_info) {
   std::string label = "Assistant";
   if (!skill_info.empty()) {
     label = "Assistant (" + skill_info + ")";
   }
-  PrintBorderedBlock(label, content, ansi::Cyan);
-  std::cout << std::endl;
+
+  std::string remaining = content;
+  size_t start = content.find("---THOUGHT---");
+  if (start != std::string::npos) {
+    size_t end = content.find("---", start + 13);
+    if (end == std::string::npos) {
+      // Look for any other separator or just take a chunk?
+      // For now, if no end marker, we might need to be careful.
+      // But usually models use some delimiter.
+      // Let's try to find the next double newline if no end marker.
+      end = content.find("\n\n", start + 13);
+    }
+
+    if (end != std::string::npos) {
+      std::string thought = content.substr(start, end - start);
+      PrintThoughtMessage(thought);
+      remaining = content.substr(end);
+      // Clean up leading newlines/dashes in remaining
+      remaining = absl::StripLeadingAsciiWhitespace(remaining);
+      if (absl::StartsWith(remaining, "---")) {
+          // Skip the closing marker if it was three dashes
+          size_t next_nl = remaining.find('\n');
+          if (next_nl != std::string::npos) {
+              remaining = remaining.substr(next_nl);
+          }
+      }
+    } else {
+        // Just print everything as thought? No, probably safer to just print normally
+        // if we can't find a clean break.
+    }
+  }
+
+  remaining = absl::StripAsciiWhitespace(remaining);
+  if (!remaining.empty()) {
+    PrintBorderedBlock(label, remaining, ansi::Cyan);
+    std::cout << std::endl;
+  }
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
@@ -426,6 +471,14 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
     } else if (msg.role == "assistant") {
       if (msg.status == "tool_call") {
+        // Extract thoughts from bundled tool call if present
+        auto j = nlohmann::json::parse(msg.content, nullptr, false);
+        if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
+          std::string content = j["content"];
+          if (!content.empty()) {
+            PrintAssistantMessage(content);
+          }
+        }
         PrintToolCallMessage("LLM", msg.content);
       } else {
         PrintAssistantMessage(msg.content);
