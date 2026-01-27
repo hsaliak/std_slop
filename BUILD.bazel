@@ -99,6 +99,8 @@ cc_binary(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:flags",
         "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/log:log_sink",
+        "@abseil-cpp//absl/log:log_sink_registry",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@nlohmann_json//:json",

@@ -9,8 +9,11 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -20,6 +23,8 @@
 #include "absl/flags/usage.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -32,6 +37,7 @@
 #include "constants.h"
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
+ABSL_FLAG(std::string, log, "", "Log file path");
 ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
 ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_MODEL env vars)");
@@ -103,10 +109,46 @@ std::string GetHelpText() {
 
 void ShowHelp() { std::cout << GetHelpText() << std::endl; }
 
+namespace {
+
+class FileLogSink : public absl::LogSink {
+ public:
+  explicit FileLogSink(const std::string& path) : stream_(path, std::ios::app) {
+    if (!stream_.is_open()) {
+      std::cerr << "Failed to open log file: " << path << std::endl;
+    }
+  }
+  ~FileLogSink() override = default;
+
+  void Send(const absl::LogEntry& entry) override {
+    if (stream_.is_open()) {
+      std::lock_guard<std::mutex> lock(mu_);
+      stream_ << entry.text_message_with_prefix() << "\n";
+    }
+  }
+
+ private:
+  // Mutex is required because Abseil's LogSink::Send can be called from multiple
+  // threads even if the main application logic is currently single-threaded
+  // (e.g., internal library threads or future asynchronous components).
+  std::mutex mu_;
+  std::ofstream stream_;
+};
+
+}  // namespace
+
 int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(GetHelpText());
   std::vector<char*> positional_args = absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
+
+  std::string log_path = absl::GetFlag(FLAGS_log);
+  std::unique_ptr<FileLogSink> log_sink;
+  if (!log_path.empty()) {
+    log_sink = std::make_unique<FileLogSink>(log_path);
+    absl::AddLogSink(log_sink.get());
+  }
+  LOG(INFO) << "Logging initialized and sink added.";
 
   std::string session_id = "default_session";
   if (positional_args.size() > 1) {
@@ -375,5 +417,8 @@ int main(int argc, char** argv) {
     }
   }
 
+  if (log_sink) {
+    absl::RemoveLogSink(log_sink.get());
+  }
   return 0;
 }
