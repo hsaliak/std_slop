@@ -102,7 +102,6 @@ TEST(ToolExecutorTest, ToolNotFound) {
   EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
 }
 
-
 TEST(ToolExecutorTest, QueryDb) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

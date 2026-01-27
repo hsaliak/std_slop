@@ -54,7 +54,10 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     } else {
       auto grep_res = Grep(args["pattern"], path, context);
       if (grep_res.ok()) {
-        result = "Notice: Not a git repository. Consider running 'git init' for better search performance and feature support.\n\n" + *grep_res;
+        result =
+            "Notice: Not a git repository. Consider running 'git init' for better search performance and feature "
+            "support.\n\n" +
+            *grep_res;
       } else {
         result = grep_res;
       }

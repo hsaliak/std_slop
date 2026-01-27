@@ -210,7 +210,8 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", true},
       {"grep_tool",
        "Search for a pattern in the codebase using grep. Delegates to git_grep_tool if available in a git repository. "
-       "If not in a git repository, it is highly recommended to initialize one with 'git init' for better performance and feature support.",
+       "If not in a git repository, it is highly recommended to initialize one with 'git init' for better performance "
+       "and feature support.",
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":"integer"}},"required":["pattern"]})",
        true},
       {"git_grep_tool",
