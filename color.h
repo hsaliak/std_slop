@@ -20,13 +20,15 @@ constexpr const char* White = "\033[37m";
 constexpr const char* Black = "\033[30m";
 constexpr const char* Blue = "\033[34m";
 constexpr const char* Cyan = "\033[36m";
-constexpr const char* Assistant = White;
 constexpr const char* Grey = "\033[90m";
-constexpr const char* Thought = Grey;
+constexpr const char* LightGrey ="\e[38;5;251m";
+constexpr const char* MildGrey = "\033[...m";
 constexpr const char* Green = "\033[32m";
 constexpr const char* Yellow = "\033[33m";
 constexpr const char* Magenta = "\033[35m";
 constexpr const char* Red = "\033[31m";
+constexpr const char* Thought = MildGrey;
+constexpr const char* Assistant = White;
 }  // namespace ansi
 
 namespace slop {
