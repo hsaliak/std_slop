@@ -200,11 +200,9 @@ TEST(UiTest, PrintAssistantMessageWithThoughts) {
   EXPECT_TRUE(output.find("I am thinking.") != std::string::npos);
   EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
 
-  // Verify color codes for white (thought) and assistant
+  // Verify color codes for white (thought) and assistant (both white now)
   // white: \033[37m
-  // assistant: \033[38;2;0;215;215m
   EXPECT_TRUE(output.find("\033[37m") != std::string::npos);
-  EXPECT_TRUE(output.find("\033[38;2;0;215;215m") != std::string::npos);
 }
 
 TEST(UiTest, PrintAssistantMessageWithPrefix) {
