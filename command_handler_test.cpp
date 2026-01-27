@@ -1,6 +1,7 @@
 #include "command_handler.h"
 #include "orchestrator.h"
 
+#include "absl/strings/match.h"
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 namespace slop {
@@ -16,11 +17,22 @@ class TestableCommandHandler : public CommandHandler {
   std::string last_initial_content;
   bool editor_was_called = false;
 
+  absl::flat_hash_map<std::string, std::string> command_responses;
+  std::vector<std::string> executed_commands;
+
  protected:
   std::string TriggerEditor(const std::string& initial_content) override {
     editor_was_called = true;
     last_initial_content = initial_content;
     return next_editor_output;
+  }
+
+  absl::StatusOr<std::string> ExecuteCommand(const std::string& command) override {
+    executed_commands.push_back(command);
+    if (command_responses.contains(command)) {
+      return command_responses.at(command);
+    }
+    return "";
   }
 };
 
@@ -361,4 +373,65 @@ TEST_F(CommandHandlerTest, EditCommandUsingEditor) {
   EXPECT_TRUE(handler.editor_was_called);
   EXPECT_EQ(input, "New input from editor");
 }
+
+TEST_F(CommandHandlerTest, ManualReviewFailsOutsideGit) {
+  TestableCommandHandler handler(&db);
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "fatal: not a git repository";
+  
+  std::string input = "/manual-review";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_FALSE(handler.editor_was_called);
+}
+
+TEST_F(CommandHandlerTest, ManualReviewHandlesChanges) {
+  TestableCommandHandler handler(&db);
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git ls-files --others --exclude-standard"] = "new_file.cpp";
+  handler.command_responses["git add -N -- 'new_file.cpp'"] = "";
+  handler.command_responses["git diff"] = "diff --git a/old.cpp b/old.cpp\n+new line";
+  
+  handler.next_editor_output = "diff --git a/old.cpp b/old.cpp\n+new line\nR: This looks good";
+  
+  std::string input = "/manual-review";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+  EXPECT_TRUE(handler.editor_was_called);
+  EXPECT_TRUE(absl::StrContains(input, "R: This looks good"));
+  
+  // Verify git add -N was called for the new file with quoting
+  bool found_add = false;
+  for (const auto& cmd : handler.executed_commands) {
+    if (cmd == "git add -N -- 'new_file.cpp'") found_add = true;
+  }
+  EXPECT_TRUE(found_add);
+}
+
+TEST_F(CommandHandlerTest, ManualReviewRequiresPrefixAtStartOfLine) {
+  TestableCommandHandler handler(&db);
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git diff"] = "some diff";
+  
+  // R: in the middle of a line should not trigger
+  handler.next_editor_output = "This line has R: but not at start";
+  
+  std::string input = "/manual-review";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  
+  // R: at start of line should trigger
+  handler.next_editor_output = "R: This is a comment";
+  res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+}
+
 }  // namespace slop

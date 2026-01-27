@@ -50,6 +50,10 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
        {"/memo list            List all memos",
         "/memo add <tags> <content>  Add a new memo (tags as comma-separated list)",
         "/memo search <tags>   Search memos by tags (comma-separated list)"}},
+      {"/manual-review",
+       {},
+       {},
+       {"/manual-review         Review session changes (git only). Add comments with 'R:' to instruct the LLM."}},
   };
   return kDefinitions;
 }

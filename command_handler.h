@@ -76,6 +76,7 @@ class CommandHandler {
   Result HandleModel(CommandArgs& args);
   Result HandleThrottle(CommandArgs& args);
   Result HandleMemo(CommandArgs& args);
+  Result HandleManualReview(CommandArgs& args);
 
   Database* db_;
   class Orchestrator* orchestrator_;
@@ -92,6 +93,9 @@ class CommandHandler {
 
   // Testing hook for dependency injection. Overridden in tests to mock editor input.
   virtual std::string TriggerEditor(const std::string& initial_content);
+
+  // Testing hook for shell commands.
+  virtual absl::StatusOr<std::string> ExecuteCommand(const std::string& command);
 };
 
 }  // namespace slop

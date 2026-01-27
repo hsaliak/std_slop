@@ -1,7 +1,6 @@
 #include "tool_executor.h"
 
 #include <array>
-#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -11,6 +10,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "shell_util.h"
 namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
@@ -185,14 +185,7 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, co
 }
 
 absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) {
-  std::array<char, 128> buffer;
-  std::string result;
-  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
-  if (!pipe) return absl::InternalError("popen() failed!");
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-    result += buffer.data();
-  }
-  return result;
+  return RunCommand(command);
 }
 
 absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context) {

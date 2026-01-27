@@ -1,6 +1,7 @@
 #include "command_handler.h"
 #include "oauth_handler.h"
 #include "orchestrator.h"
+#include "shell_util.h"
 #include "ui.h"
 
 #include <unistd.h>
@@ -15,6 +16,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
@@ -53,6 +55,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
   commands_["/memo"] = [this](CommandArgs& args) { return HandleMemo(args); };
+  commands_["/manual-review"] = [this](CommandArgs& args) { return HandleManualReview(args); };
 
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
@@ -609,6 +612,79 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
 
 std::string CommandHandler::TriggerEditor(const std::string& initial_content) {
   return slop::OpenInEditor(initial_content);
+}
+
+absl::StatusOr<std::string> CommandHandler::ExecuteCommand(const std::string& command) {
+  return slop::RunCommand(command);
+}
+
+CommandHandler::Result CommandHandler::HandleManualReview(CommandArgs& args) {
+  auto git_check = ExecuteCommand("git rev-parse --is-inside-work-tree");
+  if (!git_check.ok() || !absl::StrContains(*git_check, "true")) {
+    std::cerr << "Error: /manual-review is only available inside a git repository." << std::endl;
+    return Result::HANDLED;
+  }
+
+  // Handle new files with intent-to-add
+  auto untracked_or = ExecuteCommand("git ls-files --others --exclude-standard");
+  if (untracked_or.ok() && !untracked_or->empty()) {
+    std::vector<std::string> files = absl::StrSplit(*untracked_or, '\n', absl::SkipEmpty());
+    if (!files.empty()) {
+      std::string cmd = "git add -N --";
+      for (const auto& file : files) {
+        // Simple shell escaping: wrap in single quotes, replace ' with '\''
+        std::string escaped = file;
+        absl::StrReplaceAll({{"'", "'\\''"}}, &escaped);
+        absl::StrAppend(&cmd, " '", escaped, "'");
+      }
+      auto res = ExecuteCommand(cmd);
+      if (!res.ok()) {
+        slop::HandleStatus(res.status(), "Failed to stage untracked files");
+      }
+    }
+  }
+
+  auto diff_or = ExecuteCommand("git diff");
+  if (!diff_or.ok() || diff_or->empty()) {
+    std::cout << "No changes to review." << std::endl;
+    return Result::HANDLED;
+  }
+
+  std::string initial_content =
+      "# --- MANUAL REVIEW ---\n"
+      "# Add your review comments on new lines starting with 'R:'\n"
+      "# Example:\n"
+      "# R: Please refactor this function to be more concise.\n"
+      "#\n"
+      "# Save and exit to send comments to the LLM.\n"
+      "# ----------------------\n\n" +
+      *diff_or;
+
+  std::string edited = TriggerEditor(initial_content);
+  if (edited.empty() || edited == initial_content) {
+    return Result::HANDLED;
+  }
+
+  // Check if any R: comments were added (at the start of a line)
+  bool has_comments = false;
+  std::vector<std::string> lines = absl::StrSplit(edited, '\n');
+  for (const auto& line : lines) {
+    std::string_view trimmed = absl::StripLeadingAsciiWhitespace(line);
+    if (absl::StartsWith(trimmed, "R:")) {
+      has_comments = true;
+      break;
+    }
+  }
+
+  if (!has_comments) {
+    std::cout << "No 'R:' comments found. Ignoring review." << std::endl;
+    return Result::HANDLED;
+  }
+
+  args.input = "The user has reviewed the current changes. Here is the diff with their 'R:' comments:\n\n" + edited +
+               "\n\nPlease address the instructions marked with 'R:' in the diff above.";
+
+  return Result::PROCEED_TO_LLM;
 }
 
 }  // namespace slop
