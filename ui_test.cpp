@@ -144,7 +144,9 @@ TEST(UiTest, PrintToolCallMessageShowsSummary) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("Tool Call: test_tool({\"query\": \"foo\", \"path\": \"bar\"})") != std::string::npos);
+  EXPECT_TRUE(output.find("test_tool") != std::string::npos);
+  EXPECT_TRUE(output.find("\"query\":\"foo\"") != std::string::npos || 
+              output.find("\"query\": \"foo\"") != std::string::npos);
 }
 
 TEST(UiTest, PrintToolResultMessageShowsOnlySummary) {
@@ -152,13 +154,15 @@ TEST(UiTest, PrintToolResultMessageShowsOnlySummary) {
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
-  PrintToolResultMessage("test_tool", long_result, "completed");
+  PrintToolResultMessage("test_tool", long_result, "completed", "  ");
 
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  // Verify header summary is present
-  EXPECT_TRUE(output.find("Tool Result: test_tool (completed) - 5 lines") != std::string::npos);
+  // Verify header summary is present and indented (prefix "  " + 8 spaces)
+  EXPECT_TRUE(absl::StartsWith(output, "          "));
+  EXPECT_TRUE(output.find("test_tool") != std::string::npos);
+  EXPECT_TRUE(output.find("5 lines") != std::string::npos);
 
   // Verify that it DOES NOT contain any of the result lines
   EXPECT_TRUE(output.find("line 1") == std::string::npos);
@@ -178,7 +182,7 @@ TEST(UiTest, PrintToolResultMessageShowsOnlySummaryExact) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("Tool Result: test_tool (completed) - 3 lines") != std::string::npos);
+  EXPECT_TRUE(output.find("test_tool (completed) - 3 lines") != std::string::npos);
   EXPECT_TRUE(output.find("line 1") == std::string::npos);
 }
 
@@ -196,19 +200,16 @@ TEST(UiTest, PrintAssistantMessageWithThoughts) {
   EXPECT_TRUE(output.find("I am thinking.") != std::string::npos);
   EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
 
-  // Verify the "Thought" header is present
-  EXPECT_TRUE(output.find("Thought") != std::string::npos);
-
-  // Verify color codes for white (thought) and cyan (assistant)
+  // Verify color codes for white (thought) and assistant
   // white: \033[37m
-  // cyan: \033[36m
+  // assistant: \033[38;2;0;215;215m
   EXPECT_TRUE(output.find("\033[37m") != std::string::npos);
-  EXPECT_TRUE(output.find("\033[36m") != std::string::npos);
+  EXPECT_TRUE(output.find("\033[38;2;0;215;215m") != std::string::npos);
 }
 
 TEST(UiTest, PrintAssistantMessageWithPrefix) {
   std::string content = "Hello world";
-  std::string prefix = "|__ ";
+  std::string prefix = "  ";
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
@@ -217,8 +218,41 @@ TEST(UiTest, PrintAssistantMessageWithPrefix) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  // Check for prefix on each line (it's a short string, so likely one line)
-  EXPECT_TRUE(output.find("|__ ") != std::string::npos);
+  // No labels or bullets
+  EXPECT_TRUE(output.find("Hello world") != std::string::npos);
+}
+
+TEST(UiTest, PrintAssistantMessageWithTokens) {
+  std::string content = "Hello world";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintAssistantMessage(content, "", "", 123);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("Hello world") != std::string::npos);
+  EXPECT_TRUE(output.find("· 123 tokens") != std::string::npos);
+  // Grey color code: \033[90m
+  EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
+}
+
+TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
+  std::string content = "Hello world";
+  std::string prefix = "| ";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintAssistantMessage(content, "", prefix, 123);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  // The body is indented by prefix + "    "
+  // The tokens should be on a new line also indented by prefix + "    "
+  EXPECT_TRUE(output.find("|     Hello world") != std::string::npos);
+  EXPECT_TRUE(output.find("|     \033[90m· 123 tokens") != std::string::npos);
 }
 
 TEST(UiTest, WrapTextWithPrefix) {

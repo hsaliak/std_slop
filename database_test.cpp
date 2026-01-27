@@ -69,6 +69,20 @@ TEST(DatabaseTest, MessagePersistence) {
   EXPECT_EQ(history2->size(), 1);
 }
 
+TEST(DatabaseTest, TokenPersistence) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello", "", "completed", "g1", "", 10).ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Hi", "", "completed", "g1", "", 25).ok());
+
+  auto history = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history.ok());
+  ASSERT_EQ(history->size(), 2);
+  EXPECT_EQ((*history)[0].tokens, 10);
+  EXPECT_EQ((*history)[1].tokens, 25);
+}
+
 TEST(DatabaseTest, GetConversationHistoryWindowed) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

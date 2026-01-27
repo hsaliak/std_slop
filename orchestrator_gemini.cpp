@@ -111,8 +111,9 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
   return payload;
 }
 
-absl::Status GeminiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                                 const std::string& group_id) {
+absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& session_id,
+                                                       const std::string& response_json,
+                                                       const std::string& group_id) {
   auto j = nlohmann::json::parse(response_json, nullptr, false);
   if (j.is_discarded()) {
     LOG(ERROR) << "Failed to parse Gemini response: " << response_json;
@@ -124,10 +125,12 @@ absl::Status GeminiOrchestrator::ProcessResponse(const std::string& session_id, 
     target = &j["response"];
   }
 
+  int total_tokens = 0;
   if (target->contains("usageMetadata")) {
     auto& usage = (*target)["usageMetadata"];
     int prompt = usage.value("promptTokenCount", 0);
     int completion = usage.value("candidatesTokenCount", 0);
+    total_tokens = prompt + completion;
     (void)db_->RecordUsage(session_id, model_, prompt, completion);
   }
 
@@ -137,11 +140,12 @@ absl::Status GeminiOrchestrator::ProcessResponse(const std::string& session_id, 
     auto& parts = (*target)["candidates"][0]["content"]["parts"];
     for (const auto& part : parts) {
       if (part.contains("functionCall")) {
-        status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call",
-                                    group_id, GetName());
+        status = db_->AppendMessage(
+            session_id, "assistant", part.dump(), part["functionCall"]["name"],
+            "tool_call", group_id, GetName(), total_tokens);
       } else if (part.contains("text")) {
         std::string text = part["text"];
-        status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName());
+        status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);
 
         size_t start_pos = text.find("---STATE---");
         if (start_pos != std::string::npos) {
@@ -157,7 +161,8 @@ absl::Status GeminiOrchestrator::ProcessResponse(const std::string& session_id, 
       }
     }
   }
-  return status;
+  if (!status.ok()) return status;
+  return total_tokens;
 }
 
 absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const Database::Message& msg) {
@@ -223,8 +228,9 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::AssemblePayload(const std:
   return wrapped;
 }
 
-absl::Status GeminiGcaOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                                    const std::string& group_id) {
+absl::StatusOr<int> GeminiGcaOrchestrator::ProcessResponse(const std::string& session_id,
+                                                      const std::string& response_json,
+                                                      const std::string& group_id) {
   return GeminiOrchestrator::ProcessResponse(session_id, response_json, group_id);
 }
 

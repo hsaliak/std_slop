@@ -18,8 +18,8 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
   absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
                                                  const std::vector<Database::Message>& history) override;
 
-  absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json,
-                               const std::string& group_id) override;
+  absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                     const std::string& group_id) override;
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) override;
 

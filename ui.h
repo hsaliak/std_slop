@@ -41,7 +41,7 @@ void HandleStatus(const absl::Status& status, const std::string& context = "");
 
 // Wraps text to a specific width, preserving newlines and being ANSI-aware.
 // Optionally prepends a prefix to each line.
-std::string WrapText(const std::string& text, size_t width = 0, const std::string& prefix = "");
+std::string WrapText(const std::string& text, size_t width = 0, const std::string& prefix = "", const std::string& first_line_prefix = "");
 
 // Returns terminal width or 80 if detection fails.
 size_t GetTerminalWidth();
@@ -49,7 +49,8 @@ size_t GetTerminalWidth();
 /**
  * @brief High-level methods for centralized UI message formatting.
  */
-void PrintAssistantMessage(const std::string& content, const std::string& skill_info = "", const std::string& prefix = "");
+void PrintAssistantMessage(const std::string& content, const std::string& skill_info = "",
+                           const std::string& prefix = "", int tokens = 0);
 void PrintThoughtMessage(const std::string& content, const std::string& prefix = "");
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix = "");
 void PrintToolResultMessage(const std::string& name, const std::string& result,

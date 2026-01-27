@@ -16,8 +16,8 @@ class GeminiOrchestrator : public OrchestratorStrategy {
   absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
                                                  const std::vector<Database::Message>& history) override;
 
-  absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json,
-                               const std::string& group_id) override;
+  absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                     const std::string& group_id) override;
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) override;
 
@@ -42,8 +42,8 @@ class GeminiGcaOrchestrator : public GeminiOrchestrator {
   absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
                                                  const std::vector<Database::Message>& history) override;
 
-  absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json,
-                               const std::string& group_id) override;
+  absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                     const std::string& group_id) override;
 
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key) override;
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;

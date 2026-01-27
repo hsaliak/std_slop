@@ -137,7 +137,8 @@ absl::Status Database::Init(const std::string& db_path) {
         status TEXT DEFAULT 'completed',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         group_id TEXT,
-        parsing_strategy TEXT
+        parsing_strategy TEXT,
+        tokens INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS tools (
@@ -188,6 +189,10 @@ absl::Status Database::Init(const std::string& db_path) {
   if (rc != SQLITE_OK) {
     return absl::InternalError("Schema error: " + std::string(sqlite3_errmsg(db_.get())));
   }
+
+  // Migration: Add tokens column to messages table if it doesn't exist
+  (void)sqlite3_exec(db_.get(), "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr,
+                     nullptr);
 
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
@@ -297,12 +302,13 @@ absl::Status Database::Execute(const std::string& sql) {
   return absl::OkStatus();
 }
 
-absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
-                                     const std::string& tool_call_id, const std::string& status,
-                                     const std::string& group_id, const std::string& parsing_strategy) {
+absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role,
+                                     const std::string& content, const std::string& tool_call_id,
+                                     const std::string& status, const std::string& group_id,
+                                     const std::string& parsing_strategy, int tokens) {
   std::string sql =
-      "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy) VALUES (?, "
-      "?, ?, ?, ?, ?, ?)";
+      "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy, tokens) "
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
@@ -324,6 +330,7 @@ absl::Status Database::AppendMessage(const std::string& session_id, const std::s
   } else {
     RETURN_IF_ERROR(stmt->BindText(7, parsing_strategy));
   }
+  RETURN_IF_ERROR(stmt->BindInt(8, tokens));
 
   return stmt->Run();
 }
@@ -360,7 +367,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
     // Each 'group_id' represents a full turn (user prompt + multiple tool calls/responses).
     // This ensures that we don't truncate a conversation in the middle of a tool-calling sequence.
     sql = absl::Substitute(
-        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy "
+        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
         "FROM messages WHERE session_id = ? $0 "
         "AND (group_id IS NULL OR group_id IN (SELECT DISTINCT group_id FROM messages WHERE session_id = ? AND "
         "group_id IS NOT NULL $0 ORDER BY created_at DESC, id DESC LIMIT ?)) "
@@ -368,7 +375,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
         drop_filter);
   } else {
     sql = absl::Substitute(
-        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy "
+        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
         "FROM messages WHERE session_id = ? $0 "
         "ORDER BY created_at ASC, id ASC",
         drop_filter);
@@ -398,6 +405,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
     m.created_at = stmt->ColumnText(6);
     m.group_id = stmt->ColumnText(7);
     m.parsing_strategy = stmt->ColumnText(8);
+    m.tokens = stmt->ColumnInt(9);
     history.push_back(m);
   }
   return history;
@@ -413,8 +421,8 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(
   }
 
   std::string sql =
-      "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy FROM "
-      "messages WHERE group_id IN (" +
+      "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+      "FROM messages WHERE group_id IN (" +
       placeholders + ") ORDER BY created_at ASC, id ASC";
 
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
@@ -439,6 +447,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(
     m.created_at = stmt->ColumnText(6);
     m.group_id = stmt->ColumnText(7);
     m.parsing_strategy = stmt->ColumnText(8);
+    m.tokens = stmt->ColumnInt(9);
     messages.push_back(m);
   }
   return messages;

@@ -290,6 +290,13 @@ int main(int argc, char** argv) {
     if (input == "/exit" || input == "/quit") break;
     if (input.empty()) continue;
 
+    // Print user echo
+    std::string echo = input;
+    if (echo.length() > 60) {
+      echo = echo.substr(0, 57) + "...";
+    }
+    std::cout << " " << slop::Colorize(" > " + echo + " ", ansi::GreyBg, ansi::White) << "\n" << std::endl;
+
     auto res = cmd_handler.Handle(input, session_id, active_skills, ShowHelp, orchestrator->GetLastSelectedGroups());
     tool_executor.SetSessionId(session_id);
     if (res == slop::CommandHandler::Result::HANDLED || res == slop::CommandHandler::Result::UNKNOWN) {
@@ -306,9 +313,6 @@ int main(int argc, char** argv) {
         slop::HandleStatus(prompt_or.status(), "Prompt Error");
         break;
       }
-
-      int context_tokens = orchestrator->CountTokens(*prompt_or);
-      std::cout << "Context: " << context_tokens << " tokens | Thinking...\n " << std::flush;
 
       std::vector<std::string> headers = {"Content-Type: application/json"};
       std::string url;
@@ -384,11 +388,12 @@ int main(int argc, char** argv) {
       auto history_before_or = db.GetMessagesByGroups({group_id});
       size_t start_idx = history_before_or.ok() ? history_before_or->size() : 0;
 
-      auto status = orchestrator->ProcessResponse(session_id, *resp_or, group_id);
-      if (!status.ok()) {
-        slop::HandleStatus(status, "Process Error");
+      auto process_or = orchestrator->ProcessResponse(session_id, *resp_or, group_id);
+      if (!process_or.ok()) {
+        slop::HandleStatus(process_or.status(), "Process Error");
         break;
       }
+      int total_tokens = *process_or;
 
       auto history_after_or = db.GetMessagesByGroups({group_id});
       if (!history_after_or.ok() || history_after_or->empty()) break;
@@ -402,17 +407,17 @@ int main(int argc, char** argv) {
           if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
             std::string content = j["content"];
             if (!content.empty()) {
-              slop::PrintAssistantMessage(content, "", "|__ ");
+              slop::PrintAssistantMessage(content, "", "  ", total_tokens);
             }
           }
 
           auto calls_or = orchestrator->ParseToolCalls(msg);
           if (calls_or.ok()) {
             for (const auto& call : *calls_or) {
-              slop::PrintToolCallMessage(call.name, call.args.dump(), " |_ ");
+              slop::PrintToolCallMessage(call.name, call.args.dump(), "  ");
               auto result_or = tool_executor.Execute(call.name, call.args);
               std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error", "  |_ ");
+              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error", "  ");
               std::string combined_id = call.id;
               if (call.id != call.name) {
                 combined_id = call.id + "|" + call.name;
@@ -423,7 +428,7 @@ int main(int argc, char** argv) {
             has_tool_calls = true;
           }
         } else if (msg.role == "assistant") {
-          slop::PrintAssistantMessage(msg.content, "", "|_  ");
+          slop::PrintAssistantMessage(msg.content, "", "  ", total_tokens);
         }
       }
 

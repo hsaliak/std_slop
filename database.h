@@ -69,11 +69,29 @@ class Database {
     std::string created_at;
     std::string group_id;
     std::string parsing_strategy;
+    int tokens;
   };
 
-  absl::Status AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
-                             const std::string& tool_call_id = "", const std::string& status = "completed",
-                             const std::string& group_id = "", const std::string& parsing_strategy = "");
+  /**
+   * @brief Appends a new message to the conversation history.
+   *
+   * @param session_id The unique identifier for the session.
+   * @param role The role of the message sender (e.g., "user", "assistant", "system").
+   * @param content The content of the message.
+   * @param tool_call_id Optional ID if the message is related to a tool call.
+   * @param status The status of the message (e.g., "completed", "dropped").
+   * @param group_id Optional ID to group related messages together.
+   * @param parsing_strategy Optional strategy used to parse the message.
+   * @param tokens The number of tokens used by this message.
+   * @return absl::Status OK if successful, otherwise an error.
+   */
+  absl::Status AppendMessage(const std::string& session_id, const std::string& role,
+                             const std::string& content,
+                             const std::string& tool_call_id = "",
+                             const std::string& status = "completed",
+                             const std::string& group_id = "",
+                             const std::string& parsing_strategy = "",
+                             int tokens = 0);
   absl::Status UpdateMessageStatus(int id, const std::string& status);
 
   absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id,

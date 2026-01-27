@@ -111,18 +111,21 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
   return payload;
 }
 
-absl::Status OpenAiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                                 const std::string& group_id) {
+absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& session_id,
+                                                       const std::string& response_json,
+                                                       const std::string& group_id) {
   auto j = nlohmann::json::parse(response_json, nullptr, false);
   if (j.is_discarded()) {
     LOG(ERROR) << "Failed to parse OpenAI response: " << response_json;
     return absl::InternalError("Failed to parse LLM response");
   }
 
+  int total_tokens = 0;
   if (j.contains("usage")) {
     auto& usage = j["usage"];
     int prompt = usage.value("prompt_tokens", 0);
     int completion = usage.value("completion_tokens", 0);
+    total_tokens = prompt + completion;
     (void)db_->RecordUsage(session_id, model_, prompt, completion);
   }
 
@@ -131,13 +134,14 @@ absl::Status OpenAiOrchestrator::ProcessResponse(const std::string& session_id, 
     CHECK(j["choices"][0].contains("message"));
     auto& msg = j["choices"][0]["message"];
     if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
-      status = db_->AppendMessage(session_id, "assistant", msg.dump(),
-                                  msg["tool_calls"][0]["id"].get<std::string>() + "|" +
-                                      msg["tool_calls"][0]["function"]["name"].get<std::string>(),
-                                  "tool_call", group_id, GetName());
+      status = db_->AppendMessage(
+          session_id, "assistant", msg.dump(),
+          msg["tool_calls"][0]["id"].get<std::string>() + "|" +
+              msg["tool_calls"][0]["function"]["name"].get<std::string>(),
+          "tool_call", group_id, GetName(), total_tokens);
     } else if (msg.contains("content") && !msg["content"].is_null()) {
       std::string text = msg["content"];
-      status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName());
+      status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);
 
       size_t start_pos = text.find("---STATE---");
       if (start_pos != std::string::npos) {
@@ -152,7 +156,8 @@ absl::Status OpenAiOrchestrator::ProcessResponse(const std::string& session_id, 
       }
     }
   }
-  return status;
+  if (!status.ok()) return status;
+  return total_tokens;
 }
 
 absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const Database::Message& msg) {

@@ -142,8 +142,9 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   return strategy_->AssemblePayload(session_id, system_instruction, *history_or);
 }
 
-absl::Status Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                           const std::string& group_id) {
+absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id,
+                                                const std::string& response_json,
+                                                const std::string& group_id) {
   return strategy_->ProcessResponse(session_id, response_json, group_id);
 }
 

@@ -63,8 +63,8 @@ class Orchestrator {
 
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id,
                                                 const std::vector<std::string>& active_skills = {});
-  absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json,
-                               const std::string& group_id = "");
+  absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                     const std::string& group_id = "");
 
   // Rebuilds the session state (---STATE--- anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);

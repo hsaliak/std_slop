@@ -38,8 +38,9 @@ class OrchestratorStrategy {
                                                          const std::vector<Database::Message>& history) = 0;
 
   // Parses the provider's response, records usage, and appends messages to the DB.
-  virtual absl::Status ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                       const std::string& group_id) = 0;
+  // Returns the total tokens used in this turn.
+  virtual absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                              const std::string& group_id) = 0;
 
   // Extracts ToolCalls from a database message.
   virtual absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) = 0;

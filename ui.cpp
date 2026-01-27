@@ -68,19 +68,15 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const 
                          const std::string& prefix = "") {
   if (width == 0) width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
-  size_t line_width = (width > prefix_len) ? width - prefix_len : 0;
   std::string bold_fg = std::string(ansi::Bold) + color_fg;
 
   std::cout << prefix;
   if (header.empty()) {
+    size_t line_width = (width > prefix_len) ? width - prefix_len : 0;
     std::string line(line_width, '-');
     std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
   } else {
-    std::string line = "--[ " + header + " ]--";
-    size_t visible = VisibleLength(line);
-    if (visible < line_width) {
-      line += std::string(line_width - visible, '-');
-    }
+    std::string line = "[ " + header + " ]";
     std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
   }
 }
@@ -96,11 +92,19 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const 
  * @param color_fg The ANSI color code for the header.
  * @param prefix Optional prefix for threading.
  */
-void PrintBorderedBlock(const std::string& header, const std::string& body, const char* color_fg,
-                        const std::string& prefix = "") {
+void PrintStyledBlock(const std::string& body, const std::string& prefix,
+                      const char* fg_color = ansi::White,
+                      const char* bg_color = "") {
   size_t width = GetTerminalWidth();
-  PrintHorizontalLine(width, color_fg, header, prefix);
-  std::cout << WrapText(body, width, prefix) << std::endl;
+  std::string wrapped = WrapText(body, width, prefix);
+  std::vector<std::string> lines = absl::StrSplit(wrapped, '\n');
+
+  for (size_t i = 0; i < lines.size(); ++i) {
+    if (lines[i].empty() && i + 1 == lines.size()) continue;
+    std::cout << Colorize(lines[i], bg_color, fg_color);
+    if (i + 1 < lines.size()) std::cout << "\n";
+  }
+  std::cout << std::endl;
 }
 }  // namespace
 
@@ -199,21 +203,32 @@ std::string ReadLine(const std::string& modeline) {
   return line;
 }
 
-std::string WrapText(const std::string& text, size_t width, const std::string& prefix) {
+std::string WrapText(const std::string& text, size_t width, const std::string& prefix,
+                     const std::string& first_line_prefix) {
   if (width == 0) width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
-  size_t effective_width = (width > prefix_len + 5) ? width - prefix_len : width;
-
+  size_t first_prefix_len = first_line_prefix.empty() ? prefix_len : VisibleLength(first_line_prefix);
+  
   std::string result;
   std::string current_line;
   size_t current_line_visible_len = 0;
+  bool is_first_line = true;
 
   auto finalize_line = [&]() {
     if (!result.empty()) result += "\n";
-    result += prefix + current_line;
+    if (is_first_line) {
+      result += (first_line_prefix.empty() ? prefix : first_line_prefix) + current_line;
+      is_first_line = false;
+    } else {
+      result += prefix + current_line;
+    }
     current_line.clear();
     current_line_visible_len = 0;
   };
+
+  size_t effective_width = (width > std::max(prefix_len, first_prefix_len) + 5) 
+                           ? width - std::max(prefix_len, first_prefix_len) 
+                           : width;
 
   std::stringstream ss(text);
   std::string paragraph;
@@ -406,17 +421,12 @@ void PrintThoughtMessage(const std::string& content, const std::string& prefix) 
   thought = absl::StripAsciiWhitespace(thought);
   if (thought.empty()) return;
 
-  // Print with a white header and wrapped text
-  PrintBorderedBlock("Thought", thought, ansi::White, prefix);
+  PrintStyledBlock(thought, prefix + "    ", ansi::White);
   std::cout << std::endl;
 }
 
-void PrintAssistantMessage(const std::string& content, const std::string& skill_info, const std::string& prefix) {
-  std::string label = "Assistant";
-  if (!skill_info.empty()) {
-    label = "Assistant (" + skill_info + ")";
-  }
-
+void PrintAssistantMessage(const std::string& content, [[maybe_unused]] const std::string& skill_info,
+                           const std::string& prefix, int tokens) {
   std::string remaining = content;
   size_t start = content.find("---THOUGHT---");
   if (start != std::string::npos) {
@@ -431,37 +441,47 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
       remaining = content.substr(end);
       remaining = absl::StripLeadingAsciiWhitespace(remaining);
       if (absl::StartsWith(remaining, "---")) {
-          size_t next_nl = remaining.find('\n');
-          if (next_nl != std::string::npos) {
-              remaining = remaining.substr(next_nl);
-          }
+        size_t next_nl = remaining.find('\n');
+        if (next_nl != std::string::npos) {
+          remaining = remaining.substr(next_nl);
+        }
       }
     }
   }
 
   remaining = absl::StripAsciiWhitespace(remaining);
   if (!remaining.empty()) {
-    PrintBorderedBlock(label, remaining, ansi::Cyan, prefix);
-    std::cout << std::endl;
+    PrintStyledBlock(remaining, prefix + "    ", ansi::Assistant);
+    if (tokens > 0) {
+      std::cout << prefix << "    " << ansi::Grey << "· " << tokens << " tokens" << ansi::Reset << std::endl;
+    }
   }
 }
 
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix) {
   std::string display_args = args;
-  if (args.length() > 60) {
-    display_args = args.substr(0, 57) + "...";
+  // If args is JSON, try to make it more readable or compact
+  auto j = nlohmann::json::parse(args, nullptr, false);
+  if (!j.is_discarded()) {
+      display_args = j.dump();
   }
-  std::string header = absl::Substitute("Tool Call: $0($1)", name, display_args);
-  PrintHorizontalLine(0, ansi::Grey, header, prefix);
+
+  if (display_args.length() > 60) {
+    display_args = display_args.substr(0, 57) + "...";
+  }
+  
+  std::string summary = absl::StrCat(name, "(", display_args, ")");
+  std::cout << prefix << "    " << Colorize(summary, "", ansi::Grey) << std::endl;
 }
 
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status,
                             const std::string& prefix) {
   std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
-  std::string summary = absl::Substitute("Tool Result: $0 ($1) - $2 lines", name, status, lines.size());
+  std::string summary = absl::Substitute("$0 ($1) - $2 lines", name, status, lines.size());
   const char* color = (status == "error" || absl::StartsWith(result, "Error:")) ? ansi::Red : ansi::Grey;
 
-  PrintHorizontalLine(0, color, summary, prefix);
+  // Indent more than the call for visual hierarchy
+  std::cout << prefix << "        " << Colorize(summary, "", color) << std::endl;
 }
 
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit) {
@@ -476,26 +496,32 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
       std::cout << "\n" << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::Green) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
     } else if (msg.role == "assistant") {
-      std::string prefix = "|__ ";
-      // If it's the last message in history or the next message is a user message, use the final branch
-      if (i + 1 == history_or->size() || (*history_or)[i+1].role == "user") {
-          prefix = "|_  ";
-      }
-
       if (msg.status == "tool_call") {
         auto j = nlohmann::json::parse(msg.content, nullptr, false);
-        if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
-          std::string content = j["content"];
-          if (!content.empty()) {
-            PrintAssistantMessage(content, "", "|__ ");
+        if (!j.is_discarded()) {
+          if (j.contains("content") && j["content"].is_string()) {
+            std::string content = j["content"];
+            if (!content.empty()) {
+              PrintAssistantMessage(content, "", "  ", msg.tokens);
+            }
           }
+          if (j.contains("functionCalls") && j["functionCalls"].is_array()) {
+            for (const auto& call : j["functionCalls"]) {
+              std::string name = call.contains("name") ? call["name"].get<std::string>() : "unknown";
+              std::string args = call.contains("args") ? call["args"].dump() : "{}";
+              PrintToolCallMessage(name, args, "  ");
+            }
+          } else {
+            PrintToolCallMessage("tool_call", msg.content, "  ");
+          }
+        } else {
+          PrintToolCallMessage("tool_call", msg.content, "  ");
         }
-        PrintToolCallMessage("LLM", msg.content, " |_ ");
       } else {
-        PrintAssistantMessage(msg.content, "", prefix);
+        PrintAssistantMessage(msg.content, "", "  ", msg.tokens);
       }
     } else if (msg.role == "tool") {
-      PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status, "  |_ ");
+      PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status, "  ");
     } else if (msg.role == "system") {
       std::cout << Colorize("System> ", "", ansi::Yellow) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
