@@ -207,9 +207,10 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
         retry_count++;
         backoff_ms *= 2;
         continue;
-      } else if (extra_wait > 0) {
-        LOG(ERROR) << "Maximum retries reached for " << response_code
-                   << ". Server still suggesting backoff of " << extra_wait << "ms";
+      }
+      if (extra_wait > 0) {
+        LOG(ERROR) << "Maximum retries reached for " << response_code << ". Server still suggesting backoff of "
+                   << extra_wait << "ms";
       }
     }
 

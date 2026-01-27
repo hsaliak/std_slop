@@ -1,7 +1,9 @@
 #include "shell_util.h"
+
 #include <array>
 #include <cstdio>
 #include <memory>
+
 #include "absl/status/status.h"
 
 namespace slop {

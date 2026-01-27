@@ -2,6 +2,7 @@
 #define SLOP_SHELL_UTIL_H_
 
 #include <string>
+
 #include "absl/status/statusor.h"
 
 namespace slop {

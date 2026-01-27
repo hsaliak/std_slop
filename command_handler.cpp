@@ -1,7 +1,6 @@
 #include "command_handler.h"
 #include "oauth_handler.h"
 #include "orchestrator.h"
-#include "shell_util.h"
 #include "ui.h"
 
 #include <unistd.h>
@@ -23,6 +22,7 @@
 #include "nlohmann/json.hpp"
 
 #include "command_definitions.h"
+#include "shell_util.h"
 
 namespace slop {
 
@@ -682,7 +682,8 @@ CommandHandler::Result CommandHandler::HandleManualReview(CommandArgs& args) {
   }
 
   args.input = "The user has reviewed the current changes. Here is the diff with their 'R:' comments:\n\n" + edited +
-               "\n\nPlease address the instructions marked with 'R:' in the diff above. Do not commit any changes after addressing.";
+               "\n\nPlease address the instructions marked with 'R:' in the diff above. Do not commit any changes "
+               "after addressing.";
 
   return Result::PROCEED_TO_LLM;
 }

@@ -10,6 +10,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+
 #include "shell_util.h"
 namespace slop {
 
@@ -184,9 +185,7 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, co
   return WriteFile(path, content);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) {
-  return RunCommand(command);
-}
+absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) { return RunCommand(command); }
 
 absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context) {
   std::string cmd = "grep -n";
