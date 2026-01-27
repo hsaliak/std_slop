@@ -11,6 +11,7 @@ struct CommandDefinition {
   std::vector<std::string> sub_commands;
   std::vector<std::string> aliases;
   std::vector<std::string> help_lines;
+  std::string category;
 };
 
 const std::vector<CommandDefinition>& GetCommandDefinitions();

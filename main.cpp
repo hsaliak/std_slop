@@ -61,49 +61,60 @@ std::string GetHelpText() {
     std::string command;
     std::string description;
   };
-  std::vector<HelpRow> rows;
+
+  std::map<std::string, std::vector<HelpRow>> category_rows;
+  std::vector<std::string> categories;
 
   for (const auto& def : slop::GetCommandDefinitions()) {
+    if (std::find(categories.begin(), categories.end(), def.category) == categories.end()) {
+      categories.push_back(def.category);
+    }
     for (const auto& line : def.help_lines) {
       if (line.empty()) continue;
       if (line[0] == '/') {
         size_t sep = line.find("  ");
         if (sep != std::string::npos) {
-          rows.push_back({line.substr(0, sep), std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep)))});
+          category_rows[def.category].push_back(
+              {line.substr(0, sep), std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep)))});
         } else {
-          rows.push_back({line, ""});
+          category_rows[def.category].push_back({line, ""});
         }
       } else {
         std::string name_part = def.name;
         for (const auto& alias : def.aliases) {
           name_part += ", " + alias;
         }
-        rows.push_back({name_part, line});
+        category_rows[def.category].push_back({name_part, line});
       }
     }
   }
 
   constexpr size_t kMaxCommandWidth = 35;
-  constexpr size_t kDescriptionSeparatorWidth = 40;
   const std::string kCommandHeader = "Command";
 
   size_t max_cmd_width = kCommandHeader.length();
-  for (const auto& row : rows) {
-    max_cmd_width = std::max(max_cmd_width, row.command.length());
+  for (const auto& [cat, rows] : category_rows) {
+    for (const auto& row : rows) {
+      max_cmd_width = std::max(max_cmd_width, row.command.length());
+    }
   }
   max_cmd_width = std::min(max_cmd_width, kMaxCommandWidth);
 
-  // Header
-  help += "  " + kCommandHeader + std::string(max_cmd_width - kCommandHeader.length(), ' ') + "  Description\n";
-  help += "  " + std::string(max_cmd_width, '-') + "  " + std::string(kDescriptionSeparatorWidth, '-') + "\n";
+  for (const auto& cat : categories) {
+    help += cat + ":\n";
+    help += "  " + kCommandHeader + std::string(max_cmd_width - kCommandHeader.length(), ' ') + "  Description\n";
+    help += "  " + std::string(max_cmd_width, '-') + "  " + std::string(40, '-') + "\n";
 
-  for (const auto& row : rows) {
-    help += "  " + row.command;
-    if (row.command.length() < max_cmd_width) {
-      help += std::string(max_cmd_width - row.command.length(), ' ');
+    for (const auto& row : category_rows[cat]) {
+      help += "  " + row.command;
+      if (row.command.length() < max_cmd_width) {
+        help += std::string(max_cmd_width - row.command.length(), ' ');
+      }
+      help += "  " + row.description + "\n";
     }
-    help += "  " + row.description + "\n";
+    help += "\n";
   }
+
   return help;
 }
 
