@@ -156,6 +156,9 @@ bazel run //:std_slop -- [session_name]
 - `/stats /usage`    Show session usage statistics.
 - `/schema`          Show the SQLite database schema.
 
+### Code Review
+- `/manual-review`   Review current git changes and add comments via `$EDITOR`.
+
 ## Built-in Tools
 
 | Tool | Description |

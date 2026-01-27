@@ -150,14 +150,33 @@ As you work on complex features, you can use the **Scratchpad** to maintain an e
     /session scratchpad read
     ```
 
-### Troubleshooting with Logs
+### Reviewing Your Work
+Before committing your changes, it's good practice to review them.
 
-If you encounter issues (e.g., API errors, tool failures), you can enable verbose logging:
+**Using the `code_reviewer` skill:**
+1.  **Activate**: `/skill activate code_reviewer`
+2.  **Request Review**: "Please review my current changes against Google C++ style."
+3.  **Approve**: If the suggestions look good, tell the agent: "Apply these changes."
+
+**Using Manual Review:**
+1.  **Command**: `/manual-review`
+2.  **Edit**: In the editor that opens, find lines you want to change.
+3.  **Comment**: Add a line starting with `R: ` above or near the change (e.g., `R: Use a more descriptive name here`).
+4.  **Process**: Save and exit. The agent will read your `R:` comments and the diff to implement the fixes.
+
+### Troubleshooting with Logs
+If you encounter issues (e.g., API errors, tool failures), you can enable verbose logging or sink logs to a file:
 
 ```bash
-# See all internal events and request statuses
+# Sink logs to a file for later inspection
+bazel run //:std_slop -- --log=debug.log
+
+# See all internal events and request statuses in stderr
 bazel run //:std_slop -- --stderrthreshold=0
 
 # See full request and response bodies
 bazel run //:std_slop -- --v=2 --stderrthreshold=0
 ```
+
+### Finishing Up
+Once you are done, you can exit the session with `/exit` or `/quit`. Happy slopping!

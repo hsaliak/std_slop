@@ -166,6 +166,27 @@ The Planner can be used to break a large feature into small, atomic tasks which 
 2.  **Initialize Scratchpad**: Ask the LLM to "save this plan to the scratchpad."
 3.  **Execute & Iterate**: As the LLM works, it will autonomously use the `manage_scratchpad` tool to check its progress and update the plan as steps are completed.
 
+### Reviewing Changes
+`std::slop` provides two primary ways to review code changes before they are finalized.
+
+#### 1. Automated Review (via `code_reviewer` skill)
+This flow uses the LLM's knowledge of industry standards (like the Google C++ Style Guide) to automatically identify issues.
+- **Activate**: Run `/skill activate code_reviewer`.
+- **Trigger**: Simply ask the agent: "review the changes".
+- **Execution**: The agent will run `git diff` (including new files) and provide an annotated summary of required changes.
+- **Safety**: The `code_reviewer` persona is instructed **not** to implement changes without explicit user approval after the review is presented.
+
+#### 2. Manual Review (via `/manual-review` command)
+This flow allows the human user to provide precise, line-by-line or general instructions on the current changeset.
+- **Trigger**: Run the `/manual-review` command.
+- **Editor**: Your system `$EDITOR` (e.g., `vim`, `nano`) will open with a diff of all pending changes (including intent-to-add for new files).
+- **Providing Feedback**: Add your comments directly into the editor on new lines starting with `R:`. For example:
+  ```text
+  R: This variable name should be more descriptive.
+  R: Please add a comment explaining this complex logic.
+  ```
+- **Processing**: When you save and exit the editor, `std::slop` sends your `R:` comments along with the diff back to the LLM. The agent will then attempt to address each of your specific points.
+
 ### Other Commands
 - `/models`: List all models available for your current provider.
 - `/model <name>`: Switch to a different LLM model.
