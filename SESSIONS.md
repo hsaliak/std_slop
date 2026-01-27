@@ -48,11 +48,11 @@ To completely clear your context for a new task, simply `/session activate` to a
 Alternatively, you can use `/session clear` to wipe the current session's history while remaining in that session.
 
 ### Removing Sessions
-The `/session remove <name>` command permanently deletes a session and all its associated data (history, usage, state, and context settings).
+The `/session remove <name>` command permanently deletes a session and all its associated data (history, token usage stats, persistent state, and context settings).
 - If the current active session is removed, the system automatically switches to `default_session`.
 
 ### Clearing current Session
-The `/session clear` command deletes all data (history, usage, state) for the current session and rebuilds the context (making it empty). This is useful if you want to restart a task without changing the session name.
+The `/session clear` command deletes all data (history, token usage stats, persistent state) for the current session and rebuilds the context (making it empty). This is useful if you want to restart a task without changing the session name.
 
 ### Persistence
 The ledger is stored in `slop.db` and persists across restarts. Resume a session by providing its name at startup or via `/session`.
