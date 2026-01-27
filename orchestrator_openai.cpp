@@ -74,7 +74,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
       if (valid) {
         msg_obj = {{"role", msg.role}};
         msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|'));
-        msg_obj["content"] = SmarterTruncate(msg.content, kMaxToolResultContext);
+        msg_obj["content"] = Orchestrator::SmarterTruncate(msg.content, Orchestrator::kMaxToolResultContext);
       } else {
         msg_obj = {{"role", "user"}, {"content", "[Invalid tool response suppressed]"}};
       }
@@ -200,14 +200,5 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::GetQuota(const std::string& o
 }
 
 int OpenAiOrchestrator::CountTokens(const nlohmann::json& prompt) { return prompt.dump().length() / 4; }
-
-std::string OpenAiOrchestrator::SmarterTruncate(const std::string& content, size_t limit) {
-  if (content.size() <= limit) return content;
-  std::string truncated = content.substr(0, limit);
-  std::string metadata = absl::Substitute(
-      "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...", limit,
-      content.size());
-  return truncated + metadata;
-}
 
 }  // namespace slop

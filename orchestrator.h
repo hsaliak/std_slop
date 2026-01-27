@@ -84,6 +84,10 @@ class Orchestrator {
   // Refactored: UpdateStrategy is now called by Build() or BuildInto()
   void UpdateStrategy();
 
+  // Utility for truncating large tool results.
+  static constexpr size_t kMaxToolResultContext = 5000;
+  static std::string SmarterTruncate(const std::string& content, size_t limit);
+
  private:
   friend class Builder;
 

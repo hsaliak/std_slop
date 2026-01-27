@@ -26,12 +26,10 @@ class GeminiOrchestrator : public OrchestratorStrategy {
   int CountTokens(const nlohmann::json& prompt) override;
 
  protected:
-  std::string SmarterTruncate(const std::string& content, size_t limit);
   Database* db_;
   HttpClient* http_client_;
   std::string model_;
   std::string base_url_;
-  static constexpr size_t kMaxToolResultContext = 5000;
 };
 
 class GeminiGcaOrchestrator : public GeminiOrchestrator {

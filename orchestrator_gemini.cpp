@@ -72,7 +72,9 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
 
       if (valid) {
         part = {{"functionResponse",
-                 {{"name", name}, {"response", {{"content", SmarterTruncate(msg.content, kMaxToolResultContext)}}}}}};
+                 {{"name", name},
+                  {"response",
+                   {{"content", Orchestrator::SmarterTruncate(msg.content, Orchestrator::kMaxToolResultContext)}}}}}};
       } else {
         role = "user";
         part = {{"text", "[Invalid tool response suppressed]"}};
@@ -200,15 +202,6 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& o
 }
 
 int GeminiOrchestrator::CountTokens(const nlohmann::json& prompt) { return prompt.dump().length() / 4; }
-
-std::string GeminiOrchestrator::SmarterTruncate(const std::string& content, size_t limit) {
-  if (content.size() <= limit) return content;
-  std::string truncated = content.substr(0, limit);
-  std::string metadata = absl::Substitute(
-      "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...", limit,
-      content.size());
-  return truncated + metadata;
-}
 
 GeminiGcaOrchestrator::GeminiGcaOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                                              const std::string& base_url, const std::string& project_id)
