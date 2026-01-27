@@ -18,6 +18,7 @@ Stores user prompts, assistant responses, and tool executions.
 | created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
 | group_id | TEXT | Turn identifier for atomic operations (Unix nanoseconds). |
 | parsing_strategy | TEXT | The orchestrator strategy used to publish the message (e.g., `openai`, `gemini`). Used for filtering tool history during cross-model switches. |
+| tokens | INTEGER | Number of tokens in the message content. Default: 0. |
 
 ### 2. tools
 Registry of available agent tools.

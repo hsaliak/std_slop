@@ -65,6 +65,18 @@ bazel test //:format_test
 bazel run //:format
 ```
 
+### SQL Security
+
+To prevent SQL injection, **never** use string concatenation or `absl::Substitute` with user-supplied values when interacting with the database. Always use the parameterized versions of `Database::Query` and `Database::Execute`:
+
+```cpp
+// Correct
+db_->Query("SELECT * FROM messages WHERE group_id = ?", {sub_args});
+
+// Incorrect
+db_->Query("SELECT * FROM messages WHERE group_id = '" + sub_args + "'");
+```
+
 ### Linting
 
 We use `clang-tidy` for static analysis. Configuration is in `.clang-tidy`.

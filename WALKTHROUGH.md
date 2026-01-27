@@ -88,7 +88,7 @@ Sessions maintain their own context and are completely isolated. They can also b
 /session activate default_session
 ```
 
-Run `/message list` to ensure that you have not polluted your context with details about weather. You can also view the entire context. `/message` also lets you remove the last message and rebuild the context if needed.
+Run `/message list` to see your recent interaction history and monitor token usage. You can also view the entire context. `/message` also lets you remove the last message and rebuild the context if needed.
 
 ```bash
 /bash

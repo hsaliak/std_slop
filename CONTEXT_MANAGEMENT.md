@@ -160,4 +160,7 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 - `/context show`: Display the exact assembled context that will be sent to the LLM.
 - `/context rebuild`: Rebuilds the session state (---STATE--- anchor) from the current context window history.
 - `/undo`: Shortcut to remove the last interaction and rebuild state.
+- `/message list [N]`: List the last `N` interaction groups with token usage information.
+- `/message show <GID>`: View the full content of a specific interaction group.
 - `/message remove <GID>`: Permanently **deletes** a specific message group from the database.
+- `/messages`: Alias for the `/message` command.

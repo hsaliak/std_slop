@@ -85,9 +85,9 @@ If no session name is provided, it defaults to `default_session`.
 - `/session scratchpad edit`: Open the session's scratchpad in your system `$EDITOR`.
 
 ### Message Operations
-- `/message list [N]`: List the prompts of the last `N` message groups.
-- `/message show <GID>`: View the full content (including tool calls/responses) of a specific group.
-- `/message remove <GID>`: Hard delete a specific message group from history.
+- `/message list [N]` (Alias: `/messages list`): List the prompts of the last `N` message groups, including token usage for assistant responses.
+- `/message show <GID>` (Alias: `/messages show`): View the full content (including tool calls/responses and token usage) of a specific group.
+- `/message remove <GID>` (Alias: `/messages remove`): Hard delete a specific message group from history.
 - `/undo`: Delete the very last interaction group and rebuild the session context.
 - `/edit`: Open your last input in your system `$EDITOR` (e.g., vime, nano) and resend it after saving.
 
