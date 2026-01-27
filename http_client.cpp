@@ -188,19 +188,17 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     LOG(ERROR) << "HTTP error " << response_code << ": " << response_string;
 
     if (response_code >= 500 || response_code == 429) {
+      int64_t retry_after_ms = ParseRetryAfter(response_headers);
+      int64_t x_reset_ms = (response_code == 429) ? ParseXRateLimitReset(response_headers) : -1;
+      int64_t google_retry_ms = ParseGoogleRetryDelay(response_string);
+
+      int64_t extra_wait = std::max({retry_after_ms, x_reset_ms, google_retry_ms});
+
       if (retry_count < max_retries) {
         int64_t wait_ms = backoff_ms;
-
-        if (response_code == 429) {
-          int64_t retry_after_ms = ParseRetryAfter(response_headers);
-          int64_t x_reset_ms = ParseXRateLimitReset(response_headers);
-          int64_t google_retry_ms = ParseGoogleRetryDelay(response_string);
-
-          int64_t extra_wait = std::max({retry_after_ms, x_reset_ms, google_retry_ms});
-          if (extra_wait > 0) {
-            LOG(INFO) << "Respecting rate limit signal: " << extra_wait << "ms";
-            wait_ms = std::max(wait_ms, extra_wait);
-          }
+        if (extra_wait > 0) {
+          LOG(INFO) << "Server suggested backoff for " << response_code << ": " << extra_wait << "ms";
+          wait_ms = std::max(wait_ms, extra_wait);
         }
 
         LOG(INFO) << "Retrying " << response_code << " in " << wait_ms << "ms... (Attempt " << retry_count + 1 << "/"
@@ -209,6 +207,9 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
         retry_count++;
         backoff_ms *= 2;
         continue;
+      } else if (extra_wait > 0) {
+        LOG(ERROR) << "Maximum retries reached for " << response_code
+                   << ". Server still suggesting backoff of " << extra_wait << "ms";
       }
     }
 
@@ -226,6 +227,7 @@ int64_t HttpClient::ParseRetryAfter(const absl::flat_hash_map<std::string, std::
   // Try parsing as seconds
   int64_t seconds = 0;
   if (absl::SimpleAtoi(value, &seconds)) {
+    VLOG(1) << "Parsed Retry-After as seconds: " << seconds;
     return seconds * 1000;
   }
 
@@ -236,9 +238,11 @@ int64_t HttpClient::ParseRetryAfter(const absl::flat_hash_map<std::string, std::
   // IMF-fixdate: Fri, 31 Dec 1999 23:59:59 GMT
   if (absl::ParseTime("%a, %d %b %Y %H:%M:%S GMT", value, &retry_time, &err)) {
     int64_t diff_ms = absl::ToInt64Milliseconds(retry_time - absl::Now());
+    VLOG(1) << "Parsed Retry-After as date: " << value << " (" << diff_ms << "ms from now)";
     return std::max<int64_t>(0, diff_ms);
   }
 
+  LOG(WARNING) << "Malformed Retry-After header: " << value;
   return -1;
 }
 
@@ -248,13 +252,18 @@ int64_t HttpClient::ParseXRateLimitReset(const absl::flat_hash_map<std::string, 
 
   const std::string& value = it->second;
   double reset_val = 0;
-  if (!absl::SimpleAtod(value, &reset_val)) return -1;
+  if (!absl::SimpleAtod(value, &reset_val)) {
+    LOG(WARNING) << "Malformed x-ratelimit-reset header: " << value;
+    return -1;
+  }
 
   // If it's a large value, it's likely a Unix timestamp
   if (reset_val > 1000000000) {
     int64_t now_ts = absl::ToUnixSeconds(absl::Now());
     int64_t diff = static_cast<int64_t>(reset_val) - now_ts;
-    return std::max<int64_t>(0, diff * 1000);
+    int64_t wait_ms = std::max<int64_t>(0, diff * 1000);
+    VLOG(1) << "Parsed x-ratelimit-reset as timestamp: " << reset_val << " (" << wait_ms << "ms wait)";
+    return wait_ms;
   }
 
   // Otherwise, treat as relative seconds
@@ -273,7 +282,9 @@ int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
       std::string delay_str = detail["retryDelay"];
       absl::Duration d;
       if (absl::ParseDuration(delay_str, &d)) {
-        return absl::ToInt64Milliseconds(d);
+        int64_t wait_ms = absl::ToInt64Milliseconds(d);
+        VLOG(1) << "Parsed Google retryDelay: " << delay_str << " (" << wait_ms << "ms)";
+        return wait_ms;
       }
     }
   }
