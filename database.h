@@ -23,6 +23,7 @@ class Database {
 
   absl::Status Init(const std::string& db_path = ":memory:");
   absl::Status Execute(const std::string& sql);
+  absl::Status Execute(const std::string& sql, const std::vector<std::string>& params);
 
   struct StmtDeleter {
     void operator()(sqlite3_stmt* stmt) const {
@@ -171,6 +172,7 @@ class Database {
   absl::StatusOr<std::vector<Memo>> GetAllMemos();
   // Full Text Search
   absl::StatusOr<std::string> Query(const std::string& sql);
+  absl::StatusOr<std::string> Query(const std::string& sql, const std::vector<std::string>& params);
 
  private:
   absl::Status RegisterDefaultTools();

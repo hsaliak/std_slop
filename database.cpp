@@ -291,15 +291,15 @@ absl::Status Database::RegisterDefaultSkills() {
   return absl::OkStatus();
 }
 
-absl::Status Database::Execute(const std::string& sql) {
-  char* errmsg = nullptr;
-  int rc = sqlite3_exec(db_.get(), sql.c_str(), nullptr, nullptr, &errmsg);
-  if (rc != SQLITE_OK) {
-    std::string err = errmsg ? errmsg : "unknown error";
-    sqlite3_free(errmsg);
-    return absl::InternalError("Execute error: " + err);
+absl::Status Database::Execute(const std::string& sql) { return Execute(sql, {}); }
+
+absl::Status Database::Execute(const std::string& sql, const std::vector<std::string>& params) {
+  auto stmt_or = Prepare(sql);
+  if (!stmt_or.ok()) return stmt_or.status();
+  for (size_t i = 0; i < params.size(); ++i) {
+    RETURN_IF_ERROR((*stmt_or)->BindText(i + 1, params[i]));
   }
-  return absl::OkStatus();
+  return (*stmt_or)->Run();
 }
 
 absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role,
@@ -770,12 +770,18 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetAllMemos() {
   return results;
 }
 
-absl::StatusOr<std::string> Database::Query(const std::string& sql) {
+absl::StatusOr<std::string> Database::Query(const std::string& sql) { return Query(sql, {}); }
+
+absl::StatusOr<std::string> Database::Query(const std::string& sql, const std::vector<std::string>& params) {
   auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) {
     return stmt_or.status();
   }
   auto& stmt = *stmt_or;
+
+  for (size_t i = 0; i < params.size(); ++i) {
+    RETURN_IF_ERROR(stmt->BindText(i + 1, params[i]));
+  }
 
   nlohmann::json results = nlohmann::json::array();
   while (true) {

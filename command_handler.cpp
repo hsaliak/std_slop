@@ -129,28 +129,39 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
   std::string sub_cmd = sub_parts[0];
   std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
   if (sub_cmd == "list") {
-    int n = sub_args.empty() ? 10 : std::atoi(sub_args.c_str());
-    std::string sql = absl::Substitute(
-        "SELECT group_id, content as prompt FROM messages "
-        "WHERE session_id = '$0' AND role = 'user' "
-        "GROUP BY group_id ORDER BY created_at DESC LIMIT $1",
-        args.session_id, n);
-    auto res = db_->Query(sql);
+    int n = 10;
+    if (!sub_args.empty() && !absl::SimpleAtoi(sub_args, &n)) {
+      std::cerr << "Invalid number: " << sub_args << std::endl;
+      return Result::HANDLED;
+    }
+    std::string sql =
+        "SELECT m1.group_id, m1.content as prompt, MAX(m2.tokens) as tokens "
+        "FROM messages m1 "
+        "LEFT JOIN messages m2 ON m1.group_id = m2.group_id AND m2.role = 'assistant' "
+        "WHERE m1.session_id = ? AND m1.role = 'user' "
+        "GROUP BY m1.group_id ORDER BY m1.created_at DESC LIMIT " +
+        std::to_string(n);
+    auto res = db_->Query(sql, {args.session_id});
     if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
   } else if (sub_cmd == "view" || sub_cmd == "show") {
-    auto res =
-        db_->Query("SELECT role, content FROM messages WHERE group_id = '" + sub_args + "' ORDER BY created_at ASC");
+    auto res = db_->Query("SELECT role, content, tokens FROM messages WHERE group_id = ? ORDER BY created_at ASC",
+                          {sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
         std::string out;
-        for (const auto& m : j)
-          out += "[" + m["role"].get<std::string>() + "]:\n" + m["content"].get<std::string>() + "\n\n";
+        for (const auto& m : j) {
+          out += "[" + m["role"].get<std::string>() + "]:";
+          if (m.contains("tokens") && !m["tokens"].is_null() && m["tokens"].get<int>() > 0) {
+            out += " (" + std::to_string(m["tokens"].get<int>()) + " tokens)";
+          }
+          out += "\n" + m["content"].get<std::string>() + "\n\n";
+        }
         SmartDisplay(out);
       }
     }
   } else if (sub_cmd == "remove") {
-    HandleStatus(db_->Execute("DELETE FROM messages WHERE group_id = '" + sub_args + "'"));
+    HandleStatus(db_->Execute("DELETE FROM messages WHERE group_id = ?", {sub_args}));
     std::cout << "Message group " << sub_args << " deleted." << std::endl;
   }
   return Result::HANDLED;
@@ -160,7 +171,7 @@ CommandHandler::Result CommandHandler::HandleUndo(CommandArgs& args) {
   auto gid_or = db_->GetLastGroupId(args.session_id);
   if (gid_or.ok()) {
     std::string gid = *gid_or;
-    HandleStatus(db_->Execute("DELETE FROM messages WHERE group_id = '" + gid + "'"));
+    HandleStatus(db_->Execute("DELETE FROM messages WHERE group_id = ?", {gid}));
     std::cout << "Undid last interaction (Group ID: " + gid + ")" << std::endl;
     if (orchestrator_) {
       auto status = orchestrator_->RebuildContext(args.session_id);

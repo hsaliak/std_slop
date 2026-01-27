@@ -33,7 +33,7 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
       // Context & History
       {"/message",
        {"list", "show", "remove"},
-       {},
+       {"/messages"},
        {"/message list [N]      List last N messages", "/message show <GID>    View full content of a group",
         "/message remove <GID>  Delete a message group"},
        "Context & History"},
