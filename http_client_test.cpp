@@ -110,4 +110,47 @@ TEST(HttpClientTest, ParseGoogleRetryInfo) {
   EXPECT_EQ(client.ParseGoogleRetryDelay(body), 421);
 }
 
+TEST(HttpClientTest, ParseGoogleErrorInfoDelay) {
+  HttpClient client;
+  std::string body = R"({
+  "error": {
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "RATE_LIMIT_EXCEEDED",
+        "domain": "cloudcode-pa.googleapis.com",
+        "metadata": {
+          "quotaResetDelay": "2.923127754s"
+        }
+      }
+    ]
+  }
+})";
+  EXPECT_EQ(client.ParseGoogleRetryDelay(body), 2923);
+}
+
+TEST(HttpClientTest, ParseGoogleErrorMessageDelay) {
+  HttpClient client;
+  std::string body = R"({
+  "error": {
+    "code": 429,
+    "message": "You have exhausted your capacity on this model. Your quota will reset after 19s.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+})";
+  EXPECT_EQ(client.ParseGoogleRetryDelay(body), 19000);
+}
+
+TEST(HttpClientTest, ParseGoogleRetryDelayRobustness) {
+  HttpClient client;
+  // Test with non-object error
+  EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": "not an object"})"), -1);
+  // Test with non-array details
+  EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": {"details": "not an array"}})"), -1);
+  // Test with missing metadata
+  EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": {"details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo"}]}})"), -1);
+  // Test with malformed duration
+  EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": {"message": "Your quota will reset after infinity."}})"), -1);
+}
+
 }  // namespace slop

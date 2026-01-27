@@ -273,23 +273,57 @@ int64_t HttpClient::ParseXRateLimitReset(const absl::flat_hash_map<std::string, 
 
 int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
   auto j = nlohmann::json::parse(response_body, nullptr, false);
-  if (j.is_discarded()) return -1;
+  if (j.is_discarded() || !j.is_object()) return -1;
 
-  if (!j.contains("error") || !j["error"].contains("details")) return -1;
+  int64_t max_delay_ms = -1;
 
-  for (const auto& detail : j["error"]["details"]) {
-    if (detail.contains("@type") && detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" &&
-        detail.contains("retryDelay")) {
-      std::string delay_str = detail["retryDelay"];
-      absl::Duration d;
-      if (absl::ParseDuration(delay_str, &d)) {
-        int64_t wait_ms = absl::ToInt64Milliseconds(d);
-        VLOG(1) << "Parsed Google retryDelay: " << delay_str << " (" << wait_ms << "ms)";
-        return wait_ms;
+  auto update_max_delay = [&](const std::string& delay_str) {
+    absl::Duration d;
+    if (absl::ParseDuration(delay_str, &d)) {
+      max_delay_ms = std::max(max_delay_ms, absl::ToInt64Milliseconds(d));
+    }
+  };
+
+  if (j.contains("error") && j["error"].is_object()) {
+    const auto& error = j["error"];
+
+    // 1. Parse from message
+    if (error.contains("message") && error["message"].is_string()) {
+      std::string msg = error["message"];
+      constexpr absl::string_view kPrefix = "Your quota will reset after ";
+      size_t pos = msg.find(kPrefix);
+      if (pos != std::string::npos) {
+        absl::string_view delay_part = absl::string_view(msg).substr(pos + kPrefix.size());
+        delay_part = absl::StripSuffix(delay_part, ".");
+        update_max_delay(std::string(delay_part));
+      }
+    }
+
+    // 2. Parse from details
+    if (error.contains("details") && error["details"].is_array()) {
+      for (const auto& detail : error["details"]) {
+        if (!detail.is_object() || !detail.contains("@type") || !detail["@type"].is_string()) continue;
+
+        std::string type = detail["@type"];
+        if (type == "type.googleapis.com/google.rpc.RetryInfo" && detail.contains("retryDelay") &&
+            detail["retryDelay"].is_string()) {
+          update_max_delay(detail["retryDelay"]);
+        } else if (type == "type.googleapis.com/google.rpc.ErrorInfo" && detail.contains("metadata") &&
+                   detail["metadata"].is_object()) {
+          const auto& metadata = detail["metadata"];
+          if (metadata.contains("quotaResetDelay") && metadata["quotaResetDelay"].is_string()) {
+            update_max_delay(metadata["quotaResetDelay"]);
+          }
+        }
       }
     }
   }
-  return -1;
+
+  if (max_delay_ms > 0) {
+    VLOG(1) << "Parsed Google retry delay: " << max_delay_ms << "ms";
+  }
+
+  return max_delay_ms;
 }
 
 }  // namespace slop
