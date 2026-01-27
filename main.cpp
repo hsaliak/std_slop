@@ -402,17 +402,17 @@ int main(int argc, char** argv) {
           if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
             std::string content = j["content"];
             if (!content.empty()) {
-              slop::PrintAssistantMessage(content);
+              slop::PrintAssistantMessage(content, "", "|__ ");
             }
           }
 
           auto calls_or = orchestrator->ParseToolCalls(msg);
           if (calls_or.ok()) {
             for (const auto& call : *calls_or) {
-              slop::PrintToolCallMessage(call.name, call.args.dump());
+              slop::PrintToolCallMessage(call.name, call.args.dump(), " |_ ");
               auto result_or = tool_executor.Execute(call.name, call.args);
               std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error");
+              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error", "  |_ ");
               std::string combined_id = call.id;
               if (call.id != call.name) {
                 combined_id = call.id + "|" + call.name;
@@ -423,7 +423,7 @@ int main(int argc, char** argv) {
             has_tool_calls = true;
           }
         } else if (msg.role == "assistant") {
-          slop::PrintAssistantMessage(msg.content);
+          slop::PrintAssistantMessage(msg.content, "", "|_  ");
         }
       }
 
