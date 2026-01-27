@@ -394,8 +394,12 @@ void PrintThoughtMessage(const std::string& content) {
   std::string thought = content;
   // Clean up markers if present
   thought = absl::StrReplaceAll(thought, {{"---THOUGHT---", ""}, {"---THOUGHT", ""}, {"---THOUGHTS---", ""}});
-  // We keep it simple: just print in white, wrapped.
-  std::cout << Colorize(WrapText(thought, GetTerminalWidth()), "", ansi::White) << std::endl;
+  thought = absl::StripAsciiWhitespace(thought);
+  if (thought.empty()) return;
+
+  // Print with a white header and wrapped text
+  PrintBorderedBlock("Thought", thought, ansi::White);
+  std::cout << std::endl;
 }
 
 void PrintAssistantMessage(const std::string& content, const std::string& skill_info) {

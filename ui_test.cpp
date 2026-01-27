@@ -194,6 +194,9 @@ TEST(UiTest, PrintAssistantMessageWithThoughts) {
   EXPECT_TRUE(output.find("I am thinking.") != std::string::npos);
   EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
 
+  // Verify the "Thought" header is present
+  EXPECT_TRUE(output.find("Thought") != std::string::npos);
+
   // Verify color codes for white (thought) and cyan (assistant)
   // white: \033[37m
   // cyan: \033[36m
