@@ -13,6 +13,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 
 #include "color.h"
@@ -143,18 +144,14 @@ char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] i
   return nullptr;
 }
 
-std::string TruncateToLines(const std::string& text, int max_lines) {
-  std::vector<absl::string_view> lines = absl::StrSplit(text, '\n');
-  if (lines.size() <= static_cast<size_t>(max_lines)) {
-    return text;
-  }
 
-  std::string result;
-  for (int i = 0; i < max_lines; ++i) {
-    absl::StrAppend(&result, lines[i], "\n");
+
+std::string ExtractToolName(const std::string& tool_call_id) {
+  size_t pipe = tool_call_id.find('|');
+  if (pipe != std::string::npos) {
+    return tool_call_id.substr(pipe + 1);
   }
-  absl::StrAppend(&result, "... [", lines.size() - max_lines, " lines omitted] ...");
-  return result;
+  return tool_call_id;
 }
 }  // namespace
 
@@ -403,16 +400,19 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
 
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
   std::string display_args = args;
-  if (args.length() > 80) {
-    display_args = args.substr(0, 66) + "...";
+  if (args.length() > 60) {
+    display_args = args.substr(0, 57) + "...";
   }
-  PrintBorderedBlock("Tool Call: " + name, display_args, ansi::Grey);
-  std::cout << std::endl;
+  std::string header = absl::Substitute("Tool Call: $0($1)", name, display_args);
+  PrintHorizontalLine(0, ansi::Grey, header);
 }
 
-void PrintToolResultMessage(const std::string& result) {
-  PrintBorderedBlock("Tool Result", TruncateToLines(result, 3), ansi::Grey);
-  std::cout << std::endl;
+void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status) {
+  std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
+  std::string summary = absl::Substitute("Tool Result: $0 ($1) - $2 lines", name, status, lines.size());
+  const char* color = (status == "error" || result.find("Error:") == 0) ? ansi::Red : ansi::Grey;
+
+  PrintHorizontalLine(0, color, summary);
 }
 
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit) {
@@ -432,7 +432,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
         PrintAssistantMessage(msg.content);
       }
     } else if (msg.role == "tool") {
-      PrintToolResultMessage(msg.content);
+      PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status);
     } else if (msg.role == "system") {
       std::cout << Colorize("System> ", "", ansi::Yellow) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;

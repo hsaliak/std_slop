@@ -403,7 +403,7 @@ int main(int argc, char** argv) {
               slop::PrintToolCallMessage(call.name, call.args.dump());
               auto result_or = tool_executor.Execute(call.name, call.args);
               std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-              slop::PrintToolResultMessage(result);
+              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error");
               std::string combined_id = call.id;
               if (call.id != call.name) {
                 combined_id = call.id + "|" + call.name;

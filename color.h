@@ -24,6 +24,7 @@ constexpr const char* Grey = "\033[90m";
 constexpr const char* Green = "\033[32m";
 constexpr const char* Yellow = "\033[33m";
 constexpr const char* Magenta = "\033[35m";
+constexpr const char* Red = "\033[31m";
 }  // namespace ansi
 
 namespace slop {

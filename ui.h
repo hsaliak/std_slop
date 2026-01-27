@@ -50,7 +50,7 @@ size_t GetTerminalWidth();
  */
 void PrintAssistantMessage(const std::string& content, const std::string& skill_info = "");
 void PrintToolCallMessage(const std::string& name, const std::string& args);
-void PrintToolResultMessage(const std::string& result);
+void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status = "completed");
 
 }  // namespace slop
 
