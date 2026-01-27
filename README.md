@@ -100,8 +100,8 @@ bazel run //:std_slop -- --stderrthreshold=0
 # Enable verbose logging for request/response bodies
 bazel run //:std_slop -- --v=2 --stderrthreshold=0
 
-# Log to a specific directory
-bazel run //:std_slop -- --log_dir=/tmp/slop_logs
+# Log to a specific file
+bazel run //:std_slop -- --log=slop.log
 ```
 
 ## Usage
