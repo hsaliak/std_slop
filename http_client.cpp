@@ -185,7 +185,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       return response_string;
     }
 
-    LOG(ERROR) << "HTTP error " << response_code << ": " << response_string;
+    LOG(WARNING) << "HTTP error " << response_code << ": " << response_string;
 
     if (response_code >= 500 || response_code == 429) {
       int64_t retry_after_ms = ParseRetryAfter(response_headers);
