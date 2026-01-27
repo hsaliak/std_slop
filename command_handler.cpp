@@ -249,7 +249,7 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
     if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
   } else if (sub_cmd == "show") {
-    auto res = db_->Query("SELECT name, description, json_schema FROM tools WHERE name = '" + sub_args + "'");
+    auto res = db_->Query("SELECT name, description, json_schema FROM tools WHERE name = ?", {sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
@@ -281,7 +281,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "activate") {
-    auto res = db_->Query("SELECT name FROM skills WHERE id = '" + sub_args + "' OR name = '" + sub_args + "'");
+    auto res = db_->Query("SELECT name FROM skills WHERE id = ? OR name = ?", {sub_args, sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
@@ -293,7 +293,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "deactivate") {
-    auto res = db_->Query("SELECT name FROM skills WHERE id = '" + sub_args + "' OR name = '" + sub_args + "'");
+    auto res = db_->Query("SELECT name FROM skills WHERE id = ? OR name = ?", {sub_args, sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
@@ -304,8 +304,8 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "show") {
-    auto res = db_->Query("SELECT name, description, system_prompt_patch FROM skills WHERE name = '" + sub_args +
-                          "' OR id = '" + sub_args + "'");
+    auto res = db_->Query("SELECT name, description, system_prompt_patch FROM skills WHERE name = ? OR id = ?",
+                          {sub_args, sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
@@ -315,8 +315,8 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "edit") {
-    auto res = db_->Query("SELECT id, name, description, system_prompt_patch FROM skills WHERE name = '" + sub_args +
-                          "' OR id = '" + sub_args + "'");
+    auto res = db_->Query("SELECT id, name, description, system_prompt_patch FROM skills WHERE name = ? OR id = ?",
+                          {sub_args, sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
@@ -443,11 +443,11 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
  * @param args Command arguments providing the session ID.
  */
 CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
-  auto res =
-      db_->Query(absl::Substitute("SELECT model, SUM(prompt_tokens) as prompt, SUM(completion_tokens) as completion, "
-                                  "SUM(prompt_tokens + completion_tokens) as total FROM usage "
-                                  "WHERE session_id = '$0' GROUP BY model",
-                                  args.session_id));
+  auto res = db_->Query(
+      "SELECT model, SUM(prompt_tokens) as prompt, SUM(completion_tokens) as completion, "
+      "SUM(prompt_tokens + completion_tokens) as total FROM usage "
+      "WHERE session_id = ? GROUP BY model",
+      {args.session_id});
   if (res.ok()) {
     std::cout << "Usage Stats for Session [" << args.session_id << "]" << std::endl;
     HandleStatus(PrintJsonAsTable(*res));
