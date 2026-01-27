@@ -11,8 +11,9 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 - **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
 - **Historical Context Retrieval**: Unique ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
 - **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
-- **Session Scratchpad**: A flexible, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously.
+- **Session Scratchpad**: A flexible, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously. Mandatory for structured planning and tracking.
 - **Semantic Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions.
+- **Dynamic Skill Orchestration**: The agent proactively searches for and "self-activates" specialized skills (Planner, Code Reviewer, DBA) based on your request, automatically returning to the core persona when the task is complete.
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
 - **Enhanced UI**: ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions.

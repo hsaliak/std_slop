@@ -62,8 +62,8 @@ If no session name is provided, it defaults to `default_session`.
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. While conversational text is preserved across models, tool calls and results are isolated by provider (e.g., Gemini vs. OpenAI) to ensure reliable parsing and execution. Switching providers will hide previous tool interactions from the new model's immediate context.
 - **State**: The persistent "Long-term RAM" for each session.
-- **Scratchpad**: A flexible, persistent markdown workspace for evolving plans and task tracking.
-- **Skills**: Persona patches that inject specific instructions into the system prompt.
+- **Scratchpad**: A flexible, persistent markdown workspace for evolving plans and task tracking. It is the agent's primary source of truth for task progress.
+- **Skills**: Persona patches that inject specific instructions into the system prompt. These can be manually activated or automatically orchestrated by the agent.
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 
@@ -107,13 +107,21 @@ If no session name is provided, it defaults to `default_session`.
 
 Memos are long-term, cross-session pieces of knowledge. While you can manage them via these commands, the LLM is also equipped with `save_memo` and `retrieve_memos` tools to autonomously manage knowledge for you.
 
-### Skills (Personas)
+### Skills & Orchestration
 - `/skill list`: List all available and active skills.
 - `/skill activate <name|id>`: Enable a skill for the current session.
 - `/skill deactivate <name|id>`: Disable a skill for the current session.
 - `/skill add`: Interactive prompt to create a new skill.
 - `/skill edit <name|id>`: Modify an existing skill.
 - `/skill delete <name|id>`: Permanently remove a skill from the database.
+
+#### Dynamic Skill Orchestration
+`std::slop` is designed to be proactive. If you ask the agent to perform a task that requires a specialized persona (like "Plan a feature" or "Review this code"), it will:
+1.  **Search** the `skills` table for a matching persona (e.g., `planner`, `code_reviewer`).
+2.  **Self-Activate**: It will read the `system_prompt_patch` for that skill and adopt its instructions for the current task.
+3.  **Self-Deactivate**: Once the specific task is complete, it will automatically return to its core "cli agent" persona.
+
+If a task is expected to span many turns, the agent may recommend that you permanently activate the skill using `/skill activate`.
 
 #### Example Skills (these are provided as defaults)
 
