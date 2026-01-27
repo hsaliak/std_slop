@@ -11,6 +11,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
@@ -143,8 +144,6 @@ char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] i
   }
   return nullptr;
 }
-
-
 
 std::string ExtractToolName(const std::string& tool_call_id) {
   size_t pipe = tool_call_id.find('|');
@@ -410,7 +409,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args) {
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status) {
   std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
   std::string summary = absl::Substitute("Tool Result: $0 ($1) - $2 lines", name, status, lines.size());
-  const char* color = (status == "error" || result.find("Error:") == 0) ? ansi::Red : ansi::Grey;
+  const char* color = (status == "error" || absl::StartsWith(result, "Error:")) ? ansi::Red : ansi::Grey;
 
   PrintHorizontalLine(0, color, summary);
 }
