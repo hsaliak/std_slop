@@ -404,7 +404,7 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
 void PrintToolCallMessage(const std::string& name, const std::string& args) {
   std::string display_args = args;
   if (args.length() > 80) {
-    display_args = args.substr(0, 66) + "... (Truncated)";
+    display_args = args.substr(0, 66) + "...";
   }
   PrintBorderedBlock("Tool Call: " + name, display_args, ansi::Grey);
   std::cout << std::endl;
