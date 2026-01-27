@@ -682,7 +682,7 @@ CommandHandler::Result CommandHandler::HandleManualReview(CommandArgs& args) {
   }
 
   args.input = "The user has reviewed the current changes. Here is the diff with their 'R:' comments:\n\n" + edited +
-               "\n\nPlease address the instructions marked with 'R:' in the diff above.";
+               "\n\nPlease address the instructions marked with 'R:' in the diff above. Do not commit any changes after addressing.";
 
   return Result::PROCEED_TO_LLM;
 }
