@@ -22,6 +22,7 @@ constexpr const char* Blue = "\033[34m";
 constexpr const char* Cyan = "\033[36m";
 constexpr const char* Assistant = White;
 constexpr const char* Grey = "\033[90m";
+constexpr const char* Thought = Grey;
 constexpr const char* Green = "\033[32m";
 constexpr const char* Yellow = "\033[33m";
 constexpr const char* Magenta = "\033[35m";

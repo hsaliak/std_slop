@@ -421,7 +421,7 @@ void PrintThoughtMessage(const std::string& content, const std::string& prefix) 
   thought = absl::StripAsciiWhitespace(thought);
   if (thought.empty()) return;
 
-  PrintStyledBlock(thought, prefix + "    ", ansi::Grey);
+  PrintStyledBlock(thought, prefix + "    ", ansi::Thought);
   std::cout << std::endl;
 }
 
