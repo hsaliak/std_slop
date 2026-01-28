@@ -1,8 +1,8 @@
 #ifndef SLOP_SQL_COMMAND_HANDLER_H_
 #define SLOP_SQL_COMMAND_HANDLER_H_
 
-#include "database.h"
-#include "ui.h"
+#include "core/database.h"
+#include "interface/ui.h"
 
 #include <functional>
 #include <string>

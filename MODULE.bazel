@@ -12,7 +12,7 @@ bazel_dep(name = "curl", version = "8.8.0")
 bazel_dep(name = "mbedtls", version = "3.6.0")
 bazel_dep(name = "sqlite3", version = "3.51.1.bcr.1")
 bazel_dep(name = "readline", version = "8.2")
-
+bazel_dep(name = "tree-sitter-bazel", version = "0.26.3.bcr.1")
 bazel_dep(name = "aspect_rules_lint", version = "1.0.3")
 bazel_dep(name = "aspect_bazel_lib", version = "2.7.7")
 bazel_dep(name = "rules_multirun", version = "0.9.0")
@@ -28,3 +28,10 @@ register_toolchains("@llvm_toolchain//:all")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+http_archive(
+    name = "tree-sitter-markdown",
+    build_file = "//:tree-sitter-markdown.BUILD",
+    sha256 = "122be47d4a50ac75a4f6861a17c3c88144197e0949f5d83ca917f2382b37761b",
+    strip_prefix = "tree-sitter-markdown-0.5.2",
+    urls = ["https://github.com/tree-sitter-grammars/tree-sitter-markdown/archive/refs/tags/v0.5.2.tar.gz"],
+)

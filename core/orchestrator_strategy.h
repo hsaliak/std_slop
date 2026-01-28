@@ -1,7 +1,7 @@
 #ifndef SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
 #define SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
 
-#include "database.h"
+#include "core/database.h"
 
 #include <string>
 #include <vector>

@@ -1,5 +1,5 @@
-#include "orchestrator.h"
-#include "orchestrator_gemini.h"
+#include "core/orchestrator.h"
+#include "core/orchestrator_gemini.h"
 
 #include <iostream>
 

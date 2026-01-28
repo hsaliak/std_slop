@@ -1,5 +1,5 @@
-#include "command_handler.h"
-#include "database.h"
+#include "interface/command_handler.h"
+#include "core/database.h"
 
 #include <string>
 #include <vector>

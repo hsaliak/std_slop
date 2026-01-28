@@ -269,6 +269,7 @@ int main(int argc, char** argv) {
   slop::SetCompletionCommands(cmd_handler.GetCommandNames(), cmd_handler.GetSubCommandMap());
   std::vector<std::string> active_skills;
 
+  slop::SetupTerminal();
   slop::ShowBanner();
   std::cout << slop::Colorize("std::slop", "", ansi::Logo) << " - Session: " << session_id << " ("
             << orchestrator->GetModel() << ")" << std::endl;

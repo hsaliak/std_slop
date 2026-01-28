@@ -2,97 +2,19 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@aspect_rules_lint//format:defs.bzl", "format_multirun", "format_test")
 load("//:linters.bzl", "clang_tidy_test")
 
-filegroup(
-    name = "all_srcs",
-    srcs = glob(["*.cpp", "*.h"]),
-)
-
-exports_files([".clang-tidy"])
-
-genrule(
-    name = "generate_system_prompt",
-    srcs = ["system_prompt.md"],
-    outs = ["system_prompt_data.h"],
-    cmd = "echo 'namespace slop {' > $@ && " +
-          "echo 'static const char* kBuiltinSystemPrompt = R\"PROMPT(' >> $@ && " +
-          "cat $< >> $@ && " +
-          "echo ')PROMPT\";' >> $@ && " +
-          "echo '}' >> $@ ",
-)
-
-
-cc_library(
-    name = "slop_lib",
-    srcs = [
-        "command_handler.cpp",
-        "database.cpp",
-        "http_client.cpp",
-        "oauth_handler.cpp",
-        "orchestrator.cpp",
-        "orchestrator_gemini.cpp",
-        "orchestrator_openai.cpp",
-        "shell_util.cpp",
-        "tool_executor.cpp",
-        "ui.cpp",
-        "completer.cpp",
-        "command_definitions.cpp",
-    ],
-    hdrs = [
-        "command_handler.h",
-        "completer.h",
-        "command_definitions.h",
-        "database.h",
-        "http_client.h",
-        "oauth_handler.h",
-        "orchestrator.h",
-        "orchestrator_gemini.h",
-        "orchestrator_openai.h",
-        "orchestrator_strategy.h",
-        "shell_util.h",
-        "tool_executor.h",
-        "ui.h",
-        "constants.h",
-        "color.h",
-        "status_macros.h",
-	":generate_system_prompt",
-    ],
-    copts = [
-        "-std=c++17",
-        "-fno-exceptions",
-        "-DSQLITE_ENABLE_COLUMN_METADATA",
-        "-DSQLITE_ENABLE_FTS5",
-    ],
-    defines = [
-        "HAVE_SYSTEM_PROMPT_H",
-        "HAVE_READLINE",
-    ],
-    deps = [
-	    "@readline//:readline",
-	    "@sqlite3//:sqlite3",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/log:initialize",
-        "@curl//:curl",
-        "@nlohmann_json//:json",
-    ],
-)
+exports_files([".clang-tidy", "system_prompt.md"])
 
 cc_binary(
     name = "std_slop",
-    srcs = ["main.cpp",
-    ],
+    srcs = ["main.cpp"],
     copts = [
         "-std=c++17",
         "-fno-exceptions",
     ],
     deps = [
-        ":slop_lib",
+        "//core",
+        "//interface",
+        "//interface:color",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",
@@ -107,77 +29,6 @@ cc_binary(
         "@sqlite3//:sqlite3",
     ],
 )
-
-# Tests
-[
-    cc_test(
-        name = test_name,
-        srcs = [test_name + ".cpp"],
-        copts = [
-            "-std=c++17",
-            "-fno-exceptions",
-            "-DSQLITE_ENABLE_COLUMN_METADATA",
-            "-DSQLITE_ENABLE_FTS5",
-        ],
-        deps = [
-            ":slop_lib",
-	    "@sqlite3//:sqlite3",
-            "@googletest//:gtest_main",
-            "@nlohmann_json//:json",
-            "@abseil-cpp//absl/status",
-        ],
-    )
-    for test_name in [
-        "database_test",
-        "http_client_test",
-        "orchestrator_test",
-        "orchestrator_openai_test",
-        "tool_executor_test",
-        "command_handler_test",
-        "ui_test",
-        "oauth_handler_test",
-        "input_parsing_test",
-        "system_info_test",
-        "check_macro_test",
-        "completer_test",
-        "context_management_test",
-    ]
-]
-
-cc_test(
-    name = "sqlite_test",
-    srcs = ["sqlite_test.cpp"],
-    copts = [
-        "-std=c++17",
-        "-fno-exceptions",
-        "-DSQLITE_ENABLE_COLUMN_METADATA",
-        "-DSQLITE_ENABLE_FTS5",
-    ],
-    deps = [
-	    "@sqlite3//:sqlite3",
-        "@googletest//:gtest_main",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-    ],
-)
-
-cc_test(
-    name = "deps_test",
-    srcs = ["deps_test.cpp"],
-    copts = [
-        "-std=c++17",
-        "-fno-exceptions",
-        "-DSQLITE_ENABLE_COLUMN_METADATA",
-        "-DSQLITE_ENABLE_FTS5",
-    ],
-    deps = [
-	    "@sqlite3//:sqlite3",
-        "@googletest//:gtest_main",
-        "@nlohmann_json//:json",
-        "@curl//:curl",
-    ],
-)
-
 
 sh_binary(
     name = "clang_format_hermetic",
@@ -202,13 +53,17 @@ format_multirun(
 format_test(
     name = "format_test",
     cc = ":clang_format_hermetic",
-    srcs = glob(["*.cpp", "*.h"]),
+    srcs = glob(["*.cpp", "*.h"], allow_empty = True) + [
+        "//core:core",
+        "//interface:interface",
+    ],
 )
 
 clang_tidy_test(
     name = "clang_tidy_test",
     srcs = [
-        ":slop_lib",
+        "//core",
+        "//interface",
         ":std_slop",
     ],
 )

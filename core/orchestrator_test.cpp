@@ -1,5 +1,5 @@
-#include "database.h"
-#include "orchestrator.h"
+#include "core/database.h"
+#include "core/orchestrator.h"
 
 #include <gtest/gtest.h>
 namespace slop {

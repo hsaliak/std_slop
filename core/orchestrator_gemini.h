@@ -1,9 +1,9 @@
 #ifndef SLOP_SQL_ORCHESTRATOR_GEMINI_H_
 #define SLOP_SQL_ORCHESTRATOR_GEMINI_H_
 
-#include "database.h"
-#include "http_client.h"
-#include "orchestrator_strategy.h"
+#include "core/database.h"
+#include "core/http_client.h"
+#include "core/orchestrator_strategy.h"
 
 namespace slop {
 

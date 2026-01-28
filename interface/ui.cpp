@@ -178,7 +178,15 @@ std::string ExtractToolName(const std::string& tool_call_id) {
 }
 }  // namespace
 
-void SetupTerminal() {}
+void SetupTerminal() {
+  // Ensure the terminal is not in "Application Cursor Keys" mode or "Keypad" mode.
+  // These modes often cause terminals to send arrow key sequences (like \033OA) 
+  // on mouse scroll, which readline interprets as history navigation instead of
+  // allowing the terminal to scroll its buffer.
+  // \033[?1l: Disable Application Cursor Keys (DECCKM)
+  // \033>: Disable Keypad Mode (DECPNM)
+  std::cout << "\033[?1l\033>" << std::flush;
+}
 
 void SetCompletionCommands(const std::vector<std::string>& commands,
                            const absl::flat_hash_map<std::string, std::vector<std::string>>& sub_commands) {
@@ -205,6 +213,7 @@ void ShowBanner() {
 }
 
 std::string ReadLine(const std::string& modeline) {
+  SetupTerminal();
   PrintHorizontalLine(0, ansi::Grey, modeline);
   char* buf = readline("> ");
   if (!buf) return "/exit";

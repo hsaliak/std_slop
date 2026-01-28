@@ -1,6 +1,6 @@
-#include "orchestrator.h"
-#include "orchestrator_gemini.h"
-#include "orchestrator_openai.h"
+#include "core/orchestrator.h"
+#include "core/orchestrator_gemini.h"
+#include "core/orchestrator_openai.h"
 
 #include <algorithm>
 #include <fstream>
@@ -17,8 +17,8 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
-#include "constants.h"
-#include "system_prompt_data.h"
+#include "core/constants.h"
+#include "core/system_prompt_data.h"
 #ifdef HAVE_SYSTEM_PROMPT_H
 #endif
 

@@ -1,0 +1,57 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "color",
+    hdrs = ["color.h"],
+#    includes = [".."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "interface",
+    srcs = [
+        "command_handler.cpp",
+        "ui.cpp",
+        "completer.cpp",
+        "command_definitions.cpp",
+    ],
+    hdrs = [
+        "command_handler.h",
+        "completer.h",
+        "command_definitions.h",
+        "ui.h",
+    ],
+    visibility = ["//visibility:public"],
+    copts = ["-std=c++17", "-fno-exceptions"],
+    defines = ["HAVE_READLINE"],
+    deps = [
+        ":color",
+        "//markdown:parser",
+        "//markdown:renderer",
+        "//core",
+        "@readline//:readline",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@nlohmann_json//:json",
+    ],
+)
+
+[
+    cc_test(
+        name = test_name,
+        srcs = [test_name + ".cpp"],
+        copts = ["-std=c++17", "-fno-exceptions"],
+        deps = [
+            ":interface",
+            "//core",
+            "@googletest//:gtest_main",
+        ],
+    )
+    for test_name in [
+        "command_handler_test",
+        "ui_test",
+        "input_parsing_test",
+        "completer_test",
+        "context_management_test",
+    ]
+]

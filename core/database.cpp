@@ -1,4 +1,4 @@
-#include "database.h"
+#include "core/database.h"
 
 #include <iostream>
 #include <unordered_set>
@@ -9,7 +9,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 
-#include "status_macros.h"
+#include "core/status_macros.h"
 
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>

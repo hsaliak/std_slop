@@ -1,5 +1,5 @@
-#include "orchestrator.h"
-#include "orchestrator_openai.h"
+#include "core/orchestrator.h"
+#include "core/orchestrator_openai.h"
 
 #include <iostream>
 

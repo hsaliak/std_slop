@@ -1,5 +1,5 @@
-#include "http_client.h"
-#include "oauth_handler.h"
+#include "core/http_client.h"
+#include "core/oauth_handler.h"
 
 #include <cstdlib>
 #include <fstream>

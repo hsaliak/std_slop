@@ -1,7 +1,7 @@
 #ifndef SLOP_SQL_OAUTH_HANDLER_H_
 #define SLOP_SQL_OAUTH_HANDLER_H_
 
-#include "http_client.h"
+#include "core/http_client.h"
 
 #include <memory>
 #include <string>

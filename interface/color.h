@@ -50,6 +50,8 @@ inline constexpr const char* LinkUrl = "\033[90m";      // Grey
 inline constexpr const char* ListMarker = "\033[33m";   // Yellow
 inline constexpr const char* Quote = "\033[35m";        // Magenta
 inline constexpr const char* HorizontalRule = "\033[90m"; // Grey
+inline constexpr const char* TableBorder = "\033[90m"; // Grey
+inline constexpr const char* TableHeader = "\033[1;36m"; // Bold Cyan
 } // namespace markdown
 } // namespace theme
 }  // namespace ansi

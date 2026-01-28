@@ -1,9 +1,9 @@
-#include "command_handler.h"
-#include "database.h"
-#include "http_client.h"
-#include "orchestrator.h"
-#include "orchestrator_openai.h"
-#include "tool_executor.h"
+#include "interface/command_handler.h"
+#include "core/database.h"
+#include "core/http_client.h"
+#include "core/orchestrator.h"
+#include "core/orchestrator_openai.h"
+#include "core/tool_executor.h"
 
 #include "absl/log/check.h"
 

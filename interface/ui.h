@@ -1,7 +1,7 @@
 #ifndef SLOP_SQL_UI_H_
 #define SLOP_SQL_UI_H_
 
-#include "database.h"
+#include "core/database.h"
 
 #include <string>
 #include <vector>
@@ -9,7 +9,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 
-#include "color.h"
+#include "interface/color.h"
 namespace slop {
 
 void SetupTerminal();

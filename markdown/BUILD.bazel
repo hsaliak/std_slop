@@ -1,0 +1,46 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "parser",
+    srcs = ["parser.cpp"],
+    hdrs = ["parser.h"],
+    deps = [
+        "@tree-sitter-bazel//:tree-sitter",
+        "@tree-sitter-markdown//:tree-sitter-markdown",
+        "@tree-sitter-markdown//:tree-sitter-markdown-inline",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "renderer",
+    srcs = ["renderer.cpp"],
+    hdrs = ["renderer.h"],
+    deps = [
+        ":parser",
+        "//interface:color",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "parser_test",
+    srcs = ["parser_test.cpp"],
+    deps = [
+        ":parser",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "renderer_test",
+    srcs = ["renderer_test.cpp"],
+    deps = [
+        ":renderer",
+        "//interface:color",
+        "@googletest//:gtest_main",
+    ],
+)

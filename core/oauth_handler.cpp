@@ -1,4 +1,4 @@
-#include "oauth_handler.h"
+#include "core/oauth_handler.h"
 
 #include <unistd.h>
 
@@ -15,7 +15,7 @@
 #include "absl/time/clock.h"
 #include "nlohmann/json.hpp"
 
-#include "constants.h"
+#include "core/constants.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>

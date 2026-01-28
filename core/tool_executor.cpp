@@ -1,4 +1,4 @@
-#include "tool_executor.h"
+#include "core/tool_executor.h"
 
 #include <array>
 #include <filesystem>
@@ -11,7 +11,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "shell_util.h"
+#include "core/shell_util.h"
 namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {

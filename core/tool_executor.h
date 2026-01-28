@@ -1,7 +1,7 @@
 #ifndef SLOP_SQL_TOOL_EXECUTOR_H_
 #define SLOP_SQL_TOOL_EXECUTOR_H_
 
-#include "database.h"
+#include "core/database.h"
 
 #include <optional>
 #include <string>

@@ -1,4 +1,4 @@
-#include "command_definitions.h"
+#include "interface/command_definitions.h"
 
 namespace slop {
 

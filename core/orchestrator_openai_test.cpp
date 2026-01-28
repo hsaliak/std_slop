@@ -1,6 +1,6 @@
-#include "database.h"
-#include "http_client.h"
-#include "orchestrator_openai.h"
+#include "core/database.h"
+#include "core/http_client.h"
+#include "core/orchestrator_openai.h"
 
 #include <gtest/gtest.h>
 namespace slop {

@@ -1,5 +1,5 @@
-#include "command_handler.h"
-#include "orchestrator.h"
+#include "interface/command_handler.h"
+#include "core/orchestrator.h"
 
 #include "absl/strings/match.h"
 

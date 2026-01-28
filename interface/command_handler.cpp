@@ -1,7 +1,7 @@
-#include "command_handler.h"
-#include "oauth_handler.h"
-#include "orchestrator.h"
-#include "ui.h"
+#include "interface/command_handler.h"
+#include "core/oauth_handler.h"
+#include "core/orchestrator.h"
+#include "interface/ui.h"
 
 #include <unistd.h>
 
@@ -21,8 +21,8 @@
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 
-#include "command_definitions.h"
-#include "shell_util.h"
+#include "interface/command_definitions.h"
+#include "core/shell_util.h"
 
 namespace slop {
 
