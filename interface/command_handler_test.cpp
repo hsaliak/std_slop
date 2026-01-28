@@ -327,14 +327,8 @@ TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
   ASSERT_TRUE(db.RegisterSkill(s).ok());
 
   // Set up mock editor
-  // We expect the editor to receive a JSON dump.
-  // We return a modified JSON.
-  nlohmann::json edited_json;
-  edited_json["name"] = "myskill";
-  edited_json["description"] = "A test skill";
-  edited_json["system_prompt_patch"] = "EDITED PATCH";
-
-  handler.next_editor_output = edited_json.dump(2);
+  // We return a modified Markdown.
+  handler.next_editor_output = "# Name: myskill\n# Description: A test skill\n\n# System Prompt Patch\nEDITED PATCH";
   handler.editor_was_called = false;
 
   // Edit it
@@ -343,8 +337,6 @@ TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
 
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(handler.editor_was_called);
-  // We don't strictly assert exact JSON format of last_initial_content as it might vary,
-  // but we can check if it contains the original patch.
   EXPECT_TRUE(handler.last_initial_content.find("ORIGINAL PATCH") != std::string::npos);
 
   // Verify update
@@ -358,6 +350,61 @@ TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
     }
   }
   EXPECT_TRUE(found);
+}
+
+TEST_F(CommandHandlerTest, SkillEditEmptyDeletes) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  Database::Skill s{0, "deleteme", "desc", "patch"};
+  ASSERT_TRUE(db.RegisterSkill(s).ok());
+
+  handler.next_editor_output = "   "; // Empty/whitespace
+  std::string input = "/skill edit deleteme";
+  handler.Handle(input, sid, active_skills, []() {}, {});
+
+  auto skills = db.GetSkills();
+  for (const auto& sk : *skills) {
+    EXPECT_NE(sk.name, "deleteme");
+  }
+}
+
+TEST_F(CommandHandlerTest, MemoEditUsingEditor) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  ASSERT_TRUE(db.AddMemo("original content", "[\"tag1\"]").ok());
+  auto memos = db.GetAllMemos();
+  ASSERT_TRUE(!memos->empty());
+  int id = (*memos)[0].id;
+
+  handler.next_editor_output = "# Tags: tag1, tag2\n\nnew content";
+  std::string input = "/memo edit " + std::to_string(id);
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  auto m = db.GetMemo(id);
+  EXPECT_EQ(m->content, "new content");
+  EXPECT_TRUE(m->semantic_tags.find("tag2") != std::string::npos);
+}
+
+TEST_F(CommandHandlerTest, MemoEditEmptyDeletes) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  ASSERT_TRUE(db.AddMemo("content", "[\"tag\"]").ok());
+  auto memos = db.GetAllMemos();
+  int id = (*memos)[0].id;
+
+  handler.next_editor_output = ""; 
+  std::string input = "/memo edit " + std::to_string(id);
+  handler.Handle(input, sid, active_skills, []() {}, {});
+
+  auto m = db.GetMemo(id);
+  EXPECT_FALSE(m.ok());
 }
 
 TEST_F(CommandHandlerTest, EditCommandUsingEditor) {

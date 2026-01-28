@@ -357,46 +357,44 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       if (!j.is_discarded() && !j.empty()) {
         auto& skill_data = j[0];
         int id = skill_data["id"].get<int>();
+        Database::Skill skill{id, skill_data["name"], skill_data["description"],
+                              skill_data["system_prompt_patch"]};
 
-        nlohmann::json edit_obj;
-        edit_obj["name"] = skill_data["name"];
-        edit_obj["description"] = skill_data["description"];
-        edit_obj["system_prompt_patch"] = skill_data["system_prompt_patch"];
+        std::string initial_md = SkillToMarkdown(skill);
+        std::string edited_md = TriggerEditor(initial_md);
 
-        std::string edited_json = TriggerEditor(edit_obj.dump(2));
-        if (!edited_json.empty()) {
-          auto edited_j = nlohmann::json::parse(edited_json, nullptr, false);
-          if (!edited_j.is_discarded()) {
-            Database::Skill s{
-                id, edited_j.value("name", skill_data["name"].get<std::string>()),
-                edited_j.value("description", skill_data["description"].get<std::string>()),
-                edited_j.value("system_prompt_patch", skill_data["system_prompt_patch"].get<std::string>())};
-            HandleStatus(db_->UpdateSkill(s));
-            std::cout << "Skill updated." << std::endl;
-          } else {
-            std::cerr << "Invalid JSON. Update aborted." << std::endl;
-          }
+        if (absl::StripAsciiWhitespace(edited_md).empty()) {
+          std::cout << "Empty content. Deleting skill..." << std::endl;
+          HandleStatus(db_->DeleteSkill(std::to_string(id)));
+          return Result::HANDLED;
+        }
+
+        if (edited_md != initial_md) {
+          Database::Skill s = MarkdownToSkill(edited_md, id);
+          auto status = db_->UpdateSkill(s);
+          HandleStatus(status);
+          if (status.ok()) std::cout << "Skill updated." << std::endl;
         } else {
           std::cout << "No changes made." << std::endl;
         }
       } else {
         std::cerr << "Skill not found: " << sub_args << std::endl;
       }
+    } else {
+      HandleStatus(res.status(), "Database error");
     }
   } else if (sub_cmd == "delete") {
     HandleStatus(db_->DeleteSkill(sub_args));
     std::cout << "Skill deleted." << std::endl;
   } else if (sub_cmd == "add") {
-    std::string name, desc, patch;
-    std::cout << "Skill Name: ";
-    std::getline(std::cin, name);
-    std::cout << "Description: ";
-    std::getline(std::cin, desc);
-    std::cout << "System Prompt Patch (Ctrl+D to finish):\n";
-    std::string line;
-    while (std::getline(std::cin, line)) patch += line + "\n";
-    Database::Skill s{0, name, desc, patch};
-    HandleStatus(db_->RegisterSkill(s));
+    std::string template_md = absl::Substitute("# Name: $0\n# Description: \n\n# System Prompt Patch\n", sub_args);
+    std::string edited_md = TriggerEditor(template_md);
+    if (!absl::StripAsciiWhitespace(edited_md).empty()) {
+      Database::Skill s = MarkdownToSkill(edited_md, 0);
+      auto status = db_->RegisterSkill(s);
+      HandleStatus(status);
+      if (status.ok()) std::cout << "Skill added." << std::endl;
+    }
   }
   return Result::HANDLED;
 }
@@ -673,19 +671,22 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
     }
     auto memo_or = db_->GetMemo(id);
     if (memo_or.ok()) {
-      nlohmann::json obj;
-      obj["tags"] = nlohmann::json::parse(memo_or->semantic_tags, nullptr, false);
-      obj["content"] = memo_or->content;
+      std::string initial_md = MemoToMarkdown(*memo_or);
+      std::string edited_md = TriggerEditor(initial_md);
 
-      std::string edited_json = TriggerEditor(obj.dump(2));
-      if (!edited_json.empty()) {
-        auto edited_j = nlohmann::json::parse(edited_json, nullptr, false);
-        if (!edited_j.is_discarded() && edited_j.contains("tags") && edited_j.contains("content")) {
-          HandleStatus(db_->UpdateMemo(id, edited_j["content"], edited_j["tags"].dump()));
-          std::cout << "Memo " << id << " updated." << std::endl;
-        } else {
-          std::cerr << "Invalid memo JSON. Must contain 'tags' and 'content'." << std::endl;
-        }
+      if (absl::StripAsciiWhitespace(edited_md).empty()) {
+        std::cout << "Empty content. Deleting memo..." << std::endl;
+        HandleStatus(db_->DeleteMemo(id));
+        return Result::HANDLED;
+      }
+
+      if (edited_md != initial_md) {
+        Database::Memo m = MarkdownToMemo(edited_md, id);
+        auto status = db_->UpdateMemo(id, m.content, m.semantic_tags);
+        HandleStatus(status);
+        if (status.ok()) std::cout << "Memo " << id << " updated." << std::endl;
+      } else {
+        std::cout << "No changes made." << std::endl;
       }
     } else {
       HandleStatus(memo_or.status(), "Error");
@@ -705,19 +706,13 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
   } else if (sub_cmd == "add") {
     if (parts.size() < 2) {
       // Allow adding via editor if no args
-      std::string template_json = R"({
-  "tags": ["new-tag"],
-  "content": "Memo content here"
-})";
-      std::string edited_json = TriggerEditor(template_json);
-      if (!edited_json.empty()) {
-        auto edited_j = nlohmann::json::parse(edited_json, nullptr, false);
-        if (!edited_j.is_discarded() && edited_j.contains("tags") && edited_j.contains("content")) {
-          HandleStatus(db_->AddMemo(edited_j["content"], edited_j["tags"].dump()));
-          std::cout << "Memo added." << std::endl;
-        } else {
-          std::cerr << "Invalid memo JSON." << std::endl;
-        }
+      std::string template_md = "# Tags: new-tag\n\nMemo content here";
+      std::string edited_md = TriggerEditor(template_md);
+      if (!absl::StripAsciiWhitespace(edited_md).empty()) {
+        Database::Memo m = MarkdownToMemo(edited_md, 0);
+        auto status = db_->AddMemo(m.content, m.semantic_tags);
+        HandleStatus(status);
+        if (status.ok()) std::cout << "Memo added." << std::endl;
       }
       return Result::HANDLED;
     }
@@ -847,6 +842,60 @@ CommandHandler::Result CommandHandler::HandleManualReview(CommandArgs& args) {
                "after addressing.";
 
   return Result::PROCEED_TO_LLM;
+}
+
+std::string CommandHandler::SkillToMarkdown(const Database::Skill& skill) {
+  return absl::Substitute("# Name: $0\n# Description: $1\n\n# System Prompt Patch\n$2",
+                         skill.name, skill.description, skill.system_prompt_patch);
+}
+
+Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
+  Database::Skill s;
+  s.id = id;
+  std::vector<std::string> lines = absl::StrSplit(md, '\n');
+  bool in_patch = false;
+  for (const auto& line : lines) {
+    if (absl::StartsWith(line, "# Name:")) {
+      s.name = std::string(absl::StripAsciiWhitespace(line.substr(7)));
+    } else if (absl::StartsWith(line, "# Description:")) {
+      s.description = std::string(absl::StripAsciiWhitespace(line.substr(14)));
+    } else if (absl::StartsWith(line, "# System Prompt Patch")) {
+      in_patch = true;
+    } else if (in_patch) {
+      s.system_prompt_patch += line + "\n";
+    }
+  }
+  s.system_prompt_patch = std::string(absl::StripAsciiWhitespace(s.system_prompt_patch));
+  return s;
+}
+
+std::string CommandHandler::MemoToMarkdown(const Database::Memo& memo) {
+  nlohmann::json tags_j = nlohmann::json::parse(memo.semantic_tags, nullptr, false);
+  std::string tags_str;
+  if (!tags_j.is_discarded() && tags_j.is_array()) {
+    tags_str = absl::StrJoin(tags_j.get<std::vector<std::string>>(), ", ");
+  }
+  return absl::Substitute("# Tags: $0\n\n$1", tags_str, memo.content);
+}
+
+Database::Memo CommandHandler::MarkdownToMemo(const std::string& md, int id) {
+  Database::Memo m;
+  m.id = id;
+  std::vector<std::string> lines = absl::StrSplit(md, '\n');
+  bool found_tags = false;
+  for (const auto& line : lines) {
+    if (!found_tags && absl::StartsWith(line, "# Tags:")) {
+      std::string tags_raw = std::string(absl::StripAsciiWhitespace(line.substr(7)));
+      std::vector<std::string> tags = absl::StrSplit(tags_raw, ',', absl::SkipWhitespace());
+      m.semantic_tags = nlohmann::json(tags).dump();
+      found_tags = true;
+    } else if (found_tags) {
+      if (m.content.empty() && absl::StripAsciiWhitespace(line).empty()) continue;
+      m.content += line + "\n";
+    }
+  }
+  m.content = std::string(absl::StripAsciiWhitespace(m.content));
+  return m;
 }
 
 }  // namespace slop

@@ -96,6 +96,12 @@ class CommandHandler {
 
   // Testing hook for shell commands.
   virtual absl::StatusOr<std::string> ExecuteCommand(const std::string& command);
+
+  // Helper methods for Markdown editing
+  std::string SkillToMarkdown(const Database::Skill& skill);
+  Database::Skill MarkdownToSkill(const std::string& md, int id);
+  std::string MemoToMarkdown(const Database::Memo& memo);
+  Database::Memo MarkdownToMemo(const std::string& md, int id);
 };
 
 }  // namespace slop
