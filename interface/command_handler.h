@@ -1,15 +1,15 @@
 #ifndef SLOP_SQL_COMMAND_HANDLER_H_
 #define SLOP_SQL_COMMAND_HANDLER_H_
 
-#include "core/database.h"
-#include "interface/ui.h"
-
 #include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+
+#include "core/database.h"
+#include "interface/ui.h"
 
 namespace slop {
 

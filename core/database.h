@@ -86,12 +86,9 @@ class Database {
    * @param tokens The number of tokens used by this message.
    * @return absl::Status OK if successful, otherwise an error.
    */
-  absl::Status AppendMessage(const std::string& session_id, const std::string& role,
-                             const std::string& content,
-                             const std::string& tool_call_id = "",
-                             const std::string& status = "completed",
-                             const std::string& group_id = "",
-                             const std::string& parsing_strategy = "",
+  absl::Status AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
+                             const std::string& tool_call_id = "", const std::string& status = "completed",
+                             const std::string& group_id = "", const std::string& parsing_strategy = "",
                              int tokens = 0);
   absl::Status UpdateMessageStatus(int id, const std::string& status);
 

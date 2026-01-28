@@ -1,11 +1,11 @@
-#include "interface/command_handler.h"
+#include "absl/log/check.h"
+
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/orchestrator.h"
 #include "core/orchestrator_openai.h"
 #include "core/tool_executor.h"
-
-#include "absl/log/check.h"
+#include "interface/command_handler.h"
 
 #include <gtest/gtest.h>
 

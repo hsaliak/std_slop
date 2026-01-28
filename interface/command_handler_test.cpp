@@ -1,7 +1,8 @@
 #include "interface/command_handler.h"
-#include "core/orchestrator.h"
 
 #include "absl/strings/match.h"
+
+#include "core/orchestrator.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>

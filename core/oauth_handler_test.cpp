@@ -1,4 +1,3 @@
-#include "core/http_client.h"
 #include "core/oauth_handler.h"
 
 #include <cstdlib>
@@ -7,6 +6,8 @@
 #include "absl/strings/match.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+
+#include "core/http_client.h"
 namespace slop {
 
 using ::testing::_;

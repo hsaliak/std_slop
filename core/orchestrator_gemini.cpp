@@ -1,4 +1,3 @@
-#include "core/orchestrator.h"
 #include "core/orchestrator_gemini.h"
 
 #include <iostream>
@@ -8,6 +7,8 @@
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
+
+#include "core/orchestrator.h"
 namespace slop {
 
 GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
@@ -111,9 +112,8 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
   return payload;
 }
 
-absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& session_id,
-                                                       const std::string& response_json,
-                                                       const std::string& group_id) {
+absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                                        const std::string& group_id) {
   auto j = nlohmann::json::parse(response_json, nullptr, false);
   if (j.is_discarded()) {
     LOG(ERROR) << "Failed to parse Gemini response: " << response_json;
@@ -140,9 +140,8 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
     auto& parts = (*target)["candidates"][0]["content"]["parts"];
     for (const auto& part : parts) {
       if (part.contains("functionCall")) {
-        status = db_->AppendMessage(
-            session_id, "assistant", part.dump(), part["functionCall"]["name"],
-            "tool_call", group_id, GetName(), total_tokens);
+        status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call",
+                                    group_id, GetName(), total_tokens);
       } else if (part.contains("text")) {
         std::string text = part["text"];
         status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);
@@ -229,8 +228,8 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::AssemblePayload(const std:
 }
 
 absl::StatusOr<int> GeminiGcaOrchestrator::ProcessResponse(const std::string& session_id,
-                                                      const std::string& response_json,
-                                                      const std::string& group_id) {
+                                                           const std::string& response_json,
+                                                           const std::string& group_id) {
   return GeminiOrchestrator::ProcessResponse(session_id, response_json, group_id);
 }
 

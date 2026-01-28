@@ -1,13 +1,13 @@
 #ifndef SLOP_SQL_OAUTH_HANDLER_H_
 #define SLOP_SQL_OAUTH_HANDLER_H_
 
-#include "core/http_client.h"
-
 #include <memory>
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+
+#include "core/http_client.h"
 
 namespace slop {
 

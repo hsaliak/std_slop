@@ -95,8 +95,7 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Metadata, co
  * @param color_fg The ANSI color code for the header.
  * @param prefix Optional prefix for threading.
  */
-void PrintStyledBlock(const std::string& body, const std::string& prefix,
-                      const char* fg_color = ansi::White,
+void PrintStyledBlock(const std::string& body, const std::string& prefix, const char* fg_color = ansi::White,
                       const char* bg_color = "") {
   size_t width = GetTerminalWidth();
   std::string wrapped = WrapText(body, width, prefix);
@@ -180,7 +179,7 @@ std::string ExtractToolName(const std::string& tool_call_id) {
 
 void SetupTerminal() {
   // Ensure the terminal is not in "Application Cursor Keys" mode or "Keypad" mode.
-  // These modes often cause terminals to send arrow key sequences (like \033OA) 
+  // These modes often cause terminals to send arrow key sequences (like \033OA)
   // on mouse scroll, which readline interprets as history navigation instead of
   // allowing the terminal to scroll its buffer.
   // \033[?1l: Disable Application Cursor Keys (DECCKM)
@@ -230,7 +229,7 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
   if (width == 0) width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
   size_t first_prefix_len = first_line_prefix.empty() ? prefix_len : VisibleLength(first_line_prefix);
-  
+
   std::string result;
   std::string current_line;
   size_t current_line_visible_len = 0;
@@ -248,9 +247,8 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
     current_line_visible_len = 0;
   };
 
-  size_t effective_width = (width > std::max(prefix_len, first_prefix_len) + 5) 
-                           ? width - std::max(prefix_len, first_prefix_len) 
-                           : width;
+  size_t effective_width =
+      (width > std::max(prefix_len, first_prefix_len) + 5) ? width - std::max(prefix_len, first_prefix_len) : width;
 
   std::stringstream ss(text);
   std::string paragraph;
@@ -512,13 +510,13 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   // If args is JSON, try to make it more readable or compact
   auto j = nlohmann::json::parse(args, nullptr, false);
   if (!j.is_discarded()) {
-      display_args = j.dump();
+    display_args = j.dump();
   }
 
   if (display_args.length() > 60) {
     display_args = display_args.substr(0, 57) + "...";
   }
-  
+
   std::string summary = absl::StrCat(name, "(", display_args, ")");
   std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata) << std::endl;
 }
@@ -540,7 +538,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
   size_t start = history_or->size() > static_cast<size_t>(limit) ? history_or->size() - limit : 0;
   for (size_t i = start; i < history_or->size(); ++i) {
     const auto& msg = (*history_or)[i];
-    
+
     if (msg.role == "user") {
       std::cout << "\n" << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::UserLabel) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;

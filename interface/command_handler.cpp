@@ -1,7 +1,4 @@
 #include "interface/command_handler.h"
-#include "core/oauth_handler.h"
-#include "core/orchestrator.h"
-#include "interface/ui.h"
 
 #include <unistd.h>
 
@@ -21,8 +18,11 @@
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 
-#include "interface/command_definitions.h"
+#include "core/oauth_handler.h"
+#include "core/orchestrator.h"
 #include "core/shell_util.h"
+#include "interface/command_definitions.h"
+#include "interface/ui.h"
 
 namespace slop {
 
@@ -152,15 +152,15 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
           std::string prompt = row.value("prompt", "");
           std::string escaped_prompt = absl::StrReplaceAll(prompt, {{"|", "\\|"}, {"\n", " "}});
           if (escaped_prompt.length() > 50) escaped_prompt = escaped_prompt.substr(0, 47) + "...";
-          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("group_id", ""),
-                                 escaped_prompt, row.value("tokens", 0));
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("group_id", ""), escaped_prompt,
+                                 row.value("tokens", 0));
         }
         PrintMarkdown(md);
       }
     }
   } else if (sub_cmd == "view" || sub_cmd == "show") {
-    auto res = db_->Query("SELECT role, content, tokens FROM messages WHERE group_id = ? ORDER BY created_at ASC",
-                          {sub_args});
+    auto res =
+        db_->Query("SELECT role, content, tokens FROM messages WHERE group_id = ? ORDER BY created_at ASC", {sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
@@ -269,8 +269,7 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
         md += "| Name | Description | Enabled |\n";
         md += "| :--- | :--- | :---: |\n";
         for (const auto& row : j) {
-          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("name", ""),
-                                 row.value("description", ""),
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("name", ""), row.value("description", ""),
                                  row.value("is_enabled", 1) ? "✅" : "❌");
         }
         PrintMarkdown(md);
@@ -305,11 +304,10 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         md += "| ID | Name | Description | Status |\n";
         md += "| :---: | :--- | :--- | :---: |\n";
         for (const auto& row : j) {
-          bool active = std::find(args.active_skills.begin(), args.active_skills.end(),
-                                  row.value("name", "")) != args.active_skills.end();
-          md += absl::Substitute("| $0 | **$1** | $2 | $3 |\n", row.value("id", 0),
-                                 row.value("name", ""), row.value("description", ""),
-                                 active ? "🟢 ACTIVE" : "⚪ inactive");
+          bool active = std::find(args.active_skills.begin(), args.active_skills.end(), row.value("name", "")) !=
+                        args.active_skills.end();
+          md += absl::Substitute("| $0 | **$1** | $2 | $3 |\n", row.value("id", 0), row.value("name", ""),
+                                 row.value("description", ""), active ? "🟢 ACTIVE" : "⚪ inactive");
         }
         PrintMarkdown(md);
       }
@@ -502,11 +500,8 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       md += "| Model | Prompt | Completion | Total |\n";
       md += "| :--- | :---: | :---: | :---: |\n";
       for (const auto& row : j) {
-        md += absl::Substitute("| $0 | $1 | $2 | $3 |\n", 
-                               row.value("model", "unknown"),
-                               row.value("prompt", 0),
-                               row.value("completion", 0),
-                               row.value("total", 0));
+        md += absl::Substitute("| $0 | $1 | $2 | $3 |\n", row.value("model", "unknown"), row.value("prompt", 0),
+                               row.value("completion", 0), row.value("total", 0));
       }
       md += "\n";
       PrintMarkdown(md);

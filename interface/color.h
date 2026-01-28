@@ -40,20 +40,20 @@ constexpr const char* SystemLabel = Yellow;
 namespace theme {
 namespace markdown {
 inline constexpr const char* Header = "\033[1;36m";      // Bold Cyan
-inline constexpr const char* HeaderMarker = "\033[90m"; // Grey
+inline constexpr const char* HeaderMarker = "\033[90m";  // Grey
 inline constexpr const char* Bold = "\033[1m";
 inline constexpr const char* Italic = "\033[3m";
-inline constexpr const char* CodeInline = "\033[32m";   // Green
+inline constexpr const char* CodeInline = "\033[32m";  // Green
 inline constexpr const char* CodeBlock = LightGrey;
-inline constexpr const char* LinkText = "\033[34;4m";   // Blue Underline
-inline constexpr const char* LinkUrl = "\033[90m";      // Grey
-inline constexpr const char* ListMarker = "\033[33m";   // Yellow
-inline constexpr const char* Quote = "\033[35m";        // Magenta
-inline constexpr const char* HorizontalRule = "\033[90m"; // Grey
-inline constexpr const char* TableBorder = "\033[90m"; // Grey
-inline constexpr const char* TableHeader = "\033[1;36m"; // Bold Cyan
-} // namespace markdown
-} // namespace theme
+inline constexpr const char* LinkText = "\033[34;4m";      // Blue Underline
+inline constexpr const char* LinkUrl = "\033[90m";         // Grey
+inline constexpr const char* ListMarker = "\033[33m";      // Yellow
+inline constexpr const char* Quote = "\033[35m";           // Magenta
+inline constexpr const char* HorizontalRule = "\033[90m";  // Grey
+inline constexpr const char* TableBorder = "\033[90m";     // Grey
+inline constexpr const char* TableHeader = "\033[1;36m";   // Bold Cyan
+}  // namespace markdown
+}  // namespace theme
 }  // namespace ansi
 
 namespace slop {

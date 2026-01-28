@@ -1,14 +1,13 @@
 #ifndef SLOP_SQL_UI_H_
 #define SLOP_SQL_UI_H_
 
-#include "core/database.h"
-
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 
+#include "core/database.h"
 #include "interface/color.h"
 namespace slop {
 
@@ -46,7 +45,8 @@ void HandleStatus(const absl::Status& status, const std::string& context = "");
 
 // Wraps text to a specific width, preserving newlines and being ANSI-aware.
 // Optionally prepends a prefix to each line.
-std::string WrapText(const std::string& text, size_t width = 0, const std::string& prefix = "", const std::string& first_line_prefix = "");
+std::string WrapText(const std::string& text, size_t width = 0, const std::string& prefix = "",
+                     const std::string& first_line_prefix = "");
 
 // Returns terminal width or 80 if detection fails.
 size_t GetTerminalWidth();
@@ -58,8 +58,8 @@ void PrintAssistantMessage(const std::string& content, const std::string& skill_
                            const std::string& prefix = "", int tokens = 0);
 void PrintThoughtMessage(const std::string& content, const std::string& prefix = "");
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix = "");
-void PrintToolResultMessage(const std::string& name, const std::string& result,
-                            const std::string& status = "completed", const std::string& prefix = "");
+void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status = "completed",
+                            const std::string& prefix = "");
 
 }  // namespace slop
 

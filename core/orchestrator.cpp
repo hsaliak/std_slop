@@ -1,6 +1,4 @@
 #include "core/orchestrator.h"
-#include "core/orchestrator_gemini.h"
-#include "core/orchestrator_openai.h"
 
 #include <algorithm>
 #include <fstream>
@@ -18,6 +16,8 @@
 #include "absl/time/clock.h"
 
 #include "core/constants.h"
+#include "core/orchestrator_gemini.h"
+#include "core/orchestrator_openai.h"
 #include "core/system_prompt_data.h"
 #ifdef HAVE_SYSTEM_PROMPT_H
 #endif
@@ -142,9 +142,8 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   return strategy_->AssemblePayload(session_id, system_instruction, *history_or);
 }
 
-absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id,
-                                                const std::string& response_json,
-                                                const std::string& group_id) {
+absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                                  const std::string& group_id) {
   return strategy_->ProcessResponse(session_id, response_json, group_id);
 }
 

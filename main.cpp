@@ -1,11 +1,3 @@
-#include "interface/command_handler.h"
-#include "core/database.h"
-#include "core/http_client.h"
-#include "core/oauth_handler.h"
-#include "core/orchestrator.h"
-#include "core/tool_executor.h"
-#include "interface/ui.h"
-
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -28,13 +20,22 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
+#include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
+#include "core/constants.h"
+#include "core/database.h"
+#include "core/http_client.h"
+#include "core/oauth_handler.h"
+#include "core/orchestrator.h"
+#include "core/tool_executor.h"
 #include "interface/color.h"
 #include "interface/command_definitions.h"
-#include "core/constants.h"
+#include "interface/command_handler.h"
+#include "interface/ui.h"
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
 ABSL_FLAG(std::string, log, "", "Log file path");
@@ -71,17 +72,17 @@ std::string GetHelpText() {
       if (line[0] == '/') {
         size_t sep = line.find("  ");
         if (sep != std::string::npos) {
-          category_rows[def.category].push_back(
-              {line.substr(0, sep), std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep)))});
+          category_rows[def.category].emplace_back(
+              line.substr(0, sep), std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep))));
         } else {
-          category_rows[def.category].push_back({line, ""});
+          category_rows[def.category].emplace_back(line, "");
         }
       } else {
         std::string name_part = def.name;
         for (const auto& alias : def.aliases) {
           name_part += ", " + alias;
         }
-        category_rows[def.category].push_back({name_part, line});
+        category_rows[def.category].emplace_back(name_part, line);
       }
     }
   }

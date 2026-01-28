@@ -6,6 +6,7 @@
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
+
 #include <gtest/gtest.h>
 
 namespace slop {
@@ -145,7 +146,7 @@ TEST(UiTest, PrintToolCallMessageShowsSummary) {
   std::string output = buffer.str();
 
   EXPECT_TRUE(output.find("test_tool") != std::string::npos);
-  EXPECT_TRUE(output.find("\"query\":\"foo\"") != std::string::npos || 
+  EXPECT_TRUE(output.find("\"query\":\"foo\"") != std::string::npos ||
               output.find("\"query\": \"foo\"") != std::string::npos);
 }
 
@@ -256,16 +257,16 @@ TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
 }
 
 TEST(UiTest, WrapTextWithPrefix) {
-    std::string text = "This is a long string that should be wrapped to multiple lines when the width is small.";
-    std::string prefix = ">> ";
-    std::string wrapped = WrapText(text, 20, prefix);
-    
-    std::vector<std::string> lines = absl::StrSplit(wrapped, '\n');
-    for (const auto& line : lines) {
-        if (!line.empty()) {
-            EXPECT_TRUE(absl::StartsWith(line, prefix));
-        }
+  std::string text = "This is a long string that should be wrapped to multiple lines when the width is small.";
+  std::string prefix = ">> ";
+  std::string wrapped = WrapText(text, 20, prefix);
+
+  std::vector<std::string> lines = absl::StrSplit(wrapped, '\n');
+  for (const auto& line : lines) {
+    if (!line.empty()) {
+      EXPECT_TRUE(absl::StartsWith(line, prefix));
     }
+  }
 }
 
 }  // namespace slop

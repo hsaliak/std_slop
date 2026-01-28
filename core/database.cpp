@@ -191,8 +191,7 @@ absl::Status Database::Init(const std::string& db_path) {
   }
 
   // Migration: Add tokens column to messages table if it doesn't exist
-  (void)sqlite3_exec(db_.get(), "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr,
-                     nullptr);
+  (void)sqlite3_exec(db_.get(), "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
 
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
@@ -302,10 +301,9 @@ absl::Status Database::Execute(const std::string& sql, const std::vector<std::st
   return (*stmt_or)->Run();
 }
 
-absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role,
-                                     const std::string& content, const std::string& tool_call_id,
-                                     const std::string& status, const std::string& group_id,
-                                     const std::string& parsing_strategy, int tokens) {
+absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
+                                     const std::string& tool_call_id, const std::string& status,
+                                     const std::string& group_id, const std::string& parsing_strategy, int tokens) {
   std::string sql =
       "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy, tokens) "
       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";

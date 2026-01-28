@@ -1,4 +1,3 @@
-#include "core/orchestrator.h"
 #include "core/orchestrator_openai.h"
 
 #include <iostream>
@@ -7,6 +6,8 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
+
+#include "core/orchestrator.h"
 namespace slop {
 
 OpenAiOrchestrator::OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
@@ -111,9 +112,8 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
   return payload;
 }
 
-absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& session_id,
-                                                       const std::string& response_json,
-                                                       const std::string& group_id) {
+absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
+                                                        const std::string& group_id) {
   auto j = nlohmann::json::parse(response_json, nullptr, false);
   if (j.is_discarded()) {
     LOG(ERROR) << "Failed to parse OpenAI response: " << response_json;
@@ -134,11 +134,10 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
     CHECK(j["choices"][0].contains("message"));
     auto& msg = j["choices"][0]["message"];
     if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
-      status = db_->AppendMessage(
-          session_id, "assistant", msg.dump(),
-          msg["tool_calls"][0]["id"].get<std::string>() + "|" +
-              msg["tool_calls"][0]["function"]["name"].get<std::string>(),
-          "tool_call", group_id, GetName(), total_tokens);
+      status = db_->AppendMessage(session_id, "assistant", msg.dump(),
+                                  msg["tool_calls"][0]["id"].get<std::string>() + "|" +
+                                      msg["tool_calls"][0]["function"]["name"].get<std::string>(),
+                                  "tool_call", group_id, GetName(), total_tokens);
     } else if (msg.contains("content") && !msg["content"].is_null()) {
       std::string text = msg["content"];
       status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);

@@ -19,7 +19,7 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
                                                  const std::vector<Database::Message>& history) override;
 
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                     const std::string& group_id) override;
+                                      const std::string& group_id) override;
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) override;
 

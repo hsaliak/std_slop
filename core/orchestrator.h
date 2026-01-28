@@ -1,15 +1,15 @@
 #ifndef SLOP_SQL_ORCHESTRATOR_H_
 #define SLOP_SQL_ORCHESTRATOR_H_
 
-#include "core/database.h"
-#include "core/http_client.h"
-#include "core/orchestrator_strategy.h"
-
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
+
+#include "core/database.h"
+#include "core/http_client.h"
+#include "core/orchestrator_strategy.h"
 
 #include <nlohmann/json.hpp>
 
@@ -64,7 +64,7 @@ class Orchestrator {
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id,
                                                 const std::vector<std::string>& active_skills = {});
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                     const std::string& group_id = "");
+                                      const std::string& group_id = "");
 
   // Rebuilds the session state (---STATE--- anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);
