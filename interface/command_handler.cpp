@@ -39,6 +39,7 @@ CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHa
 }
 
 void CommandHandler::RegisterCommands() {
+  commands_.reserve(64); // Allocate enough bucket space up front
   commands_["/help"] = [this](CommandArgs& args) { return HandleHelp(args); };
   commands_["/exit"] = [this](CommandArgs& args) { return HandleExit(args); };
   commands_["/edit"] = [this](CommandArgs& args) { return HandleEdit(args); };
@@ -60,8 +61,9 @@ void CommandHandler::RegisterCommands() {
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
     if (it != commands_.end()) {
+      auto handler = it->second; // copy the handler out to the stack
       for (const auto& alias : def.aliases) {
-        commands_[alias] = it->second;
+        commands_[alias] = handler;
       }
       if (!def.sub_commands.empty()) {
         sub_commands_[def.name] = def.sub_commands;
