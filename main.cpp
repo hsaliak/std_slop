@@ -405,7 +405,7 @@ int main(int argc, char** argv) {
           if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
             std::string content = j["content"];
             if (!content.empty()) {
-              slop::PrintAssistantMessage(content, "", "  ", total_tokens, /*force_thought=*/true);
+              slop::PrintAssistantMessage(content, "  ", total_tokens);
             }
           }
 
@@ -426,7 +426,7 @@ int main(int argc, char** argv) {
             has_tool_calls = true;
           }
         } else if (msg.role == "assistant") {
-          slop::PrintAssistantMessage(msg.content, "", "  ", total_tokens);
+          slop::PrintAssistantMessage(msg.content, "  ", total_tokens);
         }
       }
 
