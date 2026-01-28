@@ -71,6 +71,7 @@ If no session name is provided, it defaults to `default_session`.
 
 `std::slop` features an enhanced CLI UI designed for readability:
 - **Colors**: Tool headers are displayed in black text on a cyan background. Assistant messages are indented for clarity.
+- **Markdown Tables**: Long tables are intelligently handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
 - **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter, while providing enough information for the user to follow the agent's progress. Full content is still sent to the LLM when appropriate.
 
 ## Slash Commands

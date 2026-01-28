@@ -33,7 +33,14 @@ A container for the results of a parse operation.
 
 ### `MarkdownRenderer`
 Handles the conversion of a `ParsedMarkdown` object into a styled string.
+- `void SetMaxWidth(size_t width)`: Sets the maximum width for layout (e.g., terminal width). If set to 0 (default), no wrapping or shrinking is applied.
 - `std::string Render(const ParsedMarkdown& parsed)`: Performs a recursive DFS traversal of the syntax forest and applies ANSI styles defined in `color.h`. Returns a terminal-ready string.
+
+#### Intelligent Table Wrapping
+The renderer includes advanced table layout logic:
+- **Greedy Column Shrinking**: If a table exceeds `max_width`, the renderer iteratively shrinks the widest columns until the table fits or a minimum column width is reached.
+- **Multi-line Cells**: Content within table cells is word-wrapped to the column's assigned width, creating multi-line rows that preserve the table grid structure.
+- **UTF-8 Awareness**: Width calculations and word-breaking logic are multi-byte aware, ensuring correct rendering of international characters and ANSI-styled content.
 
 ### Supporting Types
 - `Range`: Represents a byte range `[start_byte, end_byte)` in the source document.
@@ -54,6 +61,7 @@ if (result.ok()) {
     
     // 2. Render to terminal-ready string
     slop::markdown::MarkdownRenderer renderer;
+    renderer.SetMaxWidth(80); // Optional: Set layout boundary
     std::string terminal_output = renderer.Render(parsed);
     
     std::cout << terminal_output << std::endl;

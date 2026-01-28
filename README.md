@@ -17,6 +17,7 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 - **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
 - **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
 - **Enhanced UI**: ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions.
+- **Intelligent Table Wrapping**: Markdown tables are automatically shrunk and word-wrapped to fit your terminal width, ensuring no data is lost even in narrow windows.
 - **Output Truncation**: Smart truncation of tool calls and results to 60 columns to maintain terminal clarity while preserving relevant context.
 - **Tool Execution**: Autonomous local file system and shell operations.
 - **Readline Support**: Command history and line auto-completion.
