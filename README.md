@@ -5,24 +5,22 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 ## Distinguishing Features
 
 - **Ledger-Driven**: All interactions, tool calls, and system changes are stored in SQLite.
-- **Multi Model support**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter). Includes optimizations like `--strip_reasoning` for better compatibility with reasoning-enabled models via OpenRouter.
+- **Multi Model support**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter). For OpenRouter models, `--strip_reasoning` is available for better compatibility with reasoning-enabled models.
 - **Strategy-Aware Replay**: Automatically re-parses historical conversation text when switching models mid-session. Tool calls are isolated by provider to keep things simple while avoiding cross-model parsing errors.
 - **Context Control**: Read existing context, manipulate the ledger to remove things from the context, or have complete isolation for multiple context streams through sessions.
-- **Sequential Rolling Window**: Maintains narrative coherence through chronological history windowing.
-- **Historical Context Retrieval**: Unique ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
-- **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM.
-- **Session Scratchpad**: A flexible, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously. Mandatory for structured planning and tracking.
-- **Semantic Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions.
+- **Sequential Rolling Window**: Narrative coherence through chronological history windowing.
+- **Historical Context Retrieval**: Ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
+- **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM as part of system prompt. 
+- **Session Scratchpad**: A task oriented, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously. Mandatory for structured planning and tracking. Largely 'self managed' by the LLM.
+- **Semantic Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions. Build up project specific knowledge over time. This is largely 'self managed' by the LLM.
 - **Dynamic Skill Orchestration**: The agent proactively searches for and "self-activates" specialized skills (Planner, Code Reviewer, DBA) based on your request, automatically returning to the core persona when the task is complete.
-- **Live Code Search**: Instant codebase exploration using `git grep` (with standard `grep` fallback), providing rich context and line numbers without indexing overhead.
-- **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees.
-- **Enhanced UI**: ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions.
+- **Live Code Search**: Heavy reliance on  `git grep` (with standard `grep` fallback), for rich context and line numbers without indexing overhead. `git grep` supports function context based searching, so that reads are context efficient.
+- **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees. The token counters are tracked in the SQL DB to present fine grained usage stats per task.
+- **Enhanced UI**: Tree Sitter based Markdown support. Uses ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions. UI is also deliberately kept simple without frills.
 - **Intelligent Table Wrapping**: Markdown tables are automatically shrunk and word-wrapped to fit your terminal width, ensuring no data is lost even in narrow windows.
 - **Output Truncation**: Smart truncation of tool calls and results to 60 columns to maintain terminal clarity while preserving relevant context.
-- **Tool Execution**: Autonomous local file system and shell operations.
 - **Readline Support**: Command history and line auto-completion.
 - **Skills System**: Inject specialized personas and instructions into the session.
-- **Knowledge Management**: Use `/memo` to save and search for cross-session knowledge, architectural decisions, and patterns.
 
 ## Architecture
 
@@ -35,7 +33,7 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 
 - **`core/`**: The engine of `std::slop`. Contains database management, the Orchestrator (logic for model interaction), HTTP clients, and tool execution logic.
 - **`interface/`**: User interface components, including terminal UI, command handling, and line completion.
-- **`markdown/`**: A self-contained library for parsing and rendering Markdown to terminal-ready ANSI-styled strings using tree-sitter.
+- **`markdown/`**: A self-contained library for parsing and rendering Markdown to terminal-ready ANSI-styled strings using tree-sitter. Might be split out later. 
 - **`scripts/`**: Utility scripts for linting, formatting.
 - **`main.cpp`**: Application entry point and global initialization.
 
@@ -89,6 +87,7 @@ db_->Query("SELECT * FROM messages WHERE group_id = '" + sub_args + "'");
 ### Linting
 
 We use `clang-tidy` for static analysis. Configuration is in `.clang-tidy`.
+Code is `asan` and `tsan` clean.
 
 **Run linter:**
 ```bash
@@ -149,60 +148,7 @@ bazel run //:std_slop -- [session_name]
 
 **Caution:** This agent can execute shell commands and modify your file system. It is highly recommended to run this project in a sandboxed environment such as **bubblewrap** or **Docker** to prevent accidental or malicious damage to your system.
 
-## Command Reference
-
-### Session and Context
-- `/session list`      List all unique session names in the DB.
-- `/session activate <name>` Switch to or create a new session.
-- `/session remove <name>` Delete a session and all its data.
-- `/session clear`     Clear all history and state for current session.
-- `/undo`            Remove last interaction and rebuild context.
-- `/context`         Show context status and assembled prompt.
-- `/context window <N>` Set size of rolling window (0 for full history).
-- `/window <N>`      Alias for `/context window <N>`.
-- `/context rebuild` Rebuild session state from conversation history.
-
-### Skills and Tools
-- `/skill list`      List available skills.
-- `/skill show <ID>` Display details of a skill.
-- `/tool list`       List enabled tools.
-- `/tool show <name>` Show tool schema and description.
-
-
-### Models and Settings
-- `/models`          List available models from the provider.
-- `/model <name>`    Switch the active LLM model.
-- `/throttle [N]`    Set or show request throttle (seconds) for agentic loops.
-- `/exec <command>`  Run a shell command and view output in a pager.
-- `/edit`            Open `$EDITOR` for multi-line input.
-- `/stats /usage`    Show session usage statistics.
-- `/schema`          Show the SQLite database schema.
-
-### Code Review
-- `/manual-review`   Review current git changes and add comments via `$EDITOR`.
-
-## Built-in Tools
-
-| Tool | Description |
-| :--- | :--- |
-| `read_file` | Read local file contents with automatic line numbering. Supports `start_line` and `end_line`. |
-| `write_file` | Create or overwrite local files. |
-| `grep_tool` | Search for patterns with context (delegates to `git grep` when possible). |
-| `git_grep_tool` | Advanced git-based search with support for branches, history, and function-level context. |
-
-| `execute_bash` | Run arbitrary shell commands. |
-| `query_db` | Query the session ledger using SQL. Used for data analysis and **historical context retrieval**. |
-
-## Built-in Skills
-
-| Skill | Description |
-| :--- | :--- |
-| `planner` | Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery. |
-| `dba` | Database Administrator specializing in SQLite schema design and data integrity. |
-| `c++_expert` | Enforces strict adherence to project C++17 constraints (Google Style, no exceptions). |
-| `code_reviewer` | Multilingual code reviewer enforcing language-specific standards (Google C++, PEP8, etc.). |
-
-## Project Constraints
+## Code
 
 - C++ Standard: C++17.
 - Style: Google C++ Style Guide.
@@ -210,6 +156,7 @@ bazel run //:std_slop -- [session_name]
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
 - Avoid threading and async primitives, if they must be used, use absl based primitives with std::thread. Any threading workflow requires tsan tests.
+- Asan and Tsan clean at all time.
 
 ## Other Documentation
 

@@ -642,9 +642,83 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
       md += absl::Substitute("| $0 | $1 | $2 |\n", m.id, tags, content);
     }
     PrintMarkdown(md);
+  } else if (sub_cmd == "show") {
+    if (parts.size() < 2) {
+      std::cerr << "Usage: /memo show <id>" << std::endl;
+      return Result::HANDLED;
+    }
+    int id;
+    if (!absl::SimpleAtoi(parts[1], &id)) {
+      std::cerr << "Invalid memo ID: " << parts[1] << std::endl;
+      return Result::HANDLED;
+    }
+    auto memo_or = db_->GetMemo(id);
+    if (memo_or.ok()) {
+      std::string escaped_tags = absl::StrReplaceAll(memo_or->semantic_tags, {{"*", "\\*"}, {"_", "\\_"}});
+      std::string md =
+          absl::Substitute("### Memo $0\n\n**Tags**: $1\n\n---\n\n$2", memo_or->id, escaped_tags, memo_or->content);
+      PrintMarkdown(md);
+    } else {
+      HandleStatus(memo_or.status(), "Error");
+    }
+  } else if (sub_cmd == "edit") {
+    if (parts.size() < 2) {
+      std::cerr << "Usage: /memo edit <id>" << std::endl;
+      return Result::HANDLED;
+    }
+    int id;
+    if (!absl::SimpleAtoi(parts[1], &id)) {
+      std::cerr << "Invalid memo ID: " << parts[1] << std::endl;
+      return Result::HANDLED;
+    }
+    auto memo_or = db_->GetMemo(id);
+    if (memo_or.ok()) {
+      nlohmann::json obj;
+      obj["tags"] = nlohmann::json::parse(memo_or->semantic_tags, nullptr, false);
+      obj["content"] = memo_or->content;
+
+      std::string edited_json = TriggerEditor(obj.dump(2));
+      if (!edited_json.empty()) {
+        auto edited_j = nlohmann::json::parse(edited_json, nullptr, false);
+        if (!edited_j.is_discarded() && edited_j.contains("tags") && edited_j.contains("content")) {
+          HandleStatus(db_->UpdateMemo(id, edited_j["content"], edited_j["tags"].dump()));
+          std::cout << "Memo " << id << " updated." << std::endl;
+        } else {
+          std::cerr << "Invalid memo JSON. Must contain 'tags' and 'content'." << std::endl;
+        }
+      }
+    } else {
+      HandleStatus(memo_or.status(), "Error");
+    }
+  } else if (sub_cmd == "remove" || sub_cmd == "delete") {
+    if (parts.size() < 2) {
+      std::cerr << "Usage: /memo remove <id>" << std::endl;
+      return Result::HANDLED;
+    }
+    int id;
+    if (!absl::SimpleAtoi(parts[1], &id)) {
+      std::cerr << "Invalid memo ID: " << parts[1] << std::endl;
+      return Result::HANDLED;
+    }
+    HandleStatus(db_->DeleteMemo(id));
+    std::cout << "Memo " << id << " deleted." << std::endl;
   } else if (sub_cmd == "add") {
     if (parts.size() < 2) {
-      std::cerr << "Usage: /memo add <tags> <content>" << std::endl;
+      // Allow adding via editor if no args
+      std::string template_json = R"({
+  "tags": ["new-tag"],
+  "content": "Memo content here"
+})";
+      std::string edited_json = TriggerEditor(template_json);
+      if (!edited_json.empty()) {
+        auto edited_j = nlohmann::json::parse(edited_json, nullptr, false);
+        if (!edited_j.is_discarded() && edited_j.contains("tags") && edited_j.contains("content")) {
+          HandleStatus(db_->AddMemo(edited_j["content"], edited_j["tags"].dump()));
+          std::cout << "Memo added." << std::endl;
+        } else {
+          std::cerr << "Invalid memo JSON." << std::endl;
+        }
+      }
       return Result::HANDLED;
     }
     std::vector<std::string> add_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 1));

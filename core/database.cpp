@@ -634,6 +634,42 @@ absl::Status Database::AddMemo(const std::string& content, const std::string& se
   return stmt->Run();
 }
 
+absl::Status Database::UpdateMemo(int id, const std::string& content, const std::string& semantic_tags) {
+  auto stmt_or = Prepare("UPDATE llm_memos SET content = ?, semantic_tags = ? WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+  (void)stmt->BindText(1, content);
+  (void)stmt->BindText(2, semantic_tags);
+  (void)stmt->BindInt(3, id);
+  return stmt->Run();
+}
+
+absl::Status Database::DeleteMemo(int id) {
+  auto stmt_or = Prepare("DELETE FROM llm_memos WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+  (void)stmt->BindInt(1, id);
+  return stmt->Run();
+}
+
+absl::StatusOr<Database::Memo> Database::GetMemo(int id) {
+  auto stmt_or = Prepare("SELECT id, content, semantic_tags, created_at FROM llm_memos WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+  (void)stmt->BindInt(1, id);
+
+  auto res = stmt->Step();
+  if (!res.ok()) return res.status();
+  if (!*res) return absl::NotFoundError(absl::Substitute("Memo $0 not found", id));
+
+  return Memo{
+      stmt->ColumnInt(0),
+      stmt->ColumnText(1),
+      stmt->ColumnText(2),
+      stmt->ColumnText(3),
+  };
+}
+
 absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::vector<std::string>& tags_input) {
   if (tags_input.empty()) return std::vector<Memo>();
 

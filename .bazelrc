@@ -11,6 +11,7 @@ build --copt="-O2"
 build --copt="-fstack-protector-strong"
 build --copt="-D_FORTIFY_SOURCE=2"
 build --copt="-D_GLIBCXX_ASSERTIONS"
+build --copt="-D_GLIBCXX_DEBUG"
 
 # 3. Handle the "Unused Argument" error for Clang
 # This must come BEFORE the specific flags to ensure Clang doesn't choke on GCC flags
