@@ -518,24 +518,21 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
     if (token_or.ok()) {
       auto quota_or = orchestrator_->GetQuota(*token_or);
       if (quota_or.ok() && quota_or->is_object()) {
-        std::cout << "\n--- Gemini User Quota ---" << std::endl;
-        nlohmann::json table = nlohmann::json::array();
-        if (quota_or->contains("buckets") && (*quota_or)["buckets"].is_array()) {
+        std::string md = "### Gemini User Quota\n\n";
+        if (quota_or->contains("buckets") && (*quota_or)["buckets"].is_array() && !(*quota_or)["buckets"].empty()) {
+          md += "| Model ID | Remaining | % | Reset Time | Type |\n";
+          md += "| :--- | :--- | :---: | :--- | :--- |\n";
           for (const auto& b : (*quota_or)["buckets"]) {
             if (!b.is_object()) continue;
-            nlohmann::json row;
-            row["Model ID"] = b.value("modelId", "N/A");
-            row["Remaining Amount"] = b.value("remainingAmount", "N/A");
-            row["Remaining Fraction"] = b.value("remainingFraction", 0.0);
-            row["Reset Time"] = b.value("resetTime", "N/A");
-            row["Token Type"] = b.value("tokenType", "N/A");
-            table.push_back(row);
+            double fraction = b.value("remainingFraction", 0.0);
+            md += absl::Substitute("| `$0` | $1 | $2% | $3 | $4 |\n", b.value("modelId", "N/A"),
+                                   b.value("remainingAmount", "N/A"), static_cast<int>(fraction * 100),
+                                   b.value("resetTime", "N/A"), b.value("tokenType", "N/A"));
           }
-        }
-        if (!table.empty())
-          HandleStatus(PrintJsonAsTable(table.dump()));
-        else
+          PrintMarkdown(md);
+        } else {
           std::cout << "No quota buckets found." << std::endl;
+        }
       } else {
         std::cout << "Could not fetch quota: " << quota_or.status().message() << std::endl;
       }
