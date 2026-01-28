@@ -124,6 +124,11 @@ Memos are long-term, cross-session pieces of knowledge. While you can manage the
 
 If a task is expected to span many turns, the agent may recommend that you permanently activate the skill using `/skill activate`.
 
+#### Skill Composition
+`std::slop` supports the activation of multiple skills simultaneously. For example, you might have the `planner` skill active alongside a project-specific architectural skill.
+- **Non-Conflicting**: Skills should generally be additive.
+- **Conflicts**: If two skills provide conflicting instructions (e.g., one requires "No comments" and another requires "Doxygen comments"), the agent will attempt to reconcile them or ask for clarification.
+
 #### Expanding the Skill Library
 `std::slop` is designed to grow with your project. Both you and the agent are encouraged to add new skills to the `skills` table when a repeatable persona or set of constraints is identified. 
 - **Agent-led**: The agent may suggest creating a new skill if it detects a recurring specialized workflow.
