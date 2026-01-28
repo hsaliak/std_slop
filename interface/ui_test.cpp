@@ -222,10 +222,10 @@ TEST(UiTest, PrintAssistantMessageWithMarkdownThoughts) {
   // 1. Verify markdown was rendered (check for bold escape code in the thought section)
   // theme::markdown::Bold is \033[1m
   EXPECT_TRUE(output.find("\033[1m") != std::string::npos);
-  
+
   // 2. Verify thought styling (grey \033[90m) is applied to the block
   EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
-  
+
   // 3. Verify content
   EXPECT_TRUE(output.find("Thinking") != std::string::npos);
   EXPECT_TRUE(output.find("Response") != std::string::npos);

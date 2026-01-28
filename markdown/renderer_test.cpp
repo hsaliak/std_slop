@@ -122,7 +122,9 @@ TEST(MarkdownRendererTest, TableRendering) {
 TEST(MarkdownRendererTest, LongTableWrapping) {
   MarkdownParser parser;
   // A table with a very long cell content
-  auto p_res = parser.Parse("| Header 1 | Header 2 |\n|---|---|\n| This is a very long cell content that should be wrapped if the width is small | Short |\n");
+  auto p_res = parser.Parse(
+      "| Header 1 | Header 2 |\n|---|---|\n| This is a very long cell content that should be wrapped if the width is "
+      "small | Short |\n");
   ASSERT_TRUE(p_res.ok());
 
   MarkdownRenderer renderer;
@@ -133,7 +135,7 @@ TEST(MarkdownRendererTest, LongTableWrapping) {
   // Check that the content is present and that it contains newlines within the table structure
   EXPECT_NE(rendered.find("Header 1"), std::string::npos);
   EXPECT_NE(rendered.find("very long"), std::string::npos);
-  
+
   // Count the number of │ characters to see if we have multiple lines for the same row
   int pipe_count = 0;
   size_t pos = rendered.find("│");
@@ -141,9 +143,9 @@ TEST(MarkdownRendererTest, LongTableWrapping) {
     pipe_count++;
     pos = rendered.find("│", pos + 1);
   }
-  
-  // A normal 2-column, 2-row table (header + 1 row) would have 2 * (2 * 2 + 1) = 10 pipes? 
-  // Wait, each row has 3 pipes (start, middle, end). 
+
+  // A normal 2-column, 2-row table (header + 1 row) would have 2 * (2 * 2 + 1) = 10 pipes?
+  // Wait, each row has 3 pipes (start, middle, end).
   // Header: 3 pipes.
   // Data row: 3 pipes * lines.
   // If it wraps into 3 lines, that's 9 pipes for the data row.

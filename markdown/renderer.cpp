@@ -25,8 +25,6 @@ struct Style {
   const char* post;
 };
 
-
-
 Style GetNodeStyle(std::string_view type) {
   using namespace ansi::theme::markdown;
   if (type == "atx_heading") return {Header, ansi::Reset};

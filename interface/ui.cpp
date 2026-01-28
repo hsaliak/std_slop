@@ -31,8 +31,6 @@ namespace slop {
 
 namespace {
 
-
-
 /**
  * @brief Prints a horizontal separator line to the terminal.
  *

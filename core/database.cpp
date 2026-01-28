@@ -505,9 +505,8 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 }
 
 absl::Status Database::RegisterTool(const Tool& tool) {
-  return Execute(
-      "INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?);",
-      tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0);
+  return Execute("INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?);",
+                 tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0);
 }
 
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
@@ -531,13 +530,13 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 }
 
 absl::Status Database::RegisterSkill(const Skill& skill) {
-  return Execute("INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?);",
-                 skill.name, skill.description, skill.system_prompt_patch);
+  return Execute("INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?);", skill.name,
+                 skill.description, skill.system_prompt_patch);
 }
 
 absl::Status Database::UpdateSkill(const Skill& skill) {
-  return Execute("UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?;",
-                 skill.description, skill.system_prompt_patch, skill.name);
+  return Execute("UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?;", skill.description,
+                 skill.system_prompt_patch, skill.name);
 }
 
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
@@ -590,7 +589,8 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
 }
 
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
-  return Execute("INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?);", session_id, state_blob);
+  return Execute("INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?);", session_id,
+                 state_blob);
 }
 
 /**

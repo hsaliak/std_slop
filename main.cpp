@@ -72,8 +72,8 @@ std::string GetHelpText() {
       if (line[0] == '/') {
         size_t sep = line.find("  ");
         if (sep != std::string::npos) {
-          category_rows[def.category].emplace_back(
-              line.substr(0, sep), std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep))));
+          category_rows[def.category].emplace_back(line.substr(0, sep),
+                                                   std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep))));
         } else {
           category_rows[def.category].emplace_back(line, "");
         }
