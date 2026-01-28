@@ -449,8 +449,23 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       "WHERE session_id = ? GROUP BY model",
       {args.session_id});
   if (res.ok()) {
-    std::cout << "Usage Stats for Session [" << args.session_id << "]" << std::endl;
-    HandleStatus(PrintJsonAsTable(*res));
+    std::string md = "## Usage Stats for Session [" + args.session_id + "]\n\n";
+    auto j = nlohmann::json::parse(*res, nullptr, false);
+    if (!j.is_discarded() && j.is_array() && !j.empty()) {
+      md += "| Model | Prompt | Completion | Total |\n";
+      md += "| :--- | :---: | :---: | :---: |\n";
+      for (const auto& row : j) {
+        md += absl::Substitute("| $0 | $1 | $2 | $3 |\n", 
+                               row.value("model", "unknown"),
+                               row.value("prompt", 0),
+                               row.value("completion", 0),
+                               row.value("total", 0));
+      }
+      md += "\n";
+      PrintMarkdown(md);
+    } else {
+      std::cout << "No usage data for session [" << args.session_id << "]" << std::endl;
+    }
   }
 
   if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ &&

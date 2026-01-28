@@ -32,6 +32,11 @@ void SmartDisplay(const std::string& content);
 void DisplayAssembledContext(const std::string& json_str);
 
 /**
+ * @brief Renders markdown content to the terminal.
+ */
+void PrintMarkdown(const std::string& markdown, const std::string& prefix = "");
+
+/**
  * @brief Logs an error status if it is not OK.
  *
  * @param status The status to handle.

@@ -50,19 +50,16 @@ ABSL_FLAG(bool, strip_reasoning, false,
 
 std::string GetHelpText() {
   std::string help =
-      "std::slop - The SQL-backed LLM CLI\n\n"
-      "Usage:\n"
-      "  std_slop [session_id] [options]\n\n"
-      "Options:\n"
-      "  Use --helpfull to see all available command-line flags.\n\n"
-      "Slash Commands:\n\n";
+      "# std::slop - The SQL-backed LLM CLI\n\n"
+      "## Usage\n"
+      "```bash\n"
+      "std_slop [session_id] [options]\n"
+      "```\n\n"
+      "## Options\n"
+      "Use `--helpfull` to see all available command-line flags.\n\n"
+      "## Slash Commands\n\n";
 
-  struct HelpRow {
-    std::string command;
-    std::string description;
-  };
-
-  std::map<std::string, std::vector<HelpRow>> category_rows;
+  std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;
   std::vector<std::string> categories;
 
   for (const auto& def : slop::GetCommandDefinitions()) {
@@ -89,28 +86,16 @@ std::string GetHelpText() {
     }
   }
 
-  constexpr size_t kMaxCommandWidth = 35;
-  const std::string kCommandHeader = "Command";
-
-  size_t max_cmd_width = kCommandHeader.length();
-  for (const auto& [cat, rows] : category_rows) {
-    for (const auto& row : rows) {
-      max_cmd_width = std::max(max_cmd_width, row.command.length());
-    }
-  }
-  max_cmd_width = std::min(max_cmd_width, kMaxCommandWidth);
-
   for (const auto& cat : categories) {
-    help += cat + ":\n";
-    help += "  " + kCommandHeader + std::string(max_cmd_width - kCommandHeader.length(), ' ') + "  Description\n";
-    help += "  " + std::string(max_cmd_width, '-') + "  " + std::string(40, '-') + "\n";
+    help += "### " + cat + "\n\n";
+    help += "| Command | Description |\n";
+    help += "| :--- | :--- |\n";
 
     for (const auto& row : category_rows[cat]) {
-      help += "  " + row.command;
-      if (row.command.length() < max_cmd_width) {
-        help += std::string(max_cmd_width - row.command.length(), ' ');
-      }
-      help += "  " + row.description + "\n";
+      // Escape pipes in markdown
+      std::string cmd = absl::StrReplaceAll(row.first, {{"|", "\\|"}});
+      std::string desc = absl::StrReplaceAll(row.second, {{"|", "\\|"}});
+      help += absl::Substitute("| `$0` | $1 |\n", cmd, desc);
     }
     help += "\n";
   }
@@ -118,7 +103,7 @@ std::string GetHelpText() {
   return help;
 }
 
-void ShowHelp() { std::cout << GetHelpText() << std::endl; }
+void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
 
 namespace {
 

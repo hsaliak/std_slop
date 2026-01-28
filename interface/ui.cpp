@@ -366,6 +366,21 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
 void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatAssembledContext(json_str)); }
 
+void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
+  auto& parser = GetMarkdownParser();
+  auto& renderer = GetMarkdownRenderer();
+
+  auto parsed_or = parser.Parse(markdown);
+  if (!parsed_or.ok()) {
+    std::cout << prefix << markdown << std::endl;
+    return;
+  }
+
+  std::string rendered = renderer.Render(**parsed_or);
+  size_t width = GetTerminalWidth();
+  std::cout << WrapText(rendered, width, prefix) << std::endl;
+}
+
 absl::Status PrintJsonAsTable(const std::string& json_str) {
   auto j = nlohmann::json::parse(json_str, nullptr, false);
   if (j.is_discarded()) {
