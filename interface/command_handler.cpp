@@ -852,17 +852,19 @@ std::string CommandHandler::SkillToMarkdown(const Database::Skill& skill) {
 Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
   Database::Skill s;
   s.id = id;
-  std::vector<std::string> lines = absl::StrSplit(md, '\n');
   bool in_patch = false;
-  for (const auto& line : lines) {
-    if (absl::StartsWith(line, "# Name:")) {
-      s.name = std::string(absl::StripAsciiWhitespace(line.substr(7)));
-    } else if (absl::StartsWith(line, "# Description:")) {
-      s.description = std::string(absl::StripAsciiWhitespace(line.substr(14)));
-    } else if (absl::StartsWith(line, "# System Prompt Patch")) {
-      in_patch = true;
-    } else if (in_patch) {
-      s.system_prompt_patch += line + "\n";
+  for (absl::string_view line : absl::StrSplit(md, '\n')) {
+    if (!in_patch) {
+      absl::string_view line_view = line;
+      if (absl::ConsumePrefix(&line_view, "# Name:")) {
+        s.name = std::string(absl::StripAsciiWhitespace(line_view));
+      } else if (absl::ConsumePrefix(&line_view, "# Description:")) {
+        s.description = std::string(absl::StripAsciiWhitespace(line_view));
+      } else if (absl::StartsWith(line, "# System Prompt Patch")) {
+        in_patch = true;
+      }
+    } else {
+      absl::StrAppend(&s.system_prompt_patch, line, "\n");
     }
   }
   s.system_prompt_patch = std::string(absl::StripAsciiWhitespace(s.system_prompt_patch));
@@ -870,10 +872,14 @@ Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
 }
 
 std::string CommandHandler::MemoToMarkdown(const Database::Memo& memo) {
-  nlohmann::json tags_j = nlohmann::json::parse(memo.semantic_tags, nullptr, false);
+  nlohmann::json tags_j =
+      nlohmann::json::parse(memo.semantic_tags, nullptr, false);
   std::string tags_str;
   if (!tags_j.is_discarded() && tags_j.is_array()) {
-    tags_str = absl::StrJoin(tags_j.get<std::vector<std::string>>(), ", ");
+    tags_str = absl::StrJoin(
+        tags_j, ", ", [](std::string* out, const nlohmann::json& j) {
+          absl::StrAppend(out, j.get<std::string>());
+        });
   }
   return absl::Substitute("# Tags: $0\n\n$1", tags_str, memo.content);
 }
@@ -881,17 +887,17 @@ std::string CommandHandler::MemoToMarkdown(const Database::Memo& memo) {
 Database::Memo CommandHandler::MarkdownToMemo(const std::string& md, int id) {
   Database::Memo m;
   m.id = id;
-  std::vector<std::string> lines = absl::StrSplit(md, '\n');
   bool found_tags = false;
-  for (const auto& line : lines) {
-    if (!found_tags && absl::StartsWith(line, "# Tags:")) {
-      std::string tags_raw = std::string(absl::StripAsciiWhitespace(line.substr(7)));
-      std::vector<std::string> tags = absl::StrSplit(tags_raw, ',', absl::SkipWhitespace());
+  for (absl::string_view line : absl::StrSplit(md, '\n')) {
+    absl::string_view line_view = line;
+    if (!found_tags && absl::ConsumePrefix(&line_view, "# Tags:")) {
+      std::vector<absl::string_view> tags =
+          absl::StrSplit(line_view, ',', absl::SkipWhitespace());
       m.semantic_tags = nlohmann::json(tags).dump();
       found_tags = true;
     } else if (found_tags) {
       if (m.content.empty() && absl::StripAsciiWhitespace(line).empty()) continue;
-      m.content += line + "\n";
+      absl::StrAppend(&m.content, line, "\n");
     }
   }
   m.content = std::string(absl::StripAsciiWhitespace(m.content));
