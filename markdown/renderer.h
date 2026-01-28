@@ -16,11 +16,25 @@ class MarkdownRenderer final {
   // If set to 0 (default), no wrapping/truncation is applied.
   void SetMaxWidth(size_t width) { max_width_ = width; }
 
-  // Renders the parsed markdown to an ANSI-styled string.
-  // The output is appended to the provided string.
+  /**
+   * @brief Renders the parsed markdown to an ANSI-styled string.
+   *
+   * This method appends the rendered output to the provided 'output' string.
+   * Using this "sink" model is preferred for performance as it allows the caller
+   * to pre-allocate memory (via reserve()) and avoid unnecessary copies when
+   * building larger UI components.
+   *
+   * @param parsed The parsed markdown structure to render.
+   * @param output A pointer to the string where the rendered output will be appended.
+   */
   void Render(const ParsedMarkdown& parsed, std::string* output);
 
-  // Convenience wrapper that returns a new string.
+  /**
+   * @brief Convenience wrapper that returns a new rendered string.
+   *
+   * @param parsed The parsed markdown structure to render.
+   * @return std::string The rendered ANSI-styled string.
+   */
   [[nodiscard]] std::string Render(const ParsedMarkdown& parsed) {
     std::string output;
     Render(parsed, &output);

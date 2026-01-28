@@ -34,7 +34,8 @@ A container for the results of a parse operation.
 ### `MarkdownRenderer`
 Handles the conversion of a `ParsedMarkdown` object into a styled string.
 - `void SetMaxWidth(size_t width)`: Sets the maximum width for layout (e.g., terminal width). If set to 0 (default), no wrapping or shrinking is applied.
-- `std::string Render(const ParsedMarkdown& parsed)`: Performs a recursive DFS traversal of the syntax forest and applies ANSI styles defined in `color.h`. Returns a terminal-ready string.
+- `void Render(const ParsedMarkdown& parsed, std::string* output)`: **(Preferred)** Appends the rendered output to the provided `std::string`. This "sink" model allows for efficient pre-allocation and avoids large string copies when building complex UI components.
+- `std::string Render(const ParsedMarkdown& parsed)`: Convenience wrapper that returns a new string.
 
 #### Intelligent Table Wrapping
 The renderer includes advanced table layout logic:
@@ -52,17 +53,24 @@ The renderer includes advanced table layout logic:
 #include "markdown/parser.h"
 #include "markdown/renderer.h"
 
-// 1. Create a parser and parse source
+// 1. Create a parser and parse source.
+// The parser takes a std::string by value and moves it internally
+// to ensure the buffer remains stable for the syntax tree.
 slop::markdown::MarkdownParser parser;
-auto result = parser.Parse("# Hello World\nThis is **bold**.");
+std::string source = "# Hello World\nThis is **bold**.";
+auto result = parser.Parse(std::move(source));
 
 if (result.ok()) {
     auto& parsed = *result.value();
     
-    // 2. Render to terminal-ready string
+    // 2. Render to terminal-ready string.
     slop::markdown::MarkdownRenderer renderer;
-    renderer.SetMaxWidth(80); // Optional: Set layout boundary
-    std::string terminal_output = renderer.Render(parsed);
+    renderer.SetMaxWidth(80); 
+    
+    // Use the sink-based Render for better performance
+    std::string terminal_output;
+    terminal_output.reserve(parsed.source().length() * 2); // Heuristic for ANSI overhead
+    renderer.Render(parsed, &terminal_output);
     
     std::cout << terminal_output << std::endl;
 }
@@ -72,7 +80,15 @@ if (result.ok()) {
 
 Styles are centralized in `color.h`. You can customize the look of headers, code blocks, and other elements by modifying the `ansi::theme::markdown` namespace.
 
-## Performance Considerations
-- **Allocations**: The renderer pre-allocates the output string buffer based on input size.
-- **Lookups**: Injected trees are stored in a `std::map` with custom `Range` keys for $O(\log N)$ lookup during rendering.
-- **Tree-sitter Forest**: The library manages multiple `TSTree` objects efficiently via `shared_ptr` and custom destructors.
+## Design & Performance Considerations
+
+### Memory Management & Ownership
+- **Parser Input**: `MarkdownParser::Parse` takes `std::string` by value. This is a deliberate design choice:
+    - It allows the caller to `std::move` an existing buffer, avoiding any copies.
+    - It guarantees that the `ParsedMarkdown` object owns its source buffer. This is critical because the underlying `tree-sitter` syntax tree maintains raw pointers into this buffer.
+- **Renderer "Sink" Model**: The `Render(parsed, &output)` method is the primary way to generate output. By passing a pointer to an existing string, callers can reuse buffers or pre-allocate memory (via `reserve()`), which is significantly faster than returning large strings from deep recursion.
+
+### Efficiency
+- **Tree-sitter Forest**: The library manages multiple `TSTree` objects (main tree + injections) efficiently via `shared_ptr` and custom destructors.
+- **Lookups**: Injected trees are stored in a `std::map` with custom `Range` keys for $O(\log N)$ lookup during rendering. This ensures that even with hundreds of injections (e.g., in a large table), finding the correct tree for a node is fast.
+- **ANSI Styling**: The renderer minimizes style code bloat by only emitting ANSI reset codes when necessary and tracking the current styling state to avoid redundant escape sequences.

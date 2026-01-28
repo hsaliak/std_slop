@@ -57,6 +57,17 @@ class MarkdownParser final {
   MarkdownParser();
   ~MarkdownParser();
 
+  /**
+   * @brief Parses a Markdown string into a structured ParsedMarkdown object.
+   *
+   * The source string is moved into the resulting ParsedMarkdown object. This is
+   * necessary because the underlying tree-sitter syntax tree maintains pointers
+   * into the original source buffer. Moving the string ensures that the buffer
+   * remains valid for the lifetime of the ParsedMarkdown object.
+   *
+   * @param source The Markdown text to parse.
+   * @return absl::StatusOr<std::unique_ptr<ParsedMarkdown>> The parsed structure or an error.
+   */
   [[nodiscard]] absl::StatusOr<std::unique_ptr<ParsedMarkdown>> Parse(std::string source);
 
  private:
