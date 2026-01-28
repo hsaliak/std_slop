@@ -44,12 +44,11 @@ Style GetNodeStyle(std::string_view type) {
 }
 }  // namespace
 
-std::string MarkdownRenderer::Render(const ParsedMarkdown& parsed) {
-  std::string output;
-  output.reserve(parsed.source().length() * 1.2);  // Pre-allocate with some slack for ANSI codes
+void MarkdownRenderer::Render(const ParsedMarkdown& parsed, std::string* output) {
+  if (!output) return;
+  output->reserve(output->length() + parsed.source().length() * 1.2);
   TSNode root = ts_tree_root_node(parsed.tree());
-  RenderNodeRecursive(root, parsed, parsed.source(), output, 0, parsed.tree());
-  return output;
+  RenderNodeRecursive(root, parsed, parsed.source(), *output, 0, parsed.tree());
 }
 
 void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& parsed, std::string_view current_source,

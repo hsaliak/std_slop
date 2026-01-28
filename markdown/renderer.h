@@ -16,8 +16,16 @@ class MarkdownRenderer final {
   // If set to 0 (default), no wrapping/truncation is applied.
   void SetMaxWidth(size_t width) { max_width_ = width; }
 
-  // Renders the parsed markdown to an ANSI-styled string
-  [[nodiscard]] std::string Render(const ParsedMarkdown& parsed);
+  // Renders the parsed markdown to an ANSI-styled string.
+  // The output is appended to the provided string.
+  void Render(const ParsedMarkdown& parsed, std::string* output);
+
+  // Convenience wrapper that returns a new string.
+  [[nodiscard]] std::string Render(const ParsedMarkdown& parsed) {
+    std::string output;
+    Render(parsed, &output);
+    return output;
+  }
 
  public:
   struct TableColumn {

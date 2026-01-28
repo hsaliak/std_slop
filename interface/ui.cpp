@@ -357,7 +357,8 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
   size_t prefix_len = VisibleLength(prefix);
   renderer.SetMaxWidth(width > prefix_len + 5 ? width - prefix_len : 0);
 
-  std::string rendered = renderer.Render(**parsed_or);
+  std::string rendered;
+  renderer.Render(**parsed_or, &rendered);
   std::cout << WrapText(rendered, width, prefix) << std::endl;
 }
 
@@ -440,7 +441,8 @@ void PrintThoughtMessage(const std::string& content, const std::string& prefix) 
 
   auto parsed_or = GetMarkdownParser().Parse(thought);
   if (parsed_or.ok()) {
-    std::string rendered = GetMarkdownRenderer().Render(**parsed_or);
+    std::string rendered;
+    GetMarkdownRenderer().Render(**parsed_or, &rendered);
     PrintStyledBlock(rendered, prefix + "    ", ansi::Thought);
   } else {
     PrintStyledBlock(thought, prefix + "    ", ansi::Thought);
@@ -476,7 +478,8 @@ void PrintAssistantMessage(const std::string& content, [[maybe_unused]] const st
   if (!remaining.empty()) {
     auto parsed_or = GetMarkdownParser().Parse(remaining);
     if (parsed_or.ok()) {
-      std::string rendered = GetMarkdownRenderer().Render(**parsed_or);
+      std::string rendered;
+      GetMarkdownRenderer().Render(**parsed_or, &rendered);
       PrintStyledBlock(rendered, prefix + "    ", ansi::Assistant);
     } else {
       PrintStyledBlock(remaining, prefix + "    ", ansi::Assistant);
