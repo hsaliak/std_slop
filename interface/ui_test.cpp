@@ -208,6 +208,29 @@ TEST(UiTest, PrintAssistantMessageWithThoughts) {
   EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
 }
 
+TEST(UiTest, PrintAssistantMessageWithMarkdownThoughts) {
+  // Verifies that thoughts containing markdown are rendered and then wrapped/styled correctly.
+  std::string content = "---THOUGHT---\n* Thinking in **bold**.\n* [Link](http://example.com)\n---\nResponse";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintAssistantMessage(content);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  // 1. Verify markdown was rendered (check for bold escape code in the thought section)
+  // theme::markdown::Bold is \033[1m
+  EXPECT_TRUE(output.find("\033[1m") != std::string::npos);
+  
+  // 2. Verify thought styling (grey \033[90m) is applied to the block
+  EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
+  
+  // 3. Verify content
+  EXPECT_TRUE(output.find("Thinking") != std::string::npos);
+  EXPECT_TRUE(output.find("Response") != std::string::npos);
+}
+
 TEST(UiTest, PrintAssistantMessageWithPrefix) {
   std::string content = "Hello world";
   std::string prefix = "  ";
