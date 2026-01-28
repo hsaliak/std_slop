@@ -124,6 +124,11 @@ Memos are long-term, cross-session pieces of knowledge. While you can manage the
 
 If a task is expected to span many turns, the agent may recommend that you permanently activate the skill using `/skill activate`.
 
+#### Expanding the Skill Library
+`std::slop` is designed to grow with your project. Both you and the agent are encouraged to add new skills to the `skills` table when a repeatable persona or set of constraints is identified. 
+- **Agent-led**: The agent may suggest creating a new skill if it detects a recurring specialized workflow.
+- **User-led**: Use `/skill add` or `query_db` to insert new entries. This is particularly useful for project-specific constraints (e.g., "Must use library X", "Adhere to architectural pattern Y").
+
 #### Example Skills (these are provided as defaults)
 
 **planner**
