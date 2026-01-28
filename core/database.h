@@ -198,6 +198,9 @@ class Database {
   static bool IsStopWord(const std::string& word);
 
   absl::Status AddMemo(const std::string& content, const std::string& semantic_tags);
+  absl::Status UpdateMemo(int id, const std::string& content, const std::string& semantic_tags);
+  absl::Status DeleteMemo(int id);
+  absl::StatusOr<Memo> GetMemo(int id);
   absl::StatusOr<std::vector<Memo>> GetMemosByTags(const std::vector<std::string>& tags);
   absl::StatusOr<std::vector<Memo>> GetAllMemos();
   // Full Text Search

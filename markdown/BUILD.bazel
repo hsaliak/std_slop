@@ -1,7 +1,13 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@aspect_rules_lint//format:defs.bzl", "format_test")
 
 package(default_visibility = ["//visibility:public"])
 
+format_test(
+    name = "format_test",
+    cc = "//:clang_format_hermetic", # Point back to your root tool
+    srcs = glob(["*.cpp", "*.h"]),
+)
 cc_library(
     name = "parser",
     srcs = ["parser.cpp"],

@@ -23,11 +23,11 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
         "/session scratchpad edit  Open the scratchpad in your $EDITOR"},
        "Session & Memory"},
       {"/memo",
-       {"list", "add", "search"},
+       {"list", "add", "search", "show", "edit", "remove"},
        {},
-       {"/memo list            List all memos",
-        "/memo add <tags> <content>  Add a new memo (tags as comma-separated list)",
-        "/memo search <tags>   Search memos by tags (comma-separated list)"},
+       {"/memo list            List all memos", "/memo add [tags] [text] Add a new memo (optionally opens $EDITOR)",
+        "/memo show <id>       Show full memo content", "/memo edit <id>       Edit memo in your $EDITOR",
+        "/memo remove <id>     Delete a memo", "/memo search <tags>   Search memos by tags"},
        "Session & Memory"},
 
       // Context & History
