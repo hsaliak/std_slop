@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "absl/base/no_destructor.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
@@ -20,6 +21,8 @@
 
 #include "interface/color.h"
 #include "interface/completer.h"
+#include "markdown/parser.h"
+#include "markdown/renderer.h"
 #include "readline/history.h"
 #include "readline/readline.h"
 
@@ -118,6 +121,16 @@ size_t GetTerminalWidth() {
 
 namespace {
 std::vector<std::string> g_completion_commands;
+
+markdown::MarkdownParser& GetMarkdownParser() {
+  static absl::NoDestructor<markdown::MarkdownParser> parser;
+  return *parser;
+}
+
+markdown::MarkdownRenderer& GetMarkdownRenderer() {
+  static absl::NoDestructor<markdown::MarkdownRenderer> renderer;
+  return *renderer;
+}
 absl::flat_hash_map<std::string, std::vector<std::string>> g_sub_commands;
 std::vector<std::string> g_active_completion_list;
 
@@ -421,7 +434,13 @@ void PrintThoughtMessage(const std::string& content, const std::string& prefix) 
   thought = absl::StripAsciiWhitespace(thought);
   if (thought.empty()) return;
 
-  PrintStyledBlock(thought, prefix + "    ", ansi::Thought);
+  auto parsed_or = GetMarkdownParser().Parse(thought);
+  if (parsed_or.ok()) {
+    std::string rendered = GetMarkdownRenderer().Render(**parsed_or);
+    PrintStyledBlock(rendered, prefix + "    ", ansi::Thought);
+  } else {
+    PrintStyledBlock(thought, prefix + "    ", ansi::Thought);
+  }
   std::cout << std::endl;
 }
 
@@ -451,7 +470,13 @@ void PrintAssistantMessage(const std::string& content, [[maybe_unused]] const st
 
   remaining = absl::StripAsciiWhitespace(remaining);
   if (!remaining.empty()) {
-    PrintStyledBlock(remaining, prefix + "    ", ansi::Assistant);
+    auto parsed_or = GetMarkdownParser().Parse(remaining);
+    if (parsed_or.ok()) {
+      std::string rendered = GetMarkdownRenderer().Render(**parsed_or);
+      PrintStyledBlock(rendered, prefix + "    ", ansi::Assistant);
+    } else {
+      PrintStyledBlock(remaining, prefix + "    ", ansi::Assistant);
+    }
     if (tokens > 0) {
       std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
     }
