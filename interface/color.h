@@ -31,6 +31,11 @@ constexpr const char* Thought = Grey;
 constexpr const char* Assistant = White;
 constexpr const char* Metadata = Grey;
 constexpr const char* UserLabel = Green;
+constexpr const char* EchoBg = GreyBg;
+constexpr const char* EchoFg = White;
+constexpr const char* Warning = Yellow;
+constexpr const char* Logo = Cyan;
+constexpr const char* SystemLabel = Yellow;
 
 namespace theme {
 namespace markdown {

@@ -64,7 +64,7 @@ size_t VisibleLength(const std::string& s) {
  * @param color_fg The ANSI color code for the line.
  * @param header Optional text to display centered within the line.
  */
-void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Grey, const std::string& header = "",
+void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Metadata, const std::string& header = "",
                          const std::string& prefix = "") {
   if (width == 0) width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
@@ -177,11 +177,11 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
 }
 
 void ShowBanner() {
-  std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", "", ansi::Cyan) << std::endl;
-  std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", "", ansi::Cyan) << std::endl;
+  std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Logo) << std::endl;
+  std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", "", ansi::Logo) << std::endl;
+  std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", "", ansi::Logo) << std::endl;
+  std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", "", ansi::Logo) << std::endl;
+  std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", "", ansi::Logo) << std::endl;
   std::cout << std::endl;
 #ifdef SLOP_VERSION
   std::cout << " std::slop version " << SLOP_VERSION << std::endl;
@@ -523,7 +523,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     } else if (msg.role == "tool") {
       PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status, "  ");
     } else if (msg.role == "system") {
-      std::cout << Colorize("System> ", "", ansi::Yellow) << std::endl;
+      std::cout << Colorize("System> ", "", ansi::SystemLabel) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
     }
   }

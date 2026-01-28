@@ -1,10 +1,10 @@
-#include "command_handler.h"
-#include "database.h"
-#include "http_client.h"
-#include "oauth_handler.h"
-#include "orchestrator.h"
-#include "tool_executor.h"
-#include "ui.h"
+#include "interface/command_handler.h"
+#include "core/database.h"
+#include "core/http_client.h"
+#include "core/oauth_handler.h"
+#include "core/orchestrator.h"
+#include "core/tool_executor.h"
+#include "interface/ui.h"
 
 #include <algorithm>
 #include <chrono>
@@ -32,9 +32,9 @@
 #include "absl/strings/strip.h"
 #include "absl/time/clock.h"
 
-#include "color.h"
-#include "command_definitions.h"
-#include "constants.h"
+#include "interface/color.h"
+#include "interface/command_definitions.h"
+#include "core/constants.h"
 
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
 ABSL_FLAG(std::string, log, "", "Log file path");
@@ -270,7 +270,7 @@ int main(int argc, char** argv) {
   std::vector<std::string> active_skills;
 
   slop::ShowBanner();
-  std::cout << slop::Colorize("std::slop", "", ansi::Cyan) << " - Session: " << session_id << " ("
+  std::cout << slop::Colorize("std::slop", "", ansi::Logo) << " - Session: " << session_id << " ("
             << orchestrator->GetModel() << ")" << std::endl;
   std::cout << "Type /help for slash commands." << std::endl;
 
@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
     if (echo.length() > 60) {
       echo = echo.substr(0, 57) + "...";
     }
-    std::cout << " " << slop::Colorize(" > " + echo + " ", ansi::GreyBg, ansi::White) << "\n" << std::endl;
+    std::cout << " " << slop::Colorize(" > " + echo + " ", ansi::EchoBg, ansi::EchoFg) << "\n" << std::endl;
 
     auto res = cmd_handler.Handle(input, session_id, active_skills, ShowHelp, orchestrator->GetLastSelectedGroups());
     tool_executor.SetSessionId(session_id);
@@ -368,7 +368,7 @@ int main(int argc, char** argv) {
             // Re-assemble and retry
             prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);
             if (prompt_or.ok()) {
-              std::cout << slop::Colorize("Retrying with adjusted history...", "", ansi::Yellow) << std::endl;
+              std::cout << slop::Colorize("Retrying with adjusted history...", "", ansi::Warning) << std::endl;
               resp_or = http_client.Post(url, prompt_or->dump(), headers);
             }
           }
