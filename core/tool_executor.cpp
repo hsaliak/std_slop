@@ -83,6 +83,8 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     result = ManageScratchpad(args);
   } else if (name == "describe_db") {
     result = DescribeDb();
+  } else if (name == "use_skill") {
+    result = UseSkill(args);
   } else {
     return absl::NotFoundError("Tool not found: " + name);
   }
@@ -371,6 +373,54 @@ absl::StatusOr<std::string> ToolExecutor::ManageScratchpad(const nlohmann::json&
 
 absl::StatusOr<std::string> ToolExecutor::DescribeDb() {
   return db_->Query("SELECT name, sql FROM sqlite_master WHERE type='table'");
+}
+
+absl::StatusOr<std::string> ToolExecutor::UseSkill(const nlohmann::json& args) {
+  if (!args.contains("name")) return absl::InvalidArgumentError("Missing 'name' argument");
+  std::string name = args["name"].get<std::string>();
+  std::string action = args.contains("action") ? args["action"].get<std::string>() : "activate";
+
+  if (session_id_.empty()) return absl::FailedPreconditionError("No active session");
+
+  auto active_skills_or = db_->GetActiveSkills(session_id_);
+  if (!active_skills_or.ok()) return active_skills_or.status();
+  std::vector<std::string> active_skills = *active_skills_or;
+
+  if (action == "activate") {
+    // Increment count
+    auto status = db_->IncrementSkillActivationCount(name);
+    if (!status.ok()) return status;
+
+    // Add to active if not present
+    if (std::find(active_skills.begin(), active_skills.end(), name) == active_skills.end()) {
+      active_skills.push_back(name);
+      status = db_->SetActiveSkills(session_id_, active_skills);
+      if (!status.ok()) return status;
+    }
+
+    // Return patch
+    auto skills_or = db_->GetSkills();
+    if (!skills_or.ok()) return skills_or.status();
+    for (const auto& s : *skills_or) {
+      if (s.name == name) {
+        return "Skill '" + name + "' activated.\n\n" + s.system_prompt_patch;
+      }
+    }
+    return absl::NotFoundError("Skill not found: " + name);
+  }
+
+  if (action == "deactivate") {
+    auto it = std::find(active_skills.begin(), active_skills.end(), name);
+    if (it != active_skills.end()) {
+      active_skills.erase(it);
+      auto status = db_->SetActiveSkills(session_id_, active_skills);
+      if (!status.ok()) return status;
+      return "Skill '" + name + "' deactivated.";
+    }
+    return "Skill '" + name + "' was not active.";
+  }
+
+  return absl::InvalidArgumentError("Unknown action: " + action);
 }
 
 }  // namespace slop

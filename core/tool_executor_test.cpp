@@ -300,4 +300,52 @@ TEST(ToolExecutorTest, ManageScratchpadSessionHandling) {
   EXPECT_TRUE(res3->find("other content") != std::string::npos);
 }
 
+TEST(ToolExecutorTest, UseSkill) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+  executor.SetSessionId("s1");
+  // Ensure session exists
+  ASSERT_TRUE(db.SetContextWindow("s1", 10).ok());
+
+  // Setup a skill
+  Database::Skill s;
+  s.name = "test_skill";
+  s.system_prompt_patch = "TEST PATCH";
+  ASSERT_TRUE(db.RegisterSkill(s).ok());
+
+  // Test Activation
+  auto res = executor.Execute("use_skill", {{"name", "test_skill"}, {"action", "activate"}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(res->find("Skill 'test_skill' activated.") != std::string::npos);
+  EXPECT_TRUE(res->find("TEST PATCH") != std::string::npos);
+
+  // Verify DB state
+  auto skills = db.GetSkills();
+  ASSERT_TRUE(skills.ok());
+  EXPECT_EQ((*skills)[skills->size() - 1].activation_count, 1);
+
+  auto active = db.GetActiveSkills("s1");
+  ASSERT_TRUE(active.ok());
+  ASSERT_EQ(active->size(), 1);
+  EXPECT_EQ((*active)[0], "test_skill");
+
+  // Test Deactivation
+  auto res2 = executor.Execute("use_skill", {{"name", "test_skill"}, {"action", "deactivate"}});
+  ASSERT_TRUE(res2.ok());
+  EXPECT_TRUE(res2->find("Skill 'test_skill' deactivated.") != std::string::npos);
+
+  // Verify DB state
+  active = db.GetActiveSkills("s1");
+  ASSERT_TRUE(active.ok());
+  EXPECT_TRUE(active->empty());
+
+  // Activation count should NOT have increased on deactivation
+  skills = db.GetSkills();
+  ASSERT_TRUE(skills.ok());
+  EXPECT_EQ((*skills)[skills->size() - 1].activation_count, 1);
+}
+
 }  // namespace slop

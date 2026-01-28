@@ -210,6 +210,44 @@ TEST(DatabaseTest, UsageTracking) {
   EXPECT_EQ(global_usage->total_tokens, 340);
 }
 
+TEST(DatabaseTest, SkillTracking) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  slop::Database::Skill skill;
+  skill.name = "test_skill";
+  skill.description = "desc";
+  skill.system_prompt_patch = "patch";
+  ASSERT_TRUE(db.RegisterSkill(skill).ok());
+
+  // Test Activation Count
+  ASSERT_TRUE(db.IncrementSkillActivationCount("test_skill").ok());
+  ASSERT_TRUE(db.IncrementSkillActivationCount("test_skill").ok());
+
+  auto skills = db.GetSkills();
+  ASSERT_TRUE(skills.ok());
+  bool found = false;
+  for (const auto& s : *skills) {
+    if (s.name == "test_skill") {
+      EXPECT_EQ(s.activation_count, 2);
+      found = true;
+    }
+  }
+  EXPECT_TRUE(found);
+
+  // Test Session Skill Persistence
+  std::vector<std::string> active = {"skill1", "skill2"};
+  // Ensure session exists
+  ASSERT_TRUE(db.SetContextWindow("s1", 10).ok());
+  ASSERT_TRUE(db.SetActiveSkills("s1", active).ok());
+
+  auto restored = db.GetActiveSkills("s1");
+  ASSERT_TRUE(restored.ok());
+  ASSERT_EQ(restored->size(), 2);
+  EXPECT_EQ((*restored)[0], "skill1");
+  EXPECT_EQ((*restored)[1], "skill2");
+}
+
 TEST(DatabaseTest, ApplyPatchToolSchema) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

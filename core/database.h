@@ -163,12 +163,17 @@ class Database {
     std::string name;
     std::string description;
     std::string system_prompt_patch;
+    int activation_count = 0;
   };
 
   absl::Status RegisterSkill(const Skill& skill);
   absl::Status UpdateSkill(const Skill& skill);
   absl::Status DeleteSkill(const std::string& name_or_id);
   absl::StatusOr<std::vector<Skill>> GetSkills();
+  absl::Status IncrementSkillActivationCount(const std::string& name_or_id);
+
+  absl::Status SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills);
+  absl::StatusOr<std::vector<std::string>> GetActiveSkills(const std::string& session_id);
 
   // Context Settings
   absl::Status SetContextWindow(const std::string& session_id, int size);

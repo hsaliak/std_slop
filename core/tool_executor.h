@@ -37,6 +37,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> ListDirectory(const nlohmann::json& args);
   absl::StatusOr<std::string> ManageScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> DescribeDb();
+  absl::StatusOr<std::string> UseSkill(const nlohmann::json& args);
 
   absl::StatusOr<std::string> Grep(const std::string& pattern, const std::string& path, int context);
   absl::StatusOr<std::string> ReadFile(const std::string& path, std::optional<int> start_line = std::nullopt,

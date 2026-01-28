@@ -166,14 +166,16 @@ absl::Status Database::Init(const std::string& db_path) {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
         description TEXT,
-        system_prompt_patch TEXT
+        system_prompt_patch TEXT,
+        activation_count INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         name TEXT,
         context_size INTEGER DEFAULT 5,
-        scratchpad TEXT
+        scratchpad TEXT,
+        active_skills TEXT
     );
 
     CREATE TABLE IF NOT EXISTS usage (
@@ -206,6 +208,9 @@ absl::Status Database::Init(const std::string& db_path) {
 
   // Migration: Add tokens column to messages table if it doesn't exist
   (void)sqlite3_exec(db_.get(), "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(db_.get(), "ALTER TABLE skills ADD COLUMN activation_count INTEGER DEFAULT 0;", nullptr, nullptr,
+                     nullptr);
+  (void)sqlite3_exec(db_.get(), "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
 
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
@@ -254,7 +259,10 @@ absl::Status Database::RegisterDefaultTools() {
       {"manage_scratchpad", "Manage a persistent markdown scratchpad for the current session.",
        R"({"type":"object","properties":{"action":{"type":"string","enum":["read","update","append"]},"content":{"type":"string"}},"required":["action"]})",
        true},
-      {"describe_db", "Describe the database schema and tables.", R"({"type":"object","properties":{}})", true}};
+      {"describe_db", "Describe the database schema and tables.", R"({"type":"object","properties":{}})", true},
+      {"use_skill", "Activate or deactivate a specialized skill/persona.",
+       R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"],"default":"activate"}},"required":["name"]})",
+       true}};
 
   // Automatically register all core tools defined in the default_tools list.
   // This ensures the agent always has access to the fundamental building blocks
@@ -530,13 +538,14 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 }
 
 absl::Status Database::RegisterSkill(const Skill& skill) {
-  return Execute("INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?);", skill.name,
-                 skill.description, skill.system_prompt_patch);
+  return Execute(
+      "INSERT OR IGNORE INTO skills (name, description, system_prompt_patch, activation_count) VALUES (?, ?, ?, ?);",
+      skill.name, skill.description, skill.system_prompt_patch, skill.activation_count);
 }
 
 absl::Status Database::UpdateSkill(const Skill& skill) {
-  return Execute("UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?;", skill.description,
-                 skill.system_prompt_patch, skill.name);
+  return Execute("UPDATE skills SET description = ?, system_prompt_patch = ?, activation_count = ? WHERE name = ?;",
+                 skill.description, skill.system_prompt_patch, skill.activation_count, skill.name);
 }
 
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
@@ -549,7 +558,7 @@ absl::Status Database::DeleteSkill(const std::string& name_or_id) {
 }
 
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
-  std::string sql = "SELECT id, name, description, system_prompt_patch FROM skills";
+  std::string sql = "SELECT id, name, description, system_prompt_patch, activation_count FROM skills";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
   std::vector<Skill> skills;
@@ -563,9 +572,40 @@ absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
     s.name = stmt->ColumnText(1);
     s.description = stmt->ColumnText(2);
     s.system_prompt_patch = stmt->ColumnText(3);
+    s.activation_count = stmt->ColumnInt(4);
     skills.push_back(s);
   }
   return skills;
+}
+
+absl::Status Database::IncrementSkillActivationCount(const std::string& name_or_id) {
+  std::string sql = "UPDATE skills SET activation_count = activation_count + 1 WHERE name = ? OR id = ?;";
+  int id = 0;
+  if (absl::SimpleAtoi(name_or_id, &id)) {
+    return Execute(sql, name_or_id, id);
+  }
+  return Execute(sql, name_or_id, nullptr);
+}
+
+absl::Status Database::SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills) {
+  nlohmann::json j = skills;
+  return Execute("UPDATE sessions SET active_skills = ? WHERE id = ?;", j.dump(), session_id);
+}
+
+absl::StatusOr<std::vector<std::string>> Database::GetActiveSkills(const std::string& session_id) {
+  ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT active_skills FROM sessions WHERE id = ?;"));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  auto row_or = stmt->Step();
+  if (!row_or.ok()) return row_or.status();
+  if (*row_or) {
+    std::string active_skills_raw = stmt->ColumnText(0);
+    if (active_skills_raw.empty()) return std::vector<std::string>();
+    auto j = nlohmann::json::parse(active_skills_raw, nullptr, false);
+    if (!j.is_discarded() && j.is_array()) {
+      return j.get<std::vector<std::string>>();
+    }
+  }
+  return std::vector<std::string>();
 }
 
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {

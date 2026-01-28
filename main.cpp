@@ -254,6 +254,10 @@ int main(int argc, char** argv) {
   auto& cmd_handler = **cmd_handler_or;
   slop::SetCompletionCommands(cmd_handler.GetCommandNames(), cmd_handler.GetSubCommandMap());
   std::vector<std::string> active_skills;
+  auto active_skills_or = db.GetActiveSkills(session_id);
+  if (active_skills_or.ok()) {
+    active_skills = *active_skills_or;
+  }
 
   slop::SetupTerminal();
   slop::ShowBanner();
@@ -265,6 +269,11 @@ int main(int argc, char** argv) {
   (void)orchestrator->RebuildContext(session_id);
 
   while (true) {
+    auto current_skills_or = db.GetActiveSkills(session_id);
+    if (current_skills_or.ok()) {
+      active_skills = *current_skills_or;
+    }
+
     auto settings_or = db.GetContextSettings(session_id);
     int window_size = settings_or.ok() ? settings_or->size : 0;
     std::string model_name = orchestrator->GetModel();

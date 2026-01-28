@@ -299,18 +299,19 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
   std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
 
   if (sub_cmd == "list") {
-    auto res = db_->Query("SELECT id, name, description FROM skills");
+    auto res = db_->Query("SELECT id, name, description, activation_count FROM skills");
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && j.is_array()) {
         std::string md = "### Skills\n\n";
-        md += "| ID | Name | Description | Status |\n";
-        md += "| :---: | :--- | :--- | :---: |\n";
+        md += "| ID | Name | Description | Activations | Status |\n";
+        md += "| :---: | :--- | :--- | :---: | :---: |\n";
         for (const auto& row : j) {
           bool active = std::find(args.active_skills.begin(), args.active_skills.end(), row.value("name", "")) !=
                         args.active_skills.end();
-          md += absl::Substitute("| $0 | **$1** | $2 | $3 |\n", row.value("id", 0), row.value("name", ""),
-                                 row.value("description", ""), active ? "🟢 ACTIVE" : "⚪ inactive");
+          md += absl::Substitute("| $0 | **$1** | $2 | $3 | $4 |\n", row.value("id", 0), row.value("name", ""),
+                                 row.value("description", ""), row.value("activation_count", 0),
+                                 active ? "🟢 ACTIVE" : "⚪ inactive");
         }
         PrintMarkdown(md);
       }
@@ -321,7 +322,11 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
         std::string name = j[0]["name"];
-        args.active_skills.push_back(name);
+        if (std::find(args.active_skills.begin(), args.active_skills.end(), name) == args.active_skills.end()) {
+          args.active_skills.push_back(name);
+          (void)db_->SetActiveSkills(args.session_id, args.active_skills);
+          (void)db_->IncrementSkillActivationCount(name);
+        }
         std::cout << "Skill '" << name << "' activated." << std::endl;
       } else {
         std::cerr << "Skill not found: " << sub_args << std::endl;
@@ -335,6 +340,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         std::string name = j[0]["name"];
         args.active_skills.erase(std::remove(args.active_skills.begin(), args.active_skills.end(), name),
                                  args.active_skills.end());
+        (void)db_->SetActiveSkills(args.session_id, args.active_skills);
         std::cout << "Skill '" << name << "' deactivated." << std::endl;
       }
     }
@@ -350,7 +356,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "edit") {
-    auto res = db_->Query("SELECT id, name, description, system_prompt_patch FROM skills WHERE name = ? OR id = ?",
+    auto res = db_->Query("SELECT id, name, description, system_prompt_patch, activation_count FROM skills WHERE name = ? OR id = ?",
                           {sub_args, sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
@@ -358,7 +364,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         auto& skill_data = j[0];
         int id = skill_data["id"].get<int>();
         Database::Skill skill{id, skill_data["name"], skill_data["description"],
-                              skill_data["system_prompt_patch"]};
+                              skill_data["system_prompt_patch"], skill_data["activation_count"].get<int>()};
 
         std::string initial_md = SkillToMarkdown(skill);
         std::string edited_md = TriggerEditor(initial_md);
@@ -371,6 +377,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
 
         if (edited_md != initial_md) {
           Database::Skill s = MarkdownToSkill(edited_md, id);
+          s.activation_count = skill.activation_count;
           auto status = db_->UpdateSkill(s);
           HandleStatus(status);
           if (status.ok()) std::cout << "Skill updated." << std::endl;
@@ -509,6 +516,21 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       PrintMarkdown(md);
     } else {
       std::cout << "No usage data for session [" << args.session_id << "]" << std::endl;
+    }
+  }
+
+  auto skills_res = db_->Query("SELECT name, activation_count FROM skills WHERE activation_count > 0 ORDER BY activation_count DESC");
+  if (skills_res.ok()) {
+    auto j = nlohmann::json::parse(*skills_res, nullptr, false);
+    if (!j.is_discarded() && j.is_array() && !j.empty()) {
+      std::string md = "### Skill Activations (All-time)\n\n";
+      md += "| Skill | Activations |\n";
+      md += "| :--- | :---: |\n";
+      for (const auto& row : j) {
+        md += absl::Substitute("| $0 | $1 |\n", row.value("name", "unknown"), row.value("activation_count", 0));
+      }
+      md += "\n";
+      PrintMarkdown(md);
     }
   }
 
