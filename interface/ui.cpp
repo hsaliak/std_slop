@@ -432,8 +432,15 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
 void PrintThoughtMessage(const std::string& content, const std::string& prefix) {
   if (content.empty()) return;
   std::string thought = content;
-  // Clean up markers if present
-  thought = absl::StrReplaceAll(thought, {{"---THOUGHT---", ""}, {"---THOUGHT", ""}, {"---THOUGHTS---", ""}});
+
+  // Clean up markers if present. We use a broad list of markers to ensure consistent
+  // styling even if different models use slightly different formats.
+  thought = absl::StrReplaceAll(thought, {{"---THOUGHT---", ""},
+                                          {"---THOUGHTS---", ""},
+                                          {"---REASONING---", ""},
+                                          {"---THOUGHT", ""},
+                                          {"---REASONING", ""}});
+
   thought = absl::StripAsciiWhitespace(thought);
   if (thought.empty()) return;
 
@@ -441,6 +448,7 @@ void PrintThoughtMessage(const std::string& content, const std::string& prefix) 
   if (parsed_or.ok()) {
     std::string rendered;
     GetMarkdownRenderer().Render(**parsed_or, &rendered);
+    // Use ansi::Thought (defined in color.h) for semantic styling.
     PrintStyledBlock(rendered, prefix + "    ", ansi::Thought);
   } else {
     PrintStyledBlock(thought, prefix + "    ", ansi::Thought);
@@ -449,26 +457,58 @@ void PrintThoughtMessage(const std::string& content, const std::string& prefix) 
 }
 
 void PrintAssistantMessage(const std::string& content, [[maybe_unused]] const std::string& skill_info,
-                           const std::string& prefix, int tokens) {
+                           const std::string& prefix, int tokens, bool force_thought) {
+  if (force_thought) {
+    PrintThoughtMessage(content, prefix);
+    if (tokens > 0) {
+      std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
+    }
+    return;
+  }
+
   std::string remaining = content;
-  size_t start = content.find("---THOUGHT---");
+
+  // List of markers we recognize as starting a thought block.
+  const std::vector<std::string> markers = {"---THOUGHT---", "---THOUGHTS---", "---REASONING---", "---THOUGHT"};
+
+  size_t start = std::string::npos;
+  std::string found_marker;
+  for (const auto& marker : markers) {
+    start = content.find(marker);
+    if (start != std::string::npos) {
+      found_marker = marker;
+      break;
+    }
+  }
+
   if (start != std::string::npos) {
-    size_t end = content.find("---", start + 13);
+    // Look for a terminator. If none found, we'll treat the rest of the message as a thought.
+    size_t end = content.find("---", start + found_marker.length());
     if (end == std::string::npos) {
-      end = content.find("\n\n", start + 13);
+      end = content.find("\n\n", start + found_marker.length());
     }
 
+    // If we found a terminator, extract the thought and continue to the rest of the message.
     if (end != std::string::npos) {
       std::string thought = content.substr(start, end - start);
       PrintThoughtMessage(thought, prefix);
       remaining = content.substr(end);
       remaining = absl::StripLeadingAsciiWhitespace(remaining);
+
+      // Clean up trailing marker if it was a "---" terminator.
       if (absl::StartsWith(remaining, "---")) {
         size_t next_nl = remaining.find('\n');
         if (next_nl != std::string::npos) {
           remaining = remaining.substr(next_nl);
+        } else {
+          remaining = "";
         }
       }
+    } else {
+      // No terminator found: treat everything from 'start' to the end as a thought.
+      std::string thought = content.substr(start);
+      PrintThoughtMessage(thought, prefix);
+      remaining = content.substr(0, start);
     }
   }
 
@@ -532,7 +572,8 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
           if (j.contains("content") && j["content"].is_string()) {
             std::string content = j["content"];
             if (!content.empty()) {
-              PrintAssistantMessage(content, "", "  ", msg.tokens);
+              // Force thought styling for bundled history content as well.
+              PrintAssistantMessage(content, "", "  ", msg.tokens, /*force_thought=*/true);
             }
           }
           if (j.contains("functionCalls") && j["functionCalls"].is_array()) {

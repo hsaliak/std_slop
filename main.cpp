@@ -398,12 +398,14 @@ int main(int argc, char** argv) {
       for (size_t i = start_idx; i < history_after_or->size(); ++i) {
         const auto& msg = (*history_after_or)[i];
         if (msg.role == "assistant" && msg.status == "tool_call") {
-          // Check for bundled content (thoughts) in the tool call message
+          // Check for bundled content (thoughts) in the tool call message.
+          // Since this content field in a tool_call message is almost always reasoning,
+          // we force the thought styling (grey) even if explicit markers are missing.
           auto j = nlohmann::json::parse(msg.content, nullptr, false);
           if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
             std::string content = j["content"];
             if (!content.empty()) {
-              slop::PrintAssistantMessage(content, "", "  ", total_tokens);
+              slop::PrintAssistantMessage(content, "", "  ", total_tokens, /*force_thought=*/true);
             }
           }
 

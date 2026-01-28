@@ -231,6 +231,55 @@ TEST(UiTest, PrintAssistantMessageWithMarkdownThoughts) {
   EXPECT_TRUE(output.find("Response") != std::string::npos);
 }
 
+TEST(UiTest, PrintAssistantMessageWithUnclosedThought) {
+  // Verify that a thought block starting with a marker but having no terminator
+  // is still correctly styled as a thought.
+  std::string content = "---THOUGHT---\nI am thinking without an end.";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintAssistantMessage(content);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  // Verify thought styling (grey \033[90m) is applied
+  EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
+  EXPECT_TRUE(output.find("without an end") != std::string::npos);
+}
+
+TEST(UiTest, PrintAssistantMessageWithMultipleMarkers) {
+  // Verify that alternative markers like ---THOUGHTS--- or ---REASONING--- are recognized.
+  std::string content = "---REASONING---\nAlternative marker test.\n---\nHello!";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintAssistantMessage(content);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
+  EXPECT_TRUE(output.find("Alternative marker") != std::string::npos);
+  EXPECT_TRUE(output.find("Hello!") != std::string::npos);
+}
+
+TEST(UiTest, PrintAssistantMessageForceThought) {
+  // Verify that force_thought parameter styles the entire content as a thought
+  // even if no markers are present.
+  std::string content = "I am a forced thought.";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintAssistantMessage(content, "", "", 0, true);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
+  EXPECT_TRUE(output.find("forced thought") != std::string::npos);
+}
+
 TEST(UiTest, PrintAssistantMessageWithPrefix) {
   std::string content = "Hello world";
   std::string prefix = "  ";

@@ -55,7 +55,7 @@ size_t GetTerminalWidth();
  * @brief High-level methods for centralized UI message formatting.
  */
 void PrintAssistantMessage(const std::string& content, const std::string& skill_info = "",
-                           const std::string& prefix = "", int tokens = 0);
+                           const std::string& prefix = "", int tokens = 0, bool force_thought = false);
 void PrintThoughtMessage(const std::string& content, const std::string& prefix = "");
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix = "");
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status = "completed",
