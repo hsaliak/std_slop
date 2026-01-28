@@ -142,7 +142,22 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
         "GROUP BY m1.group_id ORDER BY m1.created_at DESC LIMIT " +
         std::to_string(n);
     auto res = db_->Query(sql, {args.session_id});
-    if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
+    if (res.ok()) {
+      auto j = nlohmann::json::parse(*res, nullptr, false);
+      if (!j.is_discarded() && j.is_array()) {
+        std::string md = absl::Substitute("### Message History (Last $0)\n\n", n);
+        md += "| Group ID | User Prompt Snippet | Assistant Tokens |\n";
+        md += "| :--- | :--- | :---: |\n";
+        for (const auto& row : j) {
+          std::string prompt = row.value("prompt", "");
+          std::string escaped_prompt = absl::StrReplaceAll(prompt, {{"|", "\\|"}, {"\n", " "}});
+          if (escaped_prompt.length() > 50) escaped_prompt = escaped_prompt.substr(0, 47) + "...";
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("group_id", ""),
+                                 escaped_prompt, row.value("tokens", 0));
+        }
+        PrintMarkdown(md);
+      }
+    }
   } else if (sub_cmd == "view" || sub_cmd == "show") {
     auto res = db_->Query("SELECT role, content, tokens FROM messages WHERE group_id = ? ORDER BY created_at ASC",
                           {sub_args});
@@ -247,15 +262,29 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
 
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
-    if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
+    if (res.ok()) {
+      auto j = nlohmann::json::parse(*res, nullptr, false);
+      if (!j.is_discarded() && j.is_array()) {
+        std::string md = "### Available Tools\n\n";
+        md += "| Name | Description | Enabled |\n";
+        md += "| :--- | :--- | :---: |\n";
+        for (const auto& row : j) {
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("name", ""),
+                                 row.value("description", ""),
+                                 row.value("is_enabled", 1) ? "✅" : "❌");
+        }
+        PrintMarkdown(md);
+      }
+    }
   } else if (sub_cmd == "show") {
     auto res = db_->Query("SELECT name, description, json_schema FROM tools WHERE name = ?", {sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
-        std::cout << "Tool: " << j[0]["name"].get<std::string>() << std::endl;
-        std::cout << "Description: " << j[0]["description"].get<std::string>() << std::endl;
-        std::cout << "Schema:\n" << j[0]["json_schema"].get<std::string>() << std::endl;
+        std::string md = absl::Substitute("### Tool: $0\n\n", j[0].value("name", ""));
+        md += "**Description**: " + j[0].value("description", "") + "\n\n";
+        md += "**JSON Schema**:\n```json\n" + j[0].value("json_schema", "{}") + "\n```\n";
+        PrintMarkdown(md);
       }
     }
   }
@@ -271,13 +300,18 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
     auto res = db_->Query("SELECT id, name, description FROM skills");
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
-      if (!j.is_discarded()) {
-        for (auto& row : j) {
+      if (!j.is_discarded() && j.is_array()) {
+        std::string md = "### Skills\n\n";
+        md += "| ID | Name | Description | Status |\n";
+        md += "| :---: | :--- | :--- | :---: |\n";
+        for (const auto& row : j) {
           bool active = std::find(args.active_skills.begin(), args.active_skills.end(),
-                                  row["name"].get<std::string>()) != args.active_skills.end();
-          row["status"] = active ? "ACTIVE" : "inactive";
+                                  row.value("name", "")) != args.active_skills.end();
+          md += absl::Substitute("| $0 | **$1** | $2 | $3 |\n", row.value("id", 0),
+                                 row.value("name", ""), row.value("description", ""),
+                                 active ? "🟢 ACTIVE" : "⚪ inactive");
         }
-        HandleStatus(PrintJsonAsTable(j.dump()));
+        PrintMarkdown(md);
       }
     }
   } else if (sub_cmd == "activate") {
@@ -384,7 +418,20 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
 
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT DISTINCT session_id FROM messages UNION SELECT DISTINCT id FROM sessions");
-    if (res.ok()) HandleStatus(PrintJsonAsTable(*res));
+    if (res.ok()) {
+      auto j = nlohmann::json::parse(*res, nullptr, false);
+      if (!j.is_discarded() && j.is_array()) {
+        std::string md = "### Sessions\n\n";
+        md += "| Status | Session ID |\n";
+        md += "| :---: | :--- |\n";
+        for (const auto& row : j) {
+          std::string sid = row.value("session_id", row.value("id", ""));
+          bool active = (sid == args.session_id);
+          md += absl::Substitute("| $0 | $1 |\n", active ? "🟢" : "⚪", sid);
+        }
+        PrintMarkdown(md);
+      }
+    }
   } else if (sub_cmd == "activate") {
     args.session_id = sub_args;
     std::cout << "Session switched to: " << sub_args << std::endl;
@@ -585,9 +632,20 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
       HandleStatus(memos_or.status(), "Error");
       return Result::HANDLED;
     }
-    for (const auto& m : *memos_or) {
-      std::cout << "[" << m.id << "] (" << m.semantic_tags << ") " << m.content << std::endl;
+    if (memos_or->empty()) {
+      std::cout << "No memos found." << std::endl;
+      return Result::HANDLED;
     }
+    std::string md = "### Memos (All)\n\n";
+    md += "| ID | Tags | Content Snippet |\n";
+    md += "| :--- | :--- | :--- |\n";
+    for (const auto& m : *memos_or) {
+      std::string tags = absl::StrReplaceAll(m.semantic_tags, {{"|", "\\|"}});
+      std::string content = absl::StrReplaceAll(m.content, {{"|", "\\|"}, {"\n", " "}});
+      if (content.length() > 60) content = content.substr(0, 57) + "...";
+      md += absl::Substitute("| $0 | $1 | $2 |\n", m.id, tags, content);
+    }
+    PrintMarkdown(md);
   } else if (sub_cmd == "add") {
     if (parts.size() < 2) {
       std::cerr << "Usage: /memo add <tags> <content>" << std::endl;
@@ -626,9 +684,16 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
     if (memos_or->empty()) {
       std::cout << "No matching memos found." << std::endl;
     } else {
+      std::string md = "### Memos (Search Results)\n\n";
+      md += "| ID | Tags | Content Snippet |\n";
+      md += "| :--- | :--- | :--- |\n";
       for (const auto& m : *memos_or) {
-        std::cout << "[" << m.id << "] (" << m.semantic_tags << ") " << m.content << std::endl;
+        std::string tags = absl::StrReplaceAll(m.semantic_tags, {{"|", "\\|"}});
+        std::string content = absl::StrReplaceAll(m.content, {{"|", "\\|"}, {"\n", " "}});
+        if (content.length() > 60) content = content.substr(0, 57) + "...";
+        md += absl::Substitute("| $0 | $1 | $2 |\n", m.id, tags, content);
       }
+      PrintMarkdown(md);
     }
   } else {
     std::cerr << "Unknown memo sub-command: " << sub_cmd << std::endl;
