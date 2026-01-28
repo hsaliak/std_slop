@@ -35,6 +35,7 @@ sh_binary(
     srcs = ["scripts/clang_format_wrapper.sh"],
     data = ["@llvm_toolchain//:clang-format"],
     deps = ["@bazel_tools//tools/bash/runfiles"],
+    visibility = ["//visibility:public"], 
 )
 
 sh_binary(
@@ -42,6 +43,7 @@ sh_binary(
     srcs = ["scripts/clang_tidy_wrapper.sh"],
     data = ["@llvm_toolchain//:clang-tidy"],
     deps = ["@bazel_tools//tools/bash/runfiles"],
+    visibility = ["//visibility:public"], 
 )
 
 format_multirun(
@@ -52,12 +54,10 @@ format_multirun(
 
 format_test(
     name = "format_test",
-    cc = ":clang_format_hermetic",
-    srcs = glob(["*.cpp", "*.h"], allow_empty = True) + [
-        "//core:core",
-        "//interface:interface",
-    ],
+    cc = ":clang_format_hermetic", # Point back to your root tool
+    srcs = glob(["*.cpp",]),
 )
+
 
 clang_tidy_test(
     name = "clang_tidy_test",
