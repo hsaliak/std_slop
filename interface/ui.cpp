@@ -1,4 +1,4 @@
-#include "ui.h"
+#include "interface/ui.h"
 
 #include <unistd.h>
 
@@ -18,8 +18,8 @@
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 
-#include "color.h"
-#include "completer.h"
+#include "interface/color.h"
+#include "interface/completer.h"
 #include "readline/history.h"
 #include "readline/readline.h"
 
@@ -453,7 +453,7 @@ void PrintAssistantMessage(const std::string& content, [[maybe_unused]] const st
   if (!remaining.empty()) {
     PrintStyledBlock(remaining, prefix + "    ", ansi::Assistant);
     if (tokens > 0) {
-      std::cout << prefix << "    " << ansi::Grey << "· " << tokens << " tokens" << ansi::Reset << std::endl;
+      std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
     }
   }
 }
@@ -471,14 +471,14 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   }
   
   std::string summary = absl::StrCat(name, "(", display_args, ")");
-  std::cout << prefix << "    " << Colorize(summary, "", ansi::Grey) << std::endl;
+  std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata) << std::endl;
 }
 
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status,
                             const std::string& prefix) {
   std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
   std::string summary = absl::Substitute("$0 ($1) - $2 lines", name, status, lines.size());
-  const char* color = (status == "error" || absl::StartsWith(result, "Error:")) ? ansi::Red : ansi::Grey;
+  const char* color = (status == "error" || absl::StartsWith(result, "Error:")) ? ansi::Red : ansi::Metadata;
 
   // Indent more than the call for visual hierarchy
   std::cout << prefix << "        " << Colorize(summary, "", color) << std::endl;
@@ -493,7 +493,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     const auto& msg = (*history_or)[i];
     
     if (msg.role == "user") {
-      std::cout << "\n" << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::Green) << std::endl;
+      std::cout << "\n" << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::UserLabel) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
     } else if (msg.role == "assistant") {
       if (msg.status == "tool_call") {
