@@ -251,9 +251,15 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
       (width > std::max(prefix_len, first_prefix_len) + 5) ? width - std::max(prefix_len, first_prefix_len) : width;
 
   std::stringstream ss(text);
-  std::string paragraph;
-  while (std::getline(ss, paragraph)) {
-    std::stringstream word_ss(paragraph);
+  std::string line;
+  while (std::getline(ss, line)) {
+    if (VisibleLength(line) <= effective_width) {
+      current_line = line;
+      finalize_line();
+      continue;
+    }
+
+    std::stringstream word_ss(line);
     std::string word;
     bool first_word = true;
     while (word_ss >> word) {
@@ -374,8 +380,11 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
     return;
   }
 
-  std::string rendered = renderer.Render(**parsed_or);
   size_t width = GetTerminalWidth();
+  size_t prefix_len = VisibleLength(prefix);
+  renderer.SetMaxWidth(width > prefix_len + 5 ? width - prefix_len : 0);
+
+  std::string rendered = renderer.Render(**parsed_or);
   std::cout << WrapText(rendered, width, prefix) << std::endl;
 }
 

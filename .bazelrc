@@ -24,12 +24,32 @@ build:gcc --copt="-fcf-protection=full"
 build:clang --copt="-fstack-clash-protection" # Only if using Clang 11+
 # If Clang version varies, keep -Wno-unused-command-line-argument enabled (Line 16)
 
-# 5. Sanitizers (Common flags)
-build:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-fno-omit-frame-pointer"
-test:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-fno-omit-frame-pointer"
+#------ sanitizer ----
+# Common ASan
+# --config=asan
+build:asan --features=asan
+test:asan --features=asan
 
-build:ubsan --copt="-fsanitize=undefined" --linkopt="-fsanitize=undefined"
-test:ubsan --copt="-fsanitize=undefined" --linkopt="-fsanitize=undefined"
+# macOS: Linker setup
+# Tells the binary to look in its own 'runfiles' directory for the toolchain libs
+build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../
+build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib
+build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib/clang/17/lib/darwin
+
+# Linux: Linker setup
+build:asan-linux --linkopt=-Wl,-z,origin
+build:asan-linux --linkopt=-Wl,-rpath='$$ORIGIN/../lib'
+
+# Hermeticity fixes (stops 'undeclared inclusion' errors)
+build:asan --copt=-fno-sanitize-ignorelist
+build:asan --features=-layering_check
+
+# Apply configs automatically based on Host OS
+build --enable_platform_specific_config
+
+
+# -------
+
 
 # 6. Per-file handling for external repos
 # Use the common Clang flag -Wno-uninitialized which works for most cases

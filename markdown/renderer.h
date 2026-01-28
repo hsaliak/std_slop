@@ -12,6 +12,10 @@ class MarkdownRenderer final {
  public:
   MarkdownRenderer() = default;
 
+  // Sets the maximum width for rendering (e.g., terminal width).
+  // If set to 0 (default), no wrapping/truncation is applied.
+  void SetMaxWidth(size_t width) { max_width_ = width; }
+
   // Renders the parsed markdown to an ANSI-styled string
   [[nodiscard]] std::string Render(const ParsedMarkdown& parsed);
 
@@ -22,6 +26,8 @@ class MarkdownRenderer final {
   };
 
  private:
+  size_t max_width_ = 0;
+
   void RenderNodeRecursive(TSNode node, const ParsedMarkdown& parsed, std::string_view current_source,
                            std::string& output, int depth, TSTree* current_tree);
 

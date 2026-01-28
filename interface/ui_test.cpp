@@ -269,4 +269,14 @@ TEST(UiTest, WrapTextWithPrefix) {
   }
 }
 
+TEST(UiTest, WrapTextPreservesMultipleSpaces) {
+  std::string table =
+      "┌──────────┬──────────┐\n"
+      "│ col1     │ col2     │\n"
+      "└──────────┴──────────┘";
+  // Wrap with enough width to not wrap lines
+  std::string wrapped = WrapText(table, 80);
+  EXPECT_EQ(wrapped, table);
+}
+
 }  // namespace slop

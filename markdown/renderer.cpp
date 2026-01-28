@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 #include <string_view>
 #include <vector>
 
@@ -26,17 +27,15 @@ struct Style {
 
 size_t DisplayWidth(std::string_view text) {
   size_t width = 0;
-  bool in_esc = false;
   for (size_t i = 0; i < text.length(); ++i) {
-    if (text[i] == '\033') {
-      in_esc = true;
-    } else if (in_esc) {
-      if ((text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= 'a' && text[i] <= 'z')) {
-        in_esc = false;
+    if (text[i] == '\033' && i + 1 < text.length() && text[i + 1] == '[') {
+      i += 2;
+      while (i < text.length() && (text[i] < 0x40 || text[i] > 0x7E)) {
+        i++;
       }
     } else {
-      // Very basic UTF-8 support: only count start bytes
-      if ((text[i] & 0xc0) != 0x80) {
+      // For UTF-8, only count the start byte of a character sequence (bytes not 10xxxxxx)
+      if ((static_cast<unsigned char>(text[i]) & 0xC0) != 0x80) {
         width++;
       }
     }
@@ -150,6 +149,61 @@ std::string Align(std::string text, size_t width, MarkdownRenderer::TableColumn:
     return std::string(left, ' ') + text + std::string(right, ' ');
   }
 }
+
+std::vector<std::string> WrapCell(const std::string& text, size_t width) {
+  if (width == 0) return {text};
+  std::vector<std::string> lines;
+  std::string current_line;
+  size_t current_width = 0;
+
+  auto finalize_line = [&]() {
+    lines.push_back(current_line);
+    current_line.clear();
+    current_width = 0;
+  };
+
+  std::stringstream ss(text);
+  std::string word;
+  while (ss >> word) {
+    size_t word_width = DisplayWidth(word);
+    if (!current_line.empty() && current_width + 1 + word_width > width) {
+      finalize_line();
+    }
+
+    if (word_width > width) {
+      // Word is longer than width, must break it
+      for (size_t i = 0; i < word.length();) {
+        // Find next char (handle UTF-8)
+        size_t char_len = 1;
+        if ((static_cast<unsigned char>(word[i]) & 0xE0) == 0xC0)
+          char_len = 2;
+        else if ((static_cast<unsigned char>(word[i]) & 0xF0) == 0xE0)
+          char_len = 3;
+        else if ((static_cast<unsigned char>(word[i]) & 0xF8) == 0xF0)
+          char_len = 4;
+
+        if (current_width + 1 > width && !current_line.empty()) {
+          finalize_line();
+        }
+        current_line += word.substr(i, char_len);
+        current_width += 1;
+        i += char_len;
+      }
+    } else {
+      if (!current_line.empty()) {
+        current_line += " ";
+        current_width += 1;
+      }
+      current_line += word;
+      current_width += word_width;
+    }
+  }
+
+  if (!current_line.empty() || lines.empty()) {
+    lines.push_back(current_line);
+  }
+  return lines;
+}
 }  // namespace
 
 void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, std::string_view current_source,
@@ -224,6 +278,22 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
 
   using namespace ansi::theme::markdown;
 
+  size_t total_width = 1;
+  for (const auto& col : columns) total_width += col.width + 3;
+
+  if (max_width_ > 0 && total_width > max_width_) {
+    // Need to shrink columns
+    while (total_width > max_width_) {
+      size_t widest_idx = 0;
+      for (size_t i = 1; i < columns.size(); ++i) {
+        if (columns[i].width > columns[widest_idx].width) widest_idx = i;
+      }
+      if (columns[widest_idx].width <= 5) break;
+      columns[widest_idx].width--;
+      total_width--;
+    }
+  }
+
   // Top border
   output.append(TableBorder);
   output.append("┌");
@@ -238,23 +308,34 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
   output.append("┐\n");
 
   for (size_t r = 0; r < rows.size(); ++r) {
-    output.append(TableBorder);
-    output.append("│");
+    std::vector<std::vector<std::string>> cell_lines;
+    size_t max_h = 1;
     for (size_t c = 0; c < columns.size(); ++c) {
       std::string content = (c < rows[r].size()) ? rows[r][c] : "";
-      std::string aligned = Align(content, columns[c].width, columns[c].alignment);
+      auto lines = WrapCell(content, columns[c].width);
+      max_h = std::max(max_h, lines.size());
+      cell_lines.push_back(std::move(lines));
+    }
 
-      output.append(" ");
-      if (r == 0) output.append(TableHeader);
-      output.append(aligned);
-      if (r == 0) output.append(ansi::Reset);
-      output.append(" ");
-
+    for (size_t h = 0; h < max_h; ++h) {
       output.append(TableBorder);
       output.append("│");
+      for (size_t c = 0; c < columns.size(); ++c) {
+        std::string line_content = (h < cell_lines[c].size()) ? cell_lines[c][h] : "";
+        std::string aligned = Align(line_content, columns[c].width, columns[c].alignment);
+
+        output.append(" ");
+        if (r == 0) output.append(TableHeader);
+        output.append(aligned);
+        if (r == 0) output.append(ansi::Reset);
+        output.append(" ");
+
+        output.append(TableBorder);
+        output.append("│");
+      }
+      output.append(ansi::Reset);
+      output.append("\n");
     }
-    output.append(ansi::Reset);
-    output.append("\n");
 
     if (r == 0) {  // After header
       output.append(TableBorder);
