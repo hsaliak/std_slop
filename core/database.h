@@ -25,6 +25,15 @@ class Database {
   absl::Status Execute(const std::string& sql);
   absl::Status Execute(const std::string& sql, const std::vector<std::string>& params);
 
+  template <typename... Args>
+  absl::Status Execute(const std::string& sql, Args&&... args) {
+    auto stmt_or = Prepare(sql);
+    if (!stmt_or.ok()) return stmt_or.status();
+    auto bind_status = (*stmt_or)->BindAll(std::forward<Args>(args)...);
+    if (!bind_status.ok()) return bind_status;
+    return (*stmt_or)->Run();
+  }
+
   struct StmtDeleter {
     void operator()(sqlite3_stmt* stmt) const {
       if (stmt) sqlite3_finalize(stmt);
@@ -38,8 +47,23 @@ class Database {
 
     absl::Status Prepare();
     absl::Status BindInt(int index, int value);
+    absl::Status BindInt64(int index, int64_t value);
+    absl::Status BindDouble(int index, double value);
     absl::Status BindText(int index, const std::string& value);
     absl::Status BindNull(int index);
+
+    // Overloads for easier binding
+    absl::Status Bind(int index, int value) { return BindInt(index, value); }
+    absl::Status Bind(int index, int64_t value) { return BindInt64(index, value); }
+    absl::Status Bind(int index, double value) { return BindDouble(index, value); }
+    absl::Status Bind(int index, const std::string& value) { return BindText(index, value); }
+    absl::Status Bind(int index, const char* value) { return BindText(index, value ? value : ""); }
+    absl::Status Bind(int index, std::nullptr_t) { return BindNull(index); }
+
+    template <typename... Args>
+    absl::Status BindAll(Args&&... args) {
+      return BindRecursive(1, std::forward<Args>(args)...);
+    }
 
     absl::StatusOr<bool> Step();  // Returns true if a row is available (SQLITE_ROW)
     absl::Status Run();           // For operations that don't return rows (SQLITE_DONE)
@@ -53,6 +77,15 @@ class Database {
     int ColumnCount();
 
    private:
+    absl::Status BindRecursive(int /*index*/) { return absl::OkStatus(); }
+
+    template <typename T, typename... Rest>
+    absl::Status BindRecursive(int index, T&& first, Rest&&... rest) {
+      auto status = Bind(index, std::forward<T>(first));
+      if (!status.ok()) return status;
+      return BindRecursive(index + 1, std::forward<Rest>(rest)...);
+    }
+
     sqlite3* db_;
     std::string sql_;
     UniqueStmt stmt_;

@@ -27,15 +27,7 @@ namespace slop {
 Orchestrator::Builder::Builder(Database* db, HttpClient* http_client) : db_(db), http_client_(http_client) {}
 
 Orchestrator::Builder::Builder(const Orchestrator& orchestrator)
-    : db_(orchestrator.db_), http_client_(orchestrator.http_client_) {
-  config_.provider = orchestrator.provider_;
-  config_.model = orchestrator.model_;
-  config_.gca_mode = orchestrator.gca_mode_;
-  config_.project_id = orchestrator.project_id_;
-  config_.base_url = orchestrator.base_url_;
-  config_.throttle = orchestrator.throttle_;
-  config_.strip_reasoning = orchestrator.strip_reasoning_;
-}
+    : db_(orchestrator.db_), http_client_(orchestrator.http_client_), config_(orchestrator.config_) {}
 
 Orchestrator::Builder& Orchestrator::Builder::WithProvider(Provider provider) {
   config_.provider = provider;
@@ -85,28 +77,23 @@ absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
 }
 
 void Orchestrator::Builder::BuildInto(Orchestrator* orchestrator) {
-  orchestrator->provider_ = config_.provider;
-  orchestrator->model_ = config_.model;
-  orchestrator->gca_mode_ = config_.gca_mode;
-  orchestrator->project_id_ = config_.project_id;
-  orchestrator->base_url_ = config_.base_url;
-  orchestrator->throttle_ = config_.throttle;
-  orchestrator->strip_reasoning_ = config_.strip_reasoning;
+  orchestrator->config_ = config_;
   orchestrator->UpdateStrategy();
 }
 
-Orchestrator::Orchestrator(Database* db, HttpClient* http_client) : db_(db), http_client_(http_client), throttle_(0) {}
+Orchestrator::Orchestrator(Database* db, HttpClient* http_client) : db_(db), http_client_(http_client) {}
 
 void Orchestrator::UpdateStrategy() {
-  if (provider_ == Provider::GEMINI) {
-    if (gca_mode_) {
-      strategy_ = std::make_unique<GeminiGcaOrchestrator>(db_, http_client_, model_, base_url_, project_id_);
+  if (config_.provider == Provider::GEMINI) {
+    if (config_.gca_mode) {
+      strategy_ = std::make_unique<GeminiGcaOrchestrator>(db_, http_client_, config_.model, config_.base_url,
+                                                          config_.project_id);
     } else {
-      strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, model_, base_url_);
+      strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
     }
   } else {
-    auto openai = std::make_unique<OpenAiOrchestrator>(db_, http_client_, model_, base_url_);
-    openai->SetStripReasoning(strip_reasoning_);
+    auto openai = std::make_unique<OpenAiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
+    openai->SetStripReasoning(config_.strip_reasoning);
     strategy_ = std::move(openai);
   }
 }

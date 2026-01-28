@@ -63,6 +63,35 @@ inline std::string Colorize(const std::string& text, const char* bg_background,
   return std::string(bg_background) + std::string(fg_foreground) + text + ansi::Reset;
 }
 
+/**
+ * @brief Calculates the printable length of a string, excluding ANSI escape codes.
+ *
+ * Handles multi-byte UTF-8 characters and standard ANSI SGR (Select Graphic Rendition)
+ * sequences to determine how many columns the string will occupy in the terminal.
+ *
+ * @param s The string to measure.
+ * @return size_t The number of visible terminal columns.
+ */
+inline size_t VisibleLength(std::string_view s) {
+  size_t len = 0;
+  for (size_t i = 0; i < s.length(); ++i) {
+    // Detect start of ANSI escape sequence
+    if (s[i] == '\033' && i + 1 < s.length() && s[i + 1] == '[') {
+      i += 2;
+      // Skip characters until the termination character of the sequence (0x40-0x7E)
+      while (i < s.length() && (s[i] < 0x40 || s[i] > 0x7E)) {
+        i++;
+      }
+    } else {
+      // For UTF-8, only count the start byte of a character sequence (bytes not 10xxxxxx)
+      if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
+        len++;
+      }
+    }
+  }
+  return len;
+}
+
 }  // namespace slop
 
 #endif  // COLOR_H_

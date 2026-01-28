@@ -25,23 +25,7 @@ struct Style {
   const char* post;
 };
 
-size_t DisplayWidth(std::string_view text) {
-  size_t width = 0;
-  for (size_t i = 0; i < text.length(); ++i) {
-    if (text[i] == '\033' && i + 1 < text.length() && text[i + 1] == '[') {
-      i += 2;
-      while (i < text.length() && (text[i] < 0x40 || text[i] > 0x7E)) {
-        i++;
-      }
-    } else {
-      // For UTF-8, only count the start byte of a character sequence (bytes not 10xxxxxx)
-      if ((static_cast<unsigned char>(text[i]) & 0xC0) != 0x80) {
-        width++;
-      }
-    }
-  }
-  return width;
-}
+
 
 Style GetNodeStyle(std::string_view type) {
   using namespace ansi::theme::markdown;
@@ -136,7 +120,7 @@ std::string MarkdownRenderer::RenderCellToText(TSNode node, const ParsedMarkdown
 
 namespace {
 std::string Align(std::string text, size_t width, MarkdownRenderer::TableColumn::Alignment align) {
-  size_t dw = DisplayWidth(text);
+  size_t dw = VisibleLength(text);
   if (dw >= width) return text;
   size_t extra = width - dw;
   if (align == MarkdownRenderer::TableColumn::LEFT) {
@@ -165,7 +149,7 @@ std::vector<std::string> WrapCell(const std::string& text, size_t width) {
   std::stringstream ss(text);
   std::string word;
   while (ss >> word) {
-    size_t word_width = DisplayWidth(word);
+    size_t word_width = VisibleLength(word);
     if (!current_line.empty() && current_width + 1 + word_width > width) {
       finalize_line();
     }
@@ -173,6 +157,18 @@ std::vector<std::string> WrapCell(const std::string& text, size_t width) {
     if (word_width > width) {
       // Word is longer than width, must break it
       for (size_t i = 0; i < word.length();) {
+        // Handle ANSI escape sequences
+        if (word[i] == '\033' && i + 1 < word.length() && word[i + 1] == '[') {
+          size_t start_seq = i;
+          i += 2;
+          while (i < word.length() && (word[i] < 0x40 || word[i] > 0x7E)) {
+            i++;
+          }
+          if (i < word.length()) i++;
+          current_line += word.substr(start_seq, i - start_seq);
+          continue;
+        }
+
         // Find next char (handle UTF-8)
         size_t char_len = 1;
         if ((static_cast<unsigned char>(word[i]) & 0xE0) == 0xC0)
@@ -233,7 +229,7 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
             content = "";
           }
 
-          size_t width = DisplayWidth(content);
+          size_t width = VisibleLength(content);
           if (col_idx >= columns.size()) {
             columns.push_back({width, TableColumn::LEFT});
           } else {

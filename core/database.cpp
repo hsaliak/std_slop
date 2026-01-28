@@ -1,8 +1,8 @@
 #include "core/database.h"
 
 #include <iostream>
-#include <unordered_set>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
@@ -30,6 +30,20 @@ absl::Status Database::Statement::Prepare() {
 absl::Status Database::Statement::BindInt(int index, int value) {
   if (sqlite3_bind_int(stmt_.get(), index, value) != SQLITE_OK) {
     return absl::InternalError("BindInt error: " + std::string(sqlite3_errmsg(db_)));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Database::Statement::BindInt64(int index, int64_t value) {
+  if (sqlite3_bind_int64(stmt_.get(), index, value) != SQLITE_OK) {
+    return absl::InternalError("BindInt64 error: " + std::string(sqlite3_errmsg(db_)));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Database::Statement::BindDouble(int index, double value) {
+  if (sqlite3_bind_double(stmt_.get(), index, value) != SQLITE_OK) {
+    return absl::InternalError("BindDouble error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
@@ -79,7 +93,7 @@ const char* Database::Statement::ColumnName(int index) { return sqlite3_column_n
 int Database::Statement::ColumnCount() { return sqlite3_column_count(stmt_.get()); }
 
 bool Database::IsStopWord(const std::string& word) {
-  static const std::unordered_set<std::string> kStopWords = {
+  static const absl::flat_hash_set<std::string> kStopWords = {
       "about", "above", "after",   "again", "against", "all",   "and",    "any",   "because",  "been",      "before",
       "being", "below", "between", "both",  "but",     "could", "did",    "does",  "doing",    "down",      "during",
       "each",  "few",   "for",     "from",  "further", "had",   "has",    "have",  "having",   "here",      "how",
@@ -94,7 +108,7 @@ bool Database::IsStopWord(const std::string& word) {
 std::vector<std::string> Database::ExtractTags(const std::string& text) {
   std::vector<std::string> words = absl::StrSplit(text, absl::ByAnyChar(" \t\n\r.,;:()[]{}<>\"'-"));
   std::vector<std::string> tags;
-  std::set<std::string> seen;
+  absl::flat_hash_set<std::string> seen;
   for (const auto& w : words) {
     std::string word = absl::AsciiStrToLower(absl::StripAsciiWhitespace(w));
     if (word.length() > 3 && !IsStopWord(word)) {
@@ -334,13 +348,7 @@ absl::Status Database::AppendMessage(const std::string& session_id, const std::s
 }
 
 absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
-  std::string sql = "UPDATE messages SET status = ? WHERE id = ?";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, status));
-  RETURN_IF_ERROR(stmt->BindInt(2, id));
-
-  return stmt->Run();
+  return Execute("UPDATE messages SET status = ? WHERE id = ?;", status, id);
 }
 
 /**
@@ -467,17 +475,9 @@ absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_
 
 absl::Status Database::RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
                                    int completion_tokens) {
-  std::string sql =
-      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, session_id));
-  RETURN_IF_ERROR(stmt->BindText(2, model));
-  RETURN_IF_ERROR(stmt->BindInt(3, prompt_tokens));
-  RETURN_IF_ERROR(stmt->BindInt(4, completion_tokens));
-  RETURN_IF_ERROR(stmt->BindInt(5, prompt_tokens + completion_tokens));
-
-  return stmt->Run();
+  return Execute(
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?);",
+      session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens);
 }
 
 absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& session_id) {
@@ -505,15 +505,9 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 }
 
 absl::Status Database::RegisterTool(const Tool& tool) {
-  std::string sql = "INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?)";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, tool.name));
-  RETURN_IF_ERROR(stmt->BindText(2, tool.description));
-  RETURN_IF_ERROR(stmt->BindText(3, tool.json_schema));
-  RETURN_IF_ERROR(stmt->BindInt(4, tool.is_enabled ? 1 : 0));
-
-  return stmt->Run();
+  return Execute(
+      "INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?);",
+      tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0);
 }
 
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
@@ -537,40 +531,22 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 }
 
 absl::Status Database::RegisterSkill(const Skill& skill) {
-  std::string sql = "INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?)";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, skill.name));
-  RETURN_IF_ERROR(stmt->BindText(2, skill.description));
-  RETURN_IF_ERROR(stmt->BindText(3, skill.system_prompt_patch));
-
-  return stmt->Run();
+  return Execute("INSERT OR IGNORE INTO skills (name, description, system_prompt_patch) VALUES (?, ?, ?);",
+                 skill.name, skill.description, skill.system_prompt_patch);
 }
 
 absl::Status Database::UpdateSkill(const Skill& skill) {
-  std::string sql = "UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, skill.description));
-  RETURN_IF_ERROR(stmt->BindText(2, skill.system_prompt_patch));
-  RETURN_IF_ERROR(stmt->BindText(3, skill.name));
-
-  return stmt->Run();
+  return Execute("UPDATE skills SET description = ?, system_prompt_patch = ? WHERE name = ?;",
+                 skill.description, skill.system_prompt_patch, skill.name);
 }
 
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
-  std::string sql = "DELETE FROM skills WHERE name = ? OR id = ?";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, name_or_id));
+  std::string sql = "DELETE FROM skills WHERE name = ? OR id = ?;";
   int id = 0;
   if (absl::SimpleAtoi(name_or_id, &id)) {
-    RETURN_IF_ERROR(stmt->BindInt(2, id));
-  } else {
-    RETURN_IF_ERROR(stmt->BindNull(2));
+    return Execute(sql, name_or_id, id);
   }
-
-  return stmt->Run();
+  return Execute(sql, name_or_id, nullptr);
 }
 
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
@@ -594,13 +570,7 @@ absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
 }
 
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
-  std::string sql = "INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?)";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, session_id));
-  RETURN_IF_ERROR(stmt->BindInt(2, size));
-
-  return stmt->Run();
+  return Execute("INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?);", session_id, size);
 }
 
 absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
@@ -620,13 +590,7 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
 }
 
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
-  std::string sql = "INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?)";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
-  RETURN_IF_ERROR(stmt->BindText(1, session_id));
-  RETURN_IF_ERROR(stmt->BindText(2, state_blob));
-
-  return stmt->Run();
+  return Execute("INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?);", session_id, state_blob);
 }
 
 /**
@@ -654,34 +618,10 @@ absl::StatusOr<std::string> Database::GetSessionState(const std::string& session
 }
 
 absl::Status Database::DeleteSession(const std::string& session_id) {
-  // 1. Delete messages
-  {
-    std::string sql = "DELETE FROM messages WHERE session_id = ?";
-    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-    RETURN_IF_ERROR(stmt->BindText(1, session_id));
-    RETURN_IF_ERROR(stmt->Run());
-  }
-  // 2. Delete usage
-  {
-    std::string sql = "DELETE FROM usage WHERE session_id = ?";
-    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-    RETURN_IF_ERROR(stmt->BindText(1, session_id));
-    RETURN_IF_ERROR(stmt->Run());
-  }
-  // 3. Delete session settings
-  {
-    std::string sql = "DELETE FROM sessions WHERE id = ?";
-    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-    RETURN_IF_ERROR(stmt->BindText(1, session_id));
-    RETURN_IF_ERROR(stmt->Run());
-  }
-  // 4. Delete session state
-  {
-    std::string sql = "DELETE FROM session_state WHERE session_id = ?";
-    ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-    RETURN_IF_ERROR(stmt->BindText(1, session_id));
-    RETURN_IF_ERROR(stmt->Run());
-  }
+  RETURN_IF_ERROR(Execute("DELETE FROM messages WHERE session_id = ?;", session_id));
+  RETURN_IF_ERROR(Execute("DELETE FROM usage WHERE session_id = ?;", session_id));
+  RETURN_IF_ERROR(Execute("DELETE FROM sessions WHERE id = ?;", session_id));
+  RETURN_IF_ERROR(Execute("DELETE FROM session_state WHERE session_id = ?;", session_id));
   return absl::OkStatus();
 }
 

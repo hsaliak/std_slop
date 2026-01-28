@@ -151,5 +151,35 @@ TEST(MarkdownRendererTest, LongTableWrapping) {
   EXPECT_GT(pipe_count, 6);
 }
 
+TEST(MarkdownRendererTest, TableWrappingEdgeCases) {
+  MarkdownParser parser;
+  MarkdownRenderer renderer;
+
+  // 1. Extremely narrow width
+  // Use a blank line before to ensure table parsing
+  auto p_res1 = parser.Parse("\n| One | Two |\n|---|---|\n| Content | More |\n");
+  ASSERT_TRUE(p_res1.ok());
+  renderer.SetMaxWidth(10);
+  std::string rendered1 = renderer.Render(*p_res1.value());
+  // "Content" might be wrapped, so check for a prefix
+  EXPECT_NE(rendered1.find("Cont"), std::string::npos);
+
+  // 2. Multi-byte chars (Emoji)
+  auto p_res2 = parser.Parse("\n| Emoji | Text |\n|---|---|\n| 🚀 | Rocket |\n");
+  ASSERT_TRUE(p_res2.ok());
+  renderer.SetMaxWidth(20);
+  std::string rendered2 = renderer.Render(*p_res2.value());
+  EXPECT_NE(rendered2.find("🚀"), std::string::npos);
+
+  // 3. ANSI styling in cells
+  auto p_res3 = parser.Parse("\n| Styled | Plain |\n|---|---|\n| **Bold** | Normal |\n");
+  ASSERT_TRUE(p_res3.ok());
+  renderer.SetMaxWidth(40);
+  std::string rendered3 = renderer.Render(*p_res3.value());
+  // The injection should have happened, so we expect Bold escape codes
+  EXPECT_NE(rendered3.find(ansi::theme::markdown::Bold), std::string::npos);
+  EXPECT_NE(rendered3.find("Bold"), std::string::npos);
+}
+
 }  // namespace markdown
 }  // namespace slop

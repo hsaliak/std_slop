@@ -55,9 +55,9 @@ class Orchestrator {
   // but Builder is preferred for complex configuration.
   Orchestrator(Database* db, HttpClient* http_client);
 
-  Provider GetProvider() const { return provider_; }
-  std::string GetModel() const { return model_; }
-  int GetThrottle() const { return throttle_; }
+  Provider GetProvider() const { return config_.provider; }
+  std::string GetModel() const { return config_.model; }
+  int GetThrottle() const { return config_.throttle; }
 
   Builder Update() const { return Builder(*this); }
 
@@ -93,13 +93,7 @@ class Orchestrator {
 
   Database* db_;
   HttpClient* http_client_;
-  Provider provider_ = Provider::GEMINI;
-  std::string model_;
-  bool gca_mode_ = false;
-  std::string project_id_;
-  std::string base_url_;
-  int throttle_ = 0;
-  bool strip_reasoning_ = false;
+  Config config_;
   std::vector<std::string> last_selected_groups_;
 
   std::unique_ptr<OrchestratorStrategy> strategy_;
