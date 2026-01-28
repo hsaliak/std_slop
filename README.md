@@ -36,7 +36,7 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 - **`core/`**: The engine of `std::slop`. Contains database management, the Orchestrator (logic for model interaction), HTTP clients, and tool execution logic.
 - **`interface/`**: User interface components, including terminal UI, command handling, and line completion.
 - **`markdown/`**: A self-contained library for parsing and rendering Markdown to terminal-ready ANSI-styled strings using tree-sitter.
-- **`scripts/`**: Utility scripts for linting, formatting, and authentication.
+- **`scripts/`**: Utility scripts for linting, formatting.
 - **`main.cpp`**: Application entry point and global initialization.
 
 ## Installation
