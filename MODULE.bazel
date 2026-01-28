@@ -30,7 +30,7 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_archive(
     name = "tree-sitter-markdown",
-    build_file = "//:tree-sitter-markdown.BUILD",
+    build_file = "//third_party/tree-sitter-markdown:BUILD",
     sha256 = "122be47d4a50ac75a4f6861a17c3c88144197e0949f5d83ca917f2382b37761b",
     strip_prefix = "tree-sitter-markdown-0.5.2",
     urls = ["https://github.com/tree-sitter-grammars/tree-sitter-markdown/archive/refs/tags/v0.5.2.tar.gz"],
