@@ -164,15 +164,16 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
-        std::string out;
+        std::string md = absl::Substitute("### Interaction Group: `$0` \n\n", sub_args);
         for (const auto& m : j) {
-          out += "[" + m["role"].get<std::string>() + "]:";
+          std::string role = m.value("role", "unknown");
+          md += absl::Substitute("#### $0", role);
           if (m.contains("tokens") && !m["tokens"].is_null() && m["tokens"].get<int>() > 0) {
-            out += " (" + std::to_string(m["tokens"].get<int>()) + " tokens)";
+            md += absl::Substitute(" ($0 tokens)", m["tokens"].get<int>());
           }
-          out += "\n" + m["content"].get<std::string>() + "\n\n";
+          md += "\n" + m.value("content", "") + "\n\n";
         }
-        SmartDisplay(out);
+        PrintMarkdown(md);
       }
     }
   } else if (sub_cmd == "remove") {
@@ -456,8 +457,9 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     if (scratch_op == "read") {
       auto res = db_->GetScratchpad(args.session_id);
       if (res.ok()) {
-        std::cout << "--- Scratchpad [" << args.session_id << "] ---\n"
-                  << *res << "\n----------------------" << std::endl;
+        std::string md = absl::Substitute("## Scratchpad [$0]\n\n", args.session_id);
+        md += *res;
+        PrintMarkdown(md);
       } else {
         std::cout << "Scratchpad is empty or session not found." << std::endl;
       }
