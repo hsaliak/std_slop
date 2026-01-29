@@ -90,8 +90,17 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   }
 
   if (!result.ok()) {
-    LOG(ERROR) << "Tool " << name << " failed: " << result.status().ToString();
-    return wrap_result(name, "Error: " + result.status().ToString());
+    std::string error_msg = result.status().ToString();
+    // Truncate long error messages for logging
+    std::string log_msg = error_msg;
+    if (size_t first_nl = log_msg.find('\n'); first_nl != std::string::npos) {
+      log_msg = log_msg.substr(0, first_nl) + " (multi-line)...";
+    }
+    if (log_msg.length() > 100) {
+      log_msg = log_msg.substr(0, 97) + "...";
+    }
+    LOG(ERROR) << "Tool " << name << " failed: " << log_msg;
+    return wrap_result(name, "Error: " + error_msg);
   }
   LOG(INFO) << "Tool " << name << " succeeded.";
   return wrap_result(name, *result);

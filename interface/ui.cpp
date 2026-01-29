@@ -572,12 +572,22 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
 
 void HandleStatus(const absl::Status& status, const std::string& context) {
   if (status.ok()) return;
+
+  std::string msg(status.message());
+  std::string log_msg = msg;
+  if (size_t first_nl = log_msg.find('\n'); first_nl != std::string::npos) {
+    log_msg = log_msg.substr(0, first_nl) + " (multi-line)...";
+  }
+  if (log_msg.length() > 100) {
+    log_msg = log_msg.substr(0, 97) + "...";
+  }
+
   if (!context.empty()) {
-    std::cerr << icons::Error << " " << context << ": " << status.message() << std::endl;
-    LOG(ERROR) << context << ": " << status.message();
+    std::cerr << icons::Error << " " << context << ": " << log_msg << std::endl;
+    LOG(ERROR) << context << ": " << log_msg;
   } else {
-    std::cerr << icons::Error << " " << status.message() << std::endl;
-    LOG(ERROR) << status.message();
+    std::cerr << icons::Error << " " << log_msg << std::endl;
+    LOG(ERROR) << log_msg;
   }
 }
 
