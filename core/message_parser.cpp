@@ -1,7 +1,8 @@
 #include "core/message_parser.h"
 
-#include <nlohmann/json.hpp>
 #include "absl/status/status.h"
+
+#include <nlohmann/json.hpp>
 
 namespace slop {
 

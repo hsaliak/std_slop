@@ -5,6 +5,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
+
 #include "interface/color.h"
 
 namespace slop {

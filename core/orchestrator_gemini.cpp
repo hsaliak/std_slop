@@ -1,7 +1,6 @@
 #include "core/orchestrator_gemini.h"
 
 #include <iostream>
-#include "core/message_parser.h"
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -9,6 +8,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
+#include "core/message_parser.h"
 #include "core/orchestrator.h"
 namespace slop {
 

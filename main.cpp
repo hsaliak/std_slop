@@ -301,8 +301,7 @@ int main(int argc, char** argv) {
 
     // Execute interaction
     std::string group_id = std::to_string(absl::ToUnixNanos(absl::Now()));
-    (void)db.AppendMessage(session_id, "user", input, "", "completed", group_id,
-                           orchestrator->GetName());
+    (void)db.AppendMessage(session_id, "user", input, "", "completed", group_id, orchestrator->GetName());
 
     while (true) {
       auto prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);
@@ -405,10 +404,8 @@ int main(int argc, char** argv) {
           if (calls_or.ok()) {
             for (const auto& call : *calls_or) {
               auto result_or = tool_executor.Execute(call.name, call.args);
-              std::string result =
-                  result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-              slop::PrintToolResultMessage(call.name, result,
-                                           result_or.ok() ? "completed" : "error", "  ");
+              std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
+              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error", "  ");
               std::string combined_id = call.id;
               if (call.id != call.name) {
                 combined_id = call.id + "|" + call.name;

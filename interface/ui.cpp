@@ -1,7 +1,6 @@
 #include "interface/ui.h"
 
 #include <unistd.h>
-#include "core/message_parser.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -21,6 +20,7 @@
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 
+#include "core/message_parser.h"
 #include "interface/color.h"
 #include "interface/completer.h"
 #include "markdown/parser.h"
@@ -78,16 +78,16 @@ void PrintStyledBlock(const std::string& body, const std::string& prefix, const 
 
   for (size_t i = 0; i < lines.size(); ++i) {
     if (lines[i].empty() && i + 1 == lines.size()) continue;
-    
-    // If fg_color is Assistant (White), we wrap each line in it, but we MUST 
+
+    // If fg_color is Assistant (White), we wrap each line in it, but we MUST
     // respect internal color codes. Colorize usually wraps everything.
     // If body already has ANSI codes, we should be careful.
     if (fg_color && *fg_color) {
-        std::cout << fg_color << bg_color << lines[i] << ansi::Reset;
+      std::cout << fg_color << bg_color << lines[i] << ansi::Reset;
     } else {
-        std::cout << lines[i];
+      std::cout << lines[i];
     }
-    
+
     if (i + 1 < lines.size()) std::cout << "\n";
   }
   std::cout << std::endl;
@@ -454,8 +454,7 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
     PrintStyledBlock(content, prefix + "    ", ansi::Assistant);
   }
   if (tokens > 0) {
-    std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset
-              << std::endl;
+    std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
   }
 }
 
@@ -481,22 +480,20 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
     display_args = display_args.substr(0, 57) + "...";
   }
 
-  std::string summary =
-      absl::StrCat(icons::Tool, " ", name, " ", icons::CallArrow, " ", display_args);
+  std::string summary = absl::StrCat(icons::Tool, " ", name, " ", icons::CallArrow, " ", display_args);
   std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata) << std::endl;
 }
 
-void PrintToolResultMessage(const std::string& /*name*/, const std::string& result,
-                            const std::string& status, const std::string& prefix) {
+void PrintToolResultMessage(const std::string& /*name*/, const std::string& result, const std::string& status,
+                            const std::string& prefix) {
   std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
   bool is_error = (status == "error" || absl::StartsWith(result, "Error:"));
-  std::string summary = absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success,
-                                         status, lines.size());
+  std::string summary =
+      absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success, status, lines.size());
   const char* color = is_error ? ansi::Red : ansi::Metadata;
 
   // Indent and use connector
-  std::cout << prefix << "    " << icons::ResultConnector << " " << Colorize(summary, "", color)
-            << std::endl;
+  std::cout << prefix << "    " << icons::ResultConnector << " " << Colorize(summary, "", color) << std::endl;
 }
 
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {

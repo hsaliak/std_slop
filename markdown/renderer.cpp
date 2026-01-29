@@ -1,12 +1,13 @@
 #include "markdown/renderer.h"
 
 #include <algorithm>
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
 #include <iostream>
 #include <sstream>
 #include <string_view>
 #include <vector>
+
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 
 #include "interface/color.h"
 

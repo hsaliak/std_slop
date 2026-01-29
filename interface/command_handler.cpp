@@ -39,7 +39,7 @@ CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHa
 }
 
 void CommandHandler::RegisterCommands() {
-  commands_.reserve(64); // Allocate enough bucket space up front
+  commands_.reserve(64);  // Allocate enough bucket space up front
   commands_["/help"] = [this](CommandArgs& args) { return HandleHelp(args); };
   commands_["/exit"] = [this](CommandArgs& args) { return HandleExit(args); };
   commands_["/edit"] = [this](CommandArgs& args) { return HandleEdit(args); };
@@ -61,7 +61,7 @@ void CommandHandler::RegisterCommands() {
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
     if (it != commands_.end()) {
-      auto handler = it->second; // copy the handler out to the stack
+      auto handler = it->second;  // copy the handler out to the stack
       for (const auto& alias : def.aliases) {
         commands_[alias] = handler;
       }
@@ -359,15 +359,16 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "edit") {
-    auto res = db_->Query("SELECT id, name, description, system_prompt_patch, activation_count FROM skills WHERE name = ? OR id = ?",
-                          {sub_args, sub_args});
+    auto res = db_->Query(
+        "SELECT id, name, description, system_prompt_patch, activation_count FROM skills WHERE name = ? OR id = ?",
+        {sub_args, sub_args});
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
         auto& skill_data = j[0];
         int id = skill_data["id"].get<int>();
-        Database::Skill skill{id, skill_data["name"], skill_data["description"],
-                              skill_data["system_prompt_patch"], skill_data["activation_count"].get<int>()};
+        Database::Skill skill{id, skill_data["name"], skill_data["description"], skill_data["system_prompt_patch"],
+                              skill_data["activation_count"].get<int>()};
 
         std::string initial_md = SkillToMarkdown(skill);
         std::string edited_md = TriggerEditor(initial_md);
@@ -522,7 +523,8 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
     }
   }
 
-  auto skills_res = db_->Query("SELECT name, activation_count FROM skills WHERE activation_count > 0 ORDER BY activation_count DESC");
+  auto skills_res =
+      db_->Query("SELECT name, activation_count FROM skills WHERE activation_count > 0 ORDER BY activation_count DESC");
   if (skills_res.ok()) {
     auto j = nlohmann::json::parse(*skills_res, nullptr, false);
     if (!j.is_discarded() && j.is_array() && !j.empty()) {
@@ -870,8 +872,8 @@ CommandHandler::Result CommandHandler::HandleManualReview(CommandArgs& args) {
 }
 
 std::string CommandHandler::SkillToMarkdown(const Database::Skill& skill) {
-  return absl::Substitute("# Name: $0\n# Description: $1\n\n# System Prompt Patch\n$2",
-                         skill.name, skill.description, skill.system_prompt_patch);
+  return absl::Substitute("# Name: $0\n# Description: $1\n\n# System Prompt Patch\n$2", skill.name, skill.description,
+                          skill.system_prompt_patch);
 }
 
 Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
@@ -897,14 +899,11 @@ Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
 }
 
 std::string CommandHandler::MemoToMarkdown(const Database::Memo& memo) {
-  nlohmann::json tags_j =
-      nlohmann::json::parse(memo.semantic_tags, nullptr, false);
+  nlohmann::json tags_j = nlohmann::json::parse(memo.semantic_tags, nullptr, false);
   std::string tags_str;
   if (!tags_j.is_discarded() && tags_j.is_array()) {
     tags_str = absl::StrJoin(
-        tags_j, ", ", [](std::string* out, const nlohmann::json& j) {
-          absl::StrAppend(out, j.get<std::string>());
-        });
+        tags_j, ", ", [](std::string* out, const nlohmann::json& j) { absl::StrAppend(out, j.get<std::string>()); });
   }
   return absl::Substitute("# Tags: $0\n\n$1", tags_str, memo.content);
 }
@@ -916,8 +915,7 @@ Database::Memo CommandHandler::MarkdownToMemo(const std::string& md, int id) {
   for (absl::string_view line : absl::StrSplit(md, '\n')) {
     absl::string_view line_view = line;
     if (!found_tags && absl::ConsumePrefix(&line_view, "# Tags:")) {
-      std::vector<absl::string_view> tags =
-          absl::StrSplit(line_view, ',', absl::SkipWhitespace());
+      std::vector<absl::string_view> tags = absl::StrSplit(line_view, ',', absl::SkipWhitespace());
       m.semantic_tags = nlohmann::json(tags).dump();
       found_tags = true;
     } else if (found_tags) {
