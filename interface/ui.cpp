@@ -498,48 +498,65 @@ void PrintToolResultMessage(const std::string& /*name*/, const std::string& resu
             << std::endl;
 }
 
+void PrintMessage(const Database::Message& msg, const std::string& prefix) {
+  if (msg.role == "user") {
+    std::string label = absl::StrCat("User (GID: ", msg.group_id, ")> ");
+    std::cout << "\n" << prefix << icons::Input << " " << Colorize(label, "", ansi::UserLabel) << std::endl;
+    PrintStyledBlock(absl::StrCat(" > ", msg.content, " "), prefix, ansi::EchoFg, ansi::EchoBg);
+  } else if (msg.role == "assistant") {
+    if (msg.status == "tool_call") {
+      auto j = nlohmann::json::parse(msg.content, nullptr, false);
+      if (!j.is_discarded()) {
+        if (j.contains("content") && j["content"].is_string()) {
+          std::string content = j["content"];
+          if (!content.empty()) {
+            PrintAssistantMessage(content, prefix + "  ", msg.tokens);
+          }
+        }
+
+        if (j.contains("functionCalls") && j["functionCalls"].is_array()) {
+          for (const auto& call : j["functionCalls"]) {
+            std::string name = call.value("name", "unknown");
+            std::string args = call.contains("args") ? call["args"].dump() : "{}";
+            PrintToolCallMessage(name, args, prefix + "  ");
+          }
+        } else if (j.contains("tool_calls") && j["tool_calls"].is_array()) {
+          for (const auto& call : j["tool_calls"]) {
+            if (call.contains("function")) {
+              std::string name = call["function"].value("name", "unknown");
+              std::string args = call["function"].value("arguments", "{}");
+              PrintToolCallMessage(name, args, prefix + "  ");
+            }
+          }
+        } else if (j.contains("functionCall") && j["functionCall"].is_object()) {
+          std::string name = j["functionCall"].value("name", "unknown");
+          std::string args =
+              j["functionCall"].contains("args") ? j["functionCall"]["args"].dump() : "{}";
+          PrintToolCallMessage(name, args, prefix + "  ");
+        } else {
+          PrintToolCallMessage("tool_call", msg.content, prefix + "  ");
+        }
+      } else {
+        PrintToolCallMessage("tool_call", msg.content, prefix + "  ");
+      }
+    } else {
+      PrintAssistantMessage(msg.content, prefix + "  ", msg.tokens);
+    }
+  } else if (msg.role == "tool") {
+    PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status, prefix + "  ");
+  } else if (msg.role == "system") {
+    std::cout << prefix << icons::Info << " " << Colorize("System> ", "", ansi::SystemLabel) << std::endl;
+    std::cout << WrapText(msg.content, GetTerminalWidth(), prefix) << std::endl;
+  }
+}
+
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit) {
   auto history_or = db.GetConversationHistory(session_id);
   if (!history_or.ok()) return history_or.status();
 
   size_t start = history_or->size() > static_cast<size_t>(limit) ? history_or->size() - limit : 0;
   for (size_t i = start; i < history_or->size(); ++i) {
-    const auto& msg = (*history_or)[i];
-
-    if (msg.role == "user") {
-      std::cout << "\n" << icons::Input << " " << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::UserLabel) << std::endl;
-      std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
-    } else if (msg.role == "assistant") {
-      if (msg.status == "tool_call") {
-        auto j = nlohmann::json::parse(msg.content, nullptr, false);
-        if (!j.is_discarded()) {
-          if (j.contains("content") && j["content"].is_string()) {
-            std::string content = j["content"];
-            if (!content.empty()) {
-              PrintAssistantMessage(content, "  ", msg.tokens);
-            }
-          }
-          if (j.contains("functionCalls") && j["functionCalls"].is_array()) {
-            for (const auto& call : j["functionCalls"]) {
-              std::string name = call.contains("name") ? call["name"].get<std::string>() : "unknown";
-              std::string args = call.contains("args") ? call["args"].dump() : "{}";
-              PrintToolCallMessage(name, args, "  ");
-            }
-          } else {
-            PrintToolCallMessage("tool_call", msg.content, "  ");
-          }
-        } else {
-          PrintToolCallMessage("tool_call", msg.content, "  ");
-        }
-      } else {
-        PrintAssistantMessage(msg.content, "  ", msg.tokens);
-      }
-    } else if (msg.role == "tool") {
-      PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status, "  ");
-    } else if (msg.role == "system") {
-      std::cout << icons::Info << " " << Colorize("System> ", "", ansi::SystemLabel) << std::endl;
-      std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
-    }
+    PrintMessage((*history_or)[i]);
   }
   return absl::OkStatus();
 }

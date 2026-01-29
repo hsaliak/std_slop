@@ -389,7 +389,7 @@ int main(int argc, char** argv) {
         slop::HandleStatus(process_or.status(), "Process Error");
         break;
       }
-      int total_tokens = *process_or;
+      (void)*process_or;
 
       auto history_after_or = db.GetMessagesByGroups({group_id});
       if (!history_after_or.ok() || history_after_or->empty()) break;
@@ -397,25 +397,17 @@ int main(int argc, char** argv) {
       bool has_tool_calls = false;
       for (size_t i = start_idx; i < history_after_or->size(); ++i) {
         const auto& msg = (*history_after_or)[i];
-        if (msg.role == "assistant" && msg.status == "tool_call") {
-          // Check for bundled content (thoughts) in the tool call message.
-          // Since this content field in a tool_call message is almost always reasoning,
-          // we force the thought styling (grey) even if explicit markers are missing.
-          auto j = nlohmann::json::parse(msg.content, nullptr, false);
-          if (!j.is_discarded() && j.contains("content") && j["content"].is_string()) {
-            std::string content = j["content"];
-            if (!content.empty()) {
-              slop::PrintAssistantMessage(content, "  ", total_tokens);
-            }
-          }
+        slop::PrintMessage(msg);
 
+        if (msg.role == "assistant" && msg.status == "tool_call") {
           auto calls_or = orchestrator->ParseToolCalls(msg);
           if (calls_or.ok()) {
             for (const auto& call : *calls_or) {
-              slop::PrintToolCallMessage(call.name, call.args.dump(), "  ");
               auto result_or = tool_executor.Execute(call.name, call.args);
-              std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error", "  ");
+              std::string result =
+                  result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
+              slop::PrintToolResultMessage(call.name, result,
+                                           result_or.ok() ? "completed" : "error", "  ");
               std::string combined_id = call.id;
               if (call.id != call.name) {
                 combined_id = call.id + "|" + call.name;
@@ -425,8 +417,6 @@ int main(int argc, char** argv) {
             }
             has_tool_calls = true;
           }
-        } else if (msg.role == "assistant") {
-          slop::PrintAssistantMessage(msg.content, "  ", total_tokens);
         }
       }
 

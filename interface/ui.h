@@ -63,6 +63,14 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status = "completed",
                             const std::string& prefix = "");
 
+/**
+ * @brief Unified message printer that handles all roles and formatting.
+ *
+ * @param msg The message to print.
+ * @param prefix Optional prefix for indentation.
+ */
+void PrintMessage(const Database::Message& msg, const std::string& prefix = "");
+
 }  // namespace slop
 
 #endif  // SLOP_SQL_UI_H_
