@@ -8,7 +8,8 @@
 namespace slop {
 
 struct CommandResult {
-  std::string output;
+  std::string stdout_out;
+  std::string stderr_out;
   int exit_code;
 };
 

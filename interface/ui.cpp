@@ -486,15 +486,45 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
 
 void PrintToolResultMessage(const std::string& /*name*/, const std::string& result, const std::string& status,
                             const std::string& prefix) {
-  std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
+  // Split into stdout and stderr
+  std::string stdout_part = result;
+  std::string stderr_part;
+  size_t stderr_pos = result.find("### STDERR\n");
+  if (stderr_pos != std::string::npos) {
+    stdout_part = result.substr(0, stderr_pos);
+    stderr_part = result.substr(stderr_pos + 11);
+  }
+
+  std::vector<absl::string_view> out_lines =
+      absl::StrSplit(absl::StripAsciiWhitespace(stdout_part), '\n', absl::SkipEmpty());
+  std::vector<absl::string_view> err_lines =
+      absl::StrSplit(absl::StripAsciiWhitespace(stderr_part), '\n', absl::SkipEmpty());
+
   bool is_error = (status == "error" || absl::StartsWith(result, "Error:"));
-  std::string summary =
-      absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success, status, lines.size());
   const char* color = is_error ? ansi::Red : ansi::Metadata;
 
-  // Indent and use connector
+  // Print Summary
+  std::string summary =
+      absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success, status, out_lines.size());
   std::cout << prefix << "    " << Colorize(icons::ResultConnector, "", ansi::Metadata) << " "
             << Colorize(summary, "", color) << std::endl;
+
+  // Print 3-line preview of stdout
+  size_t preview_lines = std::min<size_t>(out_lines.size(), 3);
+  for (size_t i = 0; i < preview_lines; ++i) {
+    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << out_lines[i] << std::endl;
+  }
+  if (out_lines.size() > 3) {
+    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize("...", "", ansi::Metadata)
+              << std::endl;
+  }
+
+  // Print stderr summary if present
+  if (!err_lines.empty()) {
+    std::string err_summary = absl::Substitute("[stderr: $0 lines omitted]", err_lines.size());
+    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize(err_summary, "", ansi::Red)
+              << std::endl;
+  }
 }
 
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {

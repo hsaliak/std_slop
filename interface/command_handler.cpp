@@ -11,6 +11,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -800,10 +801,15 @@ std::string CommandHandler::TriggerEditor(const std::string& initial_content) {
 absl::StatusOr<std::string> CommandHandler::ExecuteCommand(const std::string& command) {
   auto res = slop::RunCommand(command);
   if (!res.ok()) return res.status();
-  if (res->exit_code != 0) {
-    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", res->output));
+  std::string output = res->stdout_out;
+  if (!res->stderr_out.empty()) {
+    if (!output.empty() && output.back() != '\n') output += "\n";
+    output += "### STDERR\n" + res->stderr_out;
   }
-  return res->output;
+  if (res->exit_code != 0) {
+    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", output));
+  }
+  return output;
 }
 
 CommandHandler::Result CommandHandler::HandleManualReview(CommandArgs& args) {

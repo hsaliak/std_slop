@@ -100,6 +100,7 @@ cc_library(
         "tool_executor_test",
         "oauth_handler_test",
         "system_info_test",
+        "shell_util_test",
     ]
 ]
 

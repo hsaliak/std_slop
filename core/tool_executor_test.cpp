@@ -132,6 +132,53 @@ TEST(ToolExecutorTest, GrepToolWorks) {
   std::filesystem::remove("grep_test.txt");
 }
 
+TEST(ToolExecutorTest, GrepToolNoMatches) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto write_res =
+      executor.Execute("write_file", {{"path", "grep_empty.txt"}, {"content", "nothing here"}});
+  ASSERT_TRUE(write_res.ok());
+
+  auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN"}, {"path", "grep_empty.txt"}});
+  ASSERT_TRUE(grep_res.ok());
+  // Should be ok (exit code 1), and NOT contain "Error:"
+  EXPECT_TRUE(grep_res->find("### TOOL_RESULT: grep_tool") != std::string::npos);
+  EXPECT_TRUE(grep_res->find("Error:") == std::string::npos);
+
+  std::filesystem::remove("grep_empty.txt");
+}
+
+TEST(ToolExecutorTest, ExecuteBashFailure) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("execute_bash", {{"command", "exit 42"}});
+  ASSERT_TRUE(res.ok());
+  // Execute wraps the error in a string for the LLM
+  EXPECT_TRUE(res->find("Error: INTERNAL: Command failed with status 42") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, ExecuteBashStderr) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("execute_bash", {{"command", "echo 'hello stdout' && echo 'hello stderr' >&2"}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(res->find("hello stdout") != std::string::npos);
+  EXPECT_TRUE(res->find("### STDERR") != std::string::npos);
+  EXPECT_TRUE(res->find("hello stderr") != std::string::npos);
+}
+
 TEST(ToolExecutorTest, GitGrepToolWorks) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -150,6 +197,25 @@ TEST(ToolExecutorTest, GitGrepToolWorks) {
     // If git is not available, it should at least return a message (handled gracefully)
     EXPECT_FALSE(grep_res->empty());
   }
+}
+
+TEST(ToolExecutorTest, GitGrepToolNoMatches) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto grep_res =
+      executor.Execute("git_grep_tool", {{"pattern", "NON_EXISTENT_PATTERN_XYZ_123"}, {"path", ".."}});
+  ASSERT_TRUE(grep_res.ok());
+  if (grep_res->find("Error:") != std::string::npos) {
+    // If git is not available or not in a repo, skip the rest of the test.
+    return;
+  }
+  // Should be ok (exit code 1), and NOT contain "Error:"
+  EXPECT_TRUE(grep_res->find("### TOOL_RESULT: git_grep_tool") != std::string::npos);
+  EXPECT_TRUE(grep_res->find("Error:") == std::string::npos);
 }
 
 TEST(ToolExecutorTest, ApplyPatch_Success) {

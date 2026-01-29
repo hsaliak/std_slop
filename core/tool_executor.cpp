@@ -193,10 +193,15 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, co
 absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) {
   auto res = RunCommand(command);
   if (!res.ok()) return res.status();
-  if (res->exit_code != 0) {
-    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", res->output));
+  std::string output = res->stdout_out;
+  if (!res->stderr_out.empty()) {
+    if (!output.empty() && output.back() != '\n') output += "\n";
+    output += "### STDERR\n" + res->stderr_out;
   }
-  return res->output;
+  if (res->exit_code != 0) {
+    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", output));
+  }
+  return output;
 }
 
 absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context) {
@@ -212,10 +217,15 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
   auto res = RunCommand(cmd);
   if (!res.ok()) return res.status();
   if (res->exit_code != 0 && res->exit_code != 1) {
-    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", res->output));
+    std::string err = res->stdout_out;
+    if (!res->stderr_out.empty()) {
+      if (!err.empty() && err.back() != '\n') err += "\n";
+      err += "### STDERR\n" + res->stderr_out;
+    }
+    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", err));
   }
 
-  std::stringstream ss(res->output);
+  std::stringstream ss(res->stdout_out);
   std::string line;
   std::string output;
   int count = 0;
@@ -277,10 +287,15 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   auto res = RunCommand(cmd);
   if (!res.ok()) return res.status();
   if (res->exit_code != 0 && res->exit_code != 1) {
-    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", res->output));
+    std::string err = res->stdout_out;
+    if (!res->stderr_out.empty()) {
+      if (!err.empty() && err.back() != '\n') err += "\n";
+      err += "### STDERR\n" + res->stderr_out;
+    }
+    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", err));
   }
 
-  std::stringstream ss(res->output);
+  std::stringstream ss(res->stdout_out);
   std::string line;
   std::string output;
   int count = 0;

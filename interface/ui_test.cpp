@@ -174,7 +174,25 @@ TEST(UiTest, PrintToolResultMessageTruncated) {
 
   EXPECT_TRUE(output.find("┗━") != std::string::npos);
   EXPECT_TRUE(output.find("completed (4 lines)") != std::string::npos);
-  EXPECT_TRUE(output.find("line 1") == std::string::npos);
+  EXPECT_TRUE(output.find("line 1") != std::string::npos);
+  EXPECT_TRUE(output.find("line 3") != std::string::npos);
+  EXPECT_TRUE(output.find("...") != std::string::npos);
+  EXPECT_TRUE(output.find("line 4") == std::string::npos);
+}
+
+TEST(UiTest, PrintToolResultMessageStderr) {
+  std::string name = "test_tool";
+  std::string result = "stdout line 1\n### STDERR\nstderr line 1\nstderr line 2";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(name, result, "completed");
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("stdout line 1") != std::string::npos);
+  EXPECT_TRUE(output.find("[stderr: 2 lines omitted]") != std::string::npos);
 }
 
 TEST(UiTest, PrintToolResultMessageExactLines) {
@@ -190,7 +208,9 @@ TEST(UiTest, PrintToolResultMessageExactLines) {
 
   EXPECT_TRUE(output.find("┗━") != std::string::npos);
   EXPECT_TRUE(output.find("completed (3 lines)") != std::string::npos);
-  EXPECT_TRUE(output.find("line 1") == std::string::npos);
+  EXPECT_TRUE(output.find("line 1") != std::string::npos);
+  EXPECT_TRUE(output.find("line 3") != std::string::npos);
+  EXPECT_TRUE(output.find("...") == std::string::npos);
 }
 
 }  // namespace slop
