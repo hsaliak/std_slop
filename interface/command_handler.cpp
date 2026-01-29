@@ -327,9 +327,9 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
           (void)db_->SetActiveSkills(args.session_id, args.active_skills);
           (void)db_->IncrementSkillActivationCount(name);
         }
-        std::cout << "Skill '" << name << "' activated." << std::endl;
+        std::cout << icons::Skill << " Skill '" << name << "' activated." << std::endl;
       } else {
-        std::cerr << "Skill not found: " << sub_args << std::endl;
+        std::cerr << icons::Error << " Skill not found: " << sub_args << std::endl;
       }
     }
   } else if (sub_cmd == "deactivate") {
@@ -341,7 +341,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         args.active_skills.erase(std::remove(args.active_skills.begin(), args.active_skills.end(), name),
                                  args.active_skills.end());
         (void)db_->SetActiveSkills(args.session_id, args.active_skills);
-        std::cout << "Skill '" << name << "' deactivated." << std::endl;
+        std::cout << icons::Skill << " Skill '" << name << "' deactivated." << std::endl;
       }
     }
   } else if (sub_cmd == "show") {
@@ -649,10 +649,10 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
       return Result::HANDLED;
     }
     if (memos_or->empty()) {
-      std::cout << "No memos found." << std::endl;
+      std::cout << icons::Info << " No memos found." << std::endl;
       return Result::HANDLED;
     }
-    std::string md = "### Memos (All)\n\n";
+    std::string md = absl::StrCat("### ", icons::Memo, " Memos (All)\n\n");
     md += "| ID | Tags | Content Snippet |\n";
     md += "| :--- | :--- | :--- |\n";
     for (const auto& m : *memos_or) {

@@ -84,14 +84,28 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
     std::string lower_text = absl::AsciiStrToLower(text);
     if (absl::StrContains(lower_text, "thought")) {
       style.pre = ansi::Thought;
+      output.append(icons::Thought);
+      output.append(" ");
     } else if (absl::StrContains(lower_text, "state")) {
       style.pre = ansi::Yellow;
+      output.append(icons::Session);
+      output.append(" ");
     } else if (absl::StrContains(lower_text, "available tools") || absl::StrContains(lower_text, "active personas") ||
                absl::StrContains(lower_text, "history guidelines") || absl::StrContains(lower_text, "global state") ||
                absl::StrContains(lower_text, "begin conversation") || absl::StrContains(lower_text, "end of history")) {
       style.pre = ansi::Magenta;
+      output.append(icons::Info);
+      output.append(" ");
     } else if (absl::StrContains(lower_text, "tool_result")) {
       style.pre = ansi::Green;
+      output.append(icons::Tool);
+      output.append(" ");
+    } else if (absl::StrContains(lower_text, "skill")) {
+      output.append(icons::Skill);
+      output.append(" ");
+    } else if (absl::StrContains(lower_text, "memo")) {
+      output.append(icons::Memo);
+      output.append(" ");
     }
   }
 

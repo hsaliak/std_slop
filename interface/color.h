@@ -3,6 +3,20 @@
 
 #include <string>
 
+namespace icons {
+constexpr const char* Success = "✅";
+constexpr const char* Error = "❌";
+constexpr const char* Warning = "⚠️";
+constexpr const char* Info = "ℹ️";
+constexpr const char* Tool = "🛠️";
+constexpr const char* Thought = "🧠";
+constexpr const char* Output = "📤";
+constexpr const char* Input = "📥";
+constexpr const char* Memo = "📝";
+constexpr const char* Skill = "🎓";
+constexpr const char* Session = "🕒";
+}  // namespace icons
+
 namespace ansi {
 // Reset code
 constexpr const char* Reset = "\033[0m";

@@ -70,7 +70,19 @@ If no session name is provided, it defaults to `default_session`.
 ## User Interface
 
 `std::slop` features an enhanced CLI UI designed for readability:
-- **Colors**: Tool headers are displayed in black text on a cyan background. Assistant messages are indented for clarity.
+- **Iconography**: Every message is prefixed with a semantic icon:
+  - 🧠 **Thought**: AI reasoning or planning.
+  - 🛠️ **Tool**: Tool execution initiation.
+  - ✅ **Success**: Successful completion of a tool or command.
+  - ❌ **Error**: Failure or invalid operation.
+  - ⚠️ **Warning**: Cautionary notices.
+  - ℹ️ **Info**: Neutral system messages.
+  - 📥 **Input**: Data being received or read.
+  - 📤 **Output**: Data being written or sent.
+  - 📝 **Memo**: Interaction with the long-term knowledge base.
+  - 🎓 **Skill**: Activation or deactivation of specialized personas.
+  - 🕒 **Session**: Timeline and state management.
+- **Colors**: Tool headers are displayed in grey. Assistant messages are white. Indentation is used for hierarchy.
 - **Markdown Tables**: Long tables are intelligently handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
 - **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter, while providing enough information for the user to follow the agent's progress. Full content is still sent to the LLM when appropriate.
 

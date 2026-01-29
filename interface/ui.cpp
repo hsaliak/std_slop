@@ -469,15 +469,18 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
     display_args = display_args.substr(0, 57) + "...";
   }
 
-  std::string summary = absl::StrCat(name, "(", display_args, ")");
+  std::string summary = absl::StrCat(icons::Tool, " ", name, "(", display_args, ")");
   std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata) << std::endl;
 }
 
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status,
                             const std::string& prefix) {
   std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
-  std::string summary = absl::Substitute("$0 ($1) - $2 lines", name, status, lines.size());
-  const char* color = (status == "error" || absl::StartsWith(result, "Error:")) ? ansi::Red : ansi::Metadata;
+  bool is_error = (status == "error" || absl::StartsWith(result, "Error:"));
+  std::string summary = absl::Substitute("$0 $1 ($2) - $3 lines",
+                                         is_error ? icons::Error : icons::Success, name,
+                                         status, lines.size());
+  const char* color = is_error ? ansi::Red : ansi::Metadata;
 
   // Indent more than the call for visual hierarchy
   std::cout << prefix << "        " << Colorize(summary, "", color) << std::endl;
@@ -492,7 +495,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     const auto& msg = (*history_or)[i];
 
     if (msg.role == "user") {
-      std::cout << "\n" << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::UserLabel) << std::endl;
+      std::cout << "\n" << icons::Input << " " << Colorize("User (GID: " + msg.group_id + ")> ", "", ansi::UserLabel) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
     } else if (msg.role == "assistant") {
       if (msg.status == "tool_call") {
@@ -522,7 +525,7 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
     } else if (msg.role == "tool") {
       PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status, "  ");
     } else if (msg.role == "system") {
-      std::cout << Colorize("System> ", "", ansi::SystemLabel) << std::endl;
+      std::cout << icons::Info << " " << Colorize("System> ", "", ansi::SystemLabel) << std::endl;
       std::cout << WrapText(msg.content, GetTerminalWidth()) << std::endl;
     }
   }
@@ -532,8 +535,10 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
 void HandleStatus(const absl::Status& status, const std::string& context) {
   if (status.ok()) return;
   if (!context.empty()) {
+    std::cerr << icons::Error << " " << context << ": " << status.message() << std::endl;
     LOG(ERROR) << context << ": " << status.message();
   } else {
+    std::cerr << icons::Error << " " << status.message() << std::endl;
     LOG(ERROR) << status.message();
   }
 }
