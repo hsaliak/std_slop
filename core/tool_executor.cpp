@@ -190,7 +190,14 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, co
   return WriteFile(path, content);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) { return RunCommand(command); }
+absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) {
+  auto res = RunCommand(command);
+  if (!res.ok()) return res.status();
+  if (res->exit_code != 0) {
+    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", res->output));
+  }
+  return res->output;
+}
 
 absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context) {
   std::string cmd = "grep -n";
@@ -201,10 +208,14 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
     cmd += " -C " + std::to_string(context);
   }
   cmd += " \"" + pattern + "\" " + path;
-  auto res = ExecuteBash(cmd);
-  if (!res.ok()) return res;
 
-  std::stringstream ss(*res);
+  auto res = RunCommand(cmd);
+  if (!res.ok()) return res.status();
+  if (res->exit_code != 0 && res->exit_code != 1) {
+    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", res->output));
+  }
+
+  std::stringstream ss(res->output);
   std::string line;
   std::string output;
   int count = 0;
@@ -263,10 +274,13 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
     cmd += " -- \"" + args["path"].get<std::string>() + "\"";
   }
 
-  auto res = ExecuteBash(cmd);
-  if (!res.ok()) return res;
+  auto res = RunCommand(cmd);
+  if (!res.ok()) return res.status();
+  if (res->exit_code != 0 && res->exit_code != 1) {
+    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", res->output));
+  }
 
-  std::stringstream ss(*res);
+  std::stringstream ss(res->output);
   std::string line;
   std::string output;
   int count = 0;

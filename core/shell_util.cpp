@@ -1,5 +1,7 @@
 #include "core/shell_util.h"
 
+#include <sys/wait.h>
+
 #include <array>
 #include <cstdio>
 #include <memory>
@@ -8,7 +10,7 @@
 
 namespace slop {
 
-absl::StatusOr<std::string> RunCommand(const std::string& command) {
+absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
   std::array<char, 128> buffer;
   std::string result;
   FILE* pipe = popen(command.c_str(), "r");
@@ -19,10 +21,8 @@ absl::StatusOr<std::string> RunCommand(const std::string& command) {
     result += buffer.data();
   }
   int status = pclose(pipe);
-  if (status != 0) {
-    return absl::InternalError("Command failed with status " + std::to_string(status) + ": " + result);
-  }
-  return result;
+  int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+  return CommandResult{result, exit_code};
 }
 
 }  // namespace slop

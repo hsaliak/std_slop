@@ -7,8 +7,13 @@
 
 namespace slop {
 
-// Executes a shell command and returns its stdout.
-absl::StatusOr<std::string> RunCommand(const std::string& command);
+struct CommandResult {
+  std::string output;
+  int exit_code;
+};
+
+// Executes a shell command and returns its stdout and exit code.
+absl::StatusOr<CommandResult> RunCommand(const std::string& command);
 
 }  // namespace slop
 
