@@ -99,7 +99,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     if (log_msg.length() > 100) {
       log_msg = log_msg.substr(0, 97) + "...";
     }
-    LOG(ERROR) << "Tool " << name << " failed: " << log_msg;
+    LOG(WARNING) << "Tool " << name << " failed: " << log_msg;
     return wrap_result(name, "Error: " + error_msg);
   }
   LOG(INFO) << "Tool " << name << " succeeded.";

@@ -584,10 +584,10 @@ void HandleStatus(const absl::Status& status, const std::string& context) {
 
   if (!context.empty()) {
     std::cerr << icons::Error << " " << context << ": " << log_msg << std::endl;
-    LOG(ERROR) << context << ": " << log_msg;
+    LOG(WARNING) << context << ": " << log_msg;
   } else {
     std::cerr << icons::Error << " " << log_msg << std::endl;
-    LOG(ERROR) << log_msg;
+    LOG(WARNING) << log_msg;
   }
 }
 
