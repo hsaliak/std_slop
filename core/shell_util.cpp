@@ -1,16 +1,17 @@
 #include "core/shell_util.h"
 
 #include <poll.h>
-#include <sys/wait.h>
 #include <unistd.h>
-#include <cerrno>
 
 #include <array>
+#include <cerrno>
 #include <cstdio>
 #include <memory>
 #include <vector>
 
 #include "absl/status/status.h"
+
+#include <sys/wait.h>
 
 namespace slop {
 
@@ -89,7 +90,7 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
             stdout_open = false;
           else
             stderr_open = false;
-          fds[i].fd = -1; // Stop polling this fd
+          fds[i].fd = -1;  // Stop polling this fd
         }
       } else if (fds[i].revents & (POLLERR | POLLNVAL)) {
         if (i == 0)

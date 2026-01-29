@@ -1,6 +1,8 @@
 #include "core/shell_util.h"
-#include <gtest/gtest.h>
+
 #include <string>
+
+#include <gtest/gtest.h>
 
 namespace slop {
 
@@ -46,7 +48,7 @@ TEST(ShellUtilTest, RunCommandInvalidCommand) {
   auto res = RunCommand("nonexistent_command_12345");
   ASSERT_TRUE(res.ok());
   EXPECT_EQ(res->exit_code, 127);
-  EXPECT_FALSE(res->stderr_out.empty()); // sh: nonexistent_command_12345: command not found
+  EXPECT_FALSE(res->stderr_out.empty());  // sh: nonexistent_command_12345: command not found
 }
 
-} // namespace slop
+}  // namespace slop

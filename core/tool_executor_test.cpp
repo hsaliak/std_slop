@@ -139,8 +139,7 @@ TEST(ToolExecutorTest, GrepToolNoMatches) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  auto write_res =
-      executor.Execute("write_file", {{"path", "grep_empty.txt"}, {"content", "nothing here"}});
+  auto write_res = executor.Execute("write_file", {{"path", "grep_empty.txt"}, {"content", "nothing here"}});
   ASSERT_TRUE(write_res.ok());
 
   auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN"}, {"path", "grep_empty.txt"}});
@@ -206,8 +205,7 @@ TEST(ToolExecutorTest, GitGrepToolNoMatches) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  auto grep_res =
-      executor.Execute("git_grep_tool", {{"pattern", "NON_EXISTENT_PATTERN_XYZ_123"}, {"path", ".."}});
+  auto grep_res = executor.Execute("git_grep_tool", {{"pattern", "NON_EXISTENT_PATTERN_XYZ_123"}, {"path", ".."}});
   ASSERT_TRUE(grep_res.ok());
   if (grep_res->find("Error:") != std::string::npos) {
     // If git is not available or not in a repo, skip the rest of the test.
