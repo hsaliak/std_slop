@@ -313,9 +313,17 @@ void Orchestrator::InjectRelevantMemos(const std::vector<Database::Message>& his
 
 std::string Orchestrator::SmarterTruncate(const std::string& content, size_t limit) {
   if (content.size() <= limit) return content;
-  std::string truncated = content.substr(0, limit);
+
+  size_t actual_limit = limit;
+  // Avoid cutting in the middle of a UTF-8 character.
+  // Continuation bytes start with 10 (binary), so we back up until we find a non-continuation byte.
+  while (actual_limit > 0 && (static_cast<unsigned char>(content[actual_limit]) & 0xC0) == 0x80) {
+    actual_limit--;
+  }
+
+  std::string truncated = content.substr(0, actual_limit);
   std::string metadata = absl::Substitute(
-      "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...", limit,
+      "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...", actual_limit,
       content.size());
   return truncated + metadata;
 }

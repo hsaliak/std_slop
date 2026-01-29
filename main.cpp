@@ -326,7 +326,8 @@ int main(int argc, char** argv) {
                            ":generateContent?key=", google_key);
       }
 
-      auto resp_or = http_client.Post(url, prompt_or->dump(), headers);
+      auto resp_or =
+          http_client.Post(url, prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
       if (!resp_or.ok()) {
         if (resp_or.status().code() == absl::StatusCode::kInvalidArgument) {
           LOG(WARNING) << "HTTP 400 error detected. Attempting to auto-fix history...";
@@ -365,7 +366,8 @@ int main(int argc, char** argv) {
             prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);
             if (prompt_or.ok()) {
               std::cout << slop::Colorize("Retrying with adjusted history...", "", ansi::Warning) << std::endl;
-              resp_or = http_client.Post(url, prompt_or->dump(), headers);
+              resp_or = http_client.Post(url, prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
+                                         headers);
             }
           }
         }

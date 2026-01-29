@@ -84,7 +84,7 @@ absl::Status OAuthHandler::SaveTokens(const OAuthTokens& tokens) {
 
   std::ofstream f(token_path_);
   if (!f.is_open()) return absl::InternalError("Failed to open token file for writing");
-  f << j.dump(4);
+  f << j.dump(4, ' ', false, nlohmann::json::error_handler_t::replace);
   tokens_ = tokens;
   return absl::OkStatus();
 }
@@ -180,7 +180,8 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
     gca_req["metadata"]["duetProject"] = env_p;
   }
 
-  auto gca_res = http_client_->Post(gca_url, gca_req.dump(), headers);
+  auto gca_res =
+      http_client_->Post(gca_url, gca_req.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
   if (gca_res.ok()) {
     auto j = nlohmann::json::parse(*gca_res, nullptr, false);
     if (!j.is_discarded() && j.contains("cloudaicompanionProject") && !j["cloudaicompanionProject"].is_null()) {

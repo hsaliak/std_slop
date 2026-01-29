@@ -141,8 +141,9 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
     auto& parts = (*target)["candidates"][0]["content"]["parts"];
     for (const auto& part : parts) {
       if (part.contains("functionCall")) {
-        status = db_->AppendMessage(session_id, "assistant", part.dump(), part["functionCall"]["name"], "tool_call",
-                                    group_id, GetName(), total_tokens);
+        status = db_->AppendMessage(session_id, "assistant",
+                                    part.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
+                                    part["functionCall"]["name"], "tool_call", group_id, GetName(), total_tokens);
       } else if (part.contains("text")) {
         std::string text = part["text"];
         status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);
@@ -187,7 +188,9 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& o
   return absl::UnimplementedError("Quota check not implemented for Gemini Strategy yet");
 }
 
-int GeminiOrchestrator::CountTokens(const nlohmann::json& prompt) { return prompt.dump().length() / 4; }
+int GeminiOrchestrator::CountTokens(const nlohmann::json& prompt) {
+  return prompt.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).length() / 4;
+}
 
 GeminiGcaOrchestrator::GeminiGcaOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                                              const std::string& base_url, const std::string& project_id)
@@ -230,7 +233,7 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::GetQuota(const std::string
   nlohmann::json body;
   body["project"] = project_id_;
 
-  auto resp_or = http_client_->Post(url, body.dump(), headers);
+  auto resp_or = http_client_->Post(url, body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
   if (!resp_or.ok()) return resp_or.status();
 
   auto j = nlohmann::json::parse(*resp_or, nullptr, false);

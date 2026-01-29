@@ -35,11 +35,11 @@ namespace {
 
 bool IsNetworkError(const std::string& result) {
   std::string lower = absl::AsciiStrToLower(result);
-  return absl::StrContains(result, "400") || absl::StrContains(result, "429") ||
-         absl::StrContains(result, "503") || absl::StrContains(lower, "http error") ||
-         absl::StrContains(lower, "too many requests") || absl::StrContains(lower, "rate limit") ||
-         absl::StrContains(lower, "rate_limit") || absl::StrContains(lower, "resource exhausted") ||
-         absl::StrContains(lower, "resource_exhausted") || absl::StrContains(lower, "quota");
+  return absl::StrContains(result, "400") || absl::StrContains(result, "429") || absl::StrContains(result, "503") ||
+         absl::StrContains(lower, "http error") || absl::StrContains(lower, "too many requests") ||
+         absl::StrContains(lower, "rate limit") || absl::StrContains(lower, "rate_limit") ||
+         absl::StrContains(lower, "resource exhausted") || absl::StrContains(lower, "resource_exhausted") ||
+         absl::StrContains(lower, "quota");
 }
 
 /**
@@ -336,8 +336,12 @@ std::string FormatAssembledContext(const std::string& json_str) {
       if (entry.contains("parts")) {
         for (const auto& part : entry["parts"]) {
           if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
-          if (part.contains("functionCall")) ss << "Function Call: " << part["functionCall"].dump() << "\n";
-          if (part.contains("functionResponse")) ss << "Function Response: " << part["functionResponse"].dump() << "\n";
+          if (part.contains("functionCall"))
+            ss << "Function Call: "
+               << part["functionCall"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
+          if (part.contains("functionResponse"))
+            ss << "Function Response: "
+               << part["functionResponse"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
         }
       }
       ss << "\n";
@@ -350,7 +354,8 @@ std::string FormatAssembledContext(const std::string& json_str) {
         ss << msg["content"].get<std::string>() << "\n";
       }
       if (msg.contains("tool_calls")) {
-        ss << "Tool Calls: " << msg["tool_calls"].dump() << "\n";
+        ss << "Tool Calls: " << msg["tool_calls"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)
+           << "\n";
       }
       if (msg.contains("tool_call_id")) {
         ss << "Tool Call ID: " << msg["tool_call_id"].get<std::string>() << "\n";
@@ -407,7 +412,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
         else if (row[keys[i]].is_string())
           val = row[keys[i]].get<std::string>();
         else
-          val = row[keys[i]].dump();
+          val = row[keys[i]].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
       }
       widths[i] = std::max(widths[i], val.length());
     }
@@ -437,7 +442,7 @@ absl::Status PrintJsonAsTable(const std::string& json_str) {
         else if (row[keys[i]].is_string())
           val = row[keys[i]].get<std::string>();
         else
-          val = row[keys[i]].dump();
+          val = row[keys[i]].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
       } else {
         val = "";
       }
@@ -473,11 +478,11 @@ std::string FlattenJsonArgs(const std::string& json_str) {
     return json_str;
   }
   if (!j.is_object()) {
-    return j.dump();
+    return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
   }
   std::vector<std::string> parts;
   for (const auto& [key, value] : j.items()) {
-    parts.push_back(absl::StrCat(key, ": ", value.dump()));
+    parts.push_back(absl::StrCat(key, ": ", value.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)));
   }
   return absl::StrJoin(parts, " | ");
 }
@@ -530,8 +535,8 @@ void PrintToolResultMessage(const std::string& /*name*/, const std::string& resu
     // Print stderr summary if present
     if (!err_lines.empty()) {
       std::string err_summary = absl::Substitute("[stderr: $0 lines omitted]", err_lines.size());
-      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize(err_summary, "", ansi::Red)
-                << std::endl;
+      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
+                << Colorize(err_summary, "", ansi::Red) << std::endl;
     }
   }
 }
@@ -551,7 +556,8 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
       auto calls_or = MessageParser::ExtractToolCalls(msg);
       if (calls_or.ok() && !calls_or->empty()) {
         for (const auto& call : *calls_or) {
-          PrintToolCallMessage(call.name, call.args.dump(), prefix + "  ");
+          PrintToolCallMessage(call.name, call.args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
+                               prefix + "  ");
         }
       } else if (!calls_or.ok() || calls_or->empty()) {
         // Fallback for unidentified tool calls

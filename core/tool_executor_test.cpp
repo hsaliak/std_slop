@@ -421,7 +421,8 @@ TEST(ToolExecutorTest, GrepToolEscaping) {
   auto& executor = **executor_or;
 
   std::string test_file = "grep_escape_test.txt";
-  std::string content = "Normal line\nDash-line: ---\nQuote-line: 'foo bar'\nDouble-quote: \"baz\"\n-starting-with-dash";
+  std::string content =
+      "Normal line\nDash-line: ---\nQuote-line: 'foo bar'\nDouble-quote: \"baz\"\n-starting-with-dash";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
   // Test: Triple dash
@@ -486,19 +487,15 @@ TEST(ToolExecutorTest, GitGrepBooleanExpressions) {
 
   // Test: AND (on the same line)
   // Find lines in core/tool_executor.cpp that contain both "absl" and "StatusOr"
-  auto res1 = executor.Execute("git_grep_tool", {
-      {"patterns", {"absl", "--and", "StatusOr"}},
-      {"path", "core/tool_executor.cpp"}
-  });
+  auto res1 = executor.Execute("git_grep_tool",
+                               {{"patterns", {"absl", "--and", "StatusOr"}}, {"path", "core/tool_executor.cpp"}});
   ASSERT_TRUE(res1.ok());
   EXPECT_TRUE(res1->find("absl::StatusOr") != std::string::npos);
 
   // Test: OR
   // Find lines that contain "ToolExecutor" OR "RetrieveMemos"
-  auto res2 = executor.Execute("git_grep_tool", {
-      {"patterns", {"ToolExecutor", "--or", "RetrieveMemos"}},
-      {"path", "core/tool_executor.cpp"}
-  });
+  auto res2 = executor.Execute(
+      "git_grep_tool", {{"patterns", {"ToolExecutor", "--or", "RetrieveMemos"}}, {"path", "core/tool_executor.cpp"}});
   ASSERT_TRUE(res2.ok());
   // "class ToolExecutor" is in tool_executor.h, not .cpp.
   // In .cpp we have "ToolExecutor::Execute" etc.
@@ -507,10 +504,9 @@ TEST(ToolExecutorTest, GitGrepBooleanExpressions) {
 
   // Test: Grouping with ( )
   // ( "absl" AND "StatusOr" ) OR "RetrieveMemos"
-  auto res3 = executor.Execute("git_grep_tool", {
-      {"patterns", {"(", "absl", "--and", "StatusOr", ")", "--or", "RetrieveMemos"}},
-      {"path", "core/tool_executor.cpp"}
-  });
+  auto res3 =
+      executor.Execute("git_grep_tool", {{"patterns", {"(", "absl", "--and", "StatusOr", ")", "--or", "RetrieveMemos"}},
+                                         {"path", "core/tool_executor.cpp"}});
   ASSERT_TRUE(res3.ok());
   EXPECT_TRUE(res3->find("absl::StatusOr") != std::string::npos);
   EXPECT_TRUE(res3->find("RetrieveMemos") != std::string::npos);

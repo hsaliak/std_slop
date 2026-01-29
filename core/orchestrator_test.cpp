@@ -92,6 +92,51 @@ TEST_F(OrchestratorTest, AssemblePromptWithMultipleSkills) {
   EXPECT_TRUE(instr.find("PATCH2") != std::string::npos);
 }
 
+TEST_F(OrchestratorTest, SmarterTruncate) {
+  // ASCII truncation
+  std::string ascii = "1234567890";
+  EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5),
+            "12345\n... [TRUNCATED: Showing 5/10 characters. Use the tool again with an offset to read more.] ...");
+
+  // UTF-8 truncation - Emoji is 4 bytes: \xF0\x9F\x9A\x80 (Rocket)
+  // We'll put it at the boundary.
+  std::string utf8 = "abc" + std::string("\xF0\x9F\x9A\x80");  // 3 + 4 = 7 bytes
+
+  // Truncate at 4 bytes - should back up to 3 bytes because index 4 is a continuation byte
+  std::string truncated4 = Orchestrator::SmarterTruncate(utf8, 4);
+  EXPECT_TRUE(absl::StartsWith(truncated4, "abc\n"));
+
+  // Truncate at 5 bytes - should also back up to 3 bytes
+  std::string truncated5 = Orchestrator::SmarterTruncate(utf8, 5);
+  EXPECT_TRUE(absl::StartsWith(truncated5, "abc\n"));
+
+  // Truncate at 6 bytes - should also back up to 3 bytes
+  std::string truncated6 = Orchestrator::SmarterTruncate(utf8, 6);
+  EXPECT_TRUE(absl::StartsWith(truncated6, "abc\n"));
+
+  // Truncate at 7 bytes - should be full string (no truncation)
+  EXPECT_EQ(Orchestrator::SmarterTruncate(utf8, 7), utf8);
+
+  // Test with multiple multi-byte characters
+  // "こんにちは" (Konnichiwa) - 5 characters, 15 bytes in UTF-8
+  std::string jp = "こんにちは";
+  // Each char is 3 bytes. Truncating at 4 should back up to 3.
+  std::string truncated_jp = Orchestrator::SmarterTruncate(jp, 4);
+  EXPECT_TRUE(absl::StartsWith(truncated_jp, "こ\n"));  // "こ" is 3 bytes
+}
+
+TEST_F(OrchestratorTest, SafeJsonDump) {
+  // Test that dumping invalid UTF-8 with the replace handler doesn't crash (even with -fno-exceptions)
+  nlohmann::json j;
+  j["invalid"] = std::string("abc\xFF", 4) + "def";  // 0xFF is invalid UTF-8
+
+  std::string dumped = j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+  EXPECT_TRUE(dumped.find("abc") != std::string::npos);
+  EXPECT_TRUE(dumped.find("def") != std::string::npos);
+  // The invalid byte should be replaced by the Unicode replacement character \uFFFD
+  // In a JSON string, this might be escaped or raw depending on how dump handles it.
+}
+
 TEST_F(OrchestratorTest, ProcessResponsePersists) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());

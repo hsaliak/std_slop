@@ -135,7 +135,8 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
     CHECK(j["choices"][0].contains("message"));
     auto& msg = j["choices"][0]["message"];
     if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
-      status = db_->AppendMessage(session_id, "assistant", msg.dump(),
+      status = db_->AppendMessage(session_id, "assistant",
+                                  msg.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
                                   msg["tool_calls"][0]["id"].get<std::string>() + "|" +
                                       msg["tool_calls"][0]["function"]["name"].get<std::string>(),
                                   "tool_call", group_id, GetName(), total_tokens);
@@ -183,6 +184,8 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::GetQuota(const std::string& o
   return absl::UnimplementedError("Quota check not implemented for OpenAI Strategy yet");
 }
 
-int OpenAiOrchestrator::CountTokens(const nlohmann::json& prompt) { return prompt.dump().length() / 4; }
+int OpenAiOrchestrator::CountTokens(const nlohmann::json& prompt) {
+  return prompt.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).length() / 4;
+}
 
 }  // namespace slop

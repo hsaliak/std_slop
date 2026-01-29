@@ -105,6 +105,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
 
   auto it = commands_.find(cmd);
   if (it != commands_.end()) {
+    LOG(INFO) << "Dispatching command: " << cmd << " (args: " << args_str << ")";
     CommandArgs args{input, session_id, active_skills, show_help_fn, selected_groups, args_str};
     return it->second(args);
   }
@@ -253,7 +254,7 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
       auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
       if (prompt_or.ok()) {
         ss << "\n## Assembled Prompt" << std::endl;
-        ss << prompt_or->dump(2) << std::endl;
+        ss << prompt_or->dump(2, ' ', false, nlohmann::json::error_handler_t::replace) << std::endl;
       }
     }
     SmartDisplay(ss.str());
@@ -600,8 +601,10 @@ CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
     std::cerr << "Usage: /exec <command>" << std::endl;
     return Result::HANDLED;
   }
+  LOG(INFO) << "Executing shell command: " << args.args;
   std::cout << "Executing: " << args.args << std::endl;
   int res = std::system(args.args.c_str());
+  LOG(INFO) << "Shell command exited with code " << res;
   std::cout << "Exit code: " << res << std::endl;
   return Result::HANDLED;
 }

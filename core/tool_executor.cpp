@@ -15,7 +15,8 @@
 namespace slop {
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
-  LOG(INFO) << "Executing tool: " << name << " with args: " << args.dump();
+  LOG(INFO) << "Executing tool: " << name
+            << " with args: " << args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
   auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
     return absl::StrCat("### TOOL_RESULT: ", tool_name, "\n", content, "\n\n---");
   };
@@ -102,7 +103,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     LOG(WARNING) << "Tool " << name << " failed: " << log_msg;
     return wrap_result(name, "Error: " + error_msg);
   }
-  LOG(INFO) << "Tool " << name << " succeeded.";
+  LOG(INFO) << "Tool " << name << " succeeded (" << result->size() << " bytes).";
   return wrap_result(name, *result);
 }
 
@@ -369,7 +370,7 @@ absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const std::vector<std::s
         {"created_at", m.created_at},
     });
   }
-  return result.dump(2);
+  return result.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
 absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& args) {

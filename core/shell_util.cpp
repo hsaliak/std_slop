@@ -9,6 +9,7 @@
 #include <memory>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 
 #include <sys/wait.h>
@@ -16,6 +17,7 @@
 namespace slop {
 
 absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
+  LOG(INFO) << "Running command: " << command;
   std::array<int, 2> stdout_pipe;
   std::array<int, 2> stderr_pipe;
 
@@ -108,6 +110,9 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
   int status;
   waitpid(pid, &status, 0);
   int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+  LOG(INFO) << "Command exited with code " << exit_code << " (stdout: " << stdout_str.size()
+            << " bytes, stderr: " << stderr_str.size() << " bytes)";
 
   return CommandResult{stdout_str, stderr_str, exit_code};
 }

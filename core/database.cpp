@@ -66,7 +66,9 @@ absl::StatusOr<bool> Database::Statement::Step() {
   int rc = sqlite3_step(stmt_.get());
   if (rc == SQLITE_ROW) return true;
   if (rc == SQLITE_DONE) return false;
-  return absl::InternalError("Step error: " + std::string(sqlite3_errmsg(db_)));
+  std::string err = sqlite3_errmsg(db_);
+  LOG(ERROR) << "Step error: " << err << " (SQL: " << sql_ << ")";
+  return absl::InternalError("Step error: " + err + " (SQL: " + sql_ + ")");
 }
 
 absl::Status Database::Statement::Run() {
@@ -818,7 +820,7 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql, const std::v
     }
     results.push_back(row);
   }
-  return results.dump();
+  return results.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
 absl::Status Database::UpdateScratchpad(const std::string& session_id, const std::string& scratchpad) {
