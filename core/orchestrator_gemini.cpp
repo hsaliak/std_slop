@@ -1,6 +1,7 @@
 #include "core/orchestrator_gemini.h"
 
 #include <iostream>
+#include "core/message_parser.h"
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -158,19 +159,7 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
 }
 
 absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const Database::Message& msg) {
-  if (msg.status != "tool_call") return absl::InvalidArgumentError("Not a tool call");
-  auto j = nlohmann::json::parse(msg.content, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("JSON error");
-
-  std::vector<ToolCall> calls;
-  ToolCall tc;
-  tc.id = msg.tool_call_id;
-  tc.name = msg.tool_call_id;
-  tc.args = (j.contains("functionCall") && j["functionCall"].contains("args"))
-                ? j["functionCall"]["args"]
-                : (j.contains("args") ? j["args"] : nlohmann::json::object());
-  calls.push_back(tc);
-  return calls;
+  return MessageParser::ExtractToolCalls(msg);
 }
 
 absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key) {

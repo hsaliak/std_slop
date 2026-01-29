@@ -296,6 +296,7 @@ TEST_F(OrchestratorTest, ParseToolCallsGemini) {
   Database::Message msg;
   msg.role = "assistant";
   msg.status = "tool_call";
+  msg.parsing_strategy = "gemini";
   msg.tool_call_id = "execute_bash";
   msg.content = R"({"functionCall": {"name": "execute_bash", "args": {"command": "ls"}}})";
 
@@ -314,6 +315,7 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
   Database::Message msg;
   msg.role = "assistant";
   msg.status = "tool_call";
+  msg.parsing_strategy = "openai";
   msg.content = R"({
         "tool_calls": [{
             "id": "call_123",

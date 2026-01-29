@@ -1,6 +1,7 @@
 #include "interface/ui.h"
 
 #include <unistd.h>
+#include "core/message_parser.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -505,38 +506,18 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
     PrintStyledBlock(absl::StrCat(" > ", msg.content, " "), prefix, ansi::EchoFg, ansi::EchoBg);
   } else if (msg.role == "assistant") {
     if (msg.status == "tool_call") {
-      auto j = nlohmann::json::parse(msg.content, nullptr, false);
-      if (!j.is_discarded()) {
-        if (j.contains("content") && j["content"].is_string()) {
-          std::string content = j["content"];
-          if (!content.empty()) {
-            PrintAssistantMessage(content, prefix + "  ", msg.tokens);
-          }
-        }
+      std::string text = MessageParser::ExtractAssistantText(msg);
+      if (!text.empty()) {
+        PrintAssistantMessage(text, prefix + "  ", msg.tokens);
+      }
 
-        if (j.contains("functionCalls") && j["functionCalls"].is_array()) {
-          for (const auto& call : j["functionCalls"]) {
-            std::string name = call.value("name", "unknown");
-            std::string args = call.contains("args") ? call["args"].dump() : "{}";
-            PrintToolCallMessage(name, args, prefix + "  ");
-          }
-        } else if (j.contains("tool_calls") && j["tool_calls"].is_array()) {
-          for (const auto& call : j["tool_calls"]) {
-            if (call.contains("function")) {
-              std::string name = call["function"].value("name", "unknown");
-              std::string args = call["function"].value("arguments", "{}");
-              PrintToolCallMessage(name, args, prefix + "  ");
-            }
-          }
-        } else if (j.contains("functionCall") && j["functionCall"].is_object()) {
-          std::string name = j["functionCall"].value("name", "unknown");
-          std::string args =
-              j["functionCall"].contains("args") ? j["functionCall"]["args"].dump() : "{}";
-          PrintToolCallMessage(name, args, prefix + "  ");
-        } else {
-          PrintToolCallMessage("tool_call", msg.content, prefix + "  ");
+      auto calls_or = MessageParser::ExtractToolCalls(msg);
+      if (calls_or.ok() && !calls_or->empty()) {
+        for (const auto& call : *calls_or) {
+          PrintToolCallMessage(call.name, call.args.dump(), prefix + "  ");
         }
-      } else {
+      } else if (!calls_or.ok() || calls_or->empty()) {
+        // Fallback for unidentified tool calls
         PrintToolCallMessage("tool_call", msg.content, prefix + "  ");
       }
     } else {

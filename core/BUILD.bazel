@@ -26,6 +26,7 @@ cc_library(
     srcs = [
         "database.cpp",
         "http_client.cpp",
+        "message_parser.cpp",
         "oauth_handler.cpp",
         "orchestrator.cpp",
         "orchestrator_gemini.cpp",
@@ -36,6 +37,7 @@ cc_library(
     hdrs = [
         "database.h",
         "http_client.h",
+        "message_parser.h",
         "oauth_handler.h",
         "orchestrator.h",
         "orchestrator_gemini.h",

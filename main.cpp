@@ -301,7 +301,8 @@ int main(int argc, char** argv) {
 
     // Execute interaction
     std::string group_id = std::to_string(absl::ToUnixNanos(absl::Now()));
-    (void)db.AppendMessage(session_id, "user", input, "", "completed", group_id);
+    (void)db.AppendMessage(session_id, "user", input, "", "completed", group_id,
+                           orchestrator->GetName());
 
     while (true) {
       auto prompt_or = orchestrator->AssemblePrompt(session_id, active_skills);

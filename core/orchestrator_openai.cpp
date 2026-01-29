@@ -1,6 +1,7 @@
 #include "core/orchestrator_openai.h"
 
 #include <iostream>
+#include "core/message_parser.h"
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -153,21 +154,7 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
 }
 
 absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const Database::Message& msg) {
-  if (msg.status != "tool_call") return absl::InvalidArgumentError("Not a tool call");
-  auto j = nlohmann::json::parse(msg.content, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("JSON error");
-
-  std::vector<ToolCall> calls;
-  if (j.contains("tool_calls")) {
-    for (const auto& call : j["tool_calls"]) {
-      ToolCall tc;
-      tc.id = call["id"];
-      tc.name = call["function"]["name"];
-      tc.args = nlohmann::json::parse(call["function"]["arguments"].get<std::string>(), nullptr, false);
-      calls.push_back(tc);
-    }
-  }
-  return calls;
+  return MessageParser::ExtractToolCalls(msg);
 }
 
 absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::string& api_key) {

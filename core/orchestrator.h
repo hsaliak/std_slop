@@ -58,6 +58,7 @@ class Orchestrator {
   Provider GetProvider() const { return config_.provider; }
   std::string GetModel() const { return config_.model; }
   int GetThrottle() const { return config_.throttle; }
+  std::string GetName() const { return strategy_ ? strategy_->GetName() : ""; }
 
   Builder Update() const { return Builder(*this); }
 
