@@ -268,6 +268,43 @@ TEST_F(CommandHandlerTest, HandlesThrottle) {
   EXPECT_EQ(orchestrator->GetThrottle(), 5);
 }
 
+TEST_F(CommandHandlerTest, MessageListHandlesNullTokens) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string sid = "test_session";
+  std::vector<std::string> active_skills;
+
+  // Add a user message without a corresponding assistant message
+  // This simulates the case where MAX(tokens) returns NULL
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "user message without assistant", "", "completed", "g1", "", 0).ok());
+  
+  // This should not crash even though tokens will be NULL in the JOIN
+  std::string input = "/message list";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+}
+
+TEST_F(CommandHandlerTest, MessageListWithMixedTokens) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string sid = "test_session";
+  std::vector<std::string> active_skills;
+
+  // Add user+assistant pair with tokens
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "msg with response", "", "completed", "g1", "", 0).ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "assistant response", "", "completed", "g1", "", 100).ok());
+  
+  // Add user message without assistant (tokens will be NULL)
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "msg without response", "", "completed", "g2", "", 0).ok());
+
+  // This should handle both cases without crashing
+  std::string input = "/message list";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+}
+
 TEST_F(CommandHandlerTest, HandlesUndo) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());

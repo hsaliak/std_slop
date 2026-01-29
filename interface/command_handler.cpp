@@ -154,8 +154,11 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
           std::string prompt = row.value("prompt", "");
           std::string escaped_prompt = absl::StrReplaceAll(prompt, {{"|", "\\|"}, {"\n", " "}});
           if (escaped_prompt.length() > 50) escaped_prompt = escaped_prompt.substr(0, 47) + "...";
-          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("group_id", ""), escaped_prompt,
-                                 row.value("tokens", 0));
+          std::string tokens_str = "N/A";
+          if (row.contains("tokens") && !row["tokens"].is_null()) {
+            tokens_str = std::to_string(row.value("tokens", 0));
+          }
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("group_id", ""), escaped_prompt, tokens_str);
         }
         PrintMarkdown(md);
       }
