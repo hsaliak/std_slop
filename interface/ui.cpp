@@ -493,7 +493,8 @@ void PrintToolResultMessage(const std::string& /*name*/, const std::string& resu
   const char* color = is_error ? ansi::Red : ansi::Metadata;
 
   // Indent and use connector
-  std::cout << prefix << "    " << icons::ResultConnector << " " << Colorize(summary, "", color) << std::endl;
+  std::cout << prefix << "    " << Colorize(icons::ResultConnector, "", ansi::Metadata) << " "
+            << Colorize(summary, "", color) << std::endl;
 }
 
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {
