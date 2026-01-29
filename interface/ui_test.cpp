@@ -48,9 +48,9 @@ TEST(UiTest, PrintAssistantMessageBasic) {
   EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
 }
 
-TEST(UiTest, PrintAssistantMessageWithMarkers) {
-  // Markers should now be preserved and styled with Assistant color (white)
-  std::string content = "---THOUGHT---\nI am thinking.\n---\nHello, user!";
+TEST(UiTest, PrintAssistantMessageWithSpecialHeaders) {
+  // Special headers should be rendered with semantic colors.
+  std::string content = "### THOUGHT\nI am thinking.\n\n### STATE\nGoal: test\n\nHello, user!";
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
@@ -59,17 +59,23 @@ TEST(UiTest, PrintAssistantMessageWithMarkers) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  // Verify it contains both the thought and the message and the markers
-  EXPECT_TRUE(output.find("---THOUGHT---") != std::string::npos);
+  // Verify it contains both headers and the content
+  // Since ANSI codes might split the string (e.g., ### [ANSI] THOUGHT),
+  // we check for the components.
+  EXPECT_TRUE(output.find("###") != std::string::npos);
+  EXPECT_TRUE(output.find("THOUGHT") != std::string::npos);
   EXPECT_TRUE(output.find("I am thinking.") != std::string::npos);
-  EXPECT_TRUE(output.find("---") != std::string::npos);
+  EXPECT_TRUE(output.find("STATE") != std::string::npos);
+  EXPECT_TRUE(output.find("Goal: test") != std::string::npos);
   EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
 
-  // Verify color codes for white (assistant)
-  // white: \033[37m
+  // Verify color codes
+  // Grey/Thought: \033[90m
+  EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
+  // Yellow/State: \033[33m
+  EXPECT_TRUE(output.find("\033[33m") != std::string::npos);
+  // White/Assistant: \033[37m
   EXPECT_TRUE(output.find("\033[37m") != std::string::npos);
-  // Grey should NOT be present (except maybe in markdown if it uses it, but not for thoughts)
-  EXPECT_TRUE(output.find("\033[90m") == std::string::npos);
 }
 
 TEST(UiTest, PrintAssistantMessageWithPrefix) {

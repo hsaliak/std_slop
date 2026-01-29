@@ -10,12 +10,12 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 - **Context Control**: Read existing context, manipulate the ledger to remove things from the context, or have complete isolation for multiple context streams through sessions.
 - **Sequential Rolling Window**: Narrative coherence through chronological history windowing.
 - **Historical Context Retrieval**: Ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
-- **Self-Managed State**: Persistent "Long-term RAM" block (---STATE---) autonomously updated by the LLM as part of system prompt. 
+- **Self-Managed State**: Persistent "Long-term RAM" block (`### STATE`) autonomously updated by the LLM as part of system prompt. 
 - **Session Scratchpad**: A task oriented, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously. Mandatory for structured planning and tracking. Largely 'self managed' by the LLM.
 - **Semantic Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions. Build up project specific knowledge over time. This is largely 'self managed' by the LLM.
 - **Dynamic Skill Orchestration**: The agent proactively searches for and "self-activates" specialized skills (Planner, Code Reviewer, DBA) based on your request, automatically returning to the core persona when the task is complete.
 - **Live Code Search**: Heavy reliance on  `git grep` (with standard `grep` fallback), for rich context and line numbers without indexing overhead. `git grep` supports function context based searching, so that reads are context efficient.
-- **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`--- BEGIN HISTORY ---`, etc.) to see exactly what the LLM sees. The token counters are tracked in the SQL DB to present fine grained usage stats per task.
+- **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`## Begin Conversation History`, etc.) to see exactly what the LLM sees. The token counters are tracked in the SQL DB to present fine grained usage stats per task.
 - **Enhanced UI**: Tree Sitter based Markdown support. Uses ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions. UI is also deliberately kept simple without frills.
 - **Intelligent Table Wrapping**: Markdown tables are automatically shrunk and word-wrapped to fit your terminal width, ensuring no data is lost even in narrow windows.
 - **Output Truncation**: Smart truncation of tool calls and results to 60 columns to maintain terminal clarity while preserving relevant context.

@@ -33,9 +33,9 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
     const auto& msg = history[i];
     std::string display_content = msg.content;
 
-    if (i == 0) display_content = "--- BEGIN CONVERSATION HISTORY ---\n" + display_content;
+    if (i == 0) display_content = "## Begin Conversation History\n" + display_content;
     if (i == history.size() - 1 && msg.role == "user" && i > 0) {
-      display_content = "--- END OF HISTORY ---\n\n### CURRENT REQUEST\n" + display_content;
+      display_content = "## End of History\n\n### CURRENT REQUEST\n" + display_content;
     }
 
     if (msg.role == "system") continue;
@@ -142,16 +142,9 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
       std::string text = msg["content"];
       status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);
 
-      size_t start_pos = text.find("---STATE---");
-      if (start_pos != std::string::npos) {
-        size_t end_pos = text.find("---END STATE---", start_pos);
-        std::string state_blob;
-        if (end_pos != std::string::npos) {
-          state_blob = text.substr(start_pos, end_pos - start_pos + 15);
-        } else {
-          state_blob = text.substr(start_pos);
-        }
-        (void)db_->SetSessionState(session_id, state_blob);
+      auto state = Orchestrator::ExtractState(text);
+      if (state) {
+        db_->SetSessionState(session_id, *state).IgnoreError();
       }
     }
   }

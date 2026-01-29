@@ -66,7 +66,7 @@ class Orchestrator {
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id = "");
 
-  // Rebuilds the session state (---STATE--- anchor) from the current window's history.
+  // Rebuilds the session state (### STATE anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
@@ -87,6 +87,9 @@ class Orchestrator {
   // Utility for truncating large tool results.
   static constexpr size_t kMaxToolResultContext = 5000;
   static std::string SmarterTruncate(const std::string& content, size_t limit);
+
+  // Extracts the ### STATE block from a message, terminating at the next header or EOF.
+  static std::optional<std::string> ExtractState(const std::string& text);
 
  private:
   friend class Builder;

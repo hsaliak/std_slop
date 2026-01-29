@@ -1,5 +1,6 @@
 #include "core/orchestrator.h"
 
+#include "absl/strings/match.h"
 #include "core/database.h"
 
 #include <gtest/gtest.h>
@@ -47,7 +48,7 @@ TEST_F(OrchestratorTest, MemoInjection) {
 
   // 4. Verify system instruction contains the memo
   std::string instr = (*result)["system_instruction"]["parts"][0]["text"];
-  EXPECT_TRUE(instr.find("---RELEVANT MEMOS---") != std::string::npos);
+  EXPECT_TRUE(instr.find("## Relevant Memos") != std::string::npos);
   EXPECT_TRUE(instr.find("SQLite is awesome") != std::string::npos);
 }
 
@@ -211,6 +212,26 @@ TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
   ASSERT_TRUE(history.ok());
   ASSERT_EQ(history->size(), 1);
   EXPECT_EQ((*history)[0].content, "Hello from OpenAI");
+}
+
+TEST_F(OrchestratorTest, ProcessResponseExtractsState) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+
+  std::string mock_response = R"({
+        "candidates": [{
+            "content": {
+                "parts": [{"text": "Hello!\n\n### STATE\nGoal: unit test\nContext: none"}]
+            }
+        }]
+    })";
+
+  ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
+
+  auto state_or = db.GetSessionState("s1");
+  ASSERT_TRUE(state_or.ok());
+  EXPECT_TRUE(absl::StrContains(*state_or, "Goal: unit test"));
 }
 
 TEST_F(OrchestratorTest, ProcessOpenAIToolCall) {
@@ -595,6 +616,33 @@ TEST_F(OrchestratorTest, GeminiProactiveFiltering) {
   // Index 3: user (tool2 response - suppressed and role changed)
   EXPECT_EQ(prompt["contents"][3]["role"], "user");
   EXPECT_TRUE(prompt["contents"][3]["parts"][0].contains("text"));
+}
+
+TEST_F(OrchestratorTest, ExtractStateBasic) {
+  std::string text = "Here is my response.\n\n### STATE\nGoal: test\nContext: none";
+  auto state = Orchestrator::ExtractState(text);
+  ASSERT_TRUE(state.has_value());
+  EXPECT_EQ(*state, "### STATE\nGoal: test\nContext: none");
+}
+
+TEST_F(OrchestratorTest, ExtractStateWithHeader) {
+  std::string text = "Response\n\n### STATE\nGoal: test\n\n## Another Header\nMore text.";
+  auto state = Orchestrator::ExtractState(text);
+  ASSERT_TRUE(state.has_value());
+  EXPECT_EQ(*state, "### STATE\nGoal: test");
+}
+
+TEST_F(OrchestratorTest, ExtractStateWithThematicBreak) {
+  std::string text = "Response\n\n### STATE\nGoal: test\n\n--- \nFooter.";
+  auto state = Orchestrator::ExtractState(text);
+  ASSERT_TRUE(state.has_value());
+  EXPECT_EQ(*state, "### STATE\nGoal: test");
+}
+
+TEST_F(OrchestratorTest, ExtractStateNotFound) {
+  std::string text = "No state here.";
+  auto state = Orchestrator::ExtractState(text);
+  EXPECT_FALSE(state.has_value());
 }
 
 }  // namespace slop

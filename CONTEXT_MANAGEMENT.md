@@ -50,26 +50,25 @@ When building the prompt, the Orchestrator assembles multiple layers of context:
 
 1.  **System Prompt**: The hard-coded base instructions for the assistant.
 2.  **History Guidelines**: Instructions for the LLM on how to interpret the history and the requirement to maintain the state block.
-3.  **Global Anchor (`---STATE---`)**: The persistent state blob retrieved from the `session_state` table.
+3.  **Global Anchor (`### STATE`)**: The persistent state blob retrieved from the `session_state` table.
 4.  **The Scratchpad**: A flexible, persistent workspace for evolving plans and task tracking.
 5.  **Conversation History**: The sequential messages retrieved via the rolling window.
 
 ### State Persistence and Extraction
 
 The state is managed autonomously by the LLM:
--   **Extraction**: At the end of every response, the LLM is required to include a `---STATE---` block. The `Orchestrator` parses this block from the response and saves it to the `session_state` table in the database.
+-   **Extraction**: At the end of every response, the LLM is required to include a `### STATE` block. The `Orchestrator` parses this block from the response and saves it to the `session_state` table in the database.
 -   **Injection**: Before every new prompt, the `Orchestrator` retrieves the latest state for the session and injects it as the "Global Anchor."
 
 This creates a "Long-term RAM" that is actively rewritten and curated by the LLM itself, ensuring that critical information (active files, technical anchors, resolved issues) is preserved even if the original messages that defined them have been truncated.
 
 ### State Format
-```
----STATE---
+```markdown
+### STATE
 Goal: [Short description of current task]
 Context: [Active files/classes being edited]
 Resolved: [List of things finished this session]
 Technical Anchors: [Ports, IPs, constant values]
----END STATE---
 ```
 
 ## 4. The Scratchpad: Evolutionary Planning
@@ -142,7 +141,7 @@ The system prompt instructs the LLM to:
 3. **Avoid Redundancy**: Only save memos for information that is NOT easily discoverable in the codebase itself (e.g., the "why" behind a design).ul for removing "noise" from the middle of a history that might be confusing the LLM.
 
 ### The `/context rebuild` Command
-Since the `---STATE---` block is derived from the *last* assistant message, removing messages can leave the persistent state out of sync with the now-current history. `/context rebuild` asks the LLM to look at the *entire current window* and generate a new, accurate `---STATE---` block.
+Since the `### STATE` block is derived from the *last* assistant message, removing messages can leave the persistent state out of sync with the now-current history. `/context rebuild` asks the LLM to look at the *entire current window* and generate a new, accurate `### STATE` block.
 
 ## Evolution: Why we removed FTS-Ranked Mode
 
@@ -150,7 +149,7 @@ Earlier versions of `std::slop` included a `FTS_RANKED` mode that used hybrid re
 
 1.  **Stop-Word Pollution**: Common conversational phrases like "continue," "next," or "go on" acted as high-relevance search terms. This caused the system to pull in random historical fragments where those words appeared, filling the context window with irrelevant noise.
 2.  **Narrative Fragmentation**: Non-sequential retrieval often confused the LLM. If the "middle" of a technical implementation was missing because it didn't match the current keyword, the LLM would hallucinate missing details or repeat work.
-3.  **Complexity vs. Value**: Addressing the noise would have required complex stop-word filtering and query expansion logic. Instead, we chose to **simplify**. By focusing on a sequential window and a robust, LLM-managed `---STATE---` block, we ensure that critical "technical anchors" are preserved without the unpredictability of keyword-based retrieval.
+3.  **Complexity vs. Value**: Addressing the noise would have required complex stop-word filtering and query expansion logic. Instead, we chose to **simplify**. By focusing on a sequential window and a robust, LLM-managed `### STATE` block, we ensure that critical "technical anchors" are preserved without the unpredictability of keyword-based retrieval.
 
 The current strategy prioritizes **coherence** (sequential history) and **authoritative summary** (the state block) while allowing for **agent-driven precision retrieval** via SQL.
 
@@ -158,7 +157,7 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 
 - `/context window <N>`: Set the size of the rolling window (number of interaction groups). Use 0 for full history.
 - `/context show`: Display the exact assembled context that will be sent to the LLM.
-- `/context rebuild`: Rebuilds the session state (---STATE--- anchor) from the current context window history.
+- `/context rebuild`: Rebuilds the session state (`### STATE` anchor) from the current context window history.
 - `/undo`: Shortcut to remove the last interaction and rebuild state.
 - `/message list [N]`: List the last `N` interaction groups with token usage information.
 - `/message show <GID>`: View the full content of a specific interaction group.

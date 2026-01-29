@@ -69,12 +69,23 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Metadata, co
 void PrintStyledBlock(const std::string& body, const std::string& prefix, const char* fg_color = ansi::White,
                       const char* bg_color = "") {
   size_t width = GetTerminalWidth();
+  // We use first_line_prefix to apply the prefix to all lines but only if the prefix is not already in the body.
+  // Actually WrapText already handles the prefix.
   std::string wrapped = WrapText(body, width, prefix);
   std::vector<std::string> lines = absl::StrSplit(wrapped, '\n');
 
   for (size_t i = 0; i < lines.size(); ++i) {
     if (lines[i].empty() && i + 1 == lines.size()) continue;
-    std::cout << Colorize(lines[i], bg_color, fg_color);
+    
+    // If fg_color is Assistant (White), we wrap each line in it, but we MUST 
+    // respect internal color codes. Colorize usually wraps everything.
+    // If body already has ANSI codes, we should be careful.
+    if (fg_color && *fg_color) {
+        std::cout << fg_color << bg_color << lines[i] << ansi::Reset;
+    } else {
+        std::cout << lines[i];
+    }
+    
     if (i + 1 < lines.size()) std::cout << "\n";
   }
   std::cout << std::endl;

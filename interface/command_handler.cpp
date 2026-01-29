@@ -236,7 +236,7 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
   if (sub_cmd == "show") {
     auto s = db_->GetContextSettings(args.session_id);
     std::stringstream ss;
-    ss << "--- CONTEXT STATUS ---\n";
+    ss << "## Context Status\n";
     ss << "Session: " << args.session_id << "\n";
     ss << "Window Size: ";
     ss << (s.ok() ? (s->size == 0 ? "Infinite" : std::to_string(s->size)) : "Error");
@@ -248,7 +248,7 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     if (orchestrator_) {
       auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
       if (prompt_or.ok()) {
-        ss << "\n--- ASSEMBLED PROMPT ---" << std::endl;
+        ss << "\n## Assembled Prompt" << std::endl;
         ss << prompt_or->dump(2) << std::endl;
       }
     }

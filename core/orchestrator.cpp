@@ -161,16 +161,17 @@ int Orchestrator::CountTokens(const nlohmann::json& prompt) { return strategy_->
 std::string Orchestrator::BuildSystemInstructions(const std::string& session_id,
                                                   const std::vector<std::string>& active_skills) {
   static constexpr absl::string_view kHistoryInstructions = R"(
----CONVERSATION HISTORY GUIDELINES---
+## Conversation History Guidelines
 1. The following messages are sequential and chronological.
-2. Every response MUST include a ---STATE--- block at the end to summarize technical progress.
-3. Use the ---STATE--- block from the history as the authoritative source for project goals and technical anchors.
----STATE FORMAT---
+2. Every response MUST include a ### STATE block at the end to summarize technical progress.
+3. Use the ### STATE block from the history as the authoritative source for project goals and technical anchors.
+
+### State Format
+### STATE
 Goal: [Short description of current task]
 Context: [Active files/classes being edited]
 Resolved: [List of things finished this session]
 Technical Anchors: [Ports, IPs, constant values]
----END STATE---
 )";
 
   std::string system_instruction;
@@ -204,7 +205,7 @@ Technical Anchors: [Ports, IPs, constant values]
 
   auto tools_or = db_->GetEnabledTools();
   if (tools_or.ok() && !tools_or->empty()) {
-    absl::StrAppend(&system_instruction, "\n---AVAILABLE TOOLS---\n",
+    absl::StrAppend(&system_instruction, "\n## Available Tools\n",
                     "You have access to the following tools. Use them to fulfill the user's request.\n");
     for (const auto& t : *tools_or) {
       absl::StrAppend(&system_instruction, "- ", t.name, ": ", t.description, "\n");
@@ -213,7 +214,7 @@ Technical Anchors: [Ports, IPs, constant values]
 
   auto all_skills_or = db_->GetSkills();
   if (all_skills_or.ok() && !active_skills.empty()) {
-    absl::StrAppend(&system_instruction, "\n---ACTIVE PERSONAS & SKILLS---\n");
+    absl::StrAppend(&system_instruction, "\n## Active Personas & Skills\n");
     for (const auto& skill : *all_skills_or) {
       for (const auto& active_name : active_skills) {
         if (skill.name == active_name) {
@@ -227,7 +228,7 @@ Technical Anchors: [Ports, IPs, constant values]
 
   auto state_or = db_->GetSessionState(session_id);
   if (state_or.ok() && !state_or->empty()) {
-    absl::StrAppend(&system_instruction, "---GLOBAL STATE (ANCHOR)---\n", *state_or, "\n");
+    absl::StrAppend(&system_instruction, "## Global State (Anchor)\n", *state_or, "\n");
   }
 
   return system_instruction;
@@ -271,16 +272,9 @@ absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
 
   for (const auto& msg : *history_or) {
     if (msg.role == "assistant") {
-      size_t start_pos = msg.content.find("---STATE---");
-      if (start_pos != std::string::npos) {
-        size_t end_pos = msg.content.find("---END STATE---", start_pos);
-        std::string state_blob;
-        if (end_pos != std::string::npos) {
-          state_blob = msg.content.substr(start_pos, end_pos - start_pos + 15);
-        } else {
-          state_blob = msg.content.substr(start_pos);
-        }
-        (void)db_->SetSessionState(session_id, state_blob);
+      auto state = ExtractState(msg.content);
+      if (state) {
+        db_->SetSessionState(session_id, *state).IgnoreError();
       }
     }
   }
@@ -305,7 +299,7 @@ void Orchestrator::InjectRelevantMemos(const std::vector<Database::Message>& his
 
   auto memos_or = db_->GetMemosByTags(tags);
   if (memos_or.ok() && !memos_or->empty()) {
-    absl::StrAppend(system_instruction, "\n---RELEVANT MEMOS---\n",
+    absl::StrAppend(system_instruction, "\n## Relevant Memos\n",
                     "The following memos were automatically retrieved as they might be relevant to the "
                     "current context:\n");
     // Limit to top 5 memos to avoid clutter
@@ -324,6 +318,26 @@ std::string Orchestrator::SmarterTruncate(const std::string& content, size_t lim
       "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...", limit,
       content.size());
   return truncated + metadata;
+}
+
+std::optional<std::string> Orchestrator::ExtractState(const std::string& text) {
+  size_t start_pos = text.find("### STATE");
+  if (start_pos == std::string::npos) return std::nullopt;
+
+  // Find the next header or the end of the message to terminate the state block.
+  // We look for headers (starts with #) or thematic breaks (---)
+  size_t end_pos = text.find("\n#", start_pos + 9);
+  if (end_pos == std::string::npos) {
+    end_pos = text.find("\n---", start_pos + 9);
+  }
+
+  std::string state_blob;
+  if (end_pos != std::string::npos) {
+    state_blob = text.substr(start_pos, end_pos - start_pos);
+  } else {
+    state_blob = text.substr(start_pos);
+  }
+  return std::string(absl::StripAsciiWhitespace(state_blob));
 }
 
 }  // namespace slop

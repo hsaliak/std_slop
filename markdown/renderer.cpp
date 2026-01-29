@@ -1,6 +1,8 @@
 #include "markdown/renderer.h"
 
 #include <algorithm>
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include <iostream>
 #include <sstream>
 #include <string_view>
@@ -77,6 +79,22 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
 
   Style style = GetNodeStyle(type);
 
+  if (type == "atx_heading") {
+    std::string_view text = GetNodeText(node, current_source);
+    std::string lower_text = absl::AsciiStrToLower(text);
+    if (absl::StrContains(lower_text, "thought")) {
+      style.pre = ansi::Thought;
+    } else if (absl::StrContains(lower_text, "state")) {
+      style.pre = ansi::Yellow;
+    } else if (absl::StrContains(lower_text, "available tools") || absl::StrContains(lower_text, "active personas") ||
+               absl::StrContains(lower_text, "history guidelines") || absl::StrContains(lower_text, "global state") ||
+               absl::StrContains(lower_text, "begin conversation") || absl::StrContains(lower_text, "end of history")) {
+      style.pre = ansi::Magenta;
+    } else if (absl::StrContains(lower_text, "tool_result")) {
+      style.pre = ansi::Green;
+    }
+  }
+
   output.append(style.pre);
 
   uint32_t child_count = ts_node_child_count(node);
@@ -97,6 +115,9 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
 
       // Re-apply style if we're in a heading and just finished the marker
       if (type == "atx_heading" && i == 0) {
+        output.append(style.pre);
+      } else if (type == "atx_heading") {
+        // After any child in a heading, ensure our header style is still active
         output.append(style.pre);
       }
     }

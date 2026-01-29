@@ -35,7 +35,7 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   EXPECT_TRUE(absl::StrContains(instr, "interactive CLI agent")) << "Missing character definition";
   EXPECT_TRUE(absl::StrContains(instr, "Software Engineering Tasks")) << "Missing workflow definition";
   EXPECT_TRUE(absl::StrContains(instr, "Context Retrieval")) << "Missing context retrieval instruction";
-  EXPECT_TRUE(absl::StrContains(instr, "---AVAILABLE TOOLS---")) << "Missing tools section header";
+  EXPECT_TRUE(absl::StrContains(instr, "## Available Tools")) << "Missing tools section header";
 }
 
 }  // namespace slop

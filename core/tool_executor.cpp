@@ -17,7 +17,7 @@ namespace slop {
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
   LOG(INFO) << "Executing tool: " << name << " with args: " << args.dump();
   auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
-    return "---TOOL_RESULT: " + tool_name + "---\n" + content + "\n---END_RESULT---";
+    return absl::StrCat("### TOOL_RESULT: ", tool_name, "\n", content, "\n\n---");
   };
 
   absl::StatusOr<std::string> result;

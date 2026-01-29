@@ -68,7 +68,7 @@ Stores the persistent self-managed state block, per session.
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | session_id | TEXT | Primary Key. Session ID. |
-| state_blob | TEXT | The persistent `---STATE---` block. |
+| state_blob | TEXT | The persistent `### STATE` block. |
 | last_updated | TIMESTAMP | Timestamp of last update. Default: `CURRENT_TIMESTAMP`. |
 
 ### 7. llm_memos
