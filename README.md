@@ -4,13 +4,6 @@ std::slop is a sqlite based c++ cli agent. It uses a small per project database 
 
 ## Distinguishing Features
 
-- **Semantic Iconography**: A consistent set of icons to help you quickly identify information:
-  - 🧠 **Thought**: AI reasoning and planning.
-  - 🛠️ **Tool**: Tool execution and results.
-  - 📝 **Memo**: Long-term knowledge retrieval.
-  - 🎓 **Skill**: Persona and capability transitions.
-  - 🕒 **Session**: State, history, and timeline management.
-  - ✅/❌ **Status**: Clear success or failure indicators.
 - **Ledger-Driven**: All interactions, tool calls, and system changes are stored in SQLite.
 - **Multi Model support**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter). For OpenRouter models, `--strip_reasoning` is available for better compatibility with reasoning-enabled models.
 - **Strategy-Aware Replay**: Automatically re-parses historical conversation text when switching models mid-session. Tool calls are isolated by provider to keep things simple while avoiding cross-model parsing errors.

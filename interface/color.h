@@ -15,6 +15,8 @@ constexpr const char* Input = "📥";
 constexpr const char* Memo = "📝";
 constexpr const char* Skill = "🎓";
 constexpr const char* Session = "🕒";
+constexpr const char* CallArrow = "❯";
+constexpr const char* ResultConnector = "┗━";
 }  // namespace icons
 
 namespace ansi {

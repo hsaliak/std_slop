@@ -14,6 +14,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
@@ -457,33 +458,44 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
   }
 }
 
-void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix) {
-  std::string display_args = args;
-  // If args is JSON, try to make it more readable or compact
-  auto j = nlohmann::json::parse(args, nullptr, false);
-  if (!j.is_discarded()) {
-    display_args = j.dump();
+std::string FlattenJsonArgs(const std::string& json_str) {
+  auto j = nlohmann::json::parse(json_str, nullptr, false);
+  if (j.is_discarded()) {
+    return json_str;
   }
+  if (!j.is_object()) {
+    return j.dump();
+  }
+  std::vector<std::string> parts;
+  for (const auto& [key, value] : j.items()) {
+    parts.push_back(absl::StrCat(key, ": ", value.dump()));
+  }
+  return absl::StrJoin(parts, " | ");
+}
+
+void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix) {
+  std::string display_args = FlattenJsonArgs(args);
 
   if (display_args.length() > 60) {
     display_args = display_args.substr(0, 57) + "...";
   }
 
-  std::string summary = absl::StrCat(icons::Tool, " ", name, "(", display_args, ")");
+  std::string summary =
+      absl::StrCat(icons::Tool, " ", name, " ", icons::CallArrow, " ", display_args);
   std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata) << std::endl;
 }
 
-void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status,
-                            const std::string& prefix) {
+void PrintToolResultMessage(const std::string& /*name*/, const std::string& result,
+                            const std::string& status, const std::string& prefix) {
   std::vector<absl::string_view> lines = absl::StrSplit(result, '\n');
   bool is_error = (status == "error" || absl::StartsWith(result, "Error:"));
-  std::string summary = absl::Substitute("$0 $1 ($2) - $3 lines",
-                                         is_error ? icons::Error : icons::Success, name,
+  std::string summary = absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success,
                                          status, lines.size());
   const char* color = is_error ? ansi::Red : ansi::Metadata;
 
-  // Indent more than the call for visual hierarchy
-  std::cout << prefix << "        " << Colorize(summary, "", color) << std::endl;
+  // Indent and use connector
+  std::cout << prefix << "    " << icons::ResultConnector << " " << Colorize(summary, "", color)
+            << std::endl;
 }
 
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit) {

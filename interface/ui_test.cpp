@@ -122,6 +122,13 @@ TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
   EXPECT_TRUE(output.find("· 123 tokens") != std::string::npos);
 }
 
+TEST(UiTest, FlattenJsonArgs) {
+  EXPECT_EQ(FlattenJsonArgs("{}"), "");
+  EXPECT_EQ(FlattenJsonArgs("{\"path\": \"foo.txt\"}"), "path: \"foo.txt\"");
+  EXPECT_EQ(FlattenJsonArgs("{\"a\": 1, \"b\": \"c\"}"), "a: 1 | b: \"c\"");
+  EXPECT_EQ(FlattenJsonArgs("invalid"), "invalid");
+}
+
 TEST(UiTest, PrintToolCallMessage) {
   std::string name = "test_tool";
   std::string args = "{\"query\": \"test\"}";
@@ -134,7 +141,8 @@ TEST(UiTest, PrintToolCallMessage) {
   std::string output = buffer.str();
 
   EXPECT_TRUE(output.find("test_tool") != std::string::npos);
-  EXPECT_TRUE(output.find("test") != std::string::npos);
+  EXPECT_TRUE(output.find("❯") != std::string::npos);
+  EXPECT_TRUE(output.find("query: \"test\"") != std::string::npos);
 }
 
 TEST(UiTest, PrintToolResultMessage) {
@@ -148,7 +156,8 @@ TEST(UiTest, PrintToolResultMessage) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("test_tool (completed)") != std::string::npos);
+  EXPECT_TRUE(output.find("┗━") != std::string::npos);
+  EXPECT_TRUE(output.find("completed") != std::string::npos);
 }
 
 TEST(UiTest, PrintToolResultMessageTruncated) {
@@ -162,7 +171,8 @@ TEST(UiTest, PrintToolResultMessageTruncated) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("test_tool (completed) - 4 lines") != std::string::npos);
+  EXPECT_TRUE(output.find("┗━") != std::string::npos);
+  EXPECT_TRUE(output.find("completed (4 lines)") != std::string::npos);
   EXPECT_TRUE(output.find("line 1") == std::string::npos);
 }
 
@@ -177,7 +187,8 @@ TEST(UiTest, PrintToolResultMessageExactLines) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("test_tool (completed) - 3 lines") != std::string::npos);
+  EXPECT_TRUE(output.find("┗━") != std::string::npos);
+  EXPECT_TRUE(output.find("completed (3 lines)") != std::string::npos);
   EXPECT_TRUE(output.find("line 1") == std::string::npos);
 }
 

@@ -48,6 +48,10 @@ void HandleStatus(const absl::Status& status, const std::string& context = "");
 std::string WrapText(const std::string& text, size_t width = 0, const std::string& prefix = "",
                      const std::string& first_line_prefix = "");
 
+// Flattens a JSON string into a human-readable key-value string.
+// e.g. {"a": 1, "b": "c"} -> a: 1 | b: "c"
+std::string FlattenJsonArgs(const std::string& json_str);
+
 // Returns terminal width or 80 if detection fails.
 size_t GetTerminalWidth();
 
