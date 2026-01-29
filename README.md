@@ -2,29 +2,24 @@
 
 std::slop is a sqlite based c++ cli agent. It uses a small per project database to remember everything you do, so it never loses track of your work. Most of the agentic work that it does is db driven, for persistence and longer term recall. It has first class support for git. There is tooling to teach the LLM std::slop's schema, so you can just import and export data, such as skills, when needed.
 
-## Distinguishing Features
+## Features
 
 - **Ledger-Driven**: All interactions, tool calls, and system changes are stored in SQLite.
 - **Multi Model support**: Supports Google Gemini (via API key or OAuth) and OpenAI-compatible APIs (defaults to OpenRouter). For OpenRouter models, `--strip_reasoning` is available for better compatibility with reasoning-enabled models.
-- **Strategy-Aware Replay**: Automatically re-parses historical conversation text when switching models mid-session. Tool calls are isolated by provider to keep things simple while avoiding cross-model parsing errors.
-- **Context Control**: Read existing context, manipulate the ledger to remove things from the context, or have complete isolation for multiple context streams through sessions.
-- **Sequential Rolling Window**: Narrative coherence through chronological history windowing.
+- **Replay**: Automatically re-parses historical conversation text when switching models mid-session. Tool calls are isolated by provider to keep things simple while avoiding cross-model parsing errors.
+- **Context Control**: Read existing context, manipulate the ledger to remove things from the context, or have complete isolation for multiple context streams through sessions. std::slop's design goal is to operate with a fully transparent, efficient and controllable context.
+- **Rolling Window**: Narrative coherence through chronological history windowing.
 - **Historical Context Retrieval**: Ability for the agent to query its own past history via SQL, allowing it to regain context that has fallen out of the rolling window.
-- **Self-Managed State**: Persistent "Long-term RAM" block (`### STATE`) autonomously updated by the LLM as part of system prompt. 
-- **Session Scratchpad**: A task oriented, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously. Mandatory for structured planning and tracking. Largely 'self managed' by the LLM.
-- **Semantic Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions. Build up project specific knowledge over time. This is largely 'self managed' by the LLM.
+- **Self-Managed State**: Persistent "Long-term RAM" block (`### STATE`) autonomously updated by the LLM as part of system prompt. These are task specific.
+- **Session Scratchpad**: A task oriented, persistent markdown workspace for evolving plans, checklists, and task-specific notes. The LLM can introspect and update this autonomously. Mandatory for structured planning and tracking. Largely 'self managed' by the LLM. THink of this as a more verbpose 'roadmap' for the current task.
+- **Memo System**: Long-term knowledge persistence through tag-based memos. Memos are automatically retrieved based on conversation context to guide the LLM, ensuring architectural and technical decisions persist across sessions. Build up project specific knowledge over time. This is largely 'self managed' by the LLM. These are task _agnostic_, and serve as a store of project knowledge accummulated over multiple tasks.
 - **Dynamic Skill Orchestration**: The agent proactively searches for and "self-activates" specialized skills (Planner, Code Reviewer, DBA) based on your request, automatically returning to the core persona when the task is complete.
-- **Live Code Search**: Heavy reliance on  `git grep` (with standard `grep` fallback), for rich context and line numbers without indexing overhead. `git grep` supports function context based searching, so that reads are context efficient.
-- **Transparent Context**: Real-time display of estimated context token counts and structural delimiters (`## Begin Conversation History`, etc.) to see exactly what the LLM sees. The token counters are tracked in the SQL DB to present fine grained usage stats per task.
-- **Enhanced UI**: Tree Sitter based Markdown support. Uses ANSI-colored output for improved readability, featuring distinct headers for assistant responses and tool executions. UI is also deliberately kept simple without frills.
-- **Intelligent Table Wrapping**: Markdown tables are automatically shrunk and word-wrapped to fit your terminal width, ensuring no data is lost even in narrow windows.
-- **Output Truncation**: Smart truncation of tool calls and results to 60 columns to maintain terminal clarity while preserving relevant context.
-- **Readline Support**: Command history and line auto-completion.
-- **Skills System**: Inject specialized personas and instructions into the session.
+- **Code Search**: Heavy reliance on  `git grep` (with standard `grep` fallback), for rich context and line numbers without indexing overhead. `git grep` supports function context based searching, so that reads are context efficient.
+- **Session isolation**: Have as many sessions as you want, with fully isolated contexts. Switch between them easily. This is enabled by sqlite.
 
 ## Architecture
 
-- **Storage**: SQLite3 (Ledger, Tools, Skills, State, Scratchpad).
+- **Storage**: SQLite3 (Ledger, Tools, Skills, State, Scratchpad, Memos).
 - **Orchestrator**: Unified logic for prompt assembly and response processing.
 - **Execution**: Secure tool execution engine.
 - **Network**: Asynchronous HTTP client with automatic exponential backoff for 429/5xx errors.
