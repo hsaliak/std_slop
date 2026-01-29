@@ -33,6 +33,15 @@ namespace slop {
 
 namespace {
 
+bool IsNetworkError(const std::string& result) {
+  std::string lower = absl::AsciiStrToLower(result);
+  return absl::StrContains(result, "400") || absl::StrContains(result, "429") ||
+         absl::StrContains(result, "503") || absl::StrContains(lower, "http error") ||
+         absl::StrContains(lower, "too many requests") || absl::StrContains(lower, "rate limit") ||
+         absl::StrContains(lower, "rate_limit") || absl::StrContains(lower, "resource exhausted") ||
+         absl::StrContains(lower, "resource_exhausted") || absl::StrContains(lower, "quota");
+}
+
 /**
  * @brief Prints a horizontal separator line to the terminal.
  *
@@ -509,21 +518,21 @@ void PrintToolResultMessage(const std::string& /*name*/, const std::string& resu
   std::cout << prefix << "    " << Colorize(icons::ResultConnector, "", ansi::Metadata) << " "
             << Colorize(summary, "", color) << std::endl;
 
-  // Print 3-line preview of stdout
-  size_t preview_lines = std::min<size_t>(out_lines.size(), 3);
-  for (size_t i = 0; i < preview_lines; ++i) {
-    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << out_lines[i] << std::endl;
-  }
-  if (out_lines.size() > 3) {
-    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize("...", "", ansi::Metadata)
-              << std::endl;
-  }
-
-  // Print stderr summary if present
-  if (!err_lines.empty()) {
-    std::string err_summary = absl::Substitute("[stderr: $0 lines omitted]", err_lines.size());
-    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize(err_summary, "", ansi::Red)
-              << std::endl;
+  if (is_error && IsNetworkError(result)) {
+    for (const auto& line : out_lines) {
+      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
+    }
+    for (const auto& line : err_lines) {
+      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
+                << Colorize(std::string(line), "", ansi::Red) << std::endl;
+    }
+  } else {
+    // Print stderr summary if present
+    if (!err_lines.empty()) {
+      std::string err_summary = absl::Substitute("[stderr: $0 lines omitted]", err_lines.size());
+      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize(err_summary, "", ansi::Red)
+                << std::endl;
+    }
   }
 }
 

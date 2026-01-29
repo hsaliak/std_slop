@@ -8,6 +8,7 @@
 - **🎛️ Context Control**: Fine-grained control over the conversation history via SQL-backed retrieval and rolling windows.
 - **🛠️ Self-Managed State**: Autonomous updates to a task-specific `### STATE` and a markdown `Scratchpad` for complex planning.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions.
+- **🔍 Advanced Search**: `git_grep_tool` with boolean operators, multiple pathspecs, and smart truncation.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
 - **🏗️ Hermetic Development**: Built with Bazel, including integrated linting and formatting.
 

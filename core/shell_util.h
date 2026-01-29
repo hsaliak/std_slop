@@ -16,6 +16,9 @@ struct CommandResult {
 // Executes a shell command and returns its stdout and exit code.
 absl::StatusOr<CommandResult> RunCommand(const std::string& command);
 
+// Escapes a string for use as a single shell argument.
+std::string EscapeShellArg(const std::string& arg);
+
 }  // namespace slop
 
 #endif  // SLOP_SHELL_UTIL_H_

@@ -112,4 +112,17 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
   return CommandResult{stdout_str, stderr_str, exit_code};
 }
 
+std::string EscapeShellArg(const std::string& arg) {
+  std::string escaped = "'";
+  for (char c : arg) {
+    if (c == '\'') {
+      escaped += "'\\''";
+    } else {
+      escaped += c;
+    }
+  }
+  escaped += "'";
+  return escaped;
+}
+
 }  // namespace slop

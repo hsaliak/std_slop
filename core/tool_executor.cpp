@@ -221,7 +221,7 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
   if (context > 0) {
     cmd += " -C " + std::to_string(context);
   }
-  cmd += " \"" + pattern + "\" " + path;
+  cmd += " -e " + EscapeShellArg(pattern) + " " + EscapeShellArg(path);
 
   auto res = RunCommand(cmd);
   if (!res.ok()) return res.status();
@@ -284,13 +284,44 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   }
 
   if (args.contains("branch")) {
-    cmd += " " + args["branch"].get<std::string>();
+    cmd += " " + EscapeShellArg(args["branch"].get<std::string>());
   }
 
-  cmd += " -e \"" + args["pattern"].get<std::string>() + "\"";
+  if (args.contains("patterns")) {
+    for (const auto& p : args["patterns"]) {
+      std::string val = p.get<std::string>();
+      if (val == "--and" || val == "--or" || val == "--not" || val == "(" || val == ")") {
+        cmd += " " + EscapeShellArg(val);
+      } else {
+        cmd += " -e " + EscapeShellArg(val);
+      }
+    }
+  } else if (args.contains("pattern")) {
+    cmd += " -e " + EscapeShellArg(args["pattern"].get<std::string>());
+  }
+
+  bool untracked = args.value("untracked", false);
+  bool no_index = args.value("no_index", false);
+  if (untracked) cmd += " --untracked";
+  if (no_index) cmd += " --no-index";
+  if ((untracked || no_index) && args.value("exclude_standard", true)) {
+    cmd += " --exclude-standard";
+  }
+  if (args.value("fixed_strings", false)) cmd += " -F";
+
+  if (args.contains("max_depth")) {
+    cmd += " --max-depth " + std::to_string(args["max_depth"].get<int>());
+  }
 
   if (args.contains("path")) {
-    cmd += " -- \"" + args["path"].get<std::string>() + "\"";
+    cmd += " --";
+    if (args["path"].is_array()) {
+      for (const auto& p : args["path"]) {
+        cmd += " " + EscapeShellArg(p.get<std::string>());
+      }
+    } else {
+      cmd += " " + EscapeShellArg(args["path"].get<std::string>());
+    }
   }
 
   auto res = RunCommand(cmd);
@@ -308,7 +339,7 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   std::string line;
   std::string output;
   int count = 0;
-  while (std::getline(ss, line) && count < 50) {
+  while (std::getline(ss, line) && count < 500) {
     output += line + "\n";
     count++;
   }

@@ -161,7 +161,7 @@ TEST(UiTest, PrintToolResultMessage) {
   EXPECT_TRUE(output.find("completed") != std::string::npos);
 }
 
-TEST(UiTest, PrintToolResultMessageTruncated) {
+TEST(UiTest, PrintToolResultMessageNoPreview) {
   std::string name = "test_tool";
   std::string result = "line 1\nline 2\nline 3\nline 4";
   std::stringstream buffer;
@@ -174,10 +174,8 @@ TEST(UiTest, PrintToolResultMessageTruncated) {
 
   EXPECT_TRUE(output.find("┗━") != std::string::npos);
   EXPECT_TRUE(output.find("completed (4 lines)") != std::string::npos);
-  EXPECT_TRUE(output.find("line 1") != std::string::npos);
-  EXPECT_TRUE(output.find("line 3") != std::string::npos);
-  EXPECT_TRUE(output.find("...") != std::string::npos);
-  EXPECT_TRUE(output.find("line 4") == std::string::npos);
+  EXPECT_TRUE(output.find("line 1") == std::string::npos);
+  EXPECT_TRUE(output.find("...") == std::string::npos);
 }
 
 TEST(UiTest, PrintToolResultMessageStderr) {
@@ -191,26 +189,72 @@ TEST(UiTest, PrintToolResultMessageStderr) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("stdout line 1") != std::string::npos);
+  EXPECT_TRUE(output.find("stdout line 1") == std::string::npos);
   EXPECT_TRUE(output.find("[stderr: 2 lines omitted]") != std::string::npos);
 }
 
-TEST(UiTest, PrintToolResultMessageExactLines) {
+TEST(UiTest, PrintToolResultMessageHTTPError) {
   std::string name = "test_tool";
-  std::string exact_result = "line 1\nline 2\nline 3";
+  std::string result = "Error: HTTP 429 Too Many Requests\nRate limit exceeded";
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
-  PrintToolResultMessage("test_tool", exact_result, "completed");
+  PrintToolResultMessage(name, result, "error");
 
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("┗━") != std::string::npos);
-  EXPECT_TRUE(output.find("completed (3 lines)") != std::string::npos);
-  EXPECT_TRUE(output.find("line 1") != std::string::npos);
-  EXPECT_TRUE(output.find("line 3") != std::string::npos);
-  EXPECT_TRUE(output.find("...") == std::string::npos);
+  EXPECT_TRUE(output.find("HTTP 429 Too Many Requests") != std::string::npos);
+  EXPECT_TRUE(output.find("Rate limit exceeded") != std::string::npos);
+}
+
+TEST(UiTest, PrintToolResultMessageResourceExhausted) {
+  std::string name = "test_tool";
+  std::string result = "Error: RESOURCE_EXHAUSTED: Quota exceeded";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(name, result, "error");
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("RESOURCE_EXHAUSTED") != std::string::npos);
+}
+
+TEST(UiTest, PrintToolResultMessage503Error) {
+  std::string name = "test_tool";
+  std::string result = "Error: 503 Service Unavailable";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(name, result, "error");
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("503 Service Unavailable") != std::string::npos);
+}
+
+TEST(UiTest, PrintToolResultMessageQuotaError) {
+  std::string name = "test_tool";
+  std::string result = R"(Error: {
+  "error": {
+    "code": 429,
+    "message": "You have exhausted your capacity on this model. Your quota will reset after 0s.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(name, result, "error");
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("exhausted your capacity") != std::string::npos);
+  EXPECT_TRUE(output.find("RESOURCE_EXHAUSTED") != std::string::npos);
 }
 
 }  // namespace slop

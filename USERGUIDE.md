@@ -67,6 +67,21 @@ If no session name is provided, it defaults to `default_session`.
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 
+## Search & Discovery
+
+The agent provides powerful search tools designed for large codebases.
+
+### `git_grep_tool`
+- **Boolean Queries**: Supports `--and`, `--or`, `--not`, and grouping with `(`, `)`.
+  - Example patterns: `["(", "pattern1", "--and", "pattern2", ")", "--or", "pattern3"]`
+- **Multiple Pathspecs**: Search across multiple directories or file patterns at once.
+- **Rich Context**: Use `function_context: true` to see the full body of matching functions.
+- **Smart Truncation**: Results are capped at 500 lines to balance detail with context usage.
+
+### `list_directory`
+- Provides recursive directory listings with optional depth control.
+- Defaults to git-tracked files for faster exploration in large repositories.
+
 ## User Interface
 
 `std::slop` features an enhanced CLI UI designed for readability:
