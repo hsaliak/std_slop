@@ -38,7 +38,8 @@ Persona patches for specialized instructions.
 | id | INTEGER | Primary Key (Autoincrement). |
 | name | TEXT | Unique skill name. |
 | description | TEXT | Purpose description. |
-| system_prompt_patch| TEXT | Instructions to inject into the system prompt. |
+| system_prompt_patch | TEXT | Instructions to inject into the system prompt. |
+| activation_count | INTEGER | Number of times this skill has been activated. Default: 0. |
 
 ### 4. sessions
 Persists user settings for each conversation session.
@@ -48,6 +49,7 @@ Persists user settings for each conversation session.
 | id | TEXT | Primary Key. Session ID. |
 | context_size | INTEGER | Size of the sequential rolling window (number of groups). Default: 5. |
 | scratchpad | TEXT | A flexible workspace for the LLM to store plans and notes. |
+| active_skills | TEXT | JSON array of currently active skill names for this session. |
 
 ### 5. usage
 Tracks token usage for cost and performance monitoring.
@@ -129,13 +131,15 @@ CREATE TABLE IF NOT EXISTS skills (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE,
     description TEXT,
-    system_prompt_patch TEXT
+    system_prompt_patch TEXT,
+    activation_count INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     context_size INTEGER DEFAULT 5,
-    scratchpad TEXT
+    scratchpad TEXT,
+    active_skills TEXT
 );
 
 CREATE TABLE IF NOT EXISTS usage (

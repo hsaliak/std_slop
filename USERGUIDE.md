@@ -102,7 +102,7 @@ If no session name is provided, it defaults to `default_session`.
 - `/message show <GID>` (Alias: `/messages show`): View the full content (including tool calls/responses and token usage) of a specific group.
 - `/message remove <GID>` (Alias: `/messages remove`): Hard delete a specific message group from history.
 - `/undo`: Delete the very last interaction group and rebuild the session context.
-- `/edit`: Open your last input in your system `$EDITOR` (e.g., vime, nano) and resend it after saving.
+- `/edit`: Open your last input in your system `$EDITOR` (e.g., vim, nano) and resend it after saving.
 
 ### Context Control
 - `/context show`: Show current context settings and the fully assembled prompt that would be sent to the LLM.
@@ -115,8 +115,8 @@ If no session name is provided, it defaults to `default_session`.
 - `/memo show <id>`: View the full content of a specific memo.
 - `/memo search <query>`: Search for memos containing a specific keyword or tag.
 - `/memo remove <id>`: Permanently delete a memo.
-- `/memo add`: Manually add a new memo via your system `$EDITOR`.
-- `/memo edit <id>`: Edit an existing memo in your system `$EDITOR`.
+- `/memo add`: Manually add a new memo via your system `$EDITOR`. The content is parsed as Markdown.
+- `/memo edit <id>`: Edit an existing memo in your system `$EDITOR`. Skills and memos are now edited using Markdown format with automatic parsing of headers and content.
 
 Memos are long-term, cross-session pieces of knowledge. While you can manage them via these commands, the LLM is also equipped with `save_memo` and `retrieve_memos` tools to autonomously manage knowledge for you.
 
@@ -125,7 +125,7 @@ Memos are long-term, cross-session pieces of knowledge. While you can manage the
 - `/skill activate <name|id>`: Enable a skill for the current session.
 - `/skill deactivate <name|id>`: Disable a skill for the current session.
 - `/skill add`: Interactive prompt to create a new skill.
-- `/skill edit <name|id>`: Modify an existing skill.
+- `/skill edit <name|id>`: Modify an existing skill in your system `$EDITOR`. Skills are edited using Markdown format with YAML frontmatter for metadata (name, description) and the body for the system prompt patch.
 - `/skill delete <name|id>`: Permanently remove a skill from the database.
 
 #### Dynamic Skill Orchestration

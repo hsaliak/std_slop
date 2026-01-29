@@ -40,6 +40,14 @@ When the `Orchestrator` assembles a prompt, it filters the historical messages b
 
 This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs. Information that must persist across tool-isolated boundaries should be recorded in the **Global Anchor (State)**.
 
+### Centralized Message Parsing
+To handle the divergent JSON schemas between providers, `std::slop` uses a centralized `MessageParser` class (`core/message_parser.h`). This utility:
+- **Extracts Tool Calls**: Parses tool call JSON from both OpenAI (`tool_calls` array) and Gemini (`functionCall` object) formats.
+- **Extracts Assistant Text**: Retrieves the text content from tool_call messages for display purposes.
+- **Strategy-Aware**: Uses the `parsing_strategy` field to determine the correct parsing logic.
+
+This centralization eliminates heuristic JSON sniffing and ensures consistent tool call extraction across the UI and orchestrator components.
+
 ## 3. Self-Managed State Tracking (Long-term RAM)
 
 To prevent the loss of critical technical details when messages age out of the rolling window, `std::slop` implements a self-managed state tracking mechanism. This allows the LLM to maintain a persistent "Global Anchor" of technical truth.
@@ -138,7 +146,10 @@ Memos are designed for information that is:
 The system prompt instructs the LLM to:
 1. **Check Memos**: Look for existing knowledge before making assumptions about architectural patterns or system behavior.
 2. **Record Knowledge**: Save new memos when a significant discovery is made or an important decision is finalized.
-3. **Avoid Redundancy**: Only save memos for information that is NOT easily discoverable in the codebase itself (e.g., the "why" behind a design).ul for removing "noise" from the middle of a history that might be confusing the LLM.
+3. **Avoid Redundancy**: Only save memos for information that is NOT easily discoverable in the codebase itself (e.g., the "why" behind a design).
+
+### The `/context drop <GID>` Command
+For more surgical context management, users can drop a specific message group without deleting it. This is useful for removing "noise" from the middle of a history that might be confusing the LLM.
 
 ### The `/context rebuild` Command
 Since the `### STATE` block is derived from the *last* assistant message, removing messages can leave the persistent state out of sync with the now-current history. `/context rebuild` asks the LLM to look at the *entire current window* and generate a new, accurate `### STATE` block.

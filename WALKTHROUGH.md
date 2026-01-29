@@ -134,13 +134,13 @@ Ok, implement it.
          ###
 ```
 
-**Note:** You don't need to activate the `expert_rust_developer` skill as the system prompt should be good enough to implement htis program, but it feels good to be cool. This is especially useful to ensure that the generated code adheres to any specific coding standards relevant to the project.
+**Note:** You don't need to activate the `expert_rust_developer` skill as the system prompt should be good enough to implement this program, but it feels good to be cool. This is especially useful to ensure that the generated code adheres to any specific coding standards relevant to the project.
 **Note 2:** You can have multiple skills active (e.g., `planner` AND `expert_rust_developer`), but instructions might conflict as they all go into the system prompt.
 **Note 3:** If you get rate limit errors, the `/throttle` command allows you to add wait times between requests. This is useful for free tier plans.
 
 ### Planning with the Scratchpad
 
-As you work on complex features, you can use the **Scratchpad** to maintain an evolving plan. This has replaced the older, more rigid `/todo` system.
+As you work on complex features, you can use the **Scratchpad** to maintain an evolving plan.
 
 1.  **Create a plan**: Ask the LLM to create a plan for a feature.
 2.  **Save to Scratchpad**: Tell the LLM "Save this plan to the scratchpad so we can track our progress."
