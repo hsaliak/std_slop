@@ -19,6 +19,10 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command);
 // Escapes a string for use as a single shell argument.
 std::string EscapeShellArg(const std::string& arg);
 
+// Checks if the Escape key was pressed.
+// This function is non-blocking and throttled to once every 100ms.
+bool IsEscPressed();
+
 }  // namespace slop
 
 #endif  // SLOP_SHELL_UTIL_H_

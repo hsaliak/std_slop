@@ -16,6 +16,8 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/strip.h"
 #include "nlohmann/json.hpp"
+
+#include "core/shell_util.h"
 namespace slop {
 
 namespace {
@@ -62,39 +64,7 @@ int HttpClient::ProgressCallback(void* clientp, [[maybe_unused]] curl_off_t dlto
     return 1;
   }
 
-  // Check for Esc key (ASCII 27) - minimal impact check
-  static auto last_check = std::chrono::steady_clock::now();
-  auto now = std::chrono::steady_clock::now();
-  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check).count() < 100) {
-    return 0;
-  }
-  last_check = now;
-
-  if (!isatty(STDIN_FILENO)) {
-    return 0;
-  }
-
-  struct termios oldt, newt;
-  if (tcgetattr(STDIN_FILENO, &oldt) != 0) return 0;
-  newt = oldt;
-  newt.c_lflag &= ~(ICANON | ECHO);
-  if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) != 0) return 0;
-  int oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-  if (oldf == -1) {
-    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    return 0;
-  }
-  if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) {
-    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    return 0;
-  }
-
-  int ch = getchar();
-
-  (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-  (void)fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-  if (ch == 27) {
+  if (IsEscPressed()) {
     std::cout << "\n[Cancelled by user]" << std::endl;
     client->Abort();
     return 1;

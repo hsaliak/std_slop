@@ -1,12 +1,18 @@
 #include "core/shell_util.h"
 
+#include <fcntl.h>
 #include <poll.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include <array>
 #include <cerrno>
+#include <chrono>
+#include <csignal>
 #include <cstdio>
+#include <iostream>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -72,11 +78,29 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
   bool stderr_open = true;
 
   while (stdout_open || stderr_open) {
-    int ret = poll(fds.data(), fds.size(), -1);
+    int ret = poll(fds.data(), fds.size(), 100);
     if (ret == -1) {
       if (errno == EINTR) continue;
       break;
     }
+
+    if (IsEscPressed()) {
+      LOG(INFO) << "Command cancelled by user (Esc pressed)";
+      std::cout << "\n[Cancelled by user]" << std::endl;
+      kill(pid, SIGINT);
+      // Give it a moment to shut down gracefully
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      int status;
+      if (waitpid(pid, &status, WNOHANG) == 0) {
+        kill(pid, SIGKILL);
+        waitpid(pid, &status, 0);
+      }
+      close(stdout_pipe[0]);
+      close(stderr_pipe[0]);
+      return absl::CancelledError("Command cancelled by user");
+    }
+
+    if (ret == 0) continue;
 
     for (int i = 0; i < 2; ++i) {
       if (fds[i].revents & (POLLIN | POLLHUP)) {
@@ -128,6 +152,41 @@ std::string EscapeShellArg(const std::string& arg) {
   }
   escaped += "'";
   return escaped;
+}
+
+bool IsEscPressed() {
+  static auto last_check = std::chrono::steady_clock::now();
+  auto now = std::chrono::steady_clock::now();
+  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check).count() < 100) {
+    return false;
+  }
+  last_check = now;
+
+  if (!isatty(STDIN_FILENO)) {
+    return false;
+  }
+
+  struct termios oldt, newt;
+  if (tcgetattr(STDIN_FILENO, &oldt) != 0) return false;
+  newt = oldt;
+  newt.c_lflag &= ~(ICANON | ECHO);
+  if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) != 0) return false;
+  int oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+  if (oldf == -1) {
+    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return false;
+  }
+  if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) {
+    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return false;
+  }
+
+  int ch = getchar();
+
+  (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  (void)fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+  return ch == 27;
 }
 
 }  // namespace slop
