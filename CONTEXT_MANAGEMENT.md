@@ -48,6 +48,14 @@ To handle the divergent JSON schemas between providers, `std::slop` uses a centr
 
 This centralization eliminates heuristic JSON sniffing and ensures consistent tool call extraction across the UI and orchestrator components.
 
+### Dynamic Tool Truncation
+To maximize context efficiency, the system applies differential truncation limits to tool results based on their recency:
+
+- **Active Turn (High Fidelity)**: Tool results in the current conversation group (the active interaction loop) are truncated at **5000 characters**. This provides the LLM with sufficient detail to analyze outputs and determine next steps.
+- **Historical (Compression)**: Once a conversation group becomes inactive (i.e., the user has sent a new message), tool results in that group are aggressively truncated to **500 characters**.
+
+**Rationale**: The specific details of a tool's output (e.g., a file listing or grep result) are critically important *while* the task is being performed. However, once the task is complete and the conversation moves forward, the *fact* of the execution and a brief summary are usually sufficient for maintaining context. This aggressive pruning frees up significant token space for more history.
+
 ## 3. Self-Managed State Tracking (Long-term RAM)
 
 To prevent the loss of critical technical details when messages age out of the rolling window, `std::slop` implements a self-managed state tracking mechanism. This allows the LLM to maintain a persistent "Global Anchor" of technical truth.

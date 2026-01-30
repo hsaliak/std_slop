@@ -99,7 +99,7 @@ The agent provides powerful search tools designed for large codebases.
   - 🕒 **Session**: Timeline and state management.
 - **Colors**: Tool headers are displayed in grey. Assistant messages are white. Indentation is used for hierarchy.
 - **Markdown Tables**: Long tables are intelligently handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
-- **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter, while providing enough information for the user to follow the agent's progress. Full content is still sent to the LLM when appropriate.
+- **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter. Note that for the LLM's context, tool results are preserved at high fidelity (5000 chars) for the active turn but aggressively compressed (500 chars) for historical turns to save tokens.
 
 ## Slash Commands
 

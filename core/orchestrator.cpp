@@ -124,9 +124,24 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   auto history_or = GetRelevantHistory(session_id, settings_or->size);
   if (!history_or.ok()) return history_or.status();
 
+  auto history = std::move(*history_or);
+
+  // Identify the active group_id (the most recent one)
+  std::string active_group_id;
+  if (!history.empty()) {
+    active_group_id = history.back().group_id;
+  }
+
+  // Pre-truncate tool results from previous groups
+  for (auto& m : history) {
+    if (m.role == "tool" && !active_group_id.empty() && m.group_id != active_group_id) {
+      m.content = SmarterTruncate(m.content, kMaxPreviousToolResultContext);
+    }
+  }
+
   std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
-  InjectRelevantMemos(*history_or, &system_instruction);
-  return strategy_->AssemblePayload(session_id, system_instruction, *history_or);
+  InjectRelevantMemos(history, &system_instruction);
+  return strategy_->AssemblePayload(session_id, system_instruction, history);
 }
 
 absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,

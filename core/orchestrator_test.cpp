@@ -92,6 +92,95 @@ TEST_F(OrchestratorTest, AssemblePromptWithMultipleSkills) {
   EXPECT_TRUE(instr.find("PATCH2") != std::string::npos);
 }
 
+TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+
+  std::string long_content(1000, 'a');
+
+  // Group 1: Previous group with a long tool result
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id|test_tool", "completed", "g1").ok());
+
+  // Group 2: Current group
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "another call", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id|test_tool", "completed", "g2").ok());
+
+  // We need a tool named "test_tool" to be enabled so it's not filtered out.
+  ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
+
+  auto result = orchestrator->AssemblePrompt("s1", {});
+  ASSERT_TRUE(result.ok());
+
+  nlohmann::json prompt = *result;
+
+  bool found_g1 = false;
+  bool found_g2 = false;
+
+  for (const auto& content : prompt["contents"]) {
+    for (const auto& part : content["parts"]) {
+      if (part.contains("functionResponse")) {
+        std::string tool_content = part["functionResponse"]["response"]["content"];
+        if (tool_content.find("TRUNCATED: Showing 500/1000") != std::string::npos) {
+          found_g1 = true;
+        } else if (tool_content == long_content) {
+          found_g2 = true;
+        }
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_g1);
+  EXPECT_TRUE(found_g2);
+}
+
+TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+
+  std::string long_content(1000, 'a');
+
+  // Group 1: Previous group
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"tc1\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "tc1|test_tool", "completed", "g1").ok());
+
+  // Group 2: Current group
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "another call", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"tc2\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "tc2|test_tool", "completed", "g2").ok());
+
+  // We need a tool named "test_tool" to be enabled
+  ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
+
+  auto result = orchestrator->AssemblePrompt("s1", {});
+  ASSERT_TRUE(result.ok());
+
+  nlohmann::json prompt = *result;
+  // OpenAI payload structure: messages -> role: tool, content
+
+  bool found_g1 = false;
+  bool found_g2 = false;
+
+  for (const auto& msg : prompt["messages"]) {
+    if (msg["role"] == "tool") {
+      std::string tool_content = msg["content"];
+      if (tool_content.find("TRUNCATED: Showing 500/1000") != std::string::npos) {
+        found_g1 = true;
+      } else if (tool_content == long_content) {
+        found_g2 = true;
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_g1);
+  EXPECT_TRUE(found_g2);
+}
+
 TEST_F(OrchestratorTest, SmarterTruncate) {
   // ASCII truncation
   std::string ascii = "1234567890";
