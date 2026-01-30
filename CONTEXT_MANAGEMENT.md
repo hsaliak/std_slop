@@ -52,9 +52,10 @@ This centralization eliminates heuristic JSON sniffing and ensures consistent to
 To maximize context efficiency, the system applies differential truncation limits to tool results based on their recency:
 
 - **Active Turn (High Fidelity)**: Tool results in the current conversation group (the active interaction loop) are truncated at **5000 characters**. This provides the LLM with sufficient detail to analyze outputs and determine next steps.
-- **Historical (Compression)**: Once a conversation group becomes inactive (i.e., the user has sent a new message), tool results in that group are aggressively truncated to **500 characters**.
+- **Historical (Compression)**: Once a conversation group becomes inactive (i.e., the user has sent a new message), tool results in that group are aggressively truncated to **300 characters**.
+- **Retrieval Hints**: Truncated historical results are appended with a hint: `... [TRUNCATED. Use query_db(sql="SELECT content FROM messages WHERE id=<ID>") to see full output]`. This allows the model to surgically retrieve full technical detail from its own history if a previous task needs re-investigation.
 
-**Rationale**: The specific details of a tool's output (e.g., a file listing or grep result) are critically important *while* the task is being performed. However, once the task is complete and the conversation moves forward, the *fact* of the execution and a brief summary are usually sufficient for maintaining context. This aggressive pruning frees up significant token space for more history.
+**Rationale**: The specific details of a tool's output are critically important *while* the task is being performed. However, once the task is complete, the *essence* of the result is usually sufficient. Reducing the limit to 300 characters while providing an explicit recovery path (via `query_db`) offers the best balance of context efficiency and technical depth.
 
 ## 3. Self-Managed State Tracking (Long-term RAM)
 
@@ -182,3 +183,9 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 - `/message show <GID>`: View the full content of a specific interaction group.
 - `/message remove <GID>`: Permanently **deletes** a specific message group from the database.
 - `/messages`: Alias for the `/message` command.
+
+## Evolutionary Notes
+
+### 2026-01-23: Historical Truncation vs. Retrieval
+**Change**: Reduced historical truncation limit from 500 to 300 characters and implemented `query_db` hints.
+**Rationale**: Deepening the isolation and efficiency of the context window. By providing a programmatic retrieval hint, the model can safely operate with much smaller historical fragments, as it knows exactly how to get the full data if it becomes relevant again. This significantly extends the effective session length for complex engineering tasks.

@@ -87,8 +87,8 @@ class Orchestrator {
 
   // Utility for truncating large tool results.
   static constexpr size_t kMaxToolResultContext = 5000;
-  static constexpr size_t kMaxPreviousToolResultContext = 500;
-  static std::string SmarterTruncate(const std::string& content, size_t limit);
+  static constexpr size_t kMaxPreviousToolResultContext = 300;
+  static std::string SmarterTruncate(const std::string& content, size_t limit, int message_id = -1);
 
   // Extracts the ### STATE block from a message, terminating at the next header or EOF.
   static std::optional<std::string> ExtractState(const std::string& text);

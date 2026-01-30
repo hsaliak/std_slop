@@ -76,7 +76,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
       if (valid) {
         msg_obj = {{"role", msg.role}};
         msg_obj["tool_call_id"] = msg.tool_call_id.substr(0, msg.tool_call_id.find('|'));
-        msg_obj["content"] = Orchestrator::SmarterTruncate(msg.content, Orchestrator::kMaxToolResultContext);
+        msg_obj["content"] = Orchestrator::SmarterTruncate(msg.content, Orchestrator::kMaxToolResultContext, msg.id);
       } else {
         msg_obj = {{"role", "user"}, {"content", "[Invalid tool response suppressed]"}};
       }

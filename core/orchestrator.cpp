@@ -135,7 +135,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   // Pre-truncate tool results from previous groups
   for (auto& m : history) {
     if (m.role == "tool" && !active_group_id.empty() && m.group_id != active_group_id) {
-      m.content = SmarterTruncate(m.content, kMaxPreviousToolResultContext);
+      m.content = SmarterTruncate(m.content, kMaxPreviousToolResultContext, m.id);
     }
   }
 
@@ -326,7 +326,7 @@ void Orchestrator::InjectRelevantMemos(const std::vector<Database::Message>& his
   }
 }
 
-std::string Orchestrator::SmarterTruncate(const std::string& content, size_t limit) {
+std::string Orchestrator::SmarterTruncate(const std::string& content, size_t limit, int message_id) {
   if (content.size() <= limit) return content;
 
   size_t actual_limit = limit;
@@ -337,10 +337,17 @@ std::string Orchestrator::SmarterTruncate(const std::string& content, size_t lim
   }
 
   std::string truncated = content.substr(0, actual_limit);
-  std::string metadata = absl::Substitute(
-      "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...", actual_limit,
-      content.size());
-  return truncated + metadata;
+  std::string hint;
+  if (message_id > 0) {
+    hint = absl::Substitute(
+        "\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=$0\") to see full output] ...",
+        message_id);
+  } else {
+    hint = absl::Substitute(
+        "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...",
+        actual_limit, content.size());
+  }
+  return truncated + hint;
 }
 
 std::optional<std::string> Orchestrator::ExtractState(const std::string& text) {

@@ -124,7 +124,7 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
     for (const auto& part : content["parts"]) {
       if (part.contains("functionResponse")) {
         std::string tool_content = part["functionResponse"]["response"]["content"];
-        if (tool_content.find("TRUNCATED: Showing 500/1000") != std::string::npos) {
+        if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
           found_g1 = true;
         } else if (tool_content == long_content) {
           found_g2 = true;
@@ -169,7 +169,7 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
   for (const auto& msg : prompt["messages"]) {
     if (msg["role"] == "tool") {
       std::string tool_content = msg["content"];
-      if (tool_content.find("TRUNCATED: Showing 500/1000") != std::string::npos) {
+      if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
         found_g1 = true;
       } else if (tool_content == long_content) {
         found_g2 = true;
@@ -185,6 +185,14 @@ TEST_F(OrchestratorTest, SmarterTruncate) {
   // ASCII truncation
   std::string ascii = "1234567890";
   EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5),
+            "12345\n... [TRUNCATED: Showing 5/10 characters. Use the tool again with an offset to read more.] ...");
+
+  // Truncation with message_id hint
+  EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5, 123),
+            "12345\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=123\") to see full output] ...");
+
+  // Fallback truncation (no message_id or negative)
+  EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5, -1),
             "12345\n... [TRUNCATED: Showing 5/10 characters. Use the tool again with an offset to read more.] ...");
 
   // UTF-8 truncation - Emoji is 4 bytes: \xF0\x9F\x9A\x80 (Rocket)
