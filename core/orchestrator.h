@@ -21,8 +21,8 @@ class Orchestrator {
 
   struct TruncationSettings {
     size_t active_full_fidelity_limit = 5000;
-    size_t active_degraded_limit = 1000;
-    size_t inactive_limit = 300;
+    size_t active_degraded_limit = 600;
+    size_t inactive_limit = 100;
     size_t full_fidelity_count = 5;
   };
 
