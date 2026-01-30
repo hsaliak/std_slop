@@ -175,7 +175,7 @@ absl::Status Database::Init(const std::string& db_path) {
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         name TEXT,
-        context_size INTEGER DEFAULT 5,
+        context_size INTEGER DEFAULT 2,
         scratchpad TEXT,
         active_skills TEXT
     );
@@ -623,7 +623,7 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
 
-  ContextSettings settings = {4};  // Default
+  ContextSettings settings = {2};  // Default
   if (*row_or) {
     settings.size = stmt->ColumnInt(0);
   }
