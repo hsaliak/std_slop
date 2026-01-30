@@ -49,11 +49,12 @@ To handle the divergent JSON schemas between providers, `std::slop` uses a centr
 This centralization eliminates heuristic JSON sniffing and ensures consistent tool call extraction across the UI and orchestrator components.
 
 ### Dynamic Tool Truncation
-To maximize context efficiency, the system applies differential truncation limits to tool results based on their recency:
+To maximize context efficiency, the system applies differential truncation limits to tool results based on their recency and group status. These limits are configurable via the `TruncationSettings` struct.
 
-- **Active Turn (High Fidelity)**: Tool results in the current conversation group (the active interaction loop) are truncated at **5000 characters**. This provides the LLM with sufficient detail to analyze outputs and determine next steps.
-- **Historical (Compression)**: Once a conversation group becomes inactive (i.e., the user has sent a new message), tool results in that group are aggressively truncated to **300 characters**.
-- **Retrieval Hints**: Truncated historical results are appended with a hint: `... [TRUNCATED. Use query_db(sql="SELECT content FROM messages WHERE id=<ID>") to see full output]`. This allows the model to surgically retrieve full technical detail from its own history if a previous task needs re-investigation.
+- **Active Group (Recent - Full Fidelity)**: The **5 most recent** tool results in the current conversation group are kept at up to **5000 characters**. This ensures the LLM has full context for immediate, iterative tool loops.
+- **Active Group (Degraded)**: Any tool results in the active group beyond the 5 most recent are truncated to **1000 characters**. This prevents a single long-running turn with many tool calls from consuming the entire context window.
+- **Inactive Groups (Compression)**: Once a conversation group becomes inactive (the turn has finished and a new user prompt has started), all tool results in that group are truncated to **300 characters**.
+- **Retrieval Hints**: All truncated results are appended with a hint: `... [TRUNCATED. Use query_db(sql="SELECT content FROM messages WHERE id=<ID>") to see full output]`. This allows the model to retrieve full technical detail on-demand via SQL.del to surgically retrieve full technical detail from its own history if a previous task needs re-investigation.
 
 **Rationale**: The specific details of a tool's output are critically important *while* the task is being performed. However, once the task is complete, the *essence* of the result is usually sufficient. Reducing the limit to 300 characters while providing an explicit recovery path (via `query_db`) offers the best balance of context efficiency and technical depth.
 
@@ -189,3 +190,7 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 ### 2026-01-23: Historical Truncation vs. Retrieval
 **Change**: Reduced historical truncation limit from 500 to 300 characters and implemented `query_db` hints.
 **Rationale**: Deepening the isolation and efficiency of the context window. By providing a programmatic retrieval hint, the model can safely operate with much smaller historical fragments, as it knows exactly how to get the full data if it becomes relevant again. This significantly extends the effective session length for complex engineering tasks.
+
+### 2026-01-27: Intra-Turn Degradation
+**Change**: Implemented a 3-tier truncation strategy: Full-fidelity (5000 chars) for the last 5 tool calls in the active group, Degraded (1000 chars) for older calls in the active group, and Inactive (300 chars) for previous turns.
+**Rationale**: Complex tasks often involve many tool calls within a single "turn" (e.g., recursive file searches or broad refactors). Preserving 5000 characters for *every* call in a 20-call sequence would instantly exhaust the context window. By degrading older calls within the same turn to 1000 characters, we balance technical fidelity for the current task with the need to preserve conversation history and the Global Anchor state.

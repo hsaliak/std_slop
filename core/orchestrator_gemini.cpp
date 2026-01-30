@@ -73,10 +73,7 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
       }
 
       if (valid) {
-        part = {{"functionResponse",
-                 {{"name", name},
-                  {"response",
-                   {{"content", Orchestrator::SmarterTruncate(msg.content, Orchestrator::kMaxToolResultContext, msg.id)}}}}}};
+        part = {{"functionResponse", {{"name", name}, {"response", {{"content", msg.content}}}}}};
       } else {
         role = "user";
         part = {{"text", "[Invalid tool response suppressed]"}};

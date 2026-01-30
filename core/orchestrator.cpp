@@ -132,10 +132,29 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
     active_group_id = history.back().group_id;
   }
 
-  // Pre-truncate tool results from previous groups
+  // Pre-truncate tool results based on group activity and recency.
+  size_t total_active_tools = 0;
+  for (const auto& m : history) {
+    if (m.role == "tool" && !active_group_id.empty() && m.group_id == active_group_id) {
+      total_active_tools++;
+    }
+  }
+
+  size_t active_tool_idx = 0;
   for (auto& m : history) {
-    if (m.role == "tool" && !active_group_id.empty() && m.group_id != active_group_id) {
-      m.content = SmarterTruncate(m.content, kMaxPreviousToolResultContext, m.id);
+    if (m.role == "tool") {
+      bool is_active_group = (!active_group_id.empty() && m.group_id == active_group_id);
+      if (!is_active_group) {
+        m.content = SmarterTruncate(m.content, config_.truncation.inactive_limit, m.id);
+      } else {
+        bool is_recent = (active_tool_idx >= (total_active_tools > config_.truncation.full_fidelity_count
+                                                  ? total_active_tools - config_.truncation.full_fidelity_count
+                                                  : 0));
+        size_t limit = is_recent ? config_.truncation.active_full_fidelity_limit
+                                 : config_.truncation.active_degraded_limit;
+        m.content = SmarterTruncate(m.content, limit, m.id);
+        active_tool_idx++;
+      }
     }
   }
 

@@ -19,6 +19,13 @@ class Orchestrator {
  public:
   enum class Provider { GEMINI, OPENAI };
 
+  struct TruncationSettings {
+    size_t active_full_fidelity_limit = 5000;
+    size_t active_degraded_limit = 1000;
+    size_t inactive_limit = 300;
+    size_t full_fidelity_count = 5;
+  };
+
   struct Config {
     Provider provider = Provider::GEMINI;
     std::string model;
@@ -27,6 +34,7 @@ class Orchestrator {
     std::string base_url;
     int throttle = 0;
     bool strip_reasoning = false;
+    TruncationSettings truncation = {};
   };
 
   class Builder {
@@ -86,8 +94,6 @@ class Orchestrator {
   void UpdateStrategy();
 
   // Utility for truncating large tool results.
-  static constexpr size_t kMaxToolResultContext = 5000;
-  static constexpr size_t kMaxPreviousToolResultContext = 300;
   static std::string SmarterTruncate(const std::string& content, size_t limit, int message_id = -1);
 
   // Extracts the ### STATE block from a message, terminating at the next header or EOF.

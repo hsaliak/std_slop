@@ -96,18 +96,21 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
+  Orchestrator::TruncationSettings ts;
 
-  std::string long_content(1000, 'a');
+  std::string long_content(ts.active_full_fidelity_limit / 2, 'a');
 
-  // Group 1: Previous group with a long tool result
+  // Group 1: Previous group (fill with enough tools to trigger truncation for the oldest one)
   ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g1").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id|test_tool", "completed", "g1").ok());
+  for (int i = 0; i < 5; ++i) {
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g1").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id" + std::to_string(i) + "|test_tool", "completed", "g1").ok());
+  }
 
   // Group 2: Current group
   ASSERT_TRUE(db.AppendMessage("s1", "user", "another call", "", "completed", "g2").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g2").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id|test_tool", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id_active|test_tool", "completed", "g2").ok());
 
   // We need a tool named "test_tool" to be enabled so it's not filtered out.
   ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
@@ -125,6 +128,8 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
       if (part.contains("functionResponse")) {
         std::string tool_content = part["functionResponse"]["response"]["content"];
         if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
+          // Verify it's truncated to ~ts.inactive_limit
+          EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);
           found_g1 = true;
         } else if (tool_content == long_content) {
           found_g2 = true;
@@ -137,22 +142,71 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
   EXPECT_TRUE(found_g2);
 }
 
+TEST_F(OrchestratorTest, TruncateActiveToolResults) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+  Orchestrator::TruncationSettings ts;
+
+  std::string long_content(ts.active_degraded_limit * 2, 'a');
+
+  // Active group with more tools than the full fidelity count.
+  int total_tools = ts.full_fidelity_count + 2;
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "active call", "", "completed", "g1").ok());
+  for (int i = 0; i < total_tools; ++i) {
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g1").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id" + std::to_string(i) + "|test_tool", "completed", "g1").ok());
+  }
+
+  ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
+
+  auto result = orchestrator->AssemblePrompt("s1", {});
+  ASSERT_TRUE(result.ok());
+
+  nlohmann::json prompt = *result;
+  int truncated_count = 0;
+  int full_fidelity_count = 0;
+
+  for (const auto& content : prompt["contents"]) {
+    for (const auto& part : content["parts"]) {
+      if (part.contains("functionResponse")) {
+        std::string tool_content = part["functionResponse"]["response"]["content"];
+        if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
+          // Should be truncated to active_degraded_limit
+          EXPECT_GT(tool_content.size(), ts.active_degraded_limit - 100);
+          EXPECT_LT(tool_content.size(), ts.active_degraded_limit + 200);
+          truncated_count++;
+        } else if (tool_content == long_content) {
+          full_fidelity_count++;
+        }
+      }
+    }
+  }
+
+  EXPECT_EQ(truncated_count, 2);
+  EXPECT_EQ(full_fidelity_count, ts.full_fidelity_count);
+}
+
 TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
+  Orchestrator::TruncationSettings ts;
 
-  std::string long_content(1000, 'a');
+  std::string long_content(ts.active_full_fidelity_limit / 2, 'a');
 
-  // Group 1: Previous group
+  // Group 1: Previous group (fill with enough tools to trigger truncation for the oldest one)
   ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"tc1\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g1").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "tc1|test_tool", "completed", "g1").ok());
+  for (int i = 0; i < 5; ++i) {
+    std::string id = "tc_old_" + std::to_string(i);
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"" + id + "\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g1").ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, id + "|test_tool", "completed", "g1").ok());
+  }
 
   // Group 2: Current group
   ASSERT_TRUE(db.AppendMessage("s1", "user", "another call", "", "completed", "g2").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"tc2\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g2").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "tc2|test_tool", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"tc_active\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "tc_active|test_tool", "completed", "g2").ok());
 
   // We need a tool named "test_tool" to be enabled
   ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
@@ -170,6 +224,8 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
     if (msg["role"] == "tool") {
       std::string tool_content = msg["content"];
       if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
+        // Verify it's truncated to ~ts.inactive_limit
+        EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);
         found_g1 = true;
       } else if (tool_content == long_content) {
         found_g2 = true;
