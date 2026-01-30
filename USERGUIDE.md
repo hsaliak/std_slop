@@ -233,6 +233,18 @@ This flow allows the human user to provide precise, line-by-line or general inst
   ```
 - **Processing**: When you save and exit the editor, `std::slop` sends your `R:` comments along with the diff back to the LLM. The agent will then attempt to address each of your specific points.
 
+## Troubleshooting & Debugging
+
+### HTTP Logging
+If you encounter issues with API calls (e.g., unexpected errors from the LLM provider), you can enable full HTTP message logging by setting the `SLOP_DEBUG_HTTP` environment variable:
+
+```bash
+export SLOP_DEBUG_HTTP=1
+bazel run //:std_slop
+```
+
+When enabled, `std::slop` will log all CURL activity to the standard log, including request/response headers and full bodies. This is useful for identifying issues with payload formats or rate-limiting responses.
+
 ### Other Commands
 - `/models`: List all models available for your current provider.
 - `/model <name>`: Switch to a different LLM model.

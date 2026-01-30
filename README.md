@@ -45,6 +45,9 @@ export OPENAI_API_KEY="your-key"
 export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 ```
 
+#### Optional Environment Variables:
+- `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
+
 ## 💻 Code
 
 - C++ Standard: C++17.
