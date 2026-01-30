@@ -35,6 +35,7 @@ class HttpClient {
   int64_t ParseXRateLimitReset(const absl::flat_hash_map<std::string, std::string>& headers);
   int64_t ParseGoogleRetryDelay(const std::string& response_body);
   static size_t HeaderCallback(void* contents, size_t size, size_t nmemb, void* userp);
+  static int DebugCallback(CURL* handle, curl_infotype type, char* data, size_t size, void* userptr);
 
  private:
   absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,

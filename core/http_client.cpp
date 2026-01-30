@@ -73,6 +73,37 @@ int HttpClient::ProgressCallback(void* clientp, [[maybe_unused]] curl_off_t dlto
   return 0;
 }
 
+int HttpClient::DebugCallback([[maybe_unused]] CURL* handle, curl_infotype type, char* data, size_t size,
+                              [[maybe_unused]] void* userptr) {
+  std::string text(data, size);
+  switch (type) {
+    case CURLINFO_TEXT:
+      LOG(INFO) << "== Info: " << absl::StripAsciiWhitespace(text);
+      break;
+    case CURLINFO_HEADER_OUT:
+      LOG(INFO) << "=> Send header: " << absl::StripAsciiWhitespace(text);
+      break;
+    case CURLINFO_DATA_OUT:
+      LOG(INFO) << "=> Send data (" << size << " bytes):\n" << text;
+      break;
+    case CURLINFO_SSL_DATA_OUT:
+      VLOG(2) << "=> Send SSL data (" << size << " bytes)";
+      break;
+    case CURLINFO_HEADER_IN:
+      LOG(INFO) << "<= Recv header: " << absl::StripAsciiWhitespace(text);
+      break;
+    case CURLINFO_DATA_IN:
+      LOG(INFO) << "<= Recv data (" << size << " bytes):\n" << text;
+      break;
+    case CURLINFO_SSL_DATA_IN:
+      VLOG(2) << "<= Recv SSL data (" << size << " bytes)";
+      break;
+    default:
+      break;
+  }
+  return 0;
+}
+
 absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::string& body,
                                              const std::vector<std::string>& headers) {
   return ExecuteWithRetry(url, "POST", body, headers);
@@ -105,6 +136,8 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
   VLOG(2) << "Request Body: " << body;
   std::unique_ptr<struct curl_slist, SlistDeleter> chunk(raw_chunk);
 
+  bool debug_http = std::getenv("SLOP_DEBUG_HTTP") != nullptr;
+
   while (true) {
     std::string response_string;
     absl::flat_hash_map<std::string, std::string> response_headers;
@@ -124,6 +157,11 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     curl_easy_setopt(curl.get(), CURLOPT_XFERINFODATA, this);
     curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, 60L);
+
+    if (debug_http) {
+      curl_easy_setopt(curl.get(), CURLOPT_VERBOSE, 1L);
+      curl_easy_setopt(curl.get(), CURLOPT_DEBUGFUNCTION, HttpClient::DebugCallback);
+    }
 
     CURLcode res = curl_easy_perform(curl.get());
 
