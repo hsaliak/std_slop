@@ -240,7 +240,7 @@ If you encounter issues with API calls (e.g., unexpected errors from the LLM pro
 
 ```bash
 export SLOP_DEBUG_HTTP=1
-bazel run //:std_slop
+bazel run //:std_slop -- --log slop_verbose.log
 ```
 
 When enabled, `std::slop` will log all CURL activity to the standard log, including request/response headers and full bodies. This is useful for identifying issues with payload formats or rate-limiting responses.
