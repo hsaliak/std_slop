@@ -60,6 +60,7 @@ export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 - **[User Guide](USERGUIDE.md)**: Detailed commands and workflow tips.
 - **[Architecture & Schema](SCHEMA.md)**: Understanding the database-driven engine.
 - **[Sessions](SESSIONS.md)**: How context isolation and management work.
+- **[Context Management](CONTEXT_MANAGEMENT.md)**: The evolutionary history and strategy for managing model memory.
 - **[Walkthrough](WALKTHROUGH.md)**: A step-by-step example of using the agent.
 - **[Contributing](CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
