@@ -18,12 +18,15 @@ namespace slop {
 class Orchestrator {
  public:
   enum class Provider { GEMINI, OPENAI };
-
   struct TruncationSettings {
+    // truncation character length for full fidelity
     size_t active_full_fidelity_limit = 5000;
-    size_t active_degraded_limit = 600;
-    size_t inactive_limit = 100;
-    size_t full_fidelity_count = 5;
+    // truncated character length for degraded
+    size_t active_degraded_limit = 0;  // its very aggressive
+    // truncated character length for inactive
+    size_t inactive_limit = 0;  // super aggressive
+    // how many messages should be considered "full fidelity"
+    size_t full_fidelity_count = 3;
   };
 
   struct Config {

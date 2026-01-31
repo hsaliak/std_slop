@@ -150,8 +150,8 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
         bool is_recent = (active_tool_idx >= (total_active_tools > config_.truncation.full_fidelity_count
                                                   ? total_active_tools - config_.truncation.full_fidelity_count
                                                   : 0));
-        size_t limit = is_recent ? config_.truncation.active_full_fidelity_limit
-                                 : config_.truncation.active_degraded_limit;
+        size_t limit =
+            is_recent ? config_.truncation.active_full_fidelity_limit : config_.truncation.active_degraded_limit;
         m.content = SmarterTruncate(m.content, limit, m.id);
         active_tool_idx++;
       }

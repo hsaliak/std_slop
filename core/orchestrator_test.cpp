@@ -104,7 +104,8 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
   for (int i = 0; i < 5; ++i) {
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g1").ok());
-    ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id" + std::to_string(i) + "|test_tool", "completed", "g1").ok());
+    ASSERT_TRUE(
+        db.AppendMessage("s1", "tool", long_content, "id" + std::to_string(i) + "|test_tool", "completed", "g1").ok());
   }
 
   // Group 2: Current group
@@ -113,7 +114,9 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
   ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id_active|test_tool", "completed", "g2").ok());
 
   // We need a tool named "test_tool" to be enabled so it's not filtered out.
-  ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
+  ASSERT_TRUE(
+      db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)")
+          .ok());
 
   auto result = orchestrator->AssemblePrompt("s1", {});
   ASSERT_TRUE(result.ok());
@@ -155,10 +158,13 @@ TEST_F(OrchestratorTest, TruncateActiveToolResults) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "active call", "", "completed", "g1").ok());
   for (int i = 0; i < total_tools; ++i) {
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g1").ok());
-    ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "id" + std::to_string(i) + "|test_tool", "completed", "g1").ok());
+    ASSERT_TRUE(
+        db.AppendMessage("s1", "tool", long_content, "id" + std::to_string(i) + "|test_tool", "completed", "g1").ok());
   }
 
-  ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
+  ASSERT_TRUE(
+      db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)")
+          .ok());
 
   auto result = orchestrator->AssemblePrompt("s1", {});
   ASSERT_TRUE(result.ok());
@@ -199,17 +205,29 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
   for (int i = 0; i < 5; ++i) {
     std::string id = "tc_old_" + std::to_string(i);
-    ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"" + id + "\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g1").ok());
+    ASSERT_TRUE(
+        db.AppendMessage(
+              "s1", "assistant",
+              "{\"tool_calls\": [{\"id\": \"" + id +
+                  "\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}",
+              "", "tool_call", "g1")
+            .ok());
     ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, id + "|test_tool", "completed", "g1").ok());
   }
 
   // Group 2: Current group
   ASSERT_TRUE(db.AppendMessage("s1", "user", "another call", "", "completed", "g2").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{\"tool_calls\": [{\"id\": \"tc_active\", \"type\": \"function\", \"function\": {\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}", "", "tool_call", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant",
+                               "{\"tool_calls\": [{\"id\": \"tc_active\", \"type\": \"function\", \"function\": "
+                               "{\"name\": \"test_tool\", \"arguments\": \"{}\"}}]}",
+                               "", "tool_call", "g2")
+                  .ok());
   ASSERT_TRUE(db.AppendMessage("s1", "tool", long_content, "tc_active|test_tool", "completed", "g2").ok());
 
   // We need a tool named "test_tool" to be enabled
-  ASSERT_TRUE(db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)").ok());
+  ASSERT_TRUE(
+      db.Execute("INSERT INTO tools (name, description, json_schema, is_enabled) VALUES ('test_tool', 'desc', '{}', 1)")
+          .ok());
 
   auto result = orchestrator->AssemblePrompt("s1", {});
   ASSERT_TRUE(result.ok());
@@ -244,8 +262,9 @@ TEST_F(OrchestratorTest, SmarterTruncate) {
             "12345\n... [TRUNCATED: Showing 5/10 characters. Use the tool again with an offset to read more.] ...");
 
   // Truncation with message_id hint
-  EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5, 123),
-            "12345\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=123\") to see full output] ...");
+  EXPECT_EQ(
+      Orchestrator::SmarterTruncate(ascii, 5, 123),
+      "12345\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=123\") to see full output] ...");
 
   // Fallback truncation (no message_id or negative)
   EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5, -1),
