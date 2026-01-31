@@ -22,9 +22,9 @@ class Orchestrator {
     // truncation character length for full fidelity
     size_t active_full_fidelity_limit = 5000;
     // truncated character length for degraded
-    size_t active_degraded_limit = 0;  // its very aggressive
+    size_t active_degraded_limit = 400;  // its very aggressive
     // truncated character length for inactive
-    size_t inactive_limit = 0;  // super aggressive
+    size_t inactive_limit = 120;  // super aggressive
     // how many messages should be considered "full fidelity"
     size_t full_fidelity_count = 5;
   };
