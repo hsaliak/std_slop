@@ -52,8 +52,6 @@ cc_library(
     visibility = ["//visibility:public"],
 
     copts = [
-        "-std=c++17",
-        "-fno-exceptions",
         "-DSQLITE_ENABLE_COLUMN_METADATA",
         "-DSQLITE_ENABLE_FTS5",
     ],
@@ -78,8 +76,6 @@ cc_library(
         name = test_name,
         srcs = [test_name + ".cpp"],
         copts = [
-            "-std=c++17",
-            "-fno-exceptions",
             "-DSQLITE_ENABLE_COLUMN_METADATA",
             "-DSQLITE_ENABLE_FTS5",
         ],
@@ -107,7 +103,7 @@ cc_library(
 cc_test(
     name = "check_macro_test",
     srcs = ["check_macro_test.cpp"],
-    copts = ["-std=c++17", "-fno-exceptions"],
+    copts = [],
     deps = [
         ":core",
         "//interface",
@@ -118,7 +114,7 @@ cc_test(
 cc_test(
     name = "tree_sitter_integration_test",
     srcs = ["tree_sitter_integration_test.cpp"],
-    copts = ["-std=c++17", "-fno-exceptions"],
+    copts = [],
     deps = [
         "@tree-sitter-bazel//:tree-sitter",
         "@tree-sitter-markdown//:tree-sitter-markdown",

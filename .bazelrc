@@ -1,4 +1,5 @@
 build --cxxopt=-std=c++17
+build --cxxopt=-fno-exceptions
 build --features=-use_header_modules
 build --macos_minimum_os=10.15
 build --@curl//:http_only=False

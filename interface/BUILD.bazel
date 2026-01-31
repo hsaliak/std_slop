@@ -31,7 +31,6 @@ cc_library(
         "ui.h",
     ],
     visibility = ["//visibility:public"],
-    copts = ["-std=c++17", "-fno-exceptions"],
     defines = ["HAVE_READLINE"],
     deps = [
         ":color",
@@ -49,7 +48,6 @@ cc_library(
     cc_test(
         name = test_name,
         srcs = [test_name + ".cpp"],
-        copts = ["-std=c++17", "-fno-exceptions"],
         deps = [
             ":interface",
             "//core",

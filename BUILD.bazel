@@ -7,10 +7,7 @@ exports_files([".clang-tidy", "system_prompt.md"])
 cc_binary(
     name = "std_slop",
     srcs = ["main.cpp"],
-    copts = [
-        "-std=c++17",
-        "-fno-exceptions",
-    ],
+    copts = [],
     deps = [
         "//core",
         "//interface",
