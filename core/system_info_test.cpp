@@ -36,6 +36,9 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   EXPECT_TRUE(absl::StrContains(instr, "Software Engineering Tasks")) << "Missing workflow definition";
   EXPECT_TRUE(absl::StrContains(instr, "Context Retrieval")) << "Missing context retrieval instruction";
   EXPECT_TRUE(absl::StrContains(instr, "## Available Tools")) << "Missing tools section header";
+  EXPECT_TRUE(absl::StrContains(instr, "Retrieval-Led")) << "Missing retrieval-led mandate";
+  EXPECT_TRUE(absl::StrContains(instr, "Prefer retrieval-led reasoning over pre-training-led reasoning"))
+      << "Missing retrieval-led instruction";
 }
 
 }  // namespace slop
