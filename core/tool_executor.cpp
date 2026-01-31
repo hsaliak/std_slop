@@ -366,8 +366,8 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
 
   size_t line_count = count;
   // If the result is substantial, prepend a summary of matches per file.
-  if (line_count > 20 && cmd.find(" -c") == std::string::npos &&
-      cmd.find(" -l") == std::string::npos && cmd.find(" -L") == std::string::npos) {
+  if (line_count > 20 && !absl::StrContains(cmd, " -c") && !absl::StrContains(cmd, " -l") &&
+      !absl::StrContains(cmd, " -L")) {
     std::string count_cmd = cmd + " -c";
     auto count_res = RunCommand(count_cmd);
     if (count_res.ok() && count_res->exit_code == 0) {
