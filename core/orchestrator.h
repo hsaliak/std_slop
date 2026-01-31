@@ -26,7 +26,7 @@ class Orchestrator {
     // truncated character length for inactive
     size_t inactive_limit = 0;  // super aggressive
     // how many messages should be considered "full fidelity"
-    size_t full_fidelity_count = 3;
+    size_t full_fidelity_count = 5;
   };
 
   struct Config {
