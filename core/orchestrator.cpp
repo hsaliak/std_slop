@@ -348,25 +348,45 @@ void Orchestrator::InjectRelevantMemos(const std::vector<Database::Message>& his
 std::string Orchestrator::SmarterTruncate(const std::string& content, size_t limit, int message_id) {
   if (content.size() <= limit) return content;
 
-  size_t actual_limit = limit;
-  // Avoid cutting in the middle of a UTF-8 character.
-  // Continuation bytes start with 10 (binary), so we back up until we find a non-continuation byte.
-  while (actual_limit > 0 && (static_cast<unsigned char>(content[actual_limit]) & 0xC0) == 0x80) {
-    actual_limit--;
-  }
-
-  std::string truncated = content.substr(0, actual_limit);
+  // Sandwich Truncation: 20% Head, 80% Tail.
+  // We reserve some space for the truncation hint.
   std::string hint;
   if (message_id > 0) {
     hint = absl::Substitute(
-        "\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=$0\") to see full output] ...",
+        "\n\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=$0\") to see full output] ...\n\n",
         message_id);
   } else {
     hint = absl::Substitute(
-        "\n... [TRUNCATED: Showing $0/$1 characters. Use the tool again with an offset to read more.] ...",
-        actual_limit, content.size());
+        "\n\n... [TRUNCATED: Showing partial output of $0 bytes. Use query_db or specific tool range to see more.] ...\n\n",
+        content.size());
   }
-  return truncated + hint;
+
+  if (limit <= hint.size() + 10) {
+    // If the limit is extremely small, just do basic head truncation to fit.
+    size_t tiny_limit = limit > 3 ? limit - 3 : limit;
+    while (tiny_limit > 0 && (static_cast<unsigned char>(content[tiny_limit]) & 0xC0) == 0x80) {
+      tiny_limit--;
+    }
+    return content.substr(0, tiny_limit) + "...";
+  }
+
+  size_t available_content = limit - hint.size();
+  // Ensure we have at least a few characters for head/tail if available_content allows.
+  size_t head_size = std::max<size_t>(1, available_content * 0.2);
+  size_t tail_size = available_content - head_size;
+
+  // UTF-8 safety for Head (avoid cutting in middle of multi-byte char)
+  while (head_size > 0 && (static_cast<unsigned char>(content[head_size]) & 0xC0) == 0x80) {
+    head_size--;
+  }
+
+  // UTF-8 safety for Tail (ensure we start at a character boundary)
+  size_t tail_start = content.size() - tail_size;
+  while (tail_start < content.size() && (static_cast<unsigned char>(content[tail_start]) & 0xC0) == 0x80) {
+    tail_start++;
+  }
+
+  return content.substr(0, head_size) + hint + content.substr(tail_start);
 }
 
 std::optional<std::string> Orchestrator::ExtractState(const std::string& text) {

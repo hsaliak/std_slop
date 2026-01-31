@@ -256,46 +256,43 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
 }
 
 TEST_F(OrchestratorTest, SmarterTruncate) {
-  // ASCII truncation
-  std::string ascii = "1234567890";
-  EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5),
-            "12345\n... [TRUNCATED: Showing 5/10 characters. Use the tool again with an offset to read more.] ...");
+  std::string head = "COMMAND_START\n";
+  std::string middle(10000, 'x');
+  std::string tail = "\nERROR_AT_THE_END";
+  std::string content = head + middle + tail;
 
-  // Truncation with message_id hint
-  EXPECT_EQ(
-      Orchestrator::SmarterTruncate(ascii, 5, 123),
-      "12345\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=123\") to see full output] ...");
+  // 1. Large limit: Should sandwich
+  size_t limit = 1000;
+  std::string result = Orchestrator::SmarterTruncate(content, limit, 123);
+  EXPECT_TRUE(absl::StrContains(result, "COMMAND_START"));
+  EXPECT_TRUE(absl::StrContains(result, "ERROR_AT_THE_END"));
+  EXPECT_TRUE(absl::StrContains(result, "TRUNCATED"));
+  EXPECT_TRUE(absl::StrContains(result, "query_db"));
+  EXPECT_NEAR(result.size(), limit, 50);
 
-  // Fallback truncation (no message_id or negative)
-  EXPECT_EQ(Orchestrator::SmarterTruncate(ascii, 5, -1),
-            "12345\n... [TRUNCATED: Showing 5/10 characters. Use the tool again with an offset to read more.] ...");
+  // 2. Inactive limit (120): Should still fit the hint if possible
+  std::string inactive_result = Orchestrator::SmarterTruncate(content, 125, 456);
+  EXPECT_TRUE(absl::StrContains(inactive_result, "TRUNCATED"));
+  EXPECT_TRUE(absl::StrContains(inactive_result, "456"));
+  EXPECT_NEAR(inactive_result.size(), 125, 10);
 
-  // UTF-8 truncation - Emoji is 4 bytes: \xF0\x9F\x9A\x80 (Rocket)
-  // We'll put it at the boundary.
-  std::string utf8 = "abc" + std::string("\xF0\x9F\x9A\x80");  // 3 + 4 = 7 bytes
-
-  // Truncate at 4 bytes - should back up to 3 bytes because index 4 is a continuation byte
-  std::string truncated4 = Orchestrator::SmarterTruncate(utf8, 4);
-  EXPECT_TRUE(absl::StartsWith(truncated4, "abc\n"));
-
-  // Truncate at 5 bytes - should also back up to 3 bytes
-  std::string truncated5 = Orchestrator::SmarterTruncate(utf8, 5);
-  EXPECT_TRUE(absl::StartsWith(truncated5, "abc\n"));
-
-  // Truncate at 6 bytes - should also back up to 3 bytes
-  std::string truncated6 = Orchestrator::SmarterTruncate(utf8, 6);
-  EXPECT_TRUE(absl::StartsWith(truncated6, "abc\n"));
-
-  // Truncate at 7 bytes - should be full string (no truncation)
-  EXPECT_EQ(Orchestrator::SmarterTruncate(utf8, 7), utf8);
-
-  // Test with multiple multi-byte characters
-  // "こんにちは" (Konnichiwa) - 5 characters, 15 bytes in UTF-8
-  std::string jp = "こんにちは";
-  // Each char is 3 bytes. Truncating at 4 should back up to 3.
-  std::string truncated_jp = Orchestrator::SmarterTruncate(jp, 4);
-  EXPECT_TRUE(absl::StartsWith(truncated_jp, "こ\n"));  // "こ" is 3 bytes
+  // 3. Tiny limit: Should fallback to "..."
+  std::string tiny_result = Orchestrator::SmarterTruncate(content, 10);
+  EXPECT_EQ(tiny_result, "COMMAND...");
 }
+
+TEST_F(OrchestratorTest, SmarterTruncateUtf8) {
+  // Japanes char "こ" is 3 bytes.
+  std::string jp = "こんにちは" + std::string(1000, 'x') + "さようなら";
+  
+  size_t limit = 300;
+  std::string result = Orchestrator::SmarterTruncate(jp, limit, 789);
+  
+  // Verify it doesn't crash and contains start/end
+  EXPECT_TRUE(absl::StrContains(result, "こんにちは"));
+  EXPECT_TRUE(absl::StrContains(result, "さようなら"));
+}
+
 
 TEST_F(OrchestratorTest, SafeJsonDump) {
   // Test that dumping invalid UTF-8 with the replace handler doesn't crash (even with -fno-exceptions)

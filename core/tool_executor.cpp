@@ -10,6 +10,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/substitute.h"
 
 #include "core/shell_util.h"
 namespace slop {
@@ -119,6 +120,14 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std:
   std::stringstream ss;
   std::string line;
   int current_line = 1;
+  int total_lines = 0;
+  {
+    std::string dummy;
+    while (std::getline(file, dummy)) total_lines++;
+    file.clear();  // Clear EOF bit
+    file.seekg(0, std::ios::beg);
+  }
+
   while (std::getline(file, line)) {
     if ((!start_line || current_line >= *start_line) && (!end_line || current_line <= *end_line)) {
       if (add_line_numbers) {
@@ -128,15 +137,22 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std:
       }
     }
     current_line++;
-    if (end_line && current_line > *end_line) break;
+    if (end_line && current_line > *end_line) {
+      // If we don't need to read further, we can stop, but we already have total_lines
+      break;
+    }
+  }
+  std::string result = ss.str();
+
+  int s = start_line.value_or(1);
+  int e = end_line.value_or(total_lines);
+  std::string header = absl::Substitute("### FILE: $0 | TOTAL_LINES: $1 | RANGE: $2-$3\n", path, total_lines, s, e);
+
+  if (e < total_lines) {
+    absl::StrAppend(&result, "\n... [Truncated. Use 'read_file' with start_line=", e + 1, " to see more] ...");
   }
 
-  std::string result = ss.str();
-  if (!start_line && !end_line && current_line > 100) {
-    result = "[NOTICE: This is a large file (" + std::to_string(current_line - 1) +
-             " lines). Consider using line ranges in future calls to preserve context space]\n" + result;
-  }
-  return result;
+  return header + result;
 }
 
 absl::StatusOr<std::string> ToolExecutor::WriteFile(const std::string& path, const std::string& content) {
@@ -347,6 +363,18 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
   if (std::getline(ss, line)) {
     output += "\n[TRUNCATED: Use a more specific pattern or path to narrow results]\n";
   }
+
+  size_t line_count = count;
+  // If the result is substantial, prepend a summary of matches per file.
+  if (line_count > 20 && cmd.find(" -c") == std::string::npos &&
+      cmd.find(" -l") == std::string::npos && cmd.find(" -L") == std::string::npos) {
+    std::string count_cmd = cmd + " -c";
+    auto count_res = RunCommand(count_cmd);
+    if (count_res.ok() && count_res->exit_code == 0) {
+      output = absl::StrCat("### SEARCH_SUMMARY:\n", count_res->stdout_out, "---\n", output);
+    }
+  }
+
   return output;
 }
 

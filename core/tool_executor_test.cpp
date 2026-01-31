@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include <gtest/gtest.h>
+#include "absl/strings/match.h"
 
 namespace slop {
 
@@ -75,6 +76,58 @@ TEST(ToolExecutorTest, ReadFileGranular) {
   EXPECT_TRUE(res5->find("Error: INVALID_ARGUMENT") != std::string::npos);
 
   std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, ReadFileMetadata) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string test_file = "test_metadata.txt";
+  std::string content = "Line 1\nLine 2\nLine 3\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
+
+  auto res = executor.Execute("read_file", {{"path", test_file}, {"start_line", 1}, {"end_line", 2}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(absl::StrContains(*res, "### FILE: test_metadata.txt | TOTAL_LINES: 3 | RANGE: 1-2"));
+  EXPECT_TRUE(absl::StrContains(*res, "Use 'read_file' with start_line=3"));
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, GitGrepSummary) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // Check if we are in a git repo
+  auto git_res = executor.Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
+  if (!git_res.ok() || git_res->find("true") == std::string::npos) {
+    GTEST_SKIP() << "Not in a git repository, skipping GitGrepSummary test";
+  }
+
+  std::string test_file = "many_matches.txt";
+  std::string content;
+  for (int i = 0; i < 30; ++i) content += "match_this_string\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
+
+  // We need to add the file to git to grep it if it's a new file, or use --no-index
+  // Actually git_grep_tool uses git grep. If we want it to work on untracked files, we'd need --no-index.
+  // Our git_grep_tool doesn't seem to support --no-index in its args yet.
+  
+  // Let's just use an existing file that we know has many matches, or git add it.
+  (void)executor.Execute("execute_bash", {{"command", "git add " + test_file}});
+
+  auto res = executor.Execute("git_grep_tool", {{"pattern", "match_this_string"}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(absl::StrContains(*res, "### SEARCH_SUMMARY:"));
+  EXPECT_TRUE(absl::StrContains(*res, "many_matches.txt: 30"));
+
+  (void)executor.Execute("execute_bash", {{"command", "git rm -f " + test_file}});
 }
 
 TEST(ToolExecutorTest, ExecuteBash) {
