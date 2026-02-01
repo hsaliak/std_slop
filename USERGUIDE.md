@@ -206,11 +206,11 @@ You do NOT implement changes. You ONLY provide an annotated set of required chan
 ```
 
 ### Automation Workflow
-The Planner can be used to break a large feature into small, atomic tasks which can then be implemented iteratively. These plans can be stored and evolved in the **Scratchpad**, allowing the LLM to track its progress across many turns.
+The Planner can be used to break a large feature into small, atomic tasks which can then be implemented iteratively. These plans are stored and evolved in the **Scratchpad**, which is **automatically injected** into every turn, allowing the LLM to track its progress even when history is truncated.
 
 1.  **Decompose**: Use the `planner` skill to break a large feature into steps.
-2.  **Initialize Scratchpad**: Ask the LLM to "save this plan to the scratchpad."
-3.  **Execute & Iterate**: As the LLM works, it will autonomously use the `manage_scratchpad` tool to check its progress and update the plan as steps are completed.
+2.  **Initialize Scratchpad**: The `planner` will automatically use the `manage_scratchpad` tool to save the initial roadmap.
+3.  **Execute & Iterate**: As the agent works, it will autonomously update the scratchpad checklist as steps are completed. You no longer need to explicitly ask the model to "read the scratchpad"—it is always visible.
 
 ### Reviewing Changes
 `std::slop` provides two primary ways to review code changes before they are finalized.

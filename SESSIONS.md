@@ -25,7 +25,10 @@ While history is isolated, certain configurations are global or preserved in mem
 | :--- | :--- | :--- |
 | **Message History** | Session | SQLite (`messages` table) |
 | **Global Anchor (State)** | Session | SQLite (`session_state` table) |
+| **Active Scratchpad** | Session | SQLite (`sessions` table) |
 | **Context Window Size** | Session | SQLite (`sessions` table) |
+
+**Note**: Both **Global Anchor (State)** and **Active Scratchpad** are persistent across history pruning and session restarts. The Scratchpad is designed to be the session's "source of truth" and can be manually edited by the user to refine the roadmap or redirect the agent.
 | **Active Skills** | Process | In-memory (Preserved on `/session`) |
 | **Request Throttle** | Process | In-memory (Preserved on `/session`) |
 | **Tool Registry** | Global | SQLite (`tools` table) |
@@ -64,6 +67,7 @@ The ledger is stored in `slop.db` and persists across restarts. Resume a session
 | Message History | Yes |
 | LLM Context Window | Yes |
 | Global Anchor State | Yes |
+| Active Scratchpad | Yes |
 | Tool Registry | No |
 | Skills Registry | No |
 | Active Skills | No (Preserved on switch) |

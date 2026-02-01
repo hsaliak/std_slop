@@ -4,7 +4,16 @@ This document outlines the context management strategy in `std::slop`. We focus 
 
 The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
 
-## 1. Sequential Rolling Window
+## 1. Static Anchor (Global State & Scratchpad)
+
+To prevent the model from "losing the thread" during long sessions, the orchestrator injects two persistent blocks at the top of every prompt, immediately after the system instructions:
+
+1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. This is rebuilt by the model at the end of every response or manually via `/context rebuild`.
+2.  **Active Scratchpad**: A persistent markdown checklist managed via the `manage_scratchpad` tool and stored in the `sessions` table. This provides a detailed, iterative roadmap that survives history truncation.
+
+Both the **Global State** and **Active Scratchpad** are stored in the SQLite database and persist indefinitely across history pruning or session restarts. The scratchpad is intended to be the "source of truth" for the current task and can be manually edited by the user to redirect the agent or refine the plan.
+
+## 2. Sequential Rolling Window
 
 The system treats the conversation history as a linear timeline. This ensures that the narrative flow and the sequence of technical operations are preserved.
 
@@ -180,7 +189,7 @@ Token counts in `std::slop` (displayed as `· NNN tokens`) do not represent the 
 
 ### The Snapshot Principle
 Every interaction with the LLM is stateless. To provide context, the orchestrator sends the entire relevant conversation history back to the model with every new request. The reported token count is the sum of:
-1.  **Prompt Tokens**: The "Input" (System Instructions + Scratchpad + Conversation History + New User Message).
+1.  **Prompt Tokens**: The "Input" (System Instructions + Global State + Active Scratchpad + Conversation History + New User Message).
 2.  **Completion Tokens**: The "Output" (The LLM's new reasoning text and/or tool calls).
 
 ### Behavioral Characteristics
