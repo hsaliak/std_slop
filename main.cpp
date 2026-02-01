@@ -30,7 +30,10 @@
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/oauth_handler.h"
+#include "core/cancellation.h"
 #include "core/orchestrator.h"
+#include "core/shell_util.h"
+#include "core/tool_dispatcher.h"
 #include "core/tool_executor.h"
 #include "interface/color.h"
 #include "interface/command_definitions.h"
@@ -48,6 +51,8 @@ ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL (overrides OPENAI_B
 ABSL_FLAG(bool, strip_reasoning, false,
           "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to "
           "improve response speed and focus)");
+
+ABSL_FLAG(int, max_parallel_tools, 4, "Maximum number of tools to execute in parallel");
 
 std::string GetHelpText() {
   std::string help =
@@ -245,6 +250,13 @@ int main(int argc, char** argv) {
   }
   auto& tool_executor = **tool_executor_or;
   tool_executor.SetSessionId(session_id);
+
+  slop::ToolDispatcher dispatcher(
+      [&](const std::string& name, const nlohmann::json& args,
+          std::shared_ptr<slop::CancellationRequest> cancellation) {
+        return tool_executor.Execute(name, args, cancellation);
+      },
+      absl::GetFlag(FLAGS_max_parallel_tools));
   auto cmd_handler_or =
       slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
   if (!cmd_handler_or.ok()) {
@@ -404,16 +416,44 @@ int main(int argc, char** argv) {
         if (msg.role == "assistant" && msg.status == "tool_call") {
           auto calls_or = orchestrator->ParseToolCalls(msg);
           if (calls_or.ok()) {
-            for (const auto& call : *calls_or) {
-              auto result_or = tool_executor.Execute(call.name, call.args);
-              std::string result = result_or.ok() ? *result_or : absl::StrCat("Error: ", result_or.status().message());
-              slop::PrintToolResultMessage(call.name, result, result_or.ok() ? "completed" : "error", "  ");
-              std::string combined_id = call.id;
-              if (call.id != call.name) {
-                combined_id = call.id + "|" + call.name;
+            if (!calls_or->empty()) {
+              std::vector<slop::ToolDispatcher::Call> dispatcher_calls;
+              for (const auto& call : *calls_or) {
+                std::string combined_id = call.id;
+                if (call.id != call.name && !absl::StrContains(call.id, '|')) {
+                  combined_id = call.id + "|" + call.name;
+                }
+                dispatcher_calls.push_back({combined_id, call.name, call.args});
               }
-              (void)db.AppendMessage(session_id, "tool", result, combined_id, "completed", group_id,
-                                     msg.parsing_strategy);
+
+              auto cancellation = std::make_shared<slop::CancellationRequest>();
+              std::atomic<bool> done{false};
+              std::vector<slop::ToolDispatcher::Result> results;
+
+              std::thread t([&] {
+                results = dispatcher.Dispatch(dispatcher_calls, cancellation);
+                done = true;
+              });
+
+              while (!done) {
+                if (slop::IsEscPressed()) {
+                  cancellation->Cancel();
+                  std::cerr << "\n"
+                            << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m")
+                            << std::endl;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+              }
+              t.join();
+
+              for (const auto& res : results) {
+                std::string result =
+                    res.output.ok() ? *res.output : absl::StrCat("Error: ", res.output.status().message());
+                slop::PrintToolResultMessage(res.name, result, res.output.ok() ? "completed" : "error", "  ");
+                (void)db.AppendMessage(session_id, "tool", result, res.id,
+                                       res.output.ok() ? "completed" : "error", group_id,
+                                       msg.parsing_strategy);
+              }
             }
             has_tool_calls = true;
           }

@@ -124,6 +124,7 @@ std::vector<std::string> Database::ExtractTags(const std::string& text) {
 }
 
 absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std::string& sql) {
+  absl::MutexLock lock(&mu_);
   auto stmt = std::make_unique<Statement>(db_.get(), sql);
   auto status = stmt->Prepare();
   if (!status.ok()) return status;
@@ -134,14 +135,14 @@ absl::Status Database::Init(const std::string& db_path) {
   LOG(INFO) << "Initializing database at " << db_path;
   sqlite3* raw_db = nullptr;
   int rc = sqlite3_open(db_path.c_str(), &raw_db);
-  db_.reset(raw_db);
   if (rc != SQLITE_OK) {
-    std::string err = sqlite3_errmsg(db_.get());
+    std::string err = sqlite3_errmsg(raw_db);
+    sqlite3_close(raw_db);
     LOG(ERROR) << "Failed to open database: " << err;
     return absl::InternalError("Failed to open database: " + err);
   }
 
-  sqlite3_exec(db_.get(), "DROP TABLE IF EXISTS code_search;", nullptr, nullptr, nullptr);
+  sqlite3_exec(raw_db, "DROP TABLE IF EXISTS code_search;", nullptr, nullptr, nullptr);
 
   const char* schema = R"(
     CREATE TABLE IF NOT EXISTS messages (
@@ -204,17 +205,24 @@ absl::Status Database::Init(const std::string& db_path) {
     );
   )";
 
-  rc = sqlite3_exec(db_.get(), schema, nullptr, nullptr, nullptr);
+  rc = sqlite3_exec(raw_db, schema, nullptr, nullptr, nullptr);
   if (rc != SQLITE_OK) {
-    return absl::InternalError("Schema error: " + std::string(sqlite3_errmsg(db_.get())));
+    std::string err = sqlite3_errmsg(raw_db);
+    sqlite3_close(raw_db);
+    return absl::InternalError("Schema error: " + err);
   }
 
   // Migration: Add tokens column to messages table if it doesn't exist
-  (void)sqlite3_exec(db_.get(), "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
-  (void)sqlite3_exec(db_.get(), "ALTER TABLE skills ADD COLUMN activation_count INTEGER DEFAULT 0;", nullptr, nullptr,
+  (void)sqlite3_exec(raw_db, "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE skills ADD COLUMN activation_count INTEGER DEFAULT 0;", nullptr, nullptr,
                      nullptr);
-  (void)sqlite3_exec(db_.get(), "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
-  (void)sqlite3_exec(db_.get(), "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+
+  {
+    absl::MutexLock lock(&mu_);
+    db_.reset(raw_db);
+  }
 
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;

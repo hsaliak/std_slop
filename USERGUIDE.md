@@ -262,3 +262,22 @@ When enabled, the final assembled prompt will be logged via `absl::LOG(INFO)`. T
 - `/exec <command>`: Run a shell command and view its output in a pager.
 - `/usage` or `/stats`: View total token usage for the current session.
 - `/schema`: View the internal database schema for the `messages` ledger.
+
+## Concurrency & Control
+
+### Parallel Tool Execution
+`std::slop` executes tool calls in parallel using a thread pool. By default, it uses up to 4 concurrent threads. This allows the agent to perform multiple searches or file reads simultaneously, significantly reducing turn-around time for complex tasks. 
+
+You can configure the parallelism level using the `--max_parallel_tools` flag:
+```bash
+bazel run //:std_slop -- --max_parallel_tools=8
+```
+
+### Interrupting Active Tasks
+If a tool is taking too long (e.g., a massive `grep` or a complex build), or if you realize the agent is going in the wrong direction, you can interrupt the current turn.
+
+- **Press `[Esc]`**: Cancels all currently executing tools. 
+  - Shell processes are terminated using process groups to ensure no "zombie" processes are left behind.
+  - Network requests are immediately aborted.
+  - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
+- **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.

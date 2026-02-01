@@ -10,6 +10,9 @@
 
 #include <sqlite3.h>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 namespace slop {
 
 class Database {
@@ -223,7 +226,8 @@ class Database {
       if (db) sqlite3_close(db);
     }
   };
-  std::unique_ptr<sqlite3, DbDeleter> db_;
+  absl::Mutex mu_;
+  std::unique_ptr<sqlite3, DbDeleter> db_ ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace slop

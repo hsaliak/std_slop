@@ -9,7 +9,9 @@
 #include <iostream>
 #include <sstream>
 
+#include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
@@ -18,6 +20,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
+#include "absl/synchronization/mutex.h"
 #include "nlohmann/json.hpp"
 
 #include "core/message_parser.h"
@@ -29,7 +32,12 @@
 #include "readline/readline.h"
 
 #include <sys/ioctl.h>
+
 namespace slop {
+
+namespace {
+ABSL_CONST_INIT absl::Mutex g_ui_mu(absl::kConstInit);
+}  // namespace
 
 namespace {
 
@@ -389,6 +397,7 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 
 void PrintAssistantMessage(const std::string& content, const std::string& prefix, int tokens) {
   if (content.empty()) return;
+  absl::MutexLock lock(&g_ui_mu);
 
   auto parsed_or = GetMarkdownParser().Parse(content);
   if (parsed_or.ok()) {
@@ -420,6 +429,7 @@ std::string FlattenJsonArgs(const std::string& json_str) {
 
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix,
                           int tokens) {
+  absl::MutexLock lock(&g_ui_mu);
   std::string display_args = FlattenJsonArgs(args);
 
   if (display_args.length() > 60) {
@@ -436,6 +446,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
 
 void PrintToolResultMessage(const std::string& /*name*/, const std::string& result, const std::string& status,
                             const std::string& prefix) {
+  absl::MutexLock lock(&g_ui_mu);
   // Split into stdout and stderr
   std::string stdout_part = result;
   std::string stderr_part;

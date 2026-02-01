@@ -10,6 +10,9 @@ cc_binary(
     copts = [],
     deps = [
         "//core",
+        "//core:dispatcher",
+        "//core:cancellation",
+        "//core:shell_lib",
         "//interface",
         "//interface:color",
         "@abseil-cpp//absl/flags:flag",

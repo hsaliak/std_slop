@@ -27,10 +27,16 @@ build:clang --copt="-fstack-clash-protection" # Only if using Clang 11+
 # If Clang version varies, keep -Wno-unused-command-line-argument enabled (Line 16)
 
 #------ sanitizer ----
-# Common ASan
+# Common ASan/TSan
 # --config=asan
 build:asan --features=asan
 test:asan --features=asan
+
+# --config=tsan
+build:tsan --features=tsan
+test:tsan --features=tsan
+build:tsan --copt=-DTHREAD_SANITIZER
+test:tsan --copt=-DTHREAD_SANITIZER
 
 # macOS: Linker setup
 # Tells the binary to look in its own 'runfiles' directory for the toolchain libs
@@ -38,13 +44,23 @@ build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../
 build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib
 build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib/clang/17/lib/darwin
 
+build:tsan-macos --linkopt=-Wl,-rpath,@loader_path/../
+build:tsan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib
+build:tsan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib/clang/17/lib/darwin
+
 # Linux: Linker setup
 build:asan-linux --linkopt=-Wl,-z,origin
 build:asan-linux --linkopt=-Wl,-rpath='$$ORIGIN/../lib'
 
+build:tsan-linux --linkopt=-Wl,-z,origin
+build:tsan-linux --linkopt=-Wl,-rpath='$$ORIGIN/../lib'
+
 # Hermeticity fixes (stops 'undeclared inclusion' errors)
 build:asan --copt=-fno-sanitize-ignorelist
 build:asan --features=-layering_check
+
+build:tsan --copt=-fno-sanitize-ignorelist
+build:tsan --features=-layering_check
 
 # Apply configs automatically based on Host OS
 build --enable_platform_specific_config

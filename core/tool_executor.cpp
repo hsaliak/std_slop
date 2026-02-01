@@ -15,7 +15,9 @@
 #include "core/shell_util.h"
 namespace slop {
 
-absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args) {
+absl::StatusOr<std::string> ToolExecutor::Execute(
+    const std::string& name, const nlohmann::json& args,
+    std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Executing tool: " << name
             << " with args: " << args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
   auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
@@ -45,16 +47,16 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     int context = args.contains("context") ? args["context"].get<int>() : 0;
 
     // Delegate to GitGrep if in a git repo
-    auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
+    auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree", cancellation);
     if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
-      auto git_res = GitGrep(args);
+      auto git_res = GitGrep(args, cancellation);
       if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
         result = git_res;
       } else {
-        result = Grep(args["pattern"], path, context);
+        result = Grep(args["pattern"], path, context, cancellation);
       }
     } else {
-      auto grep_res = Grep(args["pattern"], path, context);
+      auto grep_res = Grep(args["pattern"], path, context, cancellation);
       if (grep_res.ok()) {
         result =
             "Notice: Not a git repository. Consider running 'git init' for better search performance and feature "
@@ -65,10 +67,10 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
       }
     }
   } else if (name == "git_grep_tool") {
-    result = GitGrep(args);
+    result = GitGrep(args, cancellation);
   } else if (name == "execute_bash") {
     if (!args.contains("command")) return absl::InvalidArgumentError("Missing 'command' argument");
-    result = ExecuteBash(args["command"]);
+    result = ExecuteBash(args["command"], cancellation);
   } else if (name == "query_db") {
     if (!args.contains("sql")) return absl::InvalidArgumentError("Missing 'sql' argument");
     result = db_->Query(args["sql"]);
@@ -80,7 +82,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     if (!args.contains("tags")) return absl::InvalidArgumentError("Missing 'tags' argument");
     result = RetrieveMemos(args["tags"].get<std::vector<std::string>>());
   } else if (name == "list_directory") {
-    result = ListDirectory(args);
+    result = ListDirectory(args, cancellation);
   } else if (name == "manage_scratchpad") {
     result = ManageScratchpad(args);
   } else if (name == "describe_db") {
@@ -217,8 +219,9 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, co
   return WriteFile(path, content);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command) {
-  auto res = RunCommand(command);
+absl::StatusOr<std::string> ToolExecutor::ExecuteBash(
+    const std::string& command, std::shared_ptr<CancellationRequest> cancellation) {
+  auto res = RunCommand(command, cancellation);
   if (!res.ok()) return res.status();
   std::string output = res->stdout_out;
   if (!res->stderr_out.empty()) {
@@ -231,7 +234,9 @@ absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context) {
+absl::StatusOr<std::string> ToolExecutor::Grep(
+    const std::string& pattern, const std::string& path, int context,
+    std::shared_ptr<CancellationRequest> cancellation) {
   std::string cmd = "grep -n";
   if (std::filesystem::is_directory(path)) {
     cmd += "r";
@@ -241,7 +246,7 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
   }
   cmd += " -e " + EscapeShellArg(pattern) + " " + EscapeShellArg(path);
 
-  auto res = RunCommand(cmd);
+  auto res = RunCommand(cmd, cancellation);
   if (!res.ok()) return res.status();
   if (res->exit_code != 0 && res->exit_code != 1) {
     std::string err = res->stdout_out;
@@ -266,17 +271,21 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::SearchCode(const std::string& query) { return Grep(query, ".", 0); }
+absl::StatusOr<std::string> ToolExecutor::SearchCode(
+    const std::string& query, std::shared_ptr<CancellationRequest> cancellation) {
+  return Grep(query, ".", 0, cancellation);
+}
 
-absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
+absl::StatusOr<std::string> ToolExecutor::GitGrep(
+    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
   // Check if git is available
-  auto git_check = ExecuteBash("git --version");
+  auto git_check = ExecuteBash("git --version", cancellation);
   if (!git_check.ok() || git_check->find("git version") == std::string::npos) {
     return "Error: git is not available on this system. git_grep_tool is not supported.";
   }
 
   // Check if it is a git repository
-  auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
+  auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree", cancellation);
   if (!git_repo_check.ok() || git_repo_check->find("true") == std::string::npos) {
     return "Error: not a git repository. git_grep_tool is not supported.";
   }
@@ -342,7 +351,7 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args) {
     }
   }
 
-  auto res = RunCommand(cmd);
+  auto res = RunCommand(cmd, cancellation);
   if (!res.ok()) return res.status();
   if (res->exit_code != 0 && res->exit_code != 1) {
     std::string err = res->stdout_out;
@@ -402,18 +411,19 @@ absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const std::vector<std::s
   return result.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& args) {
+absl::StatusOr<std::string> ToolExecutor::ListDirectory(
+    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
   std::string path = args.contains("path") ? args["path"].get<std::string>() : ".";
   int max_depth = args.contains("depth") ? args["depth"].get<int>() : 1;
   bool git_only = args.contains("git_only") ? args["git_only"].get<bool>() : true;
 
-  auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree");
+  auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree", cancellation);
   if (git_only && git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
     std::string cmd = "git ls-files --cached --others --exclude-standard";
     if (path != ".") {
       cmd += " " + path;
     }
-    auto git_res = ExecuteBash(cmd);
+    auto git_res = ExecuteBash(cmd, cancellation);
     if (git_res.ok()) {
       return git_res;
     }

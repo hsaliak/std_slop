@@ -1,12 +1,14 @@
 #ifndef SLOP_SQL_TOOL_EXECUTOR_H_
 #define SLOP_SQL_TOOL_EXECUTOR_H_
 
+#include <memory>
 #include <optional>
 #include <string>
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 
+#include "core/cancellation.h"
 #include "core/database.h"
 
 #include <nlohmann/json.hpp>
@@ -28,26 +30,37 @@ class ToolExecutor {
   explicit ToolExecutor(Database* db) : db_(db) {}
 
  public:
-  absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args);
+  absl::StatusOr<std::string> Execute(
+      const std::string& name, const nlohmann::json& args,
+      std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
  private:
   Database* db_;
   std::string session_id_;
 
-  absl::StatusOr<std::string> ListDirectory(const nlohmann::json& args);
+  absl::StatusOr<std::string> ListDirectory(const nlohmann::json& args,
+                                           std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> ManageScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> DescribeDb();
   absl::StatusOr<std::string> UseSkill(const nlohmann::json& args);
 
-  absl::StatusOr<std::string> Grep(const std::string& pattern, const std::string& path, int context);
-  absl::StatusOr<std::string> ReadFile(const std::string& path, std::optional<int> start_line = std::nullopt,
-                                       std::optional<int> end_line = std::nullopt, bool add_line_numbers = false);
+  absl::StatusOr<std::string> Grep(const std::string& pattern, const std::string& path,
+                                  int context,
+                                  std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> ReadFile(const std::string& path,
+                                       std::optional<int> start_line = std::nullopt,
+                                       std::optional<int> end_line = std::nullopt,
+                                       bool add_line_numbers = false);
   absl::StatusOr<std::string> WriteFile(const std::string& path, const std::string& content);
   absl::StatusOr<std::string> ApplyPatch(const std::string& path, const nlohmann::json& patches);
-  absl::StatusOr<std::string> ExecuteBash(const std::string& command);
-  absl::StatusOr<std::string> SearchCode(const std::string& query);
-  absl::StatusOr<std::string> GitGrep(const nlohmann::json& args);
-  absl::StatusOr<std::string> SaveMemo(const std::string& content, const std::vector<std::string>& tags);
+  absl::StatusOr<std::string> ExecuteBash(const std::string& command,
+                                          std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> SearchCode(const std::string& query,
+                                         std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> GitGrep(const nlohmann::json& args,
+                                      std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> SaveMemo(const std::string& content,
+                                       const std::vector<std::string>& tags);
   absl::StatusOr<std::string> RetrieveMemos(const std::vector<std::string>& tags);
 };
 

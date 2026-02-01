@@ -92,10 +92,18 @@ The following tools are registered by default during database initialization:
 - `git_grep_tool`: Comprehensive search using `git grep`. Optimized for git repositories, honors `.gitignore`, and can search history. Supports function-level context (`-W`).
 - `read_file`: Read the content of a file from the local filesystem. Returns content with line numbers. Supports optional `start_line` and `end_line` parameters for granular reading.
 - `write_file`: Write content to a file in the local filesystem.
+- `apply_patch`: Applies partial changes to a file by matching a specific block of text and replacing it.
 - `execute_bash`: Execute a bash command on the local system.
+- `list_directory`: List files and directories with optional depth and git awareness.
 
 - `query_db`: Query the local SQLite database using SQL.
+- `describe_db`: Describe the database schema and tables.
 - `manage_scratchpad`: Read or update the persistent session-specific scratchpad.
+
+- `save_memo`: Save a memo with semantic tags for later retrieval.
+- `retrieve_memos`: Retrieve memos based on semantic tags.
+- `use_skill`: Activate or deactivate a specialized skill/persona.
+- `search_code`: Search for code snippets in the codebase using grep.
 
 ## Default Skills
 

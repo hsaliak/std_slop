@@ -9,6 +9,8 @@
 - **🛠️ Self-Managed State**: Autonomous updates to a task-specific `### STATE` and a markdown `Scratchpad` for complex planning.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions.
 - **🔍 Advanced Search**: `git_grep_tool` with boolean operators, multiple pathspecs, and smart truncation.
+- **⚡ Parallel Execution**: Executes multiple tool calls in parallel with result ordering and UI-thread safety.
+- **🚫 Cancellation**: Support for interrupting long-running tools (e.g., via `Esc` key) across shell processes and network requests.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
 - **🏗️ Hermetic Development**: Built with Bazel, including integrated linting and formatting.
 
@@ -55,7 +57,7 @@ export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
-- Avoid threading and async primitives; if used, use absl-based primitives with std::thread. Any threading workflow requires tsan tests.
+- Concurrency: Parallel tool execution uses `std::thread` and `absl` synchronization primitives (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Clang thread-safety annotations (`GUARDED_BY`) and verified with TSAN tests.
 - Asan and Tsan clean at all times.
 
 ## 📚 Documentation
@@ -67,9 +69,19 @@ export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 - **[Walkthrough](WALKTHROUGH.md)**: A step-by-step example of using the agent.
 - **[Contributing](CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
-## 📁 Codebase Layout
+## 🏗️ Architecture & Codebase Layout
 
-- `core/`: Database management, orchestrators, and tool execution.
-- `interface/`: Terminal UI, command handling, and line completion.
-- `markdown/`: Tree-sitter based markdown rendering for the terminal.
-- `main.cpp`: Entry point.
+### `core/` - The Engine
+The core logic is divided into specialized modules:
+
+- **`database.h`**: Manages the SQLite-backed ledger. Handles persistence for messages, memos, tools, and skills using thread-safe connection pooling.
+- **`tool_dispatcher.h`**: Implements a thread-safe parallel execution engine. It dispatches multiple tool calls concurrently while ensuring results are returned in the correct order for the LLM.
+- **`cancellation.h`**: Provides a unified mechanism for interrupting tasks. It supports registering callbacks to kill shell processes or abort HTTP requests.
+- **`orchestrator.h`**: High-level interface for model interaction. Implementations for Gemini and OpenAI manage history windowing and response parsing.
+- **`shell_util.h`**: Securely executes shell commands in a separate process group, with support for real-time output polling and clean termination on cancellation.
+- **`http_client.h`**: A minimalist, cancellation-aware HTTP client used for all model API calls.
+
+### Interface & Display
+- **`interface/`**: Implements the terminal UI using `replxx`. Handles non-blocking input, command completion, and thread-safe terminal output.
+- **`markdown/`**: Uses `tree-sitter-markdown` to provide syntax highlighting and structured rendering for agent responses.
+- **`main.cpp`**: The primary event loop. Coordinates between the Orchestrator, ToolDispatcher, and UI.

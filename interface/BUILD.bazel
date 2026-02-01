@@ -17,23 +17,52 @@ cc_library(
 )
 
 cc_library(
+    name = "completer",
+    srcs = ["completer.cpp"],
+    hdrs = ["completer.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "ui",
+    srcs = ["ui.cpp"],
+    hdrs = ["ui.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":color",
+        ":completer",
+        "//core",
+        "//markdown:parser",
+        "//markdown:renderer",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@nlohmann_json//:json",
+        "@readline//:readline",
+    ],
+)
+
+cc_library(
     name = "interface",
     srcs = [
         "command_handler.cpp",
-        "ui.cpp",
-        "completer.cpp",
         "command_definitions.cpp",
     ],
     hdrs = [
         "command_handler.h",
-        "completer.h",
         "command_definitions.h",
-        "ui.h",
     ],
     visibility = ["//visibility:public"],
     defines = ["HAVE_READLINE"],
     deps = [
         ":color",
+        ":completer",
+        ":ui",
         "//markdown:parser",
         "//markdown:renderer",
         "//core",

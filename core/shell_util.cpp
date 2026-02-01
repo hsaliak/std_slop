@@ -22,7 +22,9 @@
 
 namespace slop {
 
-absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
+absl::StatusOr<CommandResult> RunCommand(
+    const std::string& command,
+    std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Running command: " << command;
   std::array<int, 2> stdout_pipe;
   std::array<int, 2> stderr_pipe;
@@ -47,17 +49,18 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
 
   if (pid == 0) {
     // Child process
+    // Set process group ID to own PID so we can kill the whole group
+    setpgid(0, 0);
+
     close(stdout_pipe[0]);
     close(stderr_pipe[0]);
-
     dup2(stdout_pipe[1], STDOUT_FILENO);
     dup2(stderr_pipe[1], STDERR_FILENO);
-
     close(stdout_pipe[1]);
     close(stderr_pipe[1]);
 
     execl("/bin/sh", "sh", "-c", command.c_str(), nullptr);
-    _exit(127);
+    _exit(1);
   }
 
   // Parent process
@@ -77,27 +80,32 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
   bool stdout_open = true;
   bool stderr_open = true;
 
+  auto cleanup_child = [&](int sig) {
+    LOG(INFO) << "Cleaning up child process " << pid << " with signal " << sig;
+    kill(-pid, sig); // Kill process group
+    
+    // Give it a moment to shut down
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    int status;
+    if (waitpid(pid, &status, WNOHANG) == 0) {
+      kill(-pid, SIGKILL);
+      waitpid(pid, &status, 0);
+    }
+  };
+
   while (stdout_open || stderr_open) {
-    int ret = poll(fds.data(), fds.size(), 100);
+    if (cancellation && cancellation->IsCancelled()) {
+      LOG(INFO) << "Command cancelled via CancellationRequest";
+      cleanup_child(SIGTERM);
+      close(stdout_pipe[0]);
+      close(stderr_pipe[0]);
+      return absl::CancelledError("Command cancelled");
+    }
+
+    int ret = poll(fds.data(), fds.size(), 50); // Shorter timeout for faster cancellation check
     if (ret == -1) {
       if (errno == EINTR) continue;
       break;
-    }
-
-    if (IsEscPressed()) {
-      LOG(INFO) << "Command cancelled by user (Esc pressed)";
-      std::cout << "\n[Cancelled by user]" << std::endl;
-      kill(pid, SIGINT);
-      // Give it a moment to shut down gracefully
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      int status;
-      if (waitpid(pid, &status, WNOHANG) == 0) {
-        kill(pid, SIGKILL);
-        waitpid(pid, &status, 0);
-      }
-      close(stdout_pipe[0]);
-      close(stderr_pipe[0]);
-      return absl::CancelledError("Command cancelled by user");
     }
 
     if (ret == 0) continue;
@@ -135,8 +143,7 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command) {
   waitpid(pid, &status, 0);
   int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 
-  LOG(INFO) << "Command exited with code " << exit_code << " (stdout: " << stdout_str.size()
-            << " bytes, stderr: " << stderr_str.size() << " bytes)";
+  LOG(INFO) << "Command exited with code " << exit_code;
 
   return CommandResult{stdout_str, stderr_str, exit_code};
 }

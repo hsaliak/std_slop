@@ -1,6 +1,8 @@
 #include "core/shell_util.h"
 
+#include <chrono>
 #include <string>
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -49,6 +51,27 @@ TEST(ShellUtilTest, RunCommandInvalidCommand) {
   ASSERT_TRUE(res.ok());
   EXPECT_EQ(res->exit_code, 127);
   EXPECT_FALSE(res->stderr_out.empty());  // sh: nonexistent_command_12345: command not found
+}
+
+TEST(ShellUtilTest, RunCommandCancellation) {
+  auto cancellation = std::make_shared<CancellationRequest>();
+  
+  // Start a long-running command in a separate thread
+  std::atomic<bool> thread_finished{false};
+  absl::StatusOr<CommandResult> res;
+  std::thread t([&] {
+    res = RunCommand("sleep 10 && echo 'should not see this'", cancellation);
+    thread_finished = true;
+  });
+
+  // Give it a moment to start
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  
+  cancellation->Cancel();
+  t.join();
+
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kCancelled);
 }
 
 }  // namespace slop
