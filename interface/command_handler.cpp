@@ -253,11 +253,9 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     if (orchestrator_) {
       auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
       if (prompt_or.ok()) {
-        ss << "\n## Assembled Prompt" << std::endl;
-        ss << prompt_or->dump(2, ' ', false, nlohmann::json::error_handler_t::replace) << std::endl;
+        DisplayAssembledContext(prompt_or->dump());
       }
     }
-    SmartDisplay(ss.str());
     return Result::HANDLED;
   }
   return Result::HANDLED;
@@ -489,6 +487,8 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     } else {
       std::cout << "Unknown scratchpad operation: " << scratch_op << ". Use read or edit." << std::endl;
     }
+  } else {
+    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, activate, remove, clear, scratchpad" << std::endl;
   }
   return Result::HANDLED;
 }

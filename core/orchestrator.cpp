@@ -12,6 +12,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
@@ -160,7 +161,11 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
 
   std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
   InjectRelevantMemos(history, &system_instruction);
-  return strategy_->AssemblePayload(session_id, system_instruction, history);
+  auto payload_or = strategy_->AssemblePayload(session_id, system_instruction, history);
+  if (payload_or.ok() && std::getenv("SLOP_TOOL_DEBUG")) {
+    LOG(INFO) << "--- ASSEMBLED PROMPT ---\n" << payload_or->dump(2) << "\n--- END PROMPT ---";
+  }
+  return payload_or;
 }
 
 absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
