@@ -23,7 +23,6 @@ class GeminiOrchestrator : public OrchestratorStrategy {
 
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key) override;
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
-  int CountTokens(const nlohmann::json& prompt) override;
 
  protected:
   Database* db_;

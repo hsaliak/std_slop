@@ -8,11 +8,11 @@
 #include <sstream>
 #include <unordered_set>
 
+#include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
-#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
@@ -185,8 +185,6 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
   return strategy_->GetQuota(oauth_token);
 }
 
-int Orchestrator::CountTokens(const nlohmann::json& prompt) { return strategy_->CountTokens(prompt); }
-
 /**
  * @brief Constructs the system instruction string for the LLM.
  *
@@ -358,11 +356,13 @@ std::string Orchestrator::SmarterTruncate(const std::string& content, size_t lim
   std::string hint;
   if (message_id > 0) {
     hint = absl::Substitute(
-        "\n\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=$0\") to see full output] ...\n\n",
+        "\n\n... [TRUNCATED. Use query_db(sql=\"SELECT content FROM messages WHERE id=$0\") to see full output] "
+        "...\n\n",
         message_id);
   } else {
     hint = absl::Substitute(
-        "\n\n... [TRUNCATED: Showing partial output of $0 bytes. Use query_db or specific tool range to see more.] ...\n\n",
+        "\n\n... [TRUNCATED: Showing partial output of $0 bytes. Use query_db or specific tool range to see more.] "
+        "...\n\n",
         content.size());
   }
 

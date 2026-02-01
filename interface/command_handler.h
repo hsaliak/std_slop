@@ -53,7 +53,7 @@ class CommandHandler {
                 std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
 
   std::vector<std::string> GetCommandNames() const;
-  std::vector<std::string> GetSubCommands(const std::string& command) const;
+
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
 
  private:

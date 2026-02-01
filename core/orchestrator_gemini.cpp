@@ -185,10 +185,6 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& o
   return absl::UnimplementedError("Quota check not implemented for Gemini Strategy yet");
 }
 
-int GeminiOrchestrator::CountTokens(const nlohmann::json& prompt) {
-  return prompt.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).length() / 4;
-}
-
 GeminiGcaOrchestrator::GeminiGcaOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                                              const std::string& base_url, const std::string& project_id)
     : GeminiOrchestrator(db, http_client, model, base_url), project_id_(project_id) {}

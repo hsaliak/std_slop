@@ -217,20 +217,4 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
   return absl::NotFoundError("Could not discover project ID");
 }
 
-absl::Status OAuthHandler::ProvisionProject() {
-  auto project_id_res = GetProjectId();
-  if (!project_id_res.ok()) return project_id_res.status();
-  std::string project_id = *project_id_res;
-
-  auto token_res = GetValidToken();
-  if (!token_res.ok()) return token_res.status();
-  std::string token = *token_res;
-
-  std::string enable_url = absl::StrCat(kServiceUsageBaseUrl, "/projects/", project_id,
-                                        "/services/generativelanguage.googleapis.com:enable");
-  (void)http_client_->Post(enable_url, "", {"Authorization: Bearer " + token});
-
-  return absl::OkStatus();
-}
-
 }  // namespace slop

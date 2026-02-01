@@ -4,8 +4,9 @@
 #include <fstream>
 #include <iostream>
 
-#include <gtest/gtest.h>
 #include "absl/strings/match.h"
+
+#include <gtest/gtest.h>
 
 namespace slop {
 
@@ -118,7 +119,7 @@ TEST(ToolExecutorTest, GitGrepSummary) {
   // We need to add the file to git to grep it if it's a new file, or use --no-index
   // Actually git_grep_tool uses git grep. If we want it to work on untracked files, we'd need --no-index.
   // Our git_grep_tool doesn't seem to support --no-index in its args yet.
-  
+
   // Let's just use an existing file that we know has many matches, or git add it.
   (void)executor.Execute("execute_bash", {{"command", "git add " + test_file}});
 

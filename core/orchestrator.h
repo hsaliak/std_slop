@@ -86,8 +86,6 @@ class Orchestrator {
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key);
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
 
-  int CountTokens(const nlohmann::json& prompt);
-
   std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
 
   // Exposed for rebuilding and testing

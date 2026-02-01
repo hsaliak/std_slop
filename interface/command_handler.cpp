@@ -82,16 +82,6 @@ std::vector<std::string> CommandHandler::GetCommandNames() const {
   return names;
 }
 
-std::vector<std::string> CommandHandler::GetSubCommands(const std::string& command) const {
-  auto it = sub_commands_.find(command);
-  if (it != sub_commands_.end()) {
-    std::vector<std::string> subs = it->second;
-    std::sort(subs.begin(), subs.end());
-    return subs;
-  }
-  return {};
-}
-
 CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id,
                                               std::vector<std::string>& active_skills,
                                               std::function<void()> show_help_fn,
@@ -488,7 +478,8 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
       std::cout << "Unknown scratchpad operation: " << scratch_op << ". Use read or edit." << std::endl;
     }
   } else {
-    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, activate, remove, clear, scratchpad" << std::endl;
+    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, activate, remove, clear, scratchpad"
+              << std::endl;
   }
   return Result::HANDLED;
 }

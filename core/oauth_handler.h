@@ -24,7 +24,6 @@ class OAuthHandler {
 
   absl::StatusOr<std::string> GetValidToken();
   absl::StatusOr<std::string> GetProjectId();
-  absl::Status ProvisionProject();
 
   void SetProjectId(const std::string& project_id) { manual_project_id_ = project_id; }
   bool IsEnabled() const { return enabled_; }

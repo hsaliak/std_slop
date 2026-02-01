@@ -184,8 +184,4 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::GetQuota(const std::string& o
   return absl::UnimplementedError("Quota check not implemented for OpenAI Strategy yet");
 }
 
-int OpenAiOrchestrator::CountTokens(const nlohmann::json& prompt) {
-  return prompt.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).length() / 4;
-}
-
 }  // namespace slop

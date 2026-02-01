@@ -70,7 +70,9 @@ TEST_F(CommandHandlerTest, ReturnsSubCommands) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
-  auto subs = handler.GetSubCommands("/session");
+  auto it = handler.GetSubCommandMap().find("/session");
+  ASSERT_NE(it, handler.GetSubCommandMap().end());
+  const auto& subs = it->second;
   EXPECT_FALSE(subs.empty());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "list"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "activate"), subs.end());

@@ -284,15 +284,14 @@ TEST_F(OrchestratorTest, SmarterTruncate) {
 TEST_F(OrchestratorTest, SmarterTruncateUtf8) {
   // Japanes char "こ" is 3 bytes.
   std::string jp = "こんにちは" + std::string(1000, 'x') + "さようなら";
-  
+
   size_t limit = 300;
   std::string result = Orchestrator::SmarterTruncate(jp, limit, 789);
-  
+
   // Verify it doesn't crash and contains start/end
   EXPECT_TRUE(absl::StrContains(result, "こんにちは"));
   EXPECT_TRUE(absl::StrContains(result, "さようなら"));
 }
-
 
 TEST_F(OrchestratorTest, SafeJsonDump) {
   // Test that dumping invalid UTF-8 with the replace handler doesn't crash (even with -fno-exceptions)
