@@ -217,3 +217,10 @@ Every interaction with the LLM is stateless. To provide context, the orchestrato
 ### 2026-01-27: Intra-Turn Degradation
 **Change**: Implemented a 3-tier truncation strategy: Full-fidelity (5000 chars) for the last 5 tool calls in the active group, Degraded (1000 chars) for older calls in the active group, and Inactive (300 chars) for previous turns.
 **Rationale**: Complex tasks often involve many tool calls within a single "turn" (e.g., recursive file searches or broad refactors). Preserving 5000 characters for *every* call in a 20-call sequence would instantly exhaust the context window. By degrading older calls within the same turn to 1000 characters, we balance technical fidelity for the current task with the need to preserve conversation history and the Global Anchor state.
+
+### 2026-01-29: Dual-Track State Management
+**Change**: Formalized the use of a "Static Anchor" consisting of two separate blocks: Global State (`### STATE`) and Active Scratchpad.
+**Rationale**: Evaluated three strategies for maintaining continuity during complex engineering sessions:
+1.  **Model-Echo**: Model repeats state at the end of every message. Rejected as fragile; state is lost if the model forgets it once or hits token limits.
+2.  **Merged State/Scratchpad**: Single unified block for all persistent data. Rejected to avoid "context drift"; merging technical anchors (IPs, ports) with high-level roadmaps (checklists) confuses the model's focus.
+3.  **Dual-Track (Current)**: Separate blocks for "Short-Term Memory" (Technical Anchors in State) and "Long-Term Memory" (Project Roadmap in Scratchpad). This provides maximum robustness across history pruning. Both blocks are DB-backed and can be updated independently (e.g., by the `planner` skill) without disturbing the technical context.
