@@ -57,7 +57,7 @@ export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
-- Concurrency: Parallel tool execution uses `std::thread` and `absl` synchronization primitives (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Clang thread-safety annotations (`GUARDED_BY`) and verified with TSAN tests.
+- Concurrency: Parallel tool execution uses `std::thread` and `absl` synchronization primitives (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
 - Asan and Tsan clean at all times.
 
 ## 📚 Documentation
