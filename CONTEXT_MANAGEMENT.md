@@ -174,6 +174,20 @@ Earlier versions of `std::slop` included a `FTS_RANKED` mode that used hybrid re
 
 The current strategy prioritizes **coherence** (sequential history) and **authoritative summary** (the state block) while allowing for **agent-driven precision retrieval** via SQL.
 
+## Token Accounting
+
+Token counts in `std::slop` (displayed as `· NNN tokens`) do not represent the isolated cost of a single message, but rather a **snapshot of the session's total weight** in the LLM's memory at that specific moment.
+
+### The Snapshot Principle
+Every interaction with the LLM is stateless. To provide context, the orchestrator sends the entire relevant conversation history back to the model with every new request. The reported token count is the sum of:
+1.  **Prompt Tokens**: The "Input" (System Instructions + Scratchpad + Conversation History + New User Message).
+2.  **Completion Tokens**: The "Output" (The LLM's new reasoning text and/or tool calls).
+
+### Behavioral Characteristics
+*   **Growth**: As long as the session history is preserved, the token count will strictly increase turn-by-turn as the history "Prompt Tokens" grows.
+*   **Intra-Turn Consistency**: In a single turn containing multiple tool calls (Parallel Tool Calling), every tool call and assistant message will display the **same** token count. This represents the weight of the *entire interaction* that produced those calls.
+*   **Pruning Discontinuity**: The token count will only decrease when the **Rolling Context Window** prunes old messages. If a large historical block is dropped to fit the window limit, the next turn's count will drop accordingly.
+
 ## Commands Reference
 
 - `/context window <N>`: Set the size of the rolling window (number of interaction groups). Use 0 for full history.
