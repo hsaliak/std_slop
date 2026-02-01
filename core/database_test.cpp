@@ -343,3 +343,35 @@ TEST(DatabaseTest, MemoSearchCompoundTags) {
   ASSERT_TRUE(partial.ok());
   EXPECT_EQ(partial->size(), 1);
 }
+
+TEST(DatabaseTest, ToolUsageCounters) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  slop::Database::Tool tool = {"test_tool", "desc", "{}", true};
+  ASSERT_TRUE(db.RegisterTool(tool).ok());
+
+  auto tools = db.GetEnabledTools();
+  ASSERT_TRUE(tools.ok());
+  auto it =
+      std::find_if(tools->begin(), tools->end(), [](const auto& t) { return t.name == "test_tool"; });
+  ASSERT_NE(it, tools->end());
+  EXPECT_EQ(it->call_count, 0);
+
+  ASSERT_TRUE(db.IncrementToolCallCount("test_tool").ok());
+  ASSERT_TRUE(db.IncrementToolCallCount("test_tool").ok());
+
+  tools = db.GetEnabledTools();
+  ASSERT_TRUE(tools.ok());
+  it = std::find_if(tools->begin(), tools->end(), [](const auto& t) { return t.name == "test_tool"; });
+  ASSERT_NE(it, tools->end());
+  EXPECT_EQ(it->call_count, 2);
+
+  // Registering again should preserve count
+  tool.description = "updated desc";
+  ASSERT_TRUE(db.RegisterTool(tool).ok());
+  tools = db.GetEnabledTools();
+  it = std::find_if(tools->begin(), tools->end(), [](const auto& t) { return t.name == "test_tool"; });
+  EXPECT_EQ(it->call_count, 2);
+  EXPECT_EQ(it->description, "updated desc");
+}

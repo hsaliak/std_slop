@@ -153,6 +153,7 @@ class Database {
     std::string description;
     std::string json_schema;
     bool is_enabled;
+    int call_count = 0;
   };
 
   absl::Status RegisterTool(const Tool& tool);
@@ -171,6 +172,7 @@ class Database {
   absl::Status DeleteSkill(const std::string& name_or_id);
   absl::StatusOr<std::vector<Skill>> GetSkills();
   absl::Status IncrementSkillActivationCount(const std::string& name_or_id);
+  absl::Status IncrementToolCallCount(const std::string& name);
 
   absl::Status SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills);
   absl::StatusOr<std::vector<std::string>> GetActiveSkills(const std::string& session_id);

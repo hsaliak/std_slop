@@ -516,6 +516,22 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
     }
   }
 
+  auto tools_res =
+      db_->Query("SELECT name, call_count FROM tools WHERE call_count > 0 ORDER BY call_count DESC");
+  if (tools_res.ok()) {
+    auto j = nlohmann::json::parse(*tools_res, nullptr, false);
+    if (!j.is_discarded() && j.is_array() && !j.empty()) {
+      std::string md = "### Tool Usage (All-time)\n\n";
+      md += "| Tool | Calls |\n";
+      md += "| :--- | :---: |\n";
+      for (const auto& row : j) {
+        md += absl::Substitute("| $0 | $1 |\n", row.value("name", "unknown"), row.value("call_count", 0));
+      }
+      md += "\n";
+      PrintMarkdown(md);
+    }
+  }
+
   auto skills_res =
       db_->Query("SELECT name, activation_count FROM skills WHERE activation_count > 0 ORDER BY activation_count DESC");
   if (skills_res.ok()) {

@@ -29,6 +29,7 @@ Registry of available agent tools.
 | description | TEXT | Functional description. |
 | json_schema | TEXT | Argument definition in JSON Schema format. |
 | is_enabled | INTEGER | Status flag (1 for active, 0 for inactive). Default: 1. |
+| call_count | INTEGER | Number of successful tool executions. Default: 0. |
 
 ### 3. skills
 Persona patches for specialized instructions.
@@ -124,7 +125,8 @@ CREATE TABLE IF NOT EXISTS tools (
     name TEXT PRIMARY KEY,
     description TEXT,
     json_schema TEXT,
-    is_enabled INTEGER DEFAULT 1
+    is_enabled INTEGER DEFAULT 1,
+    call_count INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS skills (

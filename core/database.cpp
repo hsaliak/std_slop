@@ -161,7 +161,8 @@ absl::Status Database::Init(const std::string& db_path) {
         name TEXT PRIMARY KEY,
         description TEXT,
         json_schema TEXT,
-        is_enabled INTEGER DEFAULT 1
+        is_enabled INTEGER DEFAULT 1,
+        call_count INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS skills (
@@ -213,6 +214,7 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(db_.get(), "ALTER TABLE skills ADD COLUMN activation_count INTEGER DEFAULT 0;", nullptr, nullptr,
                      nullptr);
   (void)sqlite3_exec(db_.get(), "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(db_.get(), "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
 
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
@@ -515,12 +517,15 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 }
 
 absl::Status Database::RegisterTool(const Tool& tool) {
-  return Execute("INSERT OR REPLACE INTO tools (name, description, json_schema, is_enabled) VALUES (?, ?, ?, ?);",
-                 tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0);
+  std::string sql =
+      "INSERT INTO tools (name, description, json_schema, is_enabled, call_count) VALUES (?, ?, ?, ?, ?) "
+      "ON CONFLICT(name) DO UPDATE SET description=excluded.description, json_schema=excluded.json_schema, "
+      "is_enabled=excluded.is_enabled;";
+  return Execute(sql, tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0, tool.call_count);
 }
 
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
-  std::string sql = "SELECT name, description, json_schema, is_enabled FROM tools WHERE is_enabled = 1";
+  std::string sql = "SELECT name, description, json_schema, is_enabled, call_count FROM tools WHERE is_enabled = 1";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
 
   std::vector<Tool> tools;
@@ -534,6 +539,7 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
     t.description = stmt->ColumnText(1);
     t.json_schema = stmt->ColumnText(2);
     t.is_enabled = stmt->ColumnInt(3) != 0;
+    t.call_count = stmt->ColumnInt(4);
     tools.push_back(t);
   }
   return tools;
@@ -587,6 +593,11 @@ absl::Status Database::IncrementSkillActivationCount(const std::string& name_or_
     return Execute(sql, name_or_id, id);
   }
   return Execute(sql, name_or_id, nullptr);
+}
+
+absl::Status Database::IncrementToolCallCount(const std::string& name) {
+  std::string sql = "UPDATE tools SET call_count = call_count + 1 WHERE name = ?;";
+  return Execute(sql, name);
 }
 
 absl::Status Database::SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills) {
