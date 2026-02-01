@@ -399,7 +399,7 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
     PrintStyledBlock(content, prefix + "    ", ansi::Assistant);
   }
   if (tokens > 0) {
-    std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " output tokens" << ansi::Reset << std::endl;
+    std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
   }
 }
 
@@ -429,7 +429,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   std::string summary = absl::StrCat(icons::Tool, " ", name, " ", icons::CallArrow, " ", display_args);
   std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
   if (tokens > 0) {
-    std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " output tokens"), "", ansi::Metadata);
+    std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
   }
   std::cout << std::endl;
 }

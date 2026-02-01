@@ -103,7 +103,7 @@ TEST(UiTest, PrintAssistantMessageWithTokens) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("123 output tokens") != std::string::npos);
+  EXPECT_TRUE(output.find("123 tokens") != std::string::npos);
 }
 
 TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
@@ -117,10 +117,10 @@ TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("123 output tokens") != std::string::npos);
+  EXPECT_TRUE(output.find("123 tokens") != std::string::npos);
   // Check for the prefix and bullet, allowing for ANSI codes
   EXPECT_TRUE(output.find("      ") != std::string::npos);
-  EXPECT_TRUE(output.find("· 123 output tokens") != std::string::npos);
+  EXPECT_TRUE(output.find("· 123 tokens") != std::string::npos);
 }
 
 TEST(UiTest, FlattenJsonArgs) {
@@ -158,7 +158,7 @@ TEST(UiTest, PrintToolCallMessageWithTokens) {
   std::string output = buffer.str();
 
   EXPECT_TRUE(output.find("test_tool") != std::string::npos);
-  EXPECT_TRUE(output.find("· 123 output tokens") != std::string::npos);
+  EXPECT_TRUE(output.find("· 123 tokens") != std::string::npos);
 }
 
 TEST(UiTest, PrintToolResultMessage) {
