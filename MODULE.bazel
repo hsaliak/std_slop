@@ -1,7 +1,7 @@
 module(
     name = "std_slop",
     version = "0.1.0",
-    bazel_compatibility = [">=8.0.0"],
+    bazel_compatibility = [">=8.0.0", "<=8.99.99"],
 )
 
 bazel_dep(name = "abseil-cpp", version = "20240116.2")
