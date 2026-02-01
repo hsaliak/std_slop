@@ -38,15 +38,9 @@ test:tsan --features=tsan
 build:tsan --copt=-DTHREAD_SANITIZER
 test:tsan --copt=-DTHREAD_SANITIZER
 
-# macOS: Linker setup
-# Tells the binary to look in its own 'runfiles' directory for the toolchain libs
-build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../
-build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib
-build:asan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib/clang/17/lib/darwin
-
-build:tsan-macos --linkopt=-Wl,-rpath,@loader_path/../
-build:tsan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib
-build:tsan-macos --linkopt=-Wl,-rpath,@loader_path/../../external/toolchains_llvm++llvm+llvm_toolchain_llvm/lib/clang/17/lib/darwin
+# macOS: ASan/TSan are explicitly disabled due to instability on macOS
+build:macos --features=-asan
+build:macos --features=-tsan
 
 # Linux: Linker setup
 build:asan-linux --linkopt=-Wl,-z,origin
