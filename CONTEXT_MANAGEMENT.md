@@ -177,7 +177,7 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 ## Commands Reference
 
 - `/context window <N>`: Set the size of the rolling window (number of interaction groups). Use 0 for full history.
-- `/context show`: Display the exact assembled context that will be sent to the LLM.
+- `/context show`: Display the exact assembled context that will be sent to the LLM. The output is human-readable and will automatically open in your `$EDITOR` (e.g., `vim`, `nano`) if it exceeds terminal height.
 - `/context rebuild`: Rebuilds the session state (`### STATE` anchor) from the current context window history.
 - `/undo`: Shortcut to remove the last interaction and rebuild state.
 - `/message list [N]`: List the last `N` interaction groups with token usage information.

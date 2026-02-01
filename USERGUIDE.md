@@ -120,7 +120,7 @@ The agent provides powerful search tools designed for large codebases.
 - `/edit`: Open your last input in your system `$EDITOR` (e.g., vim, nano) and resend it after saving.
 
 ### Context Control
-- `/context show`: Show current context settings and the fully assembled prompt that would be sent to the LLM.
+- `/context show`: Show current context settings and the fully assembled prompt that would be sent to the LLM. The output is human-readable and will automatically open in your `$EDITOR` if it exceeds terminal height.
 - `/context window <N>`: Limit the context to the last `N` interaction groups. Set to `0` for infinite history.
 - `/context rebuild`: Force a rebuild of the in-memory session state from the SQL message history. Useful if the database was modified externally.
 
@@ -244,6 +244,16 @@ bazel run //:std_slop -- --log slop_verbose.log
 ```
 
 When enabled, `std::slop` will log all CURL activity to the standard log, including request/response headers and full bodies. This is useful for identifying issues with payload formats or rate-limiting responses.
+
+### Prompt Inspection (Debugging)
+To see the exact JSON payload being sent to the LLM (after context assembly and strategy-specific formatting), use the `SLOP_TOOL_DEBUG` environment variable:
+
+```bash
+export SLOP_TOOL_DEBUG=1
+bazel run //:std_slop
+```
+
+When enabled, the final assembled prompt will be logged via `absl::LOG(INFO)`. This is distinct from HTTP logging as it shows the internal logical representation before it is transmitted.
 
 ### Other Commands
 - `/models`: List all models available for your current provider.
