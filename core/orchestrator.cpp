@@ -268,6 +268,11 @@ Technical Anchors: [Ports, IPs, constant values]
     absl::StrAppend(&system_instruction, "## Global State (Anchor)\n", *state_or, "\n");
   }
 
+  auto scratchpad_or = db_->GetScratchpad(session_id);
+  if (scratchpad_or.ok() && !scratchpad_or->empty()) {
+    absl::StrAppend(&system_instruction, "## Active Scratchpad\n", *scratchpad_or, "\n");
+  }
+
   return system_instruction;
 }
 
