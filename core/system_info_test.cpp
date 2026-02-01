@@ -32,13 +32,11 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   // Check for core content from system_prompt.md
   // Since kBuiltinSystemPrompt is baked in at compile time from system_prompt.md,
   // we check for high-level strings we know are there.
-  EXPECT_TRUE(absl::StrContains(instr, "interactive CLI agent")) << "Missing character definition";
-  EXPECT_TRUE(absl::StrContains(instr, "Software Engineering Tasks")) << "Missing workflow definition";
-  EXPECT_TRUE(absl::StrContains(instr, "Context Retrieval")) << "Missing context retrieval instruction";
+  EXPECT_TRUE(absl::StrContains(instr, "Interactive CLI agent")) << "Missing character definition";
+  EXPECT_TRUE(absl::StrContains(instr, "Primary Workflows")) << "Missing workflow definition";
+  EXPECT_TRUE(absl::StrContains(instr, "manage_scratchpad")) << "Missing scratchpad instruction";
   EXPECT_TRUE(absl::StrContains(instr, "## Available Tools")) << "Missing tools section header";
-  EXPECT_TRUE(absl::StrContains(instr, "Retrieval-Led")) << "Missing retrieval-led mandate";
-  EXPECT_TRUE(absl::StrContains(instr, "Prefer retrieval-led reasoning over pre-training-led reasoning"))
-      << "Missing retrieval-led instruction";
+  EXPECT_TRUE(absl::StrContains(instr, "### STATE")) << "Missing state block mandate";
 }
 
 }  // namespace slop
