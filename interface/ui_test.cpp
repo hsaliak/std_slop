@@ -103,7 +103,7 @@ TEST(UiTest, PrintAssistantMessageWithTokens) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("123 tokens") != std::string::npos);
+  EXPECT_TRUE(output.find("123 output tokens") != std::string::npos);
 }
 
 TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
@@ -117,10 +117,10 @@ TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("123 tokens") != std::string::npos);
+  EXPECT_TRUE(output.find("123 output tokens") != std::string::npos);
   // Check for the prefix and bullet, allowing for ANSI codes
   EXPECT_TRUE(output.find("      ") != std::string::npos);
-  EXPECT_TRUE(output.find("· 123 tokens") != std::string::npos);
+  EXPECT_TRUE(output.find("· 123 output tokens") != std::string::npos);
 }
 
 TEST(UiTest, FlattenJsonArgs) {
@@ -144,6 +144,21 @@ TEST(UiTest, PrintToolCallMessage) {
   EXPECT_TRUE(output.find("test_tool") != std::string::npos);
   EXPECT_TRUE(output.find("❯") != std::string::npos);
   EXPECT_TRUE(output.find("query: \"test\"") != std::string::npos);
+}
+
+TEST(UiTest, PrintToolCallMessageWithTokens) {
+  std::string name = "test_tool";
+  std::string args = "{\"query\": \"test\"}";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolCallMessage(name, args, "", 123);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(output.find("test_tool") != std::string::npos);
+  EXPECT_TRUE(output.find("· 123 output tokens") != std::string::npos);
 }
 
 TEST(UiTest, PrintToolResultMessage) {

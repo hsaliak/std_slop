@@ -399,7 +399,7 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
     PrintStyledBlock(content, prefix + "    ", ansi::Assistant);
   }
   if (tokens > 0) {
-    std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
+    std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " output tokens" << ansi::Reset << std::endl;
   }
 }
 
@@ -418,7 +418,8 @@ std::string FlattenJsonArgs(const std::string& json_str) {
   return absl::StrJoin(parts, " | ");
 }
 
-void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix) {
+void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix,
+                          int tokens) {
   std::string display_args = FlattenJsonArgs(args);
 
   if (display_args.length() > 60) {
@@ -426,7 +427,11 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   }
 
   std::string summary = absl::StrCat(icons::Tool, " ", name, " ", icons::CallArrow, " ", display_args);
-  std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata) << std::endl;
+  std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
+  if (tokens > 0) {
+    std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " output tokens"), "", ansi::Metadata);
+  }
+  std::cout << std::endl;
 }
 
 void PrintToolResultMessage(const std::string& /*name*/, const std::string& result, const std::string& status,
@@ -488,11 +493,11 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
       if (calls_or.ok() && !calls_or->empty()) {
         for (const auto& call : *calls_or) {
           PrintToolCallMessage(call.name, call.args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
-                               prefix + "  ");
+                               prefix + "  ", msg.tokens);
         }
       } else if (!calls_or.ok() || calls_or->empty()) {
         // Fallback for unidentified tool calls
-        PrintToolCallMessage("tool_call", msg.content, prefix + "  ");
+        PrintToolCallMessage("tool_call", msg.content, prefix + "  ", msg.tokens);
       }
     } else {
       PrintAssistantMessage(msg.content, prefix + "  ", msg.tokens);
