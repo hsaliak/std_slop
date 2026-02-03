@@ -686,6 +686,72 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   return absl::OkStatus();
 }
 
+absl::Status Database::CloneSession(const std::string& source_id, const std::string& target_id) {
+  // Check source exists
+  {
+    auto stmt_or = Prepare("SELECT 1 FROM sessions WHERE id = ?");
+    if (!stmt_or.ok()) return stmt_or.status();
+    RETURN_IF_ERROR((*stmt_or)->BindText(1, source_id));
+    auto res_or = (*stmt_or)->Step();
+    if (!res_or.ok()) return res_or.status();
+    if (!*res_or) {
+      return absl::NotFoundError(absl::StrCat("Source session '", source_id, "' not found."));
+    }
+  }
+
+  // Check target doesn't exist
+  {
+    auto stmt_or = Prepare("SELECT 1 FROM sessions WHERE id = ?");
+    if (!stmt_or.ok()) return stmt_or.status();
+    RETURN_IF_ERROR((*stmt_or)->BindText(1, target_id));
+    auto res_or = (*stmt_or)->Step();
+    if (!res_or.ok()) return res_or.status();
+    if (*res_or) {
+      return absl::AlreadyExistsError(absl::StrCat("Target session '", target_id, "' already exists."));
+    }
+  }
+
+  RETURN_IF_ERROR(Execute("BEGIN TRANSACTION;"));
+
+  auto rollback_on_failure = [&](absl::Status s) {
+    if (!s.ok()) {
+      (void)Execute("ROLLBACK;");
+    }
+    return s;
+  };
+
+  absl::Status status = Execute(
+      "INSERT INTO sessions (id, name, context_size, scratchpad, active_skills) "
+      "SELECT ?, name, context_size, scratchpad, active_skills FROM sessions "
+      "WHERE id = ?;",
+      {target_id, source_id});
+  if (!status.ok()) return rollback_on_failure(status);
+
+  status = Execute(
+      "INSERT INTO messages (session_id, role, content, tool_call_id, status, "
+      "created_at, group_id, parsing_strategy, tokens) "
+      "SELECT ?, role, content, tool_call_id, status, created_at, group_id, "
+      "parsing_strategy, tokens FROM messages WHERE session_id = ?;",
+      {target_id, source_id});
+  if (!status.ok()) return rollback_on_failure(status);
+
+  status = Execute(
+      "INSERT INTO usage (session_id, model, prompt_tokens, "
+      "completion_tokens, total_tokens, created_at) "
+      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, "
+      "created_at FROM usage WHERE session_id = ?;",
+      {target_id, source_id});
+  if (!status.ok()) return rollback_on_failure(status);
+
+  status = Execute(
+      "INSERT INTO session_state (session_id, state_blob) "
+      "SELECT ?, state_blob FROM session_state WHERE session_id = ?;",
+      {target_id, source_id});
+  if (!status.ok()) return rollback_on_failure(status);
+
+  return Execute("COMMIT;");
+}
+
 absl::Status Database::AddMemo(const std::string& content, const std::string& semantic_tags) {
   auto stmt_or = Prepare("INSERT INTO llm_memos (content, semantic_tags) VALUES (?, ?)");
   if (!stmt_or.ok()) return stmt_or.status();

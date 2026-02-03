@@ -449,13 +449,27 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     HandleStatus(db_->DeleteSession(args.session_id));
     std::cout << "Session " << args.session_id << " history and state cleared." << std::endl;
     if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
+  } else if (sub_cmd == "clone") {
+    if (sub_args.empty()) {
+      std::cout << "Usage: /session clone <new_session_name>" << std::endl;
+    } else {
+      const std::string& new_session_id = sub_args;
+      auto status = db_->CloneSession(args.session_id, new_session_id);
+      if (status.ok()) {
+        std::cout << "Cloned session '" << args.session_id << "' to '" << new_session_id << "'." << std::endl;
+        args.session_id = new_session_id;
+        std::cout << "Switched to session: " << new_session_id << std::endl;
+        if (orchestrator_) (void)orchestrator_->RebuildContext(new_session_id);
+      } else {
+        HandleStatus(status, "cloning session");
+      }
+    }
   } else if (sub_cmd == "scratchpad") {
     // Scratchpad is a per-session persistent markdown-based text area.
     // It allows maintaining a long-running plan or state that isn't lost
     // when the context window shifts.
     std::vector<std::string> scratch_parts = absl::StrSplit(sub_args, absl::MaxSplits(' ', 1));
     std::string scratch_op = scratch_parts[0];
-    std::string scratch_val = (scratch_parts.size() > 1) ? scratch_parts[1] : "";
 
     if (scratch_op == "read") {
       auto res = db_->GetScratchpad(args.session_id);
@@ -480,7 +494,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
       std::cout << "Unknown scratchpad operation: " << scratch_op << ". Use read or edit." << std::endl;
     }
   } else {
-    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, activate, remove, clear, scratchpad"
+    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, activate, remove, clear, clone, scratchpad"
               << std::endl;
   }
   return Result::HANDLED;

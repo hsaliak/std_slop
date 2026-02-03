@@ -48,6 +48,7 @@ Persists user settings for each conversation session.
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | id | TEXT | Primary Key. Session ID. |
+| name | TEXT | Human-readable name (Optional). |
 | context_size | INTEGER | Size of the sequential rolling window (number of groups). Default: 2. |
 | scratchpad | TEXT | A flexible workspace for the LLM to store plans and notes. |
 | active_skills | TEXT | JSON array of currently active skill names for this session. |
@@ -72,7 +73,6 @@ Stores the persistent self-managed state block, per session.
 | :--- | :--- | :--- |
 | session_id | TEXT | Primary Key. Session ID. |
 | state_blob | TEXT | The persistent `### STATE` block. |
-| last_updated | TIMESTAMP | Timestamp of last update. Default: `CURRENT_TIMESTAMP`. |
 
 ### 7. llm_memos
 Long-term knowledge persistence through tag-based memos.

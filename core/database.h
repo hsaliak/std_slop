@@ -193,6 +193,9 @@ class Database {
   // Session Deletion
   absl::Status DeleteSession(const std::string& session_id);
 
+  // Session Cloning
+  absl::Status CloneSession(const std::string& source_id, const std::string& target_id);
+
   absl::Status UpdateScratchpad(const std::string& session_id, const std::string& scratchpad);
   absl::StatusOr<std::string> GetScratchpad(const std::string& session_id);
 

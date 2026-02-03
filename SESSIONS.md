@@ -54,6 +54,12 @@ Alternatively, you can use `/session clear` to wipe the current session's histor
 The `/session remove <name>` command permanently deletes a session and all its associated data (history, token usage stats, persistent state, and context settings).
 - If the current active session is removed, the system automatically switches to `default_session`.
 
+### Cloning Sessions
+The `/session clone <name>` command creates a complete "branch" of the current session.
+- **What is copied**: All message history, scratchpad content, persistent state, and token usage history.
+- **Uniqueness**: The target name must not already exist.
+- **Use Case**: This is ideal for exploring different "branches" of a task or saving a stable state before a risky operation. After cloning, you are automatically switched to the new session.
+
 ### Clearing current Session
 The `/session clear` command deletes all data (history, token usage stats, persistent state) for the current session and rebuilds the context (making it empty). This is useful if you want to restart a task without changing the session name.
 

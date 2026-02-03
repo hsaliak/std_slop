@@ -88,6 +88,12 @@ Sessions maintain their own context and are completely isolated. They can also b
 /session activate default_session
 ```
 
+If you want to branch off your current work to experiment without losing your progress, you can use:
+```bash
+/session clone experiment-1
+```
+This creates an identical copy of your current history and scratchpad.
+
 Run `/message list` to see your recent interaction history and monitor token usage. You can also view the entire context. `/message` also lets you remove the last message and rebuild the context if needed.
 
 ```bash

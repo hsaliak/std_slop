@@ -1,5 +1,7 @@
 #include "core/database.h"
 
+#include "absl/strings/str_cat.h"
+
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
@@ -67,6 +69,148 @@ TEST(DatabaseTest, MessagePersistence) {
   auto history2 = db.GetConversationHistory("s2");
   ASSERT_TRUE(history2.ok());
   EXPECT_EQ(history2->size(), 1);
+}
+
+TEST(DatabaseTest, CloneSession) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  // Set up source session
+  ASSERT_TRUE(db.UpdateScratchpad("source", "original scratchpad").ok());
+  ASSERT_TRUE(db.AppendMessage("source", "user", "Hello").ok());
+  ASSERT_TRUE(db.AppendMessage("source", "assistant", "Hi").ok());
+  ASSERT_TRUE(db.RecordUsage("source", "gpt-4", 10, 20).ok());
+
+  // Clone it
+  auto status = db.CloneSession("source", "target");
+  EXPECT_TRUE(status.ok()) << status.message();
+
+  // Verify target session metadata
+  auto target_history = db.GetConversationHistory("target");
+  ASSERT_TRUE(target_history.ok());
+  EXPECT_EQ(target_history->size(), 2);
+  EXPECT_EQ((*target_history)[0].content, "Hello");
+  EXPECT_EQ((*target_history)[1].content, "Hi");
+
+  auto scratchpad = db.GetScratchpad("target");
+  ASSERT_TRUE(scratchpad.ok());
+  EXPECT_EQ(*scratchpad, "original scratchpad");
+
+  auto usage = db.GetTotalUsage("target");
+  ASSERT_TRUE(usage.ok());
+  EXPECT_EQ(usage->total_tokens, 30);
+
+  // Verify uniqueness check
+  status = db.CloneSession("source", "target");
+  EXPECT_EQ(status.code(), absl::StatusCode::kAlreadyExists);
+
+  // Verify source existence check
+  status = db.CloneSession("non_existent", "new_target");
+  EXPECT_EQ(status.code(), absl::StatusCode::kNotFound);
+}
+
+TEST(DatabaseTest, CloneEmptySession) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  // Create a session but don't add anything
+  ASSERT_TRUE(db.Execute("INSERT INTO sessions (id) VALUES ('empty');").ok());
+
+  ASSERT_TRUE(db.CloneSession("empty", "empty_clone").ok());
+
+  auto history = db.GetConversationHistory("empty_clone");
+  ASSERT_TRUE(history.ok());
+  EXPECT_TRUE(history->empty());
+
+  auto scratch = db.GetScratchpad("empty_clone");
+  ASSERT_TRUE(scratch.ok());
+  EXPECT_TRUE(scratch->empty());
+}
+
+TEST(DatabaseTest, CloneLargeSession) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  // Ensure 'large' exists in sessions table
+  ASSERT_TRUE(db.Execute("INSERT INTO sessions (id) VALUES ('large');").ok());
+
+  const int kNumMessages = 100;
+  for (int i = 0; i < kNumMessages; ++i) {
+    ASSERT_TRUE(db.AppendMessage("large", "user", absl::StrCat("Message ", i)).ok());
+  }
+  ASSERT_TRUE(db.UpdateScratchpad("large", std::string(1000, 'x')).ok());
+
+  ASSERT_TRUE(db.CloneSession("large", "large_clone").ok());
+
+  auto history = db.GetConversationHistory("large_clone");
+  ASSERT_TRUE(history.ok());
+  EXPECT_EQ(history->size(), kNumMessages);
+  EXPECT_EQ((*history)[99].content, "Message 99");
+
+  auto scratch = db.GetScratchpad("large_clone");
+  ASSERT_TRUE(scratch.ok());
+  EXPECT_EQ(scratch->size(), 1000);
+}
+
+TEST(DatabaseTest, CloneStressTest) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  // Ensure 'root' exists in sessions table
+  ASSERT_TRUE(db.Execute("INSERT INTO sessions (id) VALUES ('root');").ok());
+  ASSERT_TRUE(db.AppendMessage("root", "user", "root message").ok());
+
+  // Chain clones: root -> c1 -> c2 -> ... -> c10
+  std::string last = "root";
+  for (int i = 1; i <= 10; ++i) {
+    std::string current = absl::StrCat("c", i);
+    ASSERT_TRUE(db.CloneSession(last, current).ok());
+    last = current;
+  }
+
+  auto history = db.GetConversationHistory("c10");
+  ASSERT_TRUE(history.ok());
+  EXPECT_EQ(history->size(), 1);
+  EXPECT_EQ((*history)[0].content, "root message");
+
+  // Fan-out clones: root -> f1, root -> f2, ...
+  for (int i = 1; i <= 10; ++i) {
+    std::string current = absl::StrCat("f", i);
+    ASSERT_TRUE(db.CloneSession("root", current).ok());
+  }
+
+  for (int i = 1; i <= 10; ++i) {
+    auto history_fan = db.GetConversationHistory(absl::StrCat("f", i));
+    ASSERT_TRUE(history_fan.ok());
+    EXPECT_EQ(history_fan->size(), 1);
+  }
+}
+
+TEST(DatabaseTest, CloneFullSession) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  std::string sid = "full_source";
+  ASSERT_TRUE(db.UpdateScratchpad(sid, "scratch").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "msg").ok());
+  ASSERT_TRUE(db.RecordUsage(sid, "model", 1, 1).ok());
+  ASSERT_TRUE(db.SetSessionState(sid, "state blob").ok());
+  ASSERT_TRUE(db.SetActiveSkills(sid, {"skill1", "skill2"}).ok());
+
+  ASSERT_TRUE(db.CloneSession(sid, "full_target").ok());
+
+  // Verify all
+  EXPECT_EQ(*db.GetScratchpad("full_target"), "scratch");
+  auto hist = db.GetConversationHistory("full_target");
+  EXPECT_EQ(hist->size(), 1);
+  EXPECT_EQ(hist->at(0).content, "msg");
+  auto usage = db.GetTotalUsage("full_target");
+  EXPECT_EQ(usage->total_tokens, 2);
+  EXPECT_EQ(*db.GetSessionState("full_target"), "state blob");
+  auto skills = db.GetActiveSkills("full_target");
+  EXPECT_EQ(skills->size(), 2);
+  EXPECT_EQ(skills->at(0), "skill1");
+  EXPECT_EQ(skills->at(1), "skill2");
 }
 
 TEST(DatabaseTest, TokenPersistence) {

@@ -76,6 +76,38 @@ TEST_F(CommandHandlerTest, ReturnsSubCommands) {
   EXPECT_FALSE(subs.empty());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "list"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "activate"), subs.end());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "clone"), subs.end());
+}
+
+TEST_F(CommandHandlerTest, SessionClone) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  // Set up some data in s1
+  ASSERT_TRUE(db.UpdateScratchpad(sid, "s1 scratchpad").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "Hello").ok());
+
+  // Clone s1 to s2
+  std::string input = "/session clone s2";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+
+  // Verify sid was updated
+  EXPECT_EQ(sid, "s2");
+
+  // Verify s2 has s1's data
+  auto scratch = db.GetScratchpad("s2");
+  ASSERT_TRUE(scratch.ok());
+  EXPECT_EQ(*scratch, "s1 scratchpad");
+
+  auto history = db.GetConversationHistory("s2");
+  ASSERT_TRUE(history.ok());
+  EXPECT_EQ(history->size(), 1);
+  EXPECT_EQ((*history)[0].content, "Hello");
 }
 
 TEST_F(CommandHandlerTest, IgnoresNormalText) {
