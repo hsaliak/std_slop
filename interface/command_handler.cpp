@@ -302,14 +302,20 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         md += "| ID | Name | Description | Activations | Status |\n";
         md += "| :---: | :--- | :--- | :---: | :---: |\n";
         for (const auto& row : j) {
+          std::string description = row.value("description", "");
+          description = absl::StrReplaceAll(description, {{"|", "\\|"}, {"\n", " "}});
+          if (description.length() > 60) {
+            description = description.substr(0, 57) + "...";
+          }
           bool active = std::find(args.active_skills.begin(), args.active_skills.end(), row.value("name", "")) !=
                         args.active_skills.end();
           md += absl::Substitute("| $0 | **$1** | $2 | $3 | $4 |\n", row.value("id", 0), row.value("name", ""),
-                                 row.value("description", ""), row.value("activation_count", 0),
-                                 active ? "🟢 ACTIVE" : "⚪ inactive");
+                                 description, row.value("activation_count", 0), active ? "🟢 ACTIVE" : "⚪ inactive");
         }
         PrintMarkdown(md);
       }
+    } else {
+      HandleStatus(res.status(), "Database error");
     }
   } else if (sub_cmd == "activate") {
     auto res = db_->Query("SELECT name FROM skills WHERE id = ? OR name = ?", {sub_args, sub_args});

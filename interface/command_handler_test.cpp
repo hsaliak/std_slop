@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "interface/command_handler.h"
 
 #include "absl/strings/match.h"
@@ -606,6 +607,48 @@ TEST_F(CommandHandlerTest, FeedbackNoCommentsDoesNothing) {
 
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(handler.editor_was_called);
+}
+
+TEST_F(CommandHandlerTest, SkillListTruncatesDescription) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  std::string long_desc =
+      "This is a very long description that should definitely be truncated because it exceeds sixty characters in "
+      "length.";
+  Database::Skill s{0, "long_skill", long_desc, "patch"};
+  ASSERT_TRUE(db.RegisterSkill(s).ok());
+
+  testing::internal::CaptureStdout();
+  std::string input = "/skill list";
+  handler.Handle(input, sid, active_skills, []() {}, {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  // Check for truncated description in output
+  // We check for chunks that are likely to stay together and not be broken by ANSI or wrapping too much.
+  EXPECT_TRUE(absl::StrContains(output, "This is a very long"));
+  EXPECT_TRUE(absl::StrContains(output, "definitely be..."));
+  EXPECT_FALSE(output.find(long_desc) != std::string::npos);
+}
+
+TEST_F(CommandHandlerTest, SkillListCleansNewlinesAndPipes) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  std::string messy_desc = "Line 1\nLine 2 | Pipe";
+  Database::Skill s{0, "messy_skill", messy_desc, "patch"};
+  ASSERT_TRUE(db.RegisterSkill(s).ok());
+
+  testing::internal::CaptureStdout();
+  std::string input = "/skill list";
+  handler.Handle(input, sid, active_skills, []() {}, {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  // Check for cleaned description
+  EXPECT_TRUE(absl::StrContains(output, "Line 1 Line 2"));
+  EXPECT_TRUE(absl::StrContains(output, "\\| Pipe"));
 }
 
 }  // namespace slop
