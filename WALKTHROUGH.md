@@ -74,7 +74,7 @@ Now let's activate the planner:
 Let's get curious about the weather in Addis Ababa. Switch to a chat session. You might notice that skills are cross-cutting; this is by design.
 
 ```bash
-/session activate chat
+/session switch chat
 ```
 
 **Prompt:**
@@ -85,7 +85,7 @@ What is the weather in Addis Ababa?
 Sessions maintain their own context and are completely isolated. They can also be cleared and used for different purposes. They are free. Once you learn the weather, switch back to the default session:
 
 ```bash
-/session activate default_session
+/session switch default_session
 ```
 
 If you want to branch off your current work to experiment without losing your progress, you can use:

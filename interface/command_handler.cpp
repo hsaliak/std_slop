@@ -407,7 +407,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
  *
  * Supports:
  * - list: Lists all sessions.
- * - activate <id>: Switches the current active session.
+ * - switch <id>: Switches the current active session.
  * - remove <id>: Deletes a session and its history.
  * - clear: Clears history/state for the current session.
  *
@@ -434,7 +434,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         PrintMarkdown(md);
       }
     }
-  } else if (sub_cmd == "activate") {
+  } else if (sub_cmd == "switch") {
     args.session_id = sub_args;
     std::cout << "Session switched to: " << sub_args << std::endl;
     if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
@@ -494,7 +494,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
       std::cout << "Unknown scratchpad operation: " << scratch_op << ". Use read or edit." << std::endl;
     }
   } else {
-    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, activate, remove, clear, clone, scratchpad"
+    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, switch, remove, clear, clone, scratchpad"
               << std::endl;
   }
   return Result::HANDLED;

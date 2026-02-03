@@ -37,7 +37,7 @@ While history is isolated, certain configurations are global or preserved in mem
 ## Mechanics
 
 ### Switching Sessions
-The `/session activate <name>` command updates the internal session pointer. 
+The `/session switch <name>` command updates the internal session pointer. 
 - **Creation**: If the session name does not exist, it will be implicitly created upon the first message sent to the LLM (when the first record is written to the ledger).
 - **What Changes**: The history retrieved for prompt assembly and the session-specific "Global Anchor" state.
 - **What Stays**: Your currently activated skills and any `/throttle` settings. This allows you to quickly pivot to a new "thread" or project without re-configuring your preferred persona or agentic behavior.
@@ -46,7 +46,7 @@ The `/session activate <name>` command updates the internal session pointer.
 Use `/session list` to see all sessions that have stored history.
 
 ### Starting fresh
-To completely clear your context for a new task, simply `/session activate` to a new name (e.g., `/session activate project_part_2`). This is the recommended way to start fresh.
+To completely clear your context for a new task, simply `/session switch` to a new name (e.g., `/session switch project_part_2`). This is the recommended way to start fresh.
 
 Alternatively, you can use `/session clear` to wipe the current session's history while remaining in that session.
 

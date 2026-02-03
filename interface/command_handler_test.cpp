@@ -75,7 +75,7 @@ TEST_F(CommandHandlerTest, ReturnsSubCommands) {
   const auto& subs = it->second;
   EXPECT_FALSE(subs.empty());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "list"), subs.end());
-  EXPECT_NE(std::find(subs.begin(), subs.end(), "activate"), subs.end());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "switch"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "clone"), subs.end());
 }
 

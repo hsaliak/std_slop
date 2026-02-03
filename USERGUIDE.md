@@ -106,7 +106,7 @@ The agent provides powerful search tools designed for large codebases.
 ### Session Management
 - `/exit` or `/quit`: Close the session.
 - `/session list`: List all existing sessions.
-- `/session activate <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
+- `/session switch <name>`: Switch to or create a new session named `<name>`. If the session does not exist, it will be created after the first call to the LLM.
 - `/session remove <name>`: Delete a session and all its associated data (history, usage, state).
 - `/session clear`: Wipe all messages and state for the *current* session, effectively starting fresh while keeping the same session ID.
 - `/session clone <name>`: Clone the current session into a new session named `<name>`. This creates a complete copy of the history, scratchpad, and usage stats.

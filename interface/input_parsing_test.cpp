@@ -35,7 +35,7 @@ TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
   // Many commands just take the rest of the line as args
-  std::string input = "/session activate session[1]";
+  std::string input = "/session switch session[1]";
   auto result = handler.Handle(input, session_id, active_skills, []() {}, {});
 
   EXPECT_EQ(result, CommandHandler::Result::HANDLED);
@@ -47,7 +47,7 @@ TEST_F(InputParsingTest, SingleQuotesInCommandArgs) {
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
   // This tests if the manual SQL construction fails or is vulnerable
-  std::string input = "/session activate session' OR '1'='1";
+  std::string input = "/session switch session' OR '1'='1";
   auto result = handler.Handle(input, session_id, active_skills, []() {}, {});
 
   EXPECT_EQ(result, CommandHandler::Result::HANDLED);

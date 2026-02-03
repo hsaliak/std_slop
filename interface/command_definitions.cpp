@@ -13,10 +13,10 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
 
       // Session & Memory
       {"/session",
-       {"list", "activate", "remove", "clear", "clone", "scratchpad"},
+       {"list", "switch", "remove", "clear", "clone", "scratchpad"},
        {},
        {"/session list          List all unique session names in the DB",
-        "/session activate <name>  Switch to or create a new session named <name>",
+        "/session switch <name>    Switch to or create a new session named <name>",
         "/session remove <name>  Delete a session and all its data",
         "/session clear         Clear all history and state for current session",
         "/session clone <name>     Clone current session to a new session <name>",
