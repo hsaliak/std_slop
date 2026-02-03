@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "core/orchestrator_openai.h"
 
 #include "core/database.h"
@@ -126,10 +127,10 @@ TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
   // Index 3: assistant (tool2 call - suppressed)
   EXPECT_EQ(messages[3]["role"], "assistant");
   EXPECT_FALSE(messages[3].contains("tool_calls"));
-  EXPECT_TRUE(messages[3]["content"].get<std::string>().find("suppressed") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(messages[3]["content"].get<std::string>(), "suppressed"));
   // Index 4: user (tool2 response - suppressed and role changed)
   EXPECT_EQ(messages[4]["role"], "user");
-  EXPECT_TRUE(messages[4]["content"].get<std::string>().find("suppressed") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(messages[4]["content"].get<std::string>(), "suppressed"));
 }
 
 }  // namespace slop

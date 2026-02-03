@@ -57,7 +57,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
   commands_["/memo"] = [this](CommandArgs& args) { return HandleMemo(args); };
-  commands_["/manual-review"] = [this](CommandArgs& args) { return HandleManualReview(args); };
+  commands_["/review"] = [this](CommandArgs& args) { return HandleReview(args); };
 
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
@@ -516,8 +516,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
     }
   }
 
-  auto tools_res =
-      db_->Query("SELECT name, call_count FROM tools WHERE call_count > 0 ORDER BY call_count DESC");
+  auto tools_res = db_->Query("SELECT name, call_count FROM tools WHERE call_count > 0 ORDER BY call_count DESC");
   if (tools_res.ok()) {
     auto j = nlohmann::json::parse(*tools_res, nullptr, false);
     if (!j.is_discarded() && j.is_array() && !j.empty()) {
@@ -822,10 +821,10 @@ absl::StatusOr<std::string> CommandHandler::ExecuteCommand(const std::string& co
   return output;
 }
 
-CommandHandler::Result CommandHandler::HandleManualReview(CommandArgs& args) {
+CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
   auto git_check = ExecuteCommand("git rev-parse --is-inside-work-tree");
   if (!git_check.ok() || !absl::StrContains(*git_check, "true")) {
-    std::cerr << "Error: /manual-review is only available inside a git repository." << std::endl;
+    std::cerr << "Error: /review is only available inside a git repository." << std::endl;
     return Result::HANDLED;
   }
 

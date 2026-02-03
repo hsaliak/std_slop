@@ -15,9 +15,8 @@
 #include "core/shell_util.h"
 namespace slop {
 
-absl::StatusOr<std::string> ToolExecutor::Execute(
-    const std::string& name, const nlohmann::json& args,
-    std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
+                                                  std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Executing tool: " << name
             << " with args: " << args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
   auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
@@ -219,8 +218,8 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, co
   return WriteFile(path, content);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ExecuteBash(
-    const std::string& command, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command,
+                                                      std::shared_ptr<CancellationRequest> cancellation) {
   auto res = RunCommand(command, cancellation);
   if (!res.ok()) return res.status();
   std::string output = res->stdout_out;
@@ -234,9 +233,8 @@ absl::StatusOr<std::string> ToolExecutor::ExecuteBash(
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::Grep(
-    const std::string& pattern, const std::string& path, int context,
-    std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context,
+                                               std::shared_ptr<CancellationRequest> cancellation) {
   std::string cmd = "grep -n";
   if (std::filesystem::is_directory(path)) {
     cmd += "r";
@@ -271,13 +269,13 @@ absl::StatusOr<std::string> ToolExecutor::Grep(
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::SearchCode(
-    const std::string& query, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::SearchCode(const std::string& query,
+                                                     std::shared_ptr<CancellationRequest> cancellation) {
   return Grep(query, ".", 0, cancellation);
 }
 
-absl::StatusOr<std::string> ToolExecutor::GitGrep(
-    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args,
+                                                  std::shared_ptr<CancellationRequest> cancellation) {
   // Check if git is available
   auto git_check = ExecuteBash("git --version", cancellation);
   if (!git_check.ok() || git_check->find("git version") == std::string::npos) {
@@ -411,8 +409,8 @@ absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const std::vector<std::s
   return result.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ListDirectory(
-    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& args,
+                                                        std::shared_ptr<CancellationRequest> cancellation) {
   std::string path = args.contains("path") ? args["path"].get<std::string>() : ".";
   int max_depth = args.contains("depth") ? args["depth"].get<int>() : 1;
   bool git_only = args.contains("git_only") ? args["git_only"].get<bool>() : true;

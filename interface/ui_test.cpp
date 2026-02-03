@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "interface/ui.h"
 
 #include <iostream>
@@ -25,15 +26,15 @@ TEST(UiTest, WrapTextLong) {
   std::string text = "This is a longer string that should be wrapped.";
   std::string wrapped = WrapText(text, 10);
   // Expect it to be wrapped into multiple lines
-  EXPECT_TRUE(wrapped.find("\n") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(wrapped, "\n"));
 }
 
 TEST(UiTest, WrapTextWithPrefix) {
   std::string text = "Line one\nLine two";
   std::string prefix = "> ";
   std::string wrapped = WrapText(text, 80, prefix);
-  EXPECT_TRUE(wrapped.find("> Line one") != std::string::npos);
-  EXPECT_TRUE(wrapped.find("> Line two") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(wrapped, "> Line one"));
+  EXPECT_TRUE(absl::StrContains(wrapped, "> Line two"));
 }
 
 TEST(UiTest, PrintAssistantMessageBasic) {
@@ -46,7 +47,7 @@ TEST(UiTest, PrintAssistantMessageBasic) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "Hello, user!"));
 }
 
 TEST(UiTest, PrintAssistantMessageWithSpecialHeaders) {
@@ -63,20 +64,20 @@ TEST(UiTest, PrintAssistantMessageWithSpecialHeaders) {
   // Verify it contains both headers and the content
   // Since ANSI codes might split the string (e.g., ### [ANSI] THOUGHT),
   // we check for the components.
-  EXPECT_TRUE(output.find("###") != std::string::npos);
-  EXPECT_TRUE(output.find("THOUGHT") != std::string::npos);
-  EXPECT_TRUE(output.find("I am thinking.") != std::string::npos);
-  EXPECT_TRUE(output.find("STATE") != std::string::npos);
-  EXPECT_TRUE(output.find("Goal: test") != std::string::npos);
-  EXPECT_TRUE(output.find("Hello, user!") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "###"));
+  EXPECT_TRUE(absl::StrContains(output, "THOUGHT"));
+  EXPECT_TRUE(absl::StrContains(output, "I am thinking."));
+  EXPECT_TRUE(absl::StrContains(output, "STATE"));
+  EXPECT_TRUE(absl::StrContains(output, "Goal: test"));
+  EXPECT_TRUE(absl::StrContains(output, "Hello, user!"));
 
   // Verify color codes
   // Grey/Thought: \033[90m
-  EXPECT_TRUE(output.find("\033[90m") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "\033[90m"));
   // Yellow/State: \033[33m
-  EXPECT_TRUE(output.find("\033[33m") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "\033[33m"));
   // White/Assistant: \033[37m
-  EXPECT_TRUE(output.find("\033[37m") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "\033[37m"));
 }
 
 TEST(UiTest, PrintAssistantMessageWithPrefix) {
@@ -90,7 +91,7 @@ TEST(UiTest, PrintAssistantMessageWithPrefix) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("Hello world") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "Hello world"));
 }
 
 TEST(UiTest, PrintAssistantMessageWithTokens) {
@@ -103,7 +104,7 @@ TEST(UiTest, PrintAssistantMessageWithTokens) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("123 tokens") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "123 tokens"));
 }
 
 TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
@@ -117,10 +118,10 @@ TEST(UiTest, PrintAssistantMessageWithTokensAndPrefix) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("123 tokens") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "123 tokens"));
   // Check for the prefix and bullet, allowing for ANSI codes
-  EXPECT_TRUE(output.find("      ") != std::string::npos);
-  EXPECT_TRUE(output.find("· 123 tokens") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "      "));
+  EXPECT_TRUE(absl::StrContains(output, "· 123 tokens"));
 }
 
 TEST(UiTest, FlattenJsonArgs) {
@@ -132,7 +133,7 @@ TEST(UiTest, FlattenJsonArgs) {
 
 TEST(UiTest, PrintToolCallMessage) {
   std::string name = "test_tool";
-  std::string args = "{\"query\": \"test\"}";
+  std::string args = R"({"query": "test"})";
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
@@ -141,14 +142,14 @@ TEST(UiTest, PrintToolCallMessage) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("test_tool") != std::string::npos);
-  EXPECT_TRUE(output.find("❯") != std::string::npos);
-  EXPECT_TRUE(output.find("query: \"test\"") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "test_tool"));
+  EXPECT_TRUE(absl::StrContains(output, "❯"));
+  EXPECT_TRUE(absl::StrContains(output, "query: \"test\""));
 }
 
 TEST(UiTest, PrintToolCallMessageWithTokens) {
   std::string name = "test_tool";
-  std::string args = "{\"query\": \"test\"}";
+  std::string args = R"({"query": "test"})";
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
 
@@ -157,8 +158,8 @@ TEST(UiTest, PrintToolCallMessageWithTokens) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("test_tool") != std::string::npos);
-  EXPECT_TRUE(output.find("· 123 tokens") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "test_tool"));
+  EXPECT_TRUE(absl::StrContains(output, "· 123 tokens"));
 }
 
 TEST(UiTest, PrintToolResultMessage) {
@@ -172,8 +173,8 @@ TEST(UiTest, PrintToolResultMessage) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("┗━") != std::string::npos);
-  EXPECT_TRUE(output.find("completed") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "┗━"));
+  EXPECT_TRUE(absl::StrContains(output, "completed"));
 }
 
 TEST(UiTest, PrintToolResultMessageNoPreview) {
@@ -187,10 +188,10 @@ TEST(UiTest, PrintToolResultMessageNoPreview) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("┗━") != std::string::npos);
-  EXPECT_TRUE(output.find("completed (4 lines)") != std::string::npos);
-  EXPECT_TRUE(output.find("line 1") == std::string::npos);
-  EXPECT_TRUE(output.find("...") == std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "┗━"));
+  EXPECT_TRUE(absl::StrContains(output, "completed (4 lines)"));
+  EXPECT_TRUE(!absl::StrContains(output, "line 1"));
+  EXPECT_TRUE(!absl::StrContains(output, "..."));
 }
 
 TEST(UiTest, PrintToolResultMessageStderr) {
@@ -204,8 +205,8 @@ TEST(UiTest, PrintToolResultMessageStderr) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("stdout line 1") == std::string::npos);
-  EXPECT_TRUE(output.find("[stderr: 2 lines omitted]") != std::string::npos);
+  EXPECT_TRUE(!absl::StrContains(output, "stdout line 1"));
+  EXPECT_TRUE(absl::StrContains(output, "[stderr: 2 lines omitted]"));
 }
 
 TEST(UiTest, PrintToolResultMessageHTTPError) {
@@ -219,8 +220,8 @@ TEST(UiTest, PrintToolResultMessageHTTPError) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("HTTP 429 Too Many Requests") != std::string::npos);
-  EXPECT_TRUE(output.find("Rate limit exceeded") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "HTTP 429 Too Many Requests"));
+  EXPECT_TRUE(absl::StrContains(output, "Rate limit exceeded"));
 }
 
 TEST(UiTest, PrintToolResultMessageResourceExhausted) {
@@ -234,7 +235,7 @@ TEST(UiTest, PrintToolResultMessageResourceExhausted) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("RESOURCE_EXHAUSTED") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "RESOURCE_EXHAUSTED"));
 }
 
 TEST(UiTest, PrintToolResultMessage503Error) {
@@ -248,7 +249,7 @@ TEST(UiTest, PrintToolResultMessage503Error) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("503 Service Unavailable") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "503 Service Unavailable"));
 }
 
 TEST(UiTest, PrintToolResultMessageQuotaError) {
@@ -268,8 +269,8 @@ TEST(UiTest, PrintToolResultMessageQuotaError) {
   std::cout.rdbuf(old);
   std::string output = buffer.str();
 
-  EXPECT_TRUE(output.find("exhausted your capacity") != std::string::npos);
-  EXPECT_TRUE(output.find("RESOURCE_EXHAUSTED") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "exhausted your capacity"));
+  EXPECT_TRUE(absl::StrContains(output, "RESOURCE_EXHAUSTED"));
 }
 
 }  // namespace slop

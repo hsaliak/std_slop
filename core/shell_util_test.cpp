@@ -55,7 +55,7 @@ TEST(ShellUtilTest, RunCommandInvalidCommand) {
 
 TEST(ShellUtilTest, RunCommandCancellation) {
   auto cancellation = std::make_shared<CancellationRequest>();
-  
+
   // Start a long-running command in a separate thread
   std::atomic<bool> thread_finished{false};
   absl::StatusOr<CommandResult> res;
@@ -66,7 +66,7 @@ TEST(ShellUtilTest, RunCommandCancellation) {
 
   // Give it a moment to start
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  
+
   cancellation->Cancel();
   t.join();
 

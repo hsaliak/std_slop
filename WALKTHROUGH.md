@@ -159,7 +159,7 @@ Before committing your changes, it's good practice to review them.
 3.  **Approve**: If the suggestions look good, tell the agent: "Apply these changes."
 
 **Using Manual Review:**
-1.  **Command**: `/manual-review`
+1.  **Command**: `/review`
 2.  **Edit**: In the editor that opens, find lines you want to change.
 3.  **Comment**: Add a line starting with `R: ` above or near the change (e.g., `R: Use a more descriptive name here`).
 4.  **Process**: Save and exit. The agent will read your `R:` comments and the diff to implement the fixes.

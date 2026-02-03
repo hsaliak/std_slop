@@ -4,8 +4,8 @@
 
 #include <gtest/gtest.h>
 
-namespace slop {
-namespace markdown {
+
+namespace slop::markdown {
 
 TEST(MarkdownRendererTest, BasicRendering) {
   MarkdownParser parser;
@@ -115,8 +115,8 @@ TEST(MarkdownRendererTest, TableRendering) {
   EXPECT_NE(rendered.find("┌"), std::string::npos);
   EXPECT_NE(rendered.find("┤"), std::string::npos);
   EXPECT_NE(rendered.find("└"), std::string::npos);
-  EXPECT_NE(rendered.find("A"), std::string::npos);
-  EXPECT_NE(rendered.find("1"), std::string::npos);
+  EXPECT_NE(rendered.find('A'), std::string::npos);
+  EXPECT_NE(rendered.find('1'), std::string::npos);
 }
 
 TEST(MarkdownRendererTest, LongTableWrapping) {
@@ -183,5 +183,5 @@ TEST(MarkdownRendererTest, TableWrappingEdgeCases) {
   EXPECT_NE(rendered3.find("Bold"), std::string::npos);
 }
 
-}  // namespace markdown
-}  // namespace slop
+} // namespace slop::markdown
+

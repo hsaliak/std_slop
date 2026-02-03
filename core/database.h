@@ -5,13 +5,12 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 
 #include <sqlite3.h>
-
-#include "absl/base/thread_annotations.h"
-#include "absl/synchronization/mutex.h"
 
 namespace slop {
 

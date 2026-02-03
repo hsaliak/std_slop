@@ -67,3 +67,23 @@ clang_tidy_test(
         ":std_slop",
     ],
 )
+
+sh_binary(
+    name = "fix",
+    testonly = True,
+    srcs = ["scripts/fix.sh"],
+    data = [
+        "scripts/clang_tidy_fix.sh",
+        ":format",
+        ":clang_tidy_test",
+    ],
+)
+
+sh_binary(
+    name = "clang_tidy_fix",
+    testonly = True,
+    srcs = ["scripts/clang_tidy_fix.sh"],
+    data = [
+        ":clang_tidy_test",
+    ],
+)

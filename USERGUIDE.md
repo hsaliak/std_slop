@@ -222,9 +222,9 @@ This flow uses the LLM's knowledge of industry standards (like the Google C++ St
 - **Execution**: The agent will run `git diff` (including new files) and provide an annotated summary of required changes.
 - **Safety**: The `code_reviewer` persona is instructed **not** to implement changes without explicit user approval after the review is presented.
 
-#### 2. Manual Review (via `/manual-review` command)
+#### 2. Manual Review (via `/review` command)
 This flow allows the human user to provide precise, line-by-line or general instructions on the current changeset.
-- **Trigger**: Run the `/manual-review` command.
+- **Trigger**: Run the `/review` command.
 - **Editor**: Your system `$EDITOR` (e.g., `vim`, `nano`) will open with a diff of all pending changes (including intent-to-add for new files).
 - **Providing Feedback**: Add your comments directly into the editor on new lines starting with `R:`. For example:
   ```text

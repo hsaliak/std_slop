@@ -22,9 +22,8 @@
 
 namespace slop {
 
-absl::StatusOr<CommandResult> RunCommand(
-    const std::string& command,
-    std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<CommandResult> RunCommand(const std::string& command,
+                                         std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Running command: " << command;
   std::array<int, 2> stdout_pipe;
   std::array<int, 2> stderr_pipe;
@@ -82,8 +81,8 @@ absl::StatusOr<CommandResult> RunCommand(
 
   auto cleanup_child = [&](int sig) {
     LOG(INFO) << "Cleaning up child process " << pid << " with signal " << sig;
-    kill(-pid, sig); // Kill process group
-    
+    kill(-pid, sig);  // Kill process group
+
     // Give it a moment to shut down
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     int status;
@@ -102,7 +101,7 @@ absl::StatusOr<CommandResult> RunCommand(
       return absl::CancelledError("Command cancelled");
     }
 
-    int ret = poll(fds.data(), fds.size(), 50); // Shorter timeout for faster cancellation check
+    int ret = poll(fds.data(), fds.size(), 50);  // Shorter timeout for faster cancellation check
     if (ret == -1) {
       if (errno == EINTR) continue;
       break;

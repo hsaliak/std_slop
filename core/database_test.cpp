@@ -353,8 +353,7 @@ TEST(DatabaseTest, ToolUsageCounters) {
 
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());
-  auto it =
-      std::find_if(tools->begin(), tools->end(), [](const auto& t) { return t.name == "test_tool"; });
+  auto it = std::find_if(tools->begin(), tools->end(), [](const auto& t) { return t.name == "test_tool"; });
   ASSERT_NE(it, tools->end());
   EXPECT_EQ(it->call_count, 0);
 

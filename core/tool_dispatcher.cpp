@@ -25,8 +25,8 @@ ToolDispatcher::~ToolDispatcher() {
   }
 }
 
-std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(
-    const std::vector<Call>& calls, std::shared_ptr<CancellationRequest> cancellation) {
+std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(const std::vector<Call>& calls,
+                                                             std::shared_ptr<CancellationRequest> cancellation) {
   if (calls.empty()) return {};
 
   struct SharedState {
@@ -60,15 +60,13 @@ std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(
     };
 
     absl::MutexLock lock(&mu_);
-    tasks_.push(std::move(task));
+    tasks_.emplace(std::move(task));
   }
 
   // Wait for all tasks to complete
   {
     absl::MutexLock lock(&state->mu);
-    auto all_done = [state]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(state->mu) {
-      return state->remaining == 0;
-    };
+    auto all_done = [state]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(state->mu) { return state->remaining == 0; };
     state->mu.Await(absl::Condition(&all_done));
   }
 
@@ -81,9 +79,7 @@ void ToolDispatcher::WorkerLoop() {
     std::function<void()> task;
     {
       absl::MutexLock lock(&mu_);
-      auto condition = [this]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-        return stop_ || !tasks_.empty();
-      };
+      auto condition = [this]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return stop_ || !tasks_.empty(); };
       mu_.Await(absl::Condition(&condition));
 
       if (stop_ && tasks_.empty()) return;

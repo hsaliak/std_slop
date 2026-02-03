@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "core/orchestrator.h"
 
 #include "absl/strings/match.h"
@@ -49,8 +50,8 @@ TEST_F(OrchestratorTest, MemoInjection) {
 
   // 4. Verify system instruction contains the memo
   std::string instr = (*result)["system_instruction"]["parts"][0]["text"];
-  EXPECT_TRUE(instr.find("## Relevant Memos") != std::string::npos);
-  EXPECT_TRUE(instr.find("SQLite is awesome") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(instr, "## Relevant Memos"));
+  EXPECT_TRUE(absl::StrContains(instr, "SQLite is awesome"));
 }
 
 TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
@@ -68,8 +69,7 @@ TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
 
   nlohmann::json prompt = *result;
   ASSERT_TRUE(prompt.contains("system_instruction"));
-  EXPECT_TRUE(prompt["system_instruction"]["parts"][0]["text"].get<std::string>().find("SYSTEM_PATCH") !=
-              std::string::npos);
+  EXPECT_TRUE(absl::StrContains(prompt["system_instruction"]["parts"][0]["text"].get<std::string>(), "SYSTEM_PATCH"));
 }
 
 TEST_F(OrchestratorTest, AssemblePromptWithMultipleSkills) {
@@ -88,8 +88,8 @@ TEST_F(OrchestratorTest, AssemblePromptWithMultipleSkills) {
   ASSERT_TRUE(result.ok());
 
   std::string instr = (*result)["system_instruction"]["parts"][0]["text"];
-  EXPECT_TRUE(instr.find("PATCH1") != std::string::npos);
-  EXPECT_TRUE(instr.find("PATCH2") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(instr, "PATCH1"));
+  EXPECT_TRUE(absl::StrContains(instr, "PATCH2"));
 }
 
 TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
@@ -130,7 +130,7 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
     for (const auto& part : content["parts"]) {
       if (part.contains("functionResponse")) {
         std::string tool_content = part["functionResponse"]["response"]["content"];
-        if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
+        if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
           // Verify it's truncated to ~ts.inactive_limit
           EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);
           found_g1 = true;
@@ -177,7 +177,7 @@ TEST_F(OrchestratorTest, TruncateActiveToolResults) {
     for (const auto& part : content["parts"]) {
       if (part.contains("functionResponse")) {
         std::string tool_content = part["functionResponse"]["response"]["content"];
-        if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
+        if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
           // Should be truncated to active_degraded_limit
           EXPECT_GT(tool_content.size(), ts.active_degraded_limit - 100);
           EXPECT_LT(tool_content.size(), ts.active_degraded_limit + 200);
@@ -241,7 +241,7 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
   for (const auto& msg : prompt["messages"]) {
     if (msg["role"] == "tool") {
       std::string tool_content = msg["content"];
-      if (tool_content.find("TRUNCATED. Use query_db") != std::string::npos) {
+      if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
         // Verify it's truncated to ~ts.inactive_limit
         EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);
         found_g1 = true;
@@ -299,8 +299,8 @@ TEST_F(OrchestratorTest, SafeJsonDump) {
   j["invalid"] = std::string("abc\xFF", 4) + "def";  // 0xFF is invalid UTF-8
 
   std::string dumped = j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-  EXPECT_TRUE(dumped.find("abc") != std::string::npos);
-  EXPECT_TRUE(dumped.find("def") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(dumped, "abc"));
+  EXPECT_TRUE(absl::StrContains(dumped, "def"));
   // The invalid byte should be replaced by the Unicode replacement character \uFFFD
   // In a JSON string, this might be escaped or raw depending on how dump handles it.
 }
@@ -403,7 +403,7 @@ TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
   EXPECT_EQ(prompt["messages"][0]["role"], "system");
   // Second message is the user prompt
   EXPECT_EQ(prompt["messages"][1]["role"], "user");
-  EXPECT_TRUE(prompt["messages"][1]["content"].get<std::string>().find("Hello") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(prompt["messages"][1]["content"].get<std::string>(), "Hello"));
 }
 
 TEST_F(OrchestratorTest, ProcessOpenAIResponse) {

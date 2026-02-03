@@ -12,8 +12,9 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "core/cancellation.h"
 #include "nlohmann/json.hpp"
+
+#include "core/cancellation.h"
 
 namespace slop {
 
@@ -34,9 +35,8 @@ class ToolDispatcher {
     absl::StatusOr<std::string> output;
   };
 
-  using ToolFunc = std::function<absl::StatusOr<std::string>(
-      const std::string& name, const nlohmann::json& args, 
-      std::shared_ptr<CancellationRequest> cancellation)>;
+  using ToolFunc = std::function<absl::StatusOr<std::string>(const std::string& name, const nlohmann::json& args,
+                                                             std::shared_ptr<CancellationRequest> cancellation)>;
 
   /**
    * @param executor_func The function to call to execute a tool. Must be thread-safe.
@@ -51,8 +51,7 @@ class ToolDispatcher {
    * @param calls The list of tool calls to execute.
    * @param cancellation The cancellation request to monitor.
    */
-  std::vector<Result> Dispatch(const std::vector<Call>& calls, 
-                               std::shared_ptr<CancellationRequest> cancellation);
+  std::vector<Result> Dispatch(const std::vector<Call>& calls, std::shared_ptr<CancellationRequest> cancellation);
 
  private:
   void WorkerLoop();

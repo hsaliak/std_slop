@@ -26,11 +26,11 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
+#include "core/cancellation.h"
 #include "core/constants.h"
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/oauth_handler.h"
-#include "core/cancellation.h"
 #include "core/orchestrator.h"
 #include "core/shell_util.h"
 #include "core/tool_dispatcher.h"
@@ -439,8 +439,7 @@ int main(int argc, char** argv) {
                 if (slop::IsEscPressed()) {
                   cancellation->Cancel();
                   std::cerr << "\n"
-                            << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m")
-                            << std::endl;
+                            << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m") << std::endl;
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
               }
@@ -450,9 +449,8 @@ int main(int argc, char** argv) {
                 std::string result =
                     res.output.ok() ? *res.output : absl::StrCat("Error: ", res.output.status().message());
                 slop::PrintToolResultMessage(res.name, result, res.output.ok() ? "completed" : "error", "  ");
-                (void)db.AppendMessage(session_id, "tool", result, res.id,
-                                       res.output.ok() ? "completed" : "error", group_id,
-                                       msg.parsing_strategy);
+                (void)db.AppendMessage(session_id, "tool", result, res.id, res.output.ok() ? "completed" : "error",
+                                       group_id, msg.parsing_strategy);
               }
             }
             has_tool_calls = true;

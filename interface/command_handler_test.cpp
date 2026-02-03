@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "interface/command_handler.h"
 
 #include "absl/strings/match.h"
@@ -376,7 +377,7 @@ TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
 
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(handler.editor_was_called);
-  EXPECT_TRUE(handler.last_initial_content.find("ORIGINAL PATCH") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(handler.last_initial_content, "ORIGINAL PATCH"));
 
   // Verify update
   auto skills = db.GetSkills();
@@ -426,7 +427,7 @@ TEST_F(CommandHandlerTest, MemoEditUsingEditor) {
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   auto m = db.GetMemo(id);
   EXPECT_EQ(m->content, "new content");
-  EXPECT_TRUE(m->semantic_tags.find("tag2") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(m->semantic_tags, "tag2"));
 }
 
 TEST_F(CommandHandlerTest, MemoEditEmptyDeletes) {
@@ -462,11 +463,11 @@ TEST_F(CommandHandlerTest, EditCommandUsingEditor) {
   EXPECT_EQ(input, "New input from editor");
 }
 
-TEST_F(CommandHandlerTest, ManualReviewFailsOutsideGit) {
+TEST_F(CommandHandlerTest, ReviewFailsOutsideGit) {
   TestableCommandHandler handler(&db);
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "fatal: not a git repository";
 
-  std::string input = "/manual-review";
+  std::string input = "/review";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
@@ -475,7 +476,7 @@ TEST_F(CommandHandlerTest, ManualReviewFailsOutsideGit) {
   EXPECT_FALSE(handler.editor_was_called);
 }
 
-TEST_F(CommandHandlerTest, ManualReviewHandlesChanges) {
+TEST_F(CommandHandlerTest, ReviewHandlesChanges) {
   TestableCommandHandler handler(&db);
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git ls-files --others --exclude-standard"] = "new_file.cpp";
@@ -484,7 +485,7 @@ TEST_F(CommandHandlerTest, ManualReviewHandlesChanges) {
 
   handler.next_editor_output = "diff --git a/old.cpp b/old.cpp\n+new line\nR: This looks good";
 
-  std::string input = "/manual-review";
+  std::string input = "/review";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
@@ -501,7 +502,7 @@ TEST_F(CommandHandlerTest, ManualReviewHandlesChanges) {
   EXPECT_TRUE(found_add);
 }
 
-TEST_F(CommandHandlerTest, ManualReviewRequiresPrefixAtStartOfLine) {
+TEST_F(CommandHandlerTest, ReviewRequiresPrefixAtStartOfLine) {
   TestableCommandHandler handler(&db);
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git diff"] = "some diff";
@@ -509,7 +510,7 @@ TEST_F(CommandHandlerTest, ManualReviewRequiresPrefixAtStartOfLine) {
   // R: in the middle of a line should not trigger
   handler.next_editor_output = "This line has R: but not at start";
 
-  std::string input = "/manual-review";
+  std::string input = "/review";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});

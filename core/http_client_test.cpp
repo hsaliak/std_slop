@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "core/http_client.h"
 
 #include <cstdlib>
@@ -30,7 +31,7 @@ TEST(HttpClientTest, HttpsSupport) {
   auto res = client.Get("https://www.google.com", {});
   // If protocol is unsupported, it will return an InternalError with "Unsupported protocol"
   if (!res.ok()) {
-    EXPECT_FALSE(res.status().message().find("Unsupported protocol") != std::string::npos)
+    EXPECT_FALSE(absl::StrContains(res.status().message(), "Unsupported protocol"))
         << "HTTPS protocol is not supported in the current libcurl build: " << res.status().message();
   }
 }

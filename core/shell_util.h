@@ -5,6 +5,7 @@
 #include <string>
 
 #include "absl/status/statusor.h"
+
 #include "core/cancellation.h"
 
 namespace slop {
@@ -17,9 +18,8 @@ struct CommandResult {
 
 // Runs a shell command and returns the output and exit code.
 // If cancellation is requested, the process and its children are killed.
-absl::StatusOr<CommandResult> RunCommand(
-    const std::string& command,
-    std::shared_ptr<CancellationRequest> cancellation = nullptr);
+absl::StatusOr<CommandResult> RunCommand(const std::string& command,
+                                         std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
 // Escapes a string for use as a shell argument.
 std::string EscapeShellArg(const std::string& arg);

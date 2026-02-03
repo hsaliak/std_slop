@@ -427,8 +427,7 @@ std::string FlattenJsonArgs(const std::string& json_str) {
   return absl::StrJoin(parts, " | ");
 }
 
-void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix,
-                          int tokens) {
+void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix, int tokens) {
   absl::MutexLock lock(&g_ui_mu);
   std::string display_args = FlattenJsonArgs(args);
 

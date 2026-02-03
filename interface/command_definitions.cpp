@@ -45,10 +45,10 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
         "/context window <N>    Set context to a rolling window of last N groups (0 for full)",
         "/context rebuild       Rebuild session state from conversation history"},
        "Context & History"},
-      {"/manual-review",
+      {"/review",
        {},
        {},
-       {"/manual-review         Review session changes (git only). Add comments with 'R:' to instruct the LLM."},
+       {"/review                Review session changes (git only). Add comments with 'R:' to instruct the LLM."},
        "Context & History"},
 
       // Model & Configuration

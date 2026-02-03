@@ -11,15 +11,15 @@
 
 #include "interface/color.h"
 
-namespace slop {
-namespace markdown {
+
+namespace slop::markdown {
 
 namespace {
 std::string_view GetNodeText(TSNode node, std::string_view source) {
   uint32_t start = ts_node_start_byte(node);
   uint32_t end = ts_node_end_byte(node);
   if (start >= source.length()) return "";
-  uint32_t len = std::min(end - start, (uint32_t)(source.length() - start));
+  uint32_t len = std::min(end - start, static_cast<uint32_t>(source.length() - start));
   return source.substr(start, len);
 }
 
@@ -158,7 +158,7 @@ std::string Align(std::string text, size_t width, MarkdownRenderer::TableColumn:
   size_t extra = width - dw;
   if (align == MarkdownRenderer::TableColumn::LEFT) {
     return text + std::string(extra, ' ');
-  } else if (align == MarkdownRenderer::TableColumn::RIGHT) {
+  } if (align == MarkdownRenderer::TableColumn::RIGHT) {
     return std::string(extra, ' ') + text;
   } else {  // CENTER
     size_t left = extra / 2;
@@ -392,5 +392,5 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
   output.append(ansi::Reset);
 }
 
-}  // namespace markdown
-}  // namespace slop
+} // namespace slop::markdown
+
