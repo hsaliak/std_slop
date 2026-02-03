@@ -7,7 +7,6 @@ const TSLanguage* tree_sitter_markdown(void);
 const TSLanguage* tree_sitter_markdown_inline(void);
 }
 
-
 namespace slop::markdown {
 
 ParsedMarkdown::ParsedMarkdown(std::string source, TSTree* tree)
@@ -112,5 +111,4 @@ absl::StatusOr<std::unique_ptr<ParsedMarkdown>> MarkdownParser::Parse(std::strin
   return parsed;
 }
 
-} // namespace slop::markdown
-
+}  // namespace slop::markdown

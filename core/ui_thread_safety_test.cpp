@@ -16,7 +16,7 @@ TEST(UIThreadSafetyTest, ConcurrentPrinting) {
 
   std::vector<std::thread> threads;
   threads.reserve(10);
-for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 10; ++i) {
     threads.emplace_back([i]() {
       for (int j = 0; j < 50; ++j) {
         PrintToolCallMessage("tool_" + std::to_string(i), "{\"arg\":" + std::to_string(j) + "}", "  ", 0);

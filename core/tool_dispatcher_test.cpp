@@ -88,7 +88,7 @@ TEST(ToolDispatcherTest, StressTest) {
   for (int i = 0; i < 100; ++i) {
     std::vector<ToolDispatcher::Call> calls;
     calls.reserve(10);
-for (int j = 0; j < 10; ++j) {
+    for (int j = 0; j < 10; ++j) {
       calls.push_back({std::to_string(j), "tool", {}});
     }
     auto results = dispatcher.Dispatch(calls, nullptr);

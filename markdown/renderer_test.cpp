@@ -4,7 +4,6 @@
 
 #include <gtest/gtest.h>
 
-
 namespace slop::markdown {
 
 TEST(MarkdownRendererTest, BasicRendering) {
@@ -183,5 +182,4 @@ TEST(MarkdownRendererTest, TableWrappingEdgeCases) {
   EXPECT_NE(rendered3.find("Bold"), std::string::npos);
 }
 
-} // namespace slop::markdown
-
+}  // namespace slop::markdown

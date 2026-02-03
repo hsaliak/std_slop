@@ -2,7 +2,6 @@
 
 #include <gtest/gtest.h>
 
-
 namespace slop::markdown {
 
 TEST(MarkdownParserTest, BasicParse) {
@@ -36,5 +35,4 @@ TEST(MarkdownParserTest, EmptyInput) {
   EXPECT_EQ(parsed->source(), "");
 }
 
-} // namespace slop::markdown
-
+}  // namespace slop::markdown
