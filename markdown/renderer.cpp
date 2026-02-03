@@ -161,10 +161,9 @@ std::string Align(std::string text, size_t width, MarkdownRenderer::TableColumn:
   if (align == MarkdownRenderer::TableColumn::RIGHT) {
     return std::string(extra, ' ') + text;
   }  // CENTER
-    size_t left = extra / 2;
-    size_t right = extra - left;
-    return std::string(left, ' ') + text + std::string(right, ' ');
- 
+  size_t left = extra / 2;
+  size_t right = extra - left;
+  return std::string(left, ' ') + text + std::string(right, ' ');
 }
 
 std::vector<std::string> WrapCell(const std::string& text, size_t width) {

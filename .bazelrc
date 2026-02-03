@@ -70,3 +70,7 @@ build --per_file_copt="external/.*@-Wno-uninitialized"
 build:gcc --per_file_copt="external/.*@-Wno-maybe-uninitialized"
 
 build --test_output=errors
+
+# Avoid discarding analysis cache when switching between lint/fix and build
+# by ensuring the lint:fix flag is always present.
+build --@aspect_rules_lint//lint:fix=false
