@@ -176,8 +176,7 @@ absl::Status Database::Init(const std::string& db_path) {
 
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
-        name TEXT,
-        context_size INTEGER DEFAULT 2,
+        context_size INTEGER DEFAULT 5,
         scratchpad TEXT,
         active_skills TEXT
     );
@@ -639,7 +638,8 @@ absl::StatusOr<std::vector<std::string>> Database::GetActiveSkills(const std::st
 }
 
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
-  return Execute("INSERT OR REPLACE INTO sessions (id, context_size) VALUES (?, ?);", session_id, size);
+  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
+  return Execute("UPDATE sessions SET context_size = ? WHERE id = ?;", size, session_id);
 }
 
 absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
@@ -651,7 +651,7 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
 
-  ContextSettings settings = {2};  // Default
+  ContextSettings settings = {5};  // Default
   if (*row_or) {
     settings.size = stmt->ColumnInt(0);
   }
@@ -733,8 +733,8 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
   };
 
   absl::Status status = Execute(
-      "INSERT INTO sessions (id, name, context_size, scratchpad, active_skills) "
-      "SELECT ?, name, context_size, scratchpad, active_skills FROM sessions "
+      "INSERT INTO sessions (id, context_size, scratchpad, active_skills) "
+      "SELECT ?, context_size, scratchpad, active_skills FROM sessions "
       "WHERE id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);

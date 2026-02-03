@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS skills (
 
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
-    context_size INTEGER DEFAULT 2,
+    context_size INTEGER DEFAULT 5,
     scratchpad TEXT,
     active_skills TEXT
 );

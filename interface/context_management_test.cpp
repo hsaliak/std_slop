@@ -14,7 +14,7 @@ class ContextManagementTest : public ::testing::Test {
   void SetUp() override {
     ASSERT_TRUE(db_.Init(":memory:").ok());
     // Create a dummy session for scratchpad tests
-    ASSERT_TRUE(db_.Query("INSERT INTO sessions (id, name) VALUES ('test-session', 'Test Session')").ok());
+    ASSERT_TRUE(db_.Query("INSERT INTO sessions (id) VALUES ('test-session')").ok());
   }
 
   Database db_;
