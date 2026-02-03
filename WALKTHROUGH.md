@@ -82,7 +82,8 @@ Let's get curious about the weather in Addis Ababa. Switch to a chat session. Yo
 What is the weather in Addis Ababa?
 ```
 
-Sessions maintain their own context and are completely isolated. They can also be cleared and used for different purposes. They are free. Once you learn the weather, switch back to the default session:
+Sessions maintain their own context and are completely isolated. They can also be cleared and used for different purposes. You can also clone an existing session, essentially "forking it". 
+They are free. Once you learn the weather, switch back to the default session:
 
 ```bash
 /session switch default_session
