@@ -158,11 +158,11 @@ Before committing your changes, it's good practice to review them.
 2.  **Request Review**: "Please review my current changes against Google C++ style."
 3.  **Approve**: If the suggestions look good, tell the agent: "Apply these changes."
 
-**Using Manual Review:**
-1.  **Command**: `/review`
-2.  **Edit**: In the editor that opens, find lines you want to change.
-3.  **Comment**: Add a line starting with `R: ` above or near the change (e.g., `R: Use a more descriptive name here`).
-4.  **Process**: Save and exit. The agent will read your `R:` comments and the diff to implement the fixes.
+**Manual Review & Feedback:**
+-   **`/review`**: Open the current git diff in an editor. Add lines starting with `R: ` to give instructions on specific code changes.
+-   **`/feedback`**: Open the last assistant message in an editor with line numbers. Add lines starting with `R: ` to provide feedback on the assistant's response or reasoning.
+
+In both cases, saving and exiting the editor will send your `R:` comments back to the LLM for immediate processing.
 
 ### Troubleshooting with Logs
 If you encounter issues (e.g., API errors, tool failures), you can enable verbose logging or sink logs to a file:

@@ -233,6 +233,13 @@ This flow allows the human user to provide precise, line-by-line or general inst
   ```
 - **Processing**: When you save and exit the editor, `std::slop` sends your `R:` comments along with the diff back to the LLM. The agent will then attempt to address each of your specific points.
 
+#### 3. Assistant Feedback (via `/feedback` command)
+Similar to `/review`, this allows you to provide line-by-line feedback on the **last assistant message**. This is useful for correcting reasoning errors or providing specific feedback on generated text/code without waiting for a commit.
+- **Trigger**: Run the `/feedback` command.
+- **Editor**: Opens the last assistant response with line numbers.
+- **Providing Feedback**: Add your comments on new lines starting with `R:`.
+- **Processing**: If comments are found, they are sent back to the LLM to address in its next turn. If no `R:` comments are added, the command is ignored.
+
 ## Troubleshooting & Debugging
 
 ### HTTP Logging

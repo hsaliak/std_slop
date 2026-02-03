@@ -50,6 +50,11 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
        {},
        {"/review                Review session changes (git only). Add comments with 'R:' to instruct the LLM."},
        "Context & History"},
+      {"/feedback",
+       {},
+       {},
+       {"/feedback              Give line-by-line feedback on the last assistant message. Add comments with 'R:'."},
+       "Context & History"},
 
       // Model & Configuration
       {"/model", {}, {}, {"/model <name>          Change active model"}, "Model & Configuration"},

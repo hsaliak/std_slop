@@ -522,4 +522,58 @@ TEST_F(CommandHandlerTest, ReviewRequiresPrefixAtStartOfLine) {
   EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
 }
 
+TEST_F(CommandHandlerTest, FeedbackFailsWithNoHistory) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  std::string input = "/feedback";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_FALSE(handler.editor_was_called);
+}
+
+TEST_F(CommandHandlerTest, FeedbackFailsWithNoAssistantMessage) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "hello").ok());
+  std::vector<std::string> active_skills;
+  std::string input = "/feedback";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_FALSE(handler.editor_was_called);
+}
+
+TEST_F(CommandHandlerTest, FeedbackHandlesAssistantMessage) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "hello").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "I am an assistant", "", "completed", "", "openai").ok());
+
+  std::vector<std::string> active_skills;
+  std::string input = "/feedback";
+
+  handler.next_editor_output = "1: I am an assistant\nR: Great job";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+  EXPECT_TRUE(handler.editor_was_called);
+  EXPECT_TRUE(absl::StrContains(input, "R: Great job"));
+  EXPECT_TRUE(absl::StrContains(handler.last_initial_content, "1: I am an assistant"));
+}
+
+TEST_F(CommandHandlerTest, FeedbackNoCommentsDoesNothing) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "I am an assistant", "", "completed", "", "openai").ok());
+
+  std::vector<std::string> active_skills;
+  std::string input = "/feedback";
+
+  handler.next_editor_output = "1: I am an assistant\nNo comments here";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(handler.editor_was_called);
+}
+
 }  // namespace slop

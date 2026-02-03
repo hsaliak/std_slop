@@ -77,6 +77,7 @@ class CommandHandler {
   Result HandleThrottle(CommandArgs& args);
   Result HandleMemo(CommandArgs& args);
   Result HandleReview(CommandArgs& args);
+  Result HandleFeedback(CommandArgs& args);
 
   Database* db_;
   class Orchestrator* orchestrator_;

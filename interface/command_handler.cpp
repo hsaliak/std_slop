@@ -19,6 +19,7 @@
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 
+#include "core/message_parser.h"
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
 #include "core/shell_util.h"
@@ -58,6 +59,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
   commands_["/memo"] = [this](CommandArgs& args) { return HandleMemo(args); };
   commands_["/review"] = [this](CommandArgs& args) { return HandleReview(args); };
+  commands_["/feedback"] = [this](CommandArgs& args) { return HandleFeedback(args); };
 
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
@@ -887,6 +889,76 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
   args.input = "The user has reviewed the current changes. Here is the diff with their 'R:' comments:\n\n" + edited +
                "\n\nPlease address the instructions marked with 'R:' in the diff above. Do not commit any changes "
                "after addressing.";
+
+  return Result::PROCEED_TO_LLM;
+}
+
+CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
+  auto history_or = db_->GetConversationHistory(args.session_id);
+  if (!history_or.ok() || history_or->empty()) {
+    std::cout << "No conversation history found." << std::endl;
+    return Result::HANDLED;
+  }
+  const auto& history = *history_or;
+
+  std::optional<Database::Message> last_assistant;
+  for (auto it = history.rbegin(); it != history.rend(); ++it) {
+    if (it->role == "assistant") {
+      last_assistant = *it;
+      break;
+    }
+  }
+
+  if (!last_assistant) {
+    std::cout << "No assistant message found to provide feedback on." << std::endl;
+    return Result::HANDLED;
+  }
+
+  std::string assistant_text = MessageParser::ExtractAssistantText(*last_assistant);
+  if (assistant_text.empty()) {
+    std::cout << "The last assistant message has no text content to provide feedback on." << std::endl;
+    return Result::HANDLED;
+  }
+
+  std::vector<std::string> lines = absl::StrSplit(assistant_text, '\n');
+  std::string initial_content =
+      "# --- ASSISTANT MESSAGE FEEDBACK ---\n"
+      "# Add your feedback comments on new lines starting with 'R:'\n"
+      "# Example:\n"
+      "# 10: void some_function() {\n"
+      "# R: This function name is too vague.\n"
+      "#\n"
+      "# Save and exit to send feedback to the LLM.\n"
+      "# ----------------------------------\n\n";
+
+  for (size_t i = 0; i < lines.size(); ++i) {
+    absl::StrAppend(&initial_content, i + 1, ": ", lines[i], "\n");
+  }
+
+  std::string edited = TriggerEditor(initial_content);
+  if (edited.empty() || edited == initial_content) {
+    return Result::HANDLED;
+  }
+
+  // Check if any R: comments were added
+  bool has_comments = false;
+  std::vector<std::string> edited_lines = absl::StrSplit(edited, '\n');
+  for (const auto& line : edited_lines) {
+    std::string_view trimmed = absl::StripLeadingAsciiWhitespace(line);
+    if (absl::StartsWith(trimmed, "R:")) {
+      has_comments = true;
+      break;
+    }
+  }
+
+  if (!has_comments) {
+    std::cout << "No 'R:' comments found. Ignoring feedback." << std::endl;
+    return Result::HANDLED;
+  }
+
+  args.input =
+      "The user has provided feedback on your last message. Here is the message with their 'R:' comments:\n\n" +
+      edited + "\n\nPlease address the feedback marked with 'R:' in the message above.";
 
   return Result::PROCEED_TO_LLM;
 }
