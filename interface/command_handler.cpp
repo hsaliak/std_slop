@@ -310,7 +310,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
           bool active = std::find(args.active_skills.begin(), args.active_skills.end(), row.value("name", "")) !=
                         args.active_skills.end();
           md += absl::Substitute("| $0 | **$1** | $2 | $3 | $4 |\n", row.value("id", 0), row.value("name", ""),
-                                 description, row.value("activation_count", 0), active ? "🟢 ACTIVE" : "⚪ inactive");
+                                 description, row.value("activation_count", 0), active ? "✓" : "");
         }
         PrintMarkdown(md);
       }
@@ -435,7 +435,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         for (const auto& row : j) {
           std::string sid = row.value("session_id", row.value("id", ""));
           bool active = (sid == args.session_id);
-          md += absl::Substitute("| $0 | $1 |\n", active ? "🟢" : "⚪", sid);
+          md += absl::Substitute("| $0 | $1 |\n", active ? "✓" : "", sid);
         }
         PrintMarkdown(md);
       }
