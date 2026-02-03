@@ -35,6 +35,7 @@ mkdir my-project && cd my-project
 git init
 std_slop
 ```
+Read the [User Guide](USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](WALKTHROUGH.md) to start with something simple.
 
 ### ⚙️ Configuration
 Set your API keys:
@@ -44,6 +45,8 @@ export GEMINI_API_KEY="your-key"
 export OPENAI_API_KEY="your-key"
 export OPENAI_API_BASE="https://openrouter.ai/api/v1"
 ```
+
+You can also use Google OAuth login.
 
 #### Optional Environment Variables:
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
