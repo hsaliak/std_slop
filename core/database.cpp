@@ -338,6 +338,9 @@ absl::Status Database::Execute(const std::string& sql, const std::vector<std::st
 absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
                                      const std::string& tool_call_id, const std::string& status,
                                      const std::string& group_id, const std::string& parsing_strategy, int tokens) {
+  // Ensure session exists
+  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
+
   std::string sql =
       "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy, tokens) "
       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -495,6 +498,9 @@ absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_
 
 absl::Status Database::RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
                                    int completion_tokens) {
+  // Ensure session exists
+  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
+
   return Execute(
       "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?);",
       session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens);
@@ -609,6 +615,9 @@ absl::Status Database::IncrementToolCallCount(const std::string& name) {
 }
 
 absl::Status Database::SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills) {
+  // Ensure session exists
+  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
+
   nlohmann::json j = skills;
   return Execute("UPDATE sessions SET active_skills = ? WHERE id = ?;", j.dump(), session_id);
 }
@@ -650,6 +659,9 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
 }
 
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
+  // Ensure session exists
+  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
+
   return Execute("INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?);", session_id,
                  state_blob);
 }
