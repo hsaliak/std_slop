@@ -24,7 +24,8 @@ class TestableCommandHandler : public CommandHandler {
   std::vector<std::string> executed_commands;
 
  protected:
-  std::string TriggerEditor(const std::string& initial_content) override {
+  std::string TriggerEditor(const std::string& initial_content,
+                            const std::string& extension [[maybe_unused]]) override {
     editor_was_called = true;
     last_initial_content = initial_content;
     return next_editor_output;

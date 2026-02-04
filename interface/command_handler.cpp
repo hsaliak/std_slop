@@ -114,7 +114,7 @@ CommandHandler::Result CommandHandler::HandleHelp(CommandArgs& args) {
 CommandHandler::Result CommandHandler::HandleExit([[maybe_unused]] CommandArgs& args) { return Result::HANDLED; }
 
 CommandHandler::Result CommandHandler::HandleEdit(CommandArgs& args) {
-  std::string edited = TriggerEditor("");
+  std::string edited = TriggerEditor("", ".txt");
   if (edited.empty()) return Result::HANDLED;
   args.input = edited;
   return Result::PROCEED_TO_LLM;
@@ -369,7 +369,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
                               skill_data["activation_count"].get<int>()};
 
         std::string initial_md = SkillToMarkdown(skill);
-        std::string edited_md = TriggerEditor(initial_md);
+        std::string edited_md = TriggerEditor(initial_md, ".md");
 
         if (absl::StripAsciiWhitespace(edited_md).empty()) {
           std::cout << "Empty content. Deleting skill..." << std::endl;
@@ -397,7 +397,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
     std::cout << "Skill deleted." << std::endl;
   } else if (sub_cmd == "add") {
     std::string template_md = absl::Substitute("# Name: $0\n# Description: \n\n# System Prompt Patch\n", sub_args);
-    std::string edited_md = TriggerEditor(template_md);
+    std::string edited_md = TriggerEditor(template_md, ".md");
     if (!absl::StripAsciiWhitespace(edited_md).empty()) {
       Database::Skill s = MarkdownToSkill(edited_md, 0);
       auto status = db_->RegisterSkill(s);
@@ -489,7 +489,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     } else if (scratch_op == "edit") {
       auto current = db_->GetScratchpad(args.session_id);
       std::string initial = current.ok() ? *current : "";
-      std::string updated = TriggerEditor(initial);
+      std::string updated = TriggerEditor(initial, ".md");
       if (!updated.empty()) {
         HandleStatus(db_->UpdateScratchpad(args.session_id, updated));
         std::cout << "Scratchpad updated." << std::endl;
@@ -731,7 +731,7 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
     auto memo_or = db_->GetMemo(id);
     if (memo_or.ok()) {
       std::string initial_md = MemoToMarkdown(*memo_or);
-      std::string edited_md = TriggerEditor(initial_md);
+      std::string edited_md = TriggerEditor(initial_md, ".md");
 
       if (absl::StripAsciiWhitespace(edited_md).empty()) {
         std::cout << "Empty content. Deleting memo..." << std::endl;
@@ -766,7 +766,7 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
     if (parts.size() < 2) {
       // Allow adding via editor if no args
       std::string template_md = "# Tags: new-tag\n\nMemo content here";
-      std::string edited_md = TriggerEditor(template_md);
+      std::string edited_md = TriggerEditor(template_md, ".md");
       if (!absl::StripAsciiWhitespace(edited_md).empty()) {
         Database::Memo m = MarkdownToMemo(edited_md, 0);
         auto status = db_->AddMemo(m.content, m.semantic_tags);
@@ -825,8 +825,9 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
   return Result::HANDLED;
 }
 
-std::string CommandHandler::TriggerEditor(const std::string& initial_content) {
-  return slop::OpenInEditor(initial_content);
+std::string CommandHandler::TriggerEditor(const std::string& initial_content,
+                                            const std::string& extension) {
+  return slop::OpenInEditor(initial_content, extension);
 }
 
 absl::StatusOr<std::string> CommandHandler::ExecuteCommand(const std::string& command) {
@@ -885,7 +886,7 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       "# ----------------------\n\n" +
       *diff_or;
 
-  std::string edited = TriggerEditor(initial_content);
+  std::string edited = TriggerEditor(initial_content, ".diff");
   if (edited.empty() || edited == initial_content) {
     return Result::HANDLED;
   }
@@ -955,7 +956,7 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
     absl::StrAppend(&initial_content, i + 1, ": ", lines[i], "\n");
   }
 
-  std::string edited = TriggerEditor(initial_content);
+  std::string edited = TriggerEditor(initial_content, ".txt");
   if (edited.empty() || edited == initial_content) {
     return Result::HANDLED;
   }

@@ -93,7 +93,7 @@ class CommandHandler {
                           std::string openai_api_key = "");
 
   // Testing hook for dependency injection. Overridden in tests to mock editor input.
-  virtual std::string TriggerEditor(const std::string& initial_content);
+  virtual std::string TriggerEditor(const std::string& initial_content, const std::string& extension);
 
   // Testing hook for shell commands.
   virtual absl::StatusOr<std::string> ExecuteCommand(const std::string& command);
