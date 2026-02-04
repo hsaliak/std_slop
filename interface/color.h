@@ -69,6 +69,20 @@ inline constexpr const char* HorizontalRule = "\033[90m";  // Grey
 inline constexpr const char* TableBorder = "\033[90m";     // Grey
 inline constexpr const char* TableHeader = "\033[1;36m";   // Bold Cyan
 }  // namespace markdown
+
+namespace syntax {
+inline constexpr const char* Keyword = "\033[35m";   // Magenta
+inline constexpr const char* Function = "\033[34m";  // Blue
+inline constexpr const char* Type = "\033[33m";      // Yellow
+inline constexpr const char* String = "\033[32m";    // Green
+inline constexpr const char* Comment = "\033[90m";   // Grey
+inline constexpr const char* Number = "\033[31m";    // Red
+inline constexpr const char* Operator = "\033[36m";  // Cyan
+inline constexpr const char* Preproc = "\033[36m";   // Cyan
+inline constexpr const char* Constant = "\033[31m";  // Red
+inline constexpr const char* Variable = "\033[37m";  // White
+inline constexpr const char* Label = "\033[33m";     // Yellow
+}  // namespace syntax
 }  // namespace theme
 }  // namespace ansi
 

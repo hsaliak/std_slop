@@ -6,6 +6,26 @@
 
 namespace slop::markdown {
 
+namespace {
+std::string StripAnsi(std::string_view s) {
+  std::string result;
+  result.reserve(s.size());
+  bool in_escape = false;
+  for (char i : s) {
+    if (i == '\033') {
+      in_escape = true;
+    } else if (in_escape) {
+      if ((i >= 'A' && i <= 'Z') || (i >= 'a' && i <= 'z')) {
+        in_escape = false;
+      }
+    } else {
+      result.push_back(i);
+    }
+  }
+  return result;
+}
+}  // namespace
+
 TEST(MarkdownRendererTest, BasicRendering) {
   MarkdownParser parser;
   auto p_res = parser.Parse("# Title\n");
@@ -39,7 +59,7 @@ TEST(MarkdownRendererTest, CodeBlock) {
   std::string rendered = renderer.Render(*p_res.value());
 
   EXPECT_NE(rendered.find(ansi::theme::markdown::CodeBlock), std::string::npos);
-  EXPECT_NE(rendered.find("int main()"), std::string::npos);
+  EXPECT_NE(StripAnsi(rendered).find("int main()"), std::string::npos);
 }
 
 TEST(MarkdownRendererTest, LinkRendering) {
@@ -100,7 +120,7 @@ TEST(MarkdownRendererTest, MultiLanguageInjections) {
   EXPECT_NE(rendered.find(ansi::theme::markdown::Header), std::string::npos);
   EXPECT_NE(rendered.find(ansi::theme::markdown::Bold), std::string::npos);
   EXPECT_NE(rendered.find(ansi::theme::markdown::CodeBlock), std::string::npos);
-  EXPECT_NE(rendered.find("int x = 0;"), std::string::npos);
+  EXPECT_NE(StripAnsi(rendered).find("int x = 0;"), std::string::npos);
 }
 
 TEST(MarkdownRendererTest, TableRendering) {
@@ -180,6 +200,25 @@ TEST(MarkdownRendererTest, TableWrappingEdgeCases) {
   // The injection should have happened, so we expect Bold escape codes
   EXPECT_NE(rendered3.find(ansi::theme::markdown::Bold), std::string::npos);
   EXPECT_NE(rendered3.find("Bold"), std::string::npos);
+}
+
+TEST(MarkdownRendererTest, PythonHighlighting) {
+  MarkdownParser parser;
+  auto p_res = parser.Parse("```python\ndef foo():\n    return 42\n```\n");
+  if (!p_res.ok()) {
+    FAIL() << "Parse failed: " << p_res.status().message();
+  }
+
+  MarkdownRenderer renderer;
+  std::string rendered = renderer.Render(*p_res.value());
+
+  // Check for some keywords and styles
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Keyword), std::string::npos);
+  EXPECT_NE(rendered.find("def"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Function), std::string::npos);
+  EXPECT_NE(rendered.find("foo"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Number), std::string::npos);
+  EXPECT_NE(rendered.find("42"), std::string::npos);
 }
 
 }  // namespace slop::markdown

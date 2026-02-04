@@ -40,6 +40,80 @@ Style GetNodeStyle(std::string_view type) {
   if (type == "list_marker" || type.find("list_marker_") == 0) return {ListMarker, ansi::Reset};
   if (type == "block_quote_marker") return {Quote, ansi::Reset};
   if (type == "thematic_break") return {HorizontalRule, ansi::Reset};
+
+  // Syntax highlighting
+  using namespace ansi::theme::syntax;
+  struct SyntaxMap {
+    std::string_view type;
+    Style style;
+  };
+  static constexpr SyntaxMap kSyntaxStyles[] = {
+      {"comment", {Comment, ansi::Reset}},
+      {"string", {String, ansi::Reset}},
+      {"string_literal", {String, ansi::Reset}},
+      {"raw_string_literal", {String, ansi::Reset}},
+      {"interpreted_string_literal", {String, ansi::Reset}},
+      {"keyword", {Keyword, ansi::Reset}},
+      {"storage_class", {Keyword, ansi::Reset}},
+      {"conditional", {Keyword, ansi::Reset}},
+      {"repeat", {Keyword, ansi::Reset}},
+      {"include", {Keyword, ansi::Reset}},
+      {"def", {Keyword, ansi::Reset}},
+      {"return", {Keyword, ansi::Reset}},
+      {"if", {Keyword, ansi::Reset}},
+      {"else", {Keyword, ansi::Reset}},
+      {"elif", {Keyword, ansi::Reset}},
+      {"for", {Keyword, ansi::Reset}},
+      {"while", {Keyword, ansi::Reset}},
+      {"try", {Keyword, ansi::Reset}},
+      {"except", {Keyword, ansi::Reset}},
+      {"finally", {Keyword, ansi::Reset}},
+      {"with", {Keyword, ansi::Reset}},
+      {"class", {Keyword, ansi::Reset}},
+      {"import", {Keyword, ansi::Reset}},
+      {"from", {Keyword, ansi::Reset}},
+      {"as", {Keyword, ansi::Reset}},
+      {"lambda", {Keyword, ansi::Reset}},
+      {"pass", {Keyword, ansi::Reset}},
+      {"break", {Keyword, ansi::Reset}},
+      {"continue", {Keyword, ansi::Reset}},
+      {"yield", {Keyword, ansi::Reset}},
+      {"func", {Keyword, ansi::Reset}},
+      {"package", {Keyword, ansi::Reset}},
+      {"var", {Keyword, ansi::Reset}},
+      {"const", {Keyword, ansi::Reset}},
+      {"let", {Keyword, ansi::Reset}},
+      {"function", {Keyword, ansi::Reset}},
+      {"type_identifier", {Type, ansi::Reset}},
+      {"primitive_type", {Type, ansi::Reset}},
+      {"type", {Type, ansi::Reset}},
+      {"predefined_type", {Type, ansi::Reset}},
+      {"number", {Number, ansi::Reset}},
+      {"integer", {Number, ansi::Reset}},
+      {"float", {Number, ansi::Reset}},
+      {"number_literal", {Number, ansi::Reset}},
+      {"function", {Function, ansi::Reset}},
+      {"function_definition", {Function, ansi::Reset}},
+      {"method_definition", {Function, ansi::Reset}},
+      {"operator", {Operator, ansi::Reset}},
+      {"punctuation", {Operator, ansi::Reset}},
+      {"delimiter", {Operator, ansi::Reset}},
+      {"constant", {Constant, ansi::Reset}},
+      {"boolean", {Constant, ansi::Reset}},
+      {"null", {Constant, ansi::Reset}},
+      {"variable", {Variable, ansi::Reset}},
+      {"identifier", {Variable, ansi::Reset}},
+      {"parameter", {Variable, ansi::Reset}},
+      {"property", {Variable, ansi::Reset}},
+      {"label", {Label, ansi::Reset}},
+      {"preproc", {Preproc, ansi::Reset}},
+      {"macro", {Preproc, ansi::Reset}},
+  };
+
+  for (const auto& entry : kSyntaxStyles) {
+    if (entry.type == type) return entry.style;
+  }
+
   return {"", ""};
 }
 }  // namespace

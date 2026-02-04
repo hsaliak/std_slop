@@ -1,13 +1,37 @@
 #include "markdown/parser.h"
 
 #include <iostream>
+#include <optional>
 
 extern "C" {
 const TSLanguage* tree_sitter_markdown(void);
 const TSLanguage* tree_sitter_markdown_inline(void);
+const TSLanguage* tree_sitter_python(void);
+const TSLanguage* tree_sitter_cpp(void);
+const TSLanguage* tree_sitter_go(void);
+const TSLanguage* tree_sitter_javascript(void);
 }
 
 namespace slop::markdown {
+
+namespace {
+std::optional<const TSLanguage*> GetLanguageForName(std::string_view name) {
+  struct LangMap {
+    std::string_view name;
+    const TSLanguage* (*func)();
+  };
+  static constexpr LangMap kLanguages[] = {
+      {"python", tree_sitter_python}, {"py", tree_sitter_python}, {"javascript", tree_sitter_javascript},
+      {"js", tree_sitter_javascript}, {"cpp", tree_sitter_cpp},   {"c++", tree_sitter_cpp},
+      {"c", tree_sitter_cpp},         {"go", tree_sitter_go},
+  };
+
+  for (const auto& entry : kLanguages) {
+    if (entry.name == name) return entry.func();
+  }
+  return std::nullopt;
+}
+}  // namespace
 
 ParsedMarkdown::ParsedMarkdown(std::string source, TSTree* tree)
     : source_(std::move(source)), tree_(tree, ts_tree_delete) {}
@@ -59,7 +83,7 @@ class InjectionFinder {
 
   void HandleCodeBlock(TSNode node) {
     uint32_t count = ts_node_child_count(node);
-    std::string lang = "text";
+    std::string lang_name = "text";
     TSNode content_node = {};
 
     for (uint32_t i = 0; i < count; ++i) {
@@ -68,15 +92,34 @@ class InjectionFinder {
       if (child_type == "info_string") {
         uint32_t s = ts_node_start_byte(child);
         uint32_t e = ts_node_end_byte(child);
-        lang = parsed_->source().substr(s, e - s);
+        lang_name = parsed_->source().substr(s, e - s);
+        // Clean up lang_name (e.g. "python { .some-class }" -> "python")
+        size_t space = lang_name.find_first_of(" \t\r\n{");
+        if (space != std::string::npos) {
+          lang_name = lang_name.substr(0, space);
+        }
       } else if (child_type == "code_fence_content") {
         content_node = child;
       }
     }
 
     if (!ts_node_is_null(content_node)) {
-      parsed_->AddInjection(
-          {std::move(lang), {ts_node_start_byte(content_node), ts_node_end_byte(content_node)}, nullptr});
+      uint32_t start = ts_node_start_byte(content_node);
+      uint32_t end = ts_node_end_byte(content_node);
+      std::shared_ptr<TSTree> tree = nullptr;
+
+      std::optional<const TSLanguage*> lang = GetLanguageForName(lang_name);
+      if (lang) {
+        TSParser* p = ts_parser_new();
+        ts_parser_set_language(p, *lang);
+        TSTree* t = ts_parser_parse_string(p, nullptr, parsed_->source().c_str() + start, end - start);
+        if (t) {
+          tree = std::shared_ptr<TSTree>(t, ts_tree_delete);
+        }
+        ts_parser_delete(p);
+      }
+
+      parsed_->AddInjection({std::move(lang_name), {start, end}, std::move(tree)});
     }
   }
 

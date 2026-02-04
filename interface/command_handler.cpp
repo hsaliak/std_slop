@@ -825,8 +825,7 @@ CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
   return Result::HANDLED;
 }
 
-std::string CommandHandler::TriggerEditor(const std::string& initial_content,
-                                            const std::string& extension) {
+std::string CommandHandler::TriggerEditor(const std::string& initial_content, const std::string& extension) {
   return slop::OpenInEditor(initial_content, extension);
 }
 
