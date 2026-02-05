@@ -15,6 +15,7 @@ cc_binary(
         "//core:shell_lib",
         "//interface",
         "//interface:color",
+        "//interface:interaction_engine",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",

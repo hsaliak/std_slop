@@ -34,6 +34,7 @@ cc_library(
     deps = [
         ":color",
         ":completer",
+        ":command_definitions",
         "//core",
         "//markdown:parser",
         "//markdown:renderer",
@@ -48,14 +49,19 @@ cc_library(
 )
 
 cc_library(
+    name = "command_definitions",
+    srcs = ["command_definitions.cpp"],
+    hdrs = ["command_definitions.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "interface",
     srcs = [
         "command_handler.cpp",
-        "command_definitions.cpp",
     ],
     hdrs = [
         "command_handler.h",
-        "command_definitions.h",
     ],
     visibility = ["//visibility:public"],
     defines = ["HAVE_READLINE"],
@@ -63,6 +69,7 @@ cc_library(
         ":color",
         ":completer",
         ":ui",
+        ":command_definitions",
         "//markdown:parser",
         "//markdown:renderer",
         "//core",
@@ -70,6 +77,23 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "interaction_engine",
+    srcs = ["interaction_engine.cpp"],
+    hdrs = ["interaction_engine.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":interface",
+        ":ui",
+        "//core",
+        "//core:dispatcher",
+        "//core:shell_lib",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 

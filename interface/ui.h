@@ -71,6 +71,9 @@ void PrintToolResultMessage(const std::string& name, const std::string& result, 
  */
 void PrintMessage(const Database::Message& msg, const std::string& prefix = "");
 
+std::string GetHelpText();
+void ShowHelp();
+
 }  // namespace slop
 
 #endif  // SLOP_SQL_UI_H_

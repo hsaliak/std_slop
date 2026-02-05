@@ -25,6 +25,7 @@
 
 #include "core/message_parser.h"
 #include "interface/color.h"
+#include "interface/command_definitions.h"
 #include "interface/completer.h"
 #include "markdown/parser.h"
 #include "markdown/renderer.h"
@@ -552,5 +553,62 @@ void HandleStatus(const absl::Status& status, const std::string& context) {
     LOG(WARNING) << log_msg;
   }
 }
+
+std::string GetHelpText() {
+  std::string help =
+      "# std::slop - The SQL-backed LLM CLI\n\n"
+      "## Usage\n"
+      "```bash\n"
+      "std_slop [options]\n"
+      "```\n\n"
+      "## Options\n"
+      "Use `--helpfull` to see all available command-line flags.\n\n"
+      "## Slash Commands\n\n";
+
+  std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;
+  std::vector<std::string> categories;
+
+  for (const auto& def : slop::GetCommandDefinitions()) {
+    if (std::find(categories.begin(), categories.end(), def.category) == categories.end()) {
+      categories.push_back(def.category);
+    }
+    for (const auto& line : def.help_lines) {
+      if (line.empty()) continue;
+      if (line[0] == '/') {
+        size_t sep = line.find("  ");
+        if (sep != std::string::npos) {
+          category_rows[def.category].emplace_back(line.substr(0, sep),
+                                                   std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep))));
+        } else {
+          category_rows[def.category].emplace_back(line, "");
+        }
+      } else {
+        std::string name_part = def.name;
+        for (const auto& alias : def.aliases) {
+          name_part += ", " + alias;
+        }
+        category_rows[def.category].emplace_back(name_part, line);
+      }
+    }
+  }
+
+  for (const auto& cat : categories) {
+    help += "### " + cat + "\n\n";
+    help += "| Command | Description |\n";
+    help += "| :--- | :--- |\n";
+
+    for (const auto& row : category_rows[cat]) {
+      // Escape pipes in markdown
+      std::string cmd = absl::StrReplaceAll(row.first, {{"|", "\\|"}});
+      std::string desc = absl::StrReplaceAll(row.second, {{"|", "\\|"}});
+      help += absl::Substitute("| `$0` | $1 |\n", cmd, desc);
+    }
+    help += "\n";
+  }
+
+  return help;
+}
+
+void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
 
 }  // namespace slop
