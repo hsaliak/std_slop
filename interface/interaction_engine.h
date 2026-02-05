@@ -25,9 +25,8 @@ class InteractionEngine {
     bool google_oauth = false;
   };
 
-  InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler,
-                    ToolDispatcher& dispatcher, ToolExecutor& tool_executor, HttpClient& http_client,
-                    std::shared_ptr<OAuthHandler> oauth_handler);
+  InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler, ToolDispatcher& dispatcher,
+                    ToolExecutor& tool_executor, HttpClient& http_client, std::shared_ptr<OAuthHandler> oauth_handler);
 
   // Processes a single user input. Returns true if the interaction loop should continue (standard mode),
   // or false if it should terminate (e.g. exit command).

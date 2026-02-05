@@ -8,6 +8,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
+
 #include "core/cancellation.h"
 #include "core/constants.h"
 #include "core/shell_util.h"
@@ -16,9 +17,8 @@
 
 namespace slop {
 
-InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator,
-                                     CommandHandler& cmd_handler, ToolDispatcher& dispatcher,
-                                     ToolExecutor& tool_executor, HttpClient& http_client,
+InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler,
+                                     ToolDispatcher& dispatcher, ToolExecutor& tool_executor, HttpClient& http_client,
                                      std::shared_ptr<OAuthHandler> oauth_handler)
     : db_(db),
       orchestrator_(orchestrator),
@@ -28,8 +28,8 @@ InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator,
       http_client_(http_client),
       oauth_handler_(oauth_handler) {}
 
-bool InteractionEngine::Process(std::string& input, std::string& session_id,
-                                 std::vector<std::string>& active_skills, const Config& config) {
+bool InteractionEngine::Process(std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
+                                const Config& config) {
   if (input.empty()) return true;
 
   if (input == "/exit" || input == "/quit") return false;
@@ -39,12 +39,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id,
     if (echo.length() > 60) {
       echo = echo.substr(0, 57) + "...";
     }
-    std::cout << " " << slop::Colorize(" > " + echo + " ", ansi::EchoBg, ansi::EchoFg) << "\n"
-              << std::endl;
+    std::cout << " " << slop::Colorize(" > " + echo + " ", ansi::EchoBg, ansi::EchoFg) << "\n" << std::endl;
   }
 
-  auto res = cmd_handler_.Handle(input, session_id, active_skills, []() { ShowHelp(); },
-                                 orchestrator_.GetLastSelectedGroups());
+  auto res = cmd_handler_.Handle(
+      input, session_id, active_skills, []() { ShowHelp(); }, orchestrator_.GetLastSelectedGroups());
   if (res == CommandHandler::Result::HANDLED || res == CommandHandler::Result::UNKNOWN) {
     return true;
   }
@@ -67,8 +66,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id,
 
     if (orchestrator_.GetProvider() == slop::Orchestrator::Provider::OPENAI) {
       headers.push_back("Authorization: Bearer " + config.openai_api_key);
-      url = (!config.openai_base_url.empty() ? config.openai_base_url : slop::kOpenAIBaseUrl) +
-            "/chat/completions";
+      url = (!config.openai_base_url.empty() ? config.openai_base_url : slop::kOpenAIBaseUrl) + "/chat/completions";
     } else if (config.google_oauth && oauth_handler_) {
       auto token_or = oauth_handler_->GetValidToken();
       if (token_or.ok()) headers.push_back("Authorization: Bearer " + *token_or);
@@ -79,8 +77,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id,
                          ":generateContent?key=", config.google_api_key);
     }
 
-    auto resp_or = http_client_.Post(
-        url, prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
+    auto resp_or =
+        http_client_.Post(url, prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
     if (!resp_or.ok()) {
       if (resp_or.status().code() == absl::StatusCode::kInvalidArgument) {
         LOG(WARNING) << "HTTP 400 error detected. Attempting to auto-fix history...";
@@ -96,8 +94,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id,
             }
           }
           if (dropped) {
-            (void)db_.AppendMessage(session_id, "user",
-                                   "History auto-fixed by dropping problematic tool calls.");
+            (void)db_.AppendMessage(session_id, "user", "History auto-fixed by dropping problematic tool calls.");
             continue;
           }
         }
@@ -157,8 +154,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id,
             if (slop::IsEscPressed()) {
               cancellation->Cancel();
               std::cerr << "\n"
-                        << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m")
-                        << std::endl;
+                        << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m") << std::endl;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
           }
@@ -168,9 +164,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id,
             std::string result_content =
                 res.output.ok() ? *res.output : absl::StrCat("Error: ", res.output.status().message());
             slop::PrintToolResultMessage(res.name, result_content, res.output.ok() ? "completed" : "error", "  ");
-            (void)db_.AppendMessage(session_id, "tool", result_content, res.id,
-                                   res.output.ok() ? "completed" : "error", group_id,
-                                   msg.parsing_strategy);
+            (void)db_.AppendMessage(session_id, "tool", result_content, res.id, res.output.ok() ? "completed" : "error",
+                                    group_id, msg.parsing_strategy);
           }
           has_tool_calls = true;
         }
