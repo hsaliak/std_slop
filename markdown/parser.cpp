@@ -10,6 +10,8 @@ const TSLanguage* tree_sitter_python(void);
 const TSLanguage* tree_sitter_cpp(void);
 const TSLanguage* tree_sitter_go(void);
 const TSLanguage* tree_sitter_javascript(void);
+const TSLanguage* tree_sitter_bash(void);
+const TSLanguage* tree_sitter_rust(void);
 }
 
 namespace slop::markdown {
@@ -23,7 +25,8 @@ std::optional<const TSLanguage*> GetLanguageForName(std::string_view name) {
   static constexpr LangMap kLanguages[] = {
       {"python", tree_sitter_python}, {"py", tree_sitter_python}, {"javascript", tree_sitter_javascript},
       {"js", tree_sitter_javascript}, {"cpp", tree_sitter_cpp},   {"c++", tree_sitter_cpp},
-      {"c", tree_sitter_cpp},         {"go", tree_sitter_go},
+      {"c", tree_sitter_cpp},         {"go", tree_sitter_go},     {"bash", tree_sitter_bash},
+      {"sh", tree_sitter_bash},       {"rust", tree_sitter_rust}, {"rs", tree_sitter_rust},
   };
 
   for (const auto& entry : kLanguages) {

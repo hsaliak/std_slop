@@ -20,6 +20,8 @@ cc_library(
         "@tree-sitter-python//:tree-sitter-python",
         "@tree-sitter-cpp//:tree-sitter-cpp",
         "@tree-sitter-go//:tree-sitter-go",
+        "@tree-sitter-bash//:tree-sitter-bash",
+        "@tree-sitter-rust//:tree-sitter-rust",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
     ],

@@ -67,3 +67,19 @@ http_archive(
     strip_prefix = "tree-sitter-go-0.21.0",
     urls = ["https://github.com/tree-sitter/tree-sitter-go/archive/refs/tags/v0.21.0.tar.gz"],
 )
+
+http_archive(
+    name = "tree-sitter-rust",
+    build_file = "//third_party:tree-sitter-rust.BUILD",
+    sha256 = "65065e6ad5164ff36066d774cb7a2bb41be7f06482e23ac1d464a3881fb2a975",
+    strip_prefix = "tree-sitter-rust-0.21.2",
+    urls = ["https://github.com/tree-sitter/tree-sitter-rust/archive/refs/tags/v0.21.2.tar.gz"],
+)
+
+http_archive(
+    name = "tree-sitter-bash",
+    build_file = "//third_party:tree-sitter-bash.BUILD",
+    sha256 = "f0515efda839cfede851adb24ac154227fbc0dfb60c6c11595ecfa9087d43ceb",
+    strip_prefix = "tree-sitter-bash-0.21.0",
+    urls = ["https://github.com/tree-sitter/tree-sitter-bash/archive/refs/tags/v0.21.0.tar.gz"],
+)

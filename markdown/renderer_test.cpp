@@ -221,4 +221,35 @@ TEST(MarkdownRendererTest, PythonHighlighting) {
   EXPECT_NE(rendered.find("42"), std::string::npos);
 }
 
+TEST(MarkdownRendererTest, BashHighlighting) {
+  MarkdownParser parser;
+  auto p_res = parser.Parse("```bash\necho \"Hello World\"\n```\n");
+  ASSERT_TRUE(p_res.ok());
+
+  MarkdownRenderer renderer;
+  std::string rendered = renderer.Render(*p_res.value());
+
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Function), std::string::npos);
+  EXPECT_NE(rendered.find("echo"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::String), std::string::npos);
+  EXPECT_NE(rendered.find("Hello World"), std::string::npos);
+}
+
+TEST(MarkdownRendererTest, RustHighlighting) {
+  MarkdownParser parser;
+  auto p_res = parser.Parse("```rust\nfn main() {\n    let x: u32 = 10;\n}\n```\n");
+  ASSERT_TRUE(p_res.ok());
+
+  MarkdownRenderer renderer;
+  std::string rendered = renderer.Render(*p_res.value());
+
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Keyword), std::string::npos);
+  EXPECT_NE(rendered.find("fn"), std::string::npos);
+  EXPECT_NE(rendered.find("let"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Type), std::string::npos);
+  EXPECT_NE(rendered.find("u32"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Number), std::string::npos);
+  EXPECT_NE(rendered.find("10"), std::string::npos);
+}
+
 }  // namespace slop::markdown
