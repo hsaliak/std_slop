@@ -56,7 +56,8 @@ bazel run //:std_slop -- [session_name]
 If no session name is provided, it defaults to `default_session`.
 
 ### Batch Mode (Prompt Mode)
-For quick tasks or automation, you can run a single prompt in "Batch Mode" using the `--prompt` flag. In this mode, `std::slop` will process the prompt, execute any necessary tools, display the final response, and then exit immediately.
+For quick tasks or automation, you can run a single prompt in "Batch Mode" using the `--prompt` flag. In this mode, `std::slop` will process the prompt, execute any necessary tools, display the final response, and then exit immediately. This mode also supports `--session` to pick the session to work under, and `--model` to select the model from one of the models available at the endpoint.
+`/commands` are supported as well.
 
 ```bash
 bazel run //:std_slop -- --prompt "Summarize the files in the current directory"

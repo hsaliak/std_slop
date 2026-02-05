@@ -38,8 +38,12 @@ std_slop
 
 For quick one-off tasks, you can use **Batch Mode**:
 ```bash
-std_slop --prompt "Refactor main.cpp to remove all unused includes"
+std_slop --prompt "Refactor main.cpp to remove all unused includes" 
 ```
+Batch mode also takes in `--model` which is useful to specify the model to use and `--session` which is useful to indicate the session the prompt should be executed under.
+`/commands` are also supported. 
+
+This is a good way to make `std::slop` act as a sub agent.
 
 Read the [User Guide](USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](WALKTHROUGH.md) to start with something simple.
 
