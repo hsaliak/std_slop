@@ -25,6 +25,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+
 #include "core/cancellation.h"
 #include "core/constants.h"
 #include "core/database.h"
@@ -71,6 +72,45 @@ class FileLogSink : public absl::LogSink {
   std::mutex mu_;
   std::ofstream file_;
 };
+
+std::vector<std::string> GetActiveSkills(slop::Database& db, const std::string& session_id) {
+  auto active_skills_or = db.GetActiveSkills(session_id);
+  if (active_skills_or.ok()) {
+    return *active_skills_or;
+  }
+  return {};
+}
+
+void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slop::Orchestrator& orchestrator,
+                        slop::ToolExecutor& tool_executor, std::string& session_id,
+                        const slop::InteractionEngine::Config& engine_config) {
+  slop::SetupTerminal();
+  slop::ShowBanner();
+  std::cout << slop::Colorize("std::slop", "", ansi::Logo) << " - Session: " << session_id << " ("
+            << orchestrator.GetModel() << ")" << std::endl;
+  std::cout << "Type /help for slash commands." << std::endl;
+
+  (void)slop::DisplayHistory(db, session_id, 20);
+  (void)orchestrator.RebuildContext(session_id);
+
+  while (true) {
+    std::vector<std::string> active_skills = GetActiveSkills(db, session_id);
+
+    auto settings_or = db.GetContextSettings(session_id);
+    int window_size = settings_or.ok() ? settings_or->size : 0;
+    std::string model_name = orchestrator.GetModel();
+    std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
+    std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
+    std::string modeline = absl::StrCat("std::slop<W:", window_str, ", M:", model_name, ", P:", persona,
+                                        ", S:", session_id, ", T:", orchestrator.GetThrottle(), "s>");
+
+    std::string input = slop::ReadLine(modeline);
+    tool_executor.SetSessionId(session_id);
+    if (!engine.Process(input, session_id, active_skills, engine_config)) {
+      break;
+    }
+  }
+}
 
 }  // namespace
 
@@ -190,7 +230,8 @@ int main(int argc, char* argv[]) {
       },
       absl::GetFlag(FLAGS_max_parallel_tools));
 
-  auto cmd_handler_or = slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
+  auto cmd_handler_or =
+      slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
   if (!cmd_handler_or.ok()) {
     std::cerr << "Failed to initialize command handler: " << cmd_handler_or.status().message() << std::endl;
     return 1;
@@ -204,11 +245,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Using default session: " << session_id << std::endl;
   }
 
-  std::vector<std::string> active_skills;
-  auto active_skills_or = db.GetActiveSkills(session_id);
-  if (active_skills_or.ok()) {
-    active_skills = *active_skills_or;
-  }
+  std::vector<std::string> active_skills = GetActiveSkills(db, session_id);
 
   slop::InteractionEngine engine(db, *orchestrator, cmd_handler, dispatcher, *tool_executor, http_client,
                                  oauth_handler);
@@ -223,35 +260,7 @@ int main(int argc, char* argv[]) {
     engine_config.is_batch_mode = true;
     engine.Process(batch_prompt, session_id, active_skills, engine_config);
   } else {
-    slop::SetupTerminal();
-    slop::ShowBanner();
-    std::cout << slop::Colorize("std::slop", "", ansi::Logo) << " - Session: " << session_id << " ("
-              << orchestrator->GetModel() << ")" << std::endl;
-    std::cout << "Type /help for slash commands." << std::endl;
-
-    (void)slop::DisplayHistory(db, session_id, 20);
-    (void)orchestrator->RebuildContext(session_id);
-
-    while (true) {
-      auto current_skills_or = db.GetActiveSkills(session_id);
-      if (current_skills_or.ok()) {
-        active_skills = *current_skills_or;
-      }
-
-      auto settings_or = db.GetContextSettings(session_id);
-      int window_size = settings_or.ok() ? settings_or->size : 0;
-      std::string model_name = orchestrator->GetModel();
-      std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
-      std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
-      std::string modeline = absl::StrCat("std::slop<W:", window_str, ", M:", model_name, ", P:", persona,
-                                          ", S:", session_id, ", T:", orchestrator->GetThrottle(), "s>");
-
-      std::string input = slop::ReadLine(modeline);
-      tool_executor->SetSessionId(session_id);
-      if (!engine.Process(input, session_id, active_skills, engine_config)) {
-        break;
-      }
-    }
+    RunInteractiveLoop(engine, db, *orchestrator, *tool_executor, session_id, engine_config);
   }
 
   if (log_sink) {
