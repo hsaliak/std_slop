@@ -37,7 +37,18 @@ Handles the conversion of a `ParsedMarkdown` object into a styled string.
 - `void Render(const ParsedMarkdown& parsed, std::string* output)`: **(Preferred)** Appends the rendered output to the provided `std::string`. This "sink" model allows for efficient pre-allocation and avoids large string copies when building complex UI components.
 - `std::string Render(const ParsedMarkdown& parsed)`: Convenience wrapper that returns a new string.
 
-#### Intelligent Table Wrapping
+#### Syntax Highlighting
+
+The renderer uses Tree-sitter grammars to provide syntax highlighting within fenced code blocks. Currently supported languages include:
+
+- **C / C++** (`cpp`, `c`, `cc`, `cxx`, `hpp`)
+- **Python** (`python`, `py`)
+- **Go** (`go`)
+- **JavaScript** (`javascript`, `js`)
+- **Rust** (`rust`, `rs`)
+- **Bash / Shell** (`bash`, `sh`)
+
+### Intelligent Table Wrapping
 The renderer includes advanced table layout logic:
 - **Greedy Column Shrinking**: If a table exceeds `max_width`, the renderer iteratively shrinks the widest columns until the table fits or a minimum column width is reached.
 - **Multi-line Cells**: Content within table cells is word-wrapped to the column's assigned width, creating multi-line rows that preserve the table grid structure.

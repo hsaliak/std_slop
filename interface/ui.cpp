@@ -559,10 +559,13 @@ std::string GetHelpText() {
       "# std::slop - The SQL-backed LLM CLI\n\n"
       "## Usage\n"
       "```bash\n"
-      "std_slop [options]\n"
+      "std_slop [options] [session_id]\n"
       "```\n\n"
       "## Options\n"
-      "Use `--helpfull` to see all available command-line flags.\n\n"
+      "- `--prompt \"...\"`: Run a single prompt in batch mode and exit.\n"
+      "- `--session <id>`: Use a specific session ID (overrides positional argument).\n"
+      "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
+      "- `--helpfull`: See all available command-line flags.\n\n"
       "## Slash Commands\n\n";
 
   std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;

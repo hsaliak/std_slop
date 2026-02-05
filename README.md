@@ -35,6 +35,12 @@ mkdir my-project && cd my-project
 git init
 std_slop
 ```
+
+For quick one-off tasks, you can use **Batch Mode**:
+```bash
+std_slop --prompt "Refactor main.cpp to remove all unused includes"
+```
+
 Read the [User Guide](USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](WALKTHROUGH.md) to start with something simple.
 
 ### ⚙️ Configuration
@@ -85,5 +91,5 @@ The core logic is divided into specialized modules:
 
 ### Interface & Display
 - **`interface/`**: Implements the terminal UI. The UI is minimal but pleasing, uses readline for user input, color codes and ASCII Codes.
-- **`markdown/`**: Uses `tree-sitter-markdown` to provide syntax highlighting and structured rendering for agent responses. This is a stand alone Markdown  parser / renderer library in C++.
+- **`markdown/`**: Uses `tree-sitter-markdown` to provide syntax highlighting (C++, Python, Go, JS, Rust, Bash) and structured rendering for agent responses. This is a stand alone Markdown  parser / renderer library in C++.
 - **`main.cpp`**: The primary event loop. Coordinates between the Orchestrator, ToolDispatcher, and UI.

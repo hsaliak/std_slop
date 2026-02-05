@@ -66,6 +66,9 @@ The `/session clear` command deletes all data (history, token usage stats, persi
 ### Persistence
 The ledger is stored in `slop.db` and persists across restarts. Resume a session by providing its name at startup or via `/session`.
 
+### Sessions in Batch Mode
+When running in Batch Mode (`--prompt`), `std::slop` will use the provided `--session` (or `default_session` if none specified) to retrieve context and store the new interaction. This allows for automated "updates" to a persistent project context.
+
 ## Summary
 
 | Feature | Isolated per Session? |

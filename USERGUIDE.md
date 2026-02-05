@@ -55,6 +55,19 @@ bazel run //:std_slop -- [session_name]
 ```
 If no session name is provided, it defaults to `default_session`.
 
+### Batch Mode (Prompt Mode)
+For quick tasks or automation, you can run a single prompt in "Batch Mode" using the `--prompt` flag. In this mode, `std::slop` will process the prompt, execute any necessary tools, display the final response, and then exit immediately.
+
+```bash
+bazel run //:std_slop -- --prompt "Summarize the files in the current directory"
+```
+
+You can combine this with `--session` to run a prompt within a specific persistent context:
+
+```bash
+bazel run //:std_slop -- --session "my_project" --prompt "What was the last thing we decided on the architecture?"
+```
+
 ## Core Concepts
 
 - **Session**: An isolated conversation history with its own settings and token usage tracking.
@@ -98,6 +111,14 @@ The agent provides powerful search tools designed for large codebases.
   - 🎓 **Skill**: Activation or deactivation of specialized personas.
   - 🕒 **Session**: Timeline and state management.
 - **Colors**: Tool headers are displayed in grey. Assistant messages are white. Indentation is used for hierarchy.
+- **Dynamic Modeline**: The prompt updates in real-time to reflect the current state: `std::slop<W:window_size, M:model, P:persona, S:session_id, T:throttle>`.
+- **Syntax Highlighting**: Fenced code blocks in assistant responses are automatically highlighted using Tree-sitter. Currently supported languages include:
+  - C / C++
+  - Python
+  - JavaScript
+  - Go
+  - Rust
+  - Bash / Shell
 - **Markdown Tables**: Long tables are intelligently handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
 - **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter. Note that for the LLM's context, tool results are preserved at high fidelity (5000 chars) for the active turn but aggressively compressed (500 chars) for historical turns to save tokens.
 

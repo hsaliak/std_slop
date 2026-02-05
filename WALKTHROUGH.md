@@ -185,5 +185,12 @@ bazel run //:std_slop -- --stderrthreshold=0
 bazel run //:std_slop -- --v=2 --stderrthreshold=0
 ```
 
+### Pro-Tip: Batch Mode
+For quick, one-off tasks, you don't even need to enter the interactive loop. Use the `--prompt` flag to run a single command and exit:
+
+```bash
+bazel run //:std_slop -- --prompt "Review the changes in main.cpp and suggest improvements"
+```
+
 ### Finishing Up
 Once you are done, you can exit the session with `/exit` or `/quit`. Happy slopping!
