@@ -22,8 +22,7 @@
 
 namespace slop {
 
-absl::StatusOr<CommandResult> RunCommand(std::string_view command,
-                                         std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Running command: " << command;
   std::array<int, 2> stdout_pipe;
   std::array<int, 2> stderr_pipe;

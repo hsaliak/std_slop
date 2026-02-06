@@ -1,10 +1,11 @@
 #ifndef SLOP_SQL_TOOL_TYPES_H_
 #define SLOP_SQL_TOOL_TYPES_H_
 
-#include <string>
-#include <vector>
 #include <optional>
+#include <string>
 #include <variant>
+#include <vector>
+
 #include "nlohmann/json.hpp"
 
 namespace slop {
@@ -85,20 +86,20 @@ struct ListDirectoryRequest {
 };
 
 struct ManageScratchpadRequest {
-  std::string action = "read"; // "read", "update", "append"
+  std::string action = "read";  // "read", "update", "append"
   std::optional<std::string> content;
 };
 
 struct UseSkillRequest {
   std::string name;
-  std::string action = "activate"; // "activate", "deactivate"
+  std::string action = "activate";  // "activate", "deactivate"
 };
 
 struct SearchCodeRequest {
   std::string query;
 };
 
-} // namespace slop
+}  // namespace slop
 
 namespace nlohmann {
 
@@ -122,7 +123,7 @@ struct adl_serializer<std::optional<T>> {
 };
 
 // We need to define to_json/from_json for our structs here or in slop namespace if they are used with get<T>()
-} // namespace nlohmann
+}  // namespace nlohmann
 
 namespace slop {
 
@@ -156,45 +157,43 @@ inline void from_json(const nlohmann::json& j, GrepRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
-    if (j.contains("pattern")) r.pattern = j.at("pattern").get<std::optional<std::string>>();
-    if (j.contains("patterns")) r.patterns = j.at("patterns").get<std::vector<std::string>>();
-    if (j.contains("path")) {
-        if (j.at("path").is_array()) {
-            r.path = j.at("path").get<std::vector<std::string>>();
-        } else {
-            r.path = {j.at("path").get<std::string>()};
-        }
+  if (j.contains("pattern")) r.pattern = j.at("pattern").get<std::optional<std::string>>();
+  if (j.contains("patterns")) r.patterns = j.at("patterns").get<std::vector<std::string>>();
+  if (j.contains("path")) {
+    if (j.at("path").is_array()) {
+      r.path = j.at("path").get<std::vector<std::string>>();
     } else {
-        r.path = {"."};
+      r.path = {j.at("path").get<std::string>()};
     }
-    if (j.contains("branch")) r.branch = j.at("branch").get<std::optional<std::string>>();
-    r.case_insensitive = j.value("case_insensitive", false);
-    r.word_regexp = j.value("word_regexp", false);
-    r.line_number = j.value("line_number", true);
-    r.files_with_matches = j.value("files_with_matches", false);
-    r.count = j.value("count", false);
-    r.show_function = j.value("show_function", false);
-    r.cached = j.value("cached", false);
-    r.all_match = j.value("all_match", false);
-    r.pcre = j.value("pcre", false);
-    r.function_context = j.value("function_context", false);
-    r.untracked = j.value("untracked", false);
-    r.no_index = j.value("no_index", false);
-    r.exclude_standard = j.value("exclude_standard", true);
-    r.fixed_strings = j.value("fixed_strings", false);
-    if (j.contains("max_depth")) r.max_depth = j.at("max_depth").get<std::optional<int>>();
-    if (j.contains("context")) r.context = j.at("context").get<std::optional<int>>();
-    if (j.contains("before")) r.before = j.at("before").get<std::optional<int>>();
-    if (j.contains("after")) r.after = j.at("after").get<std::optional<int>>();
+  } else {
+    r.path = {"."};
+  }
+  if (j.contains("branch")) r.branch = j.at("branch").get<std::optional<std::string>>();
+  r.case_insensitive = j.value("case_insensitive", false);
+  r.word_regexp = j.value("word_regexp", false);
+  r.line_number = j.value("line_number", true);
+  r.files_with_matches = j.value("files_with_matches", false);
+  r.count = j.value("count", false);
+  r.show_function = j.value("show_function", false);
+  r.cached = j.value("cached", false);
+  r.all_match = j.value("all_match", false);
+  r.pcre = j.value("pcre", false);
+  r.function_context = j.value("function_context", false);
+  r.untracked = j.value("untracked", false);
+  r.no_index = j.value("no_index", false);
+  r.exclude_standard = j.value("exclude_standard", true);
+  r.fixed_strings = j.value("fixed_strings", false);
+  if (j.contains("max_depth")) r.max_depth = j.at("max_depth").get<std::optional<int>>();
+  if (j.contains("context")) r.context = j.at("context").get<std::optional<int>>();
+  if (j.contains("before")) r.before = j.at("before").get<std::optional<int>>();
+  if (j.contains("after")) r.after = j.at("after").get<std::optional<int>>();
 }
 
 inline void from_json(const nlohmann::json& j, ExecuteBashRequest& r) {
   r.command = j.at("command").get<std::string>();
 }
 
-inline void from_json(const nlohmann::json& j, QueryDbRequest& r) {
-  r.sql = j.at("sql").get<std::string>();
-}
+inline void from_json(const nlohmann::json& j, QueryDbRequest& r) { r.sql = j.at("sql").get<std::string>(); }
 
 inline void from_json(const nlohmann::json& j, SaveMemoRequest& r) {
   r.content = j.at("content").get<std::string>();
@@ -221,10 +220,8 @@ inline void from_json(const nlohmann::json& j, UseSkillRequest& r) {
   r.action = j.value("action", "activate");
 }
 
-inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) {
-  r.query = j.at("query").get<std::string>();
-}
+inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) { r.query = j.at("query").get<std::string>(); }
 
-} // namespace slop
+}  // namespace slop
 
-#endif // SLOP_SQL_TOOL_TYPES_H_
+#endif  // SLOP_SQL_TOOL_TYPES_H_

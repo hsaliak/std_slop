@@ -120,8 +120,7 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const ReadFileRequest& req) {
   }
 
   while (std::getline(file, line)) {
-    if ((!req.start_line || current_line >= *req.start_line) &&
-        (!req.end_line || current_line <= *req.end_line)) {
+    if ((!req.start_line || current_line >= *req.start_line) && (!req.end_line || current_line <= *req.end_line)) {
       if (req.add_line_numbers) {
         ss << current_line << ": " << line << "\n";
       } else {
@@ -137,8 +136,7 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const ReadFileRequest& req) {
 
   int s = req.start_line.value_or(1);
   int e = req.end_line.value_or(total_lines);
-  std::string header =
-      absl::Substitute("### FILE: $0 | TOTAL_LINES: $1 | RANGE: $2-$3\n", req.path, total_lines, s, e);
+  std::string header = absl::Substitute("### FILE: $0 | TOTAL_LINES: $1 | RANGE: $2-$3\n", req.path, total_lines, s, e);
 
   if (e < total_lines) {
     absl::StrAppend(&result, "\n... [Truncated. Use 'read_file' with start_line=", e + 1, " to see more] ...");
@@ -200,9 +198,7 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const ApplyPatchRequest& re
   return WriteFile({req.path, content});
 }
 
-absl::StatusOr<std::string> ToolExecutor::QueryDb(const QueryDbRequest& req) {
-  return db_->Query(req.sql);
-}
+absl::StatusOr<std::string> ToolExecutor::QueryDb(const QueryDbRequest& req) { return db_->Query(req.sql); }
 
 absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const ExecuteBashRequest& req,
                                                       std::shared_ptr<CancellationRequest> cancellation) {
