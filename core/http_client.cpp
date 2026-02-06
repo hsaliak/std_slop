@@ -119,9 +119,9 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
   ResetAbort();
   LOG(INFO) << "Executing HTTP " << method << " to " << url;
 
-  int max_retries = 3;
+  int max_retries = 6;
   int retry_count = 0;
-  int64_t backoff_ms = 1000;
+  int64_t backoff_ms = 2000;
 
   std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
   if (!curl) {
