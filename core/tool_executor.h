@@ -10,6 +10,7 @@
 
 #include "core/cancellation.h"
 #include "core/database.h"
+#include "core/tool_types.h"
 
 #include <nlohmann/json.hpp>
 
@@ -37,24 +38,24 @@ class ToolExecutor {
   Database* db_;
   std::string session_id_;
 
-  absl::StatusOr<std::string> ListDirectory(const nlohmann::json& args,
+  absl::StatusOr<std::string> ListDirectory(const ListDirectoryRequest& req,
                                             std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> ManageScratchpad(const nlohmann::json& args);
+  absl::StatusOr<std::string> ManageScratchpad(const ManageScratchpadRequest& req);
   absl::StatusOr<std::string> DescribeDb();
-  absl::StatusOr<std::string> UseSkill(const nlohmann::json& args);
+  absl::StatusOr<std::string> UseSkill(const UseSkillRequest& req);
 
-  absl::StatusOr<std::string> Grep(const std::string& pattern, const std::string& path, int context,
-                                   std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> ReadFile(const std::string& path, std::optional<int> start_line = std::nullopt,
-                                       std::optional<int> end_line = std::nullopt, bool add_line_numbers = false);
-  absl::StatusOr<std::string> WriteFile(const std::string& path, const std::string& content);
-  absl::StatusOr<std::string> ApplyPatch(const std::string& path, const nlohmann::json& patches);
-  absl::StatusOr<std::string> ExecuteBash(const std::string& command,
+  absl::StatusOr<std::string> Grep(const GrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> ReadFile(const ReadFileRequest& req);
+  absl::StatusOr<std::string> WriteFile(const WriteFileRequest& req);
+  absl::StatusOr<std::string> ApplyPatch(const ApplyPatchRequest& req);
+  absl::StatusOr<std::string> ExecuteBash(const ExecuteBashRequest& req,
                                           std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> SearchCode(const std::string& query, std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> GitGrep(const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> SaveMemo(const std::string& content, const std::vector<std::string>& tags);
-  absl::StatusOr<std::string> RetrieveMemos(const std::vector<std::string>& tags);
+  absl::StatusOr<std::string> QueryDb(const QueryDbRequest& req);
+  absl::StatusOr<std::string> SearchCode(const SearchCodeRequest& req,
+                                         std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> GitGrep(const GitGrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> SaveMemo(const SaveMemoRequest& req);
+  absl::StatusOr<std::string> RetrieveMemos(const RetrieveMemosRequest& req);
 };
 
 }  // namespace slop

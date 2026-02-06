@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 
@@ -18,11 +19,11 @@ struct CommandResult {
 
 // Runs a shell command and returns the output and exit code.
 // If cancellation is requested, the process and its children are killed.
-absl::StatusOr<CommandResult> RunCommand(const std::string& command,
+absl::StatusOr<CommandResult> RunCommand(std::string_view command,
                                          std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
 // Escapes a string for use as a shell argument.
-std::string EscapeShellArg(const std::string& arg);
+std::string EscapeShellArg(std::string_view arg);
 
 // Checks if the Escape key was pressed.
 // This function is non-blocking and throttled to once every 100ms.

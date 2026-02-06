@@ -81,6 +81,7 @@ cc_library(
         "orchestrator_openai.h",
         "orchestrator_strategy.h",
         "tool_executor.h",
+        "tool_types.h",
         "constants.h",
         "status_macros.h",
         ":generate_system_prompt",

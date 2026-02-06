@@ -25,37 +25,30 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
 
   absl::StatusOr<std::string> result;
   if (name == "read_file") {
-    if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
-    std::optional<int> start_line;
-    if (args.contains("start_line")) start_line = args["start_line"].get<int>();
-    std::optional<int> end_line;
-    if (args.contains("end_line")) end_line = args["end_line"].get<int>();
-    result = ReadFile(args["path"], start_line, end_line, true);
+    result = ReadFile(args.get<ReadFileRequest>());
   } else if (name == "write_file") {
-    if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
-    if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' argument");
-    result = WriteFile(args["path"], args["content"]);
+    result = WriteFile(args.get<WriteFileRequest>());
   } else if (name == "apply_patch") {
-    if (!args.contains("path")) return absl::InvalidArgumentError("Missing 'path' argument");
-    if (!args.contains("patches")) return absl::InvalidArgumentError("Missing 'patches' argument");
-    result = ApplyPatch(args["path"], args["patches"]);
+    result = ApplyPatch(args.get<ApplyPatchRequest>());
   } else if (name == "grep_tool") {
-    if (!args.contains("pattern")) return absl::InvalidArgumentError("Missing 'pattern' argument");
-
-    std::string path = args.contains("path") ? args["path"].get<std::string>() : ".";
-    int context = args.contains("context") ? args["context"].get<int>() : 0;
-
+    auto req = args.get<GrepRequest>();
     // Delegate to GitGrep if in a git repo
-    auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree", cancellation);
+    ExecuteBashRequest git_check_req;
+    git_check_req.command = "git rev-parse --is-inside-work-tree";
+    auto git_repo_check = ExecuteBash(git_check_req, cancellation);
     if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
-      auto git_res = GitGrep(args, cancellation);
+      GitGrepRequest git_req;
+      git_req.pattern = req.pattern;
+      git_req.path = {req.path};
+      git_req.context = req.context;
+      auto git_res = GitGrep(git_req, cancellation);
       if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
         result = git_res;
       } else {
-        result = Grep(args["pattern"], path, context, cancellation);
+        result = Grep(req, cancellation);
       }
     } else {
-      auto grep_res = Grep(args["pattern"], path, context, cancellation);
+      auto grep_res = Grep(req, cancellation);
       if (grep_res.ok()) {
         result =
             "Notice: Not a git repository. Consider running 'git init' for better search performance and feature "
@@ -66,28 +59,25 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
       }
     }
   } else if (name == "git_grep_tool") {
-    result = GitGrep(args, cancellation);
+    result = GitGrep(args.get<GitGrepRequest>(), cancellation);
   } else if (name == "execute_bash") {
-    if (!args.contains("command")) return absl::InvalidArgumentError("Missing 'command' argument");
-    result = ExecuteBash(args["command"], cancellation);
+    result = ExecuteBash(args.get<ExecuteBashRequest>(), cancellation);
   } else if (name == "query_db") {
-    if (!args.contains("sql")) return absl::InvalidArgumentError("Missing 'sql' argument");
-    result = db_->Query(args["sql"]);
+    result = QueryDb(args.get<QueryDbRequest>());
   } else if (name == "save_memo") {
-    if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' argument");
-    if (!args.contains("tags")) return absl::InvalidArgumentError("Missing 'tags' argument");
-    result = SaveMemo(args["content"], args["tags"].get<std::vector<std::string>>());
+    result = SaveMemo(args.get<SaveMemoRequest>());
   } else if (name == "retrieve_memos") {
-    if (!args.contains("tags")) return absl::InvalidArgumentError("Missing 'tags' argument");
-    result = RetrieveMemos(args["tags"].get<std::vector<std::string>>());
+    result = RetrieveMemos(args.get<RetrieveMemosRequest>());
   } else if (name == "list_directory") {
-    result = ListDirectory(args, cancellation);
+    result = ListDirectory(args.get<ListDirectoryRequest>(), cancellation);
   } else if (name == "manage_scratchpad") {
-    result = ManageScratchpad(args);
+    result = ManageScratchpad(args.get<ManageScratchpadRequest>());
   } else if (name == "describe_db") {
     result = DescribeDb();
   } else if (name == "use_skill") {
-    result = UseSkill(args);
+    result = UseSkill(args.get<UseSkillRequest>());
+  } else if (name == "search_code") {
+    result = SearchCode(args.get<SearchCodeRequest>(), cancellation);
   } else {
     return absl::NotFoundError("Tool not found: " + name);
   }
@@ -110,14 +100,13 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   return wrap_result(name, *result);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std::optional<int> start_line,
-                                                   std::optional<int> end_line, bool add_line_numbers) {
-  if (start_line && end_line && *start_line > *end_line) {
+absl::StatusOr<std::string> ToolExecutor::ReadFile(const ReadFileRequest& req) {
+  if (req.start_line && req.end_line && *req.start_line > *req.end_line) {
     return absl::InvalidArgumentError("start_line must be less than or equal to end_line");
   }
 
-  std::ifstream file(path);
-  if (!file.is_open()) return absl::NotFoundError("Could not open file: " + path);
+  std::ifstream file(req.path);
+  if (!file.is_open()) return absl::NotFoundError("Could not open file: " + req.path);
 
   std::stringstream ss;
   std::string line;
@@ -131,24 +120,25 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std:
   }
 
   while (std::getline(file, line)) {
-    if ((!start_line || current_line >= *start_line) && (!end_line || current_line <= *end_line)) {
-      if (add_line_numbers) {
+    if ((!req.start_line || current_line >= *req.start_line) &&
+        (!req.end_line || current_line <= *req.end_line)) {
+      if (req.add_line_numbers) {
         ss << current_line << ": " << line << "\n";
       } else {
         ss << line << "\n";
       }
     }
     current_line++;
-    if (end_line && current_line > *end_line) {
-      // If we don't need to read further, we can stop, but we already have total_lines
+    if (req.end_line && current_line > *req.end_line) {
       break;
     }
   }
   std::string result = ss.str();
 
-  int s = start_line.value_or(1);
-  int e = end_line.value_or(total_lines);
-  std::string header = absl::Substitute("### FILE: $0 | TOTAL_LINES: $1 | RANGE: $2-$3\n", path, total_lines, s, e);
+  int s = req.start_line.value_or(1);
+  int e = req.end_line.value_or(total_lines);
+  std::string header =
+      absl::Substitute("### FILE: $0 | TOTAL_LINES: $1 | RANGE: $2-$3\n", req.path, total_lines, s, e);
 
   if (e < total_lines) {
     absl::StrAppend(&result, "\n... [Truncated. Use 'read_file' with start_line=", e + 1, " to see more] ...");
@@ -157,18 +147,18 @@ absl::StatusOr<std::string> ToolExecutor::ReadFile(const std::string& path, std:
   return header + result;
 }
 
-absl::StatusOr<std::string> ToolExecutor::WriteFile(const std::string& path, const std::string& content) {
-  std::ofstream file(path);
-  if (!file.is_open()) return absl::InternalError("Could not open file for writing: " + path);
-  file << content;
+absl::StatusOr<std::string> ToolExecutor::WriteFile(const WriteFileRequest& req) {
+  std::ofstream file(req.path);
+  if (!file.is_open()) return absl::InternalError("Could not open file for writing: " + req.path);
+  file << req.content;
   file.close();
 
   // Get the size of the content written
-  size_t bytes_written = content.size();
+  size_t bytes_written = req.content.size();
 
   // Create a preview of the content (first 3 lines or less)
   std::stringstream preview;
-  std::stringstream content_stream(content);
+  std::stringstream content_stream(req.content);
   std::string line;
   int line_count = 0;
   while (std::getline(content_stream, line) && line_count < 3) {
@@ -178,49 +168,45 @@ absl::StatusOr<std::string> ToolExecutor::WriteFile(const std::string& path, con
 
   // Return a more detailed result
   std::string result = "File written successfully:\n";
-  result += "Path: " + path + "\n";
+  result += "Path: " + req.path + "\n";
   result += "Bytes written: " + std::to_string(bytes_written) + "\n";
   result += "Preview:\n" + preview.str();
 
   return result;
 }
 
-absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const std::string& path, const nlohmann::json& patches) {
-  std::ifstream ifs(path, std::ios::in | std::ios::binary | std::ios::ate);
-  if (!ifs.is_open()) return absl::NotFoundError("Could not open file: " + path);
+absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const ApplyPatchRequest& req) {
+  std::ifstream ifs(req.path, std::ios::in | std::ios::binary | std::ios::ate);
+  if (!ifs.is_open()) return absl::NotFoundError("Could not open file: " + req.path);
   std::ifstream::pos_type fileSize = ifs.tellg();
   ifs.seekg(0, std::ios::beg);
   std::string content(static_cast<size_t>(fileSize), '\0');
   ifs.read(content.data(), fileSize);
 
-  if (!patches.is_array()) return absl::InvalidArgumentError("'patches' must be an array");
+  for (const auto& patch : req.patches) {
+    if (patch.find.empty()) return absl::InvalidArgumentError("Patch 'find' string cannot be empty");
 
-  for (const auto& patch : patches) {
-    if (!patch.contains("find") || !patch.contains("replace")) {
-      return absl::InvalidArgumentError("Each patch must contain 'find' and 'replace'");
-    }
-    std::string find_str = patch["find"];
-    std::string replace_str = patch["replace"];
-
-    if (find_str.empty()) return absl::InvalidArgumentError("Patch 'find' string cannot be empty");
-
-    size_t pos = content.find(find_str);
+    size_t pos = content.find(patch.find);
     if (pos == std::string::npos) {
-      return absl::NotFoundError(absl::StrCat("Could not find exact match for: ", find_str));
+      return absl::NotFoundError(absl::StrCat("Could not find exact match for: ", patch.find));
     }
-    if (content.find(find_str, pos + 1) != std::string::npos) {
-      return absl::FailedPreconditionError(absl::StrCat("Ambiguous match for: ", find_str));
+    if (content.find(patch.find, pos + 1) != std::string::npos) {
+      return absl::FailedPreconditionError(absl::StrCat("Ambiguous match for: ", patch.find));
     }
 
-    content.replace(pos, find_str.length(), replace_str);
+    content.replace(pos, patch.find.length(), patch.replace);
   }
 
-  return WriteFile(path, content);
+  return WriteFile({req.path, content});
 }
 
-absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command,
+absl::StatusOr<std::string> ToolExecutor::QueryDb(const QueryDbRequest& req) {
+  return db_->Query(req.sql);
+}
+
+absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const ExecuteBashRequest& req,
                                                       std::shared_ptr<CancellationRequest> cancellation) {
-  auto res = RunCommand(command, cancellation);
+  auto res = RunCommand(req.command, cancellation);
   if (!res.ok()) return res.status();
   std::string output = res->stdout_out;
   if (!res->stderr_out.empty()) {
@@ -233,16 +219,16 @@ absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const std::string& command
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const std::string& path, int context,
+absl::StatusOr<std::string> ToolExecutor::Grep(const GrepRequest& req,
                                                std::shared_ptr<CancellationRequest> cancellation) {
   std::string cmd = "grep -n";
-  if (std::filesystem::is_directory(path)) {
+  if (std::filesystem::is_directory(req.path)) {
     cmd += "r";
   }
-  if (context > 0) {
-    cmd += " -C " + std::to_string(context);
+  if (req.context > 0) {
+    cmd += " -C " + std::to_string(req.context);
   }
-  cmd += " -e " + EscapeShellArg(pattern) + " " + EscapeShellArg(path);
+  cmd += " -e " + EscapeShellArg(req.pattern) + " " + EscapeShellArg(req.path);
 
   auto res = RunCommand(cmd, cancellation);
   if (!res.ok()) return res.status();
@@ -269,83 +255,84 @@ absl::StatusOr<std::string> ToolExecutor::Grep(const std::string& pattern, const
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::SearchCode(const std::string& query,
+absl::StatusOr<std::string> ToolExecutor::SearchCode(const SearchCodeRequest& req,
                                                      std::shared_ptr<CancellationRequest> cancellation) {
-  return Grep(query, ".", 0, cancellation);
+  GrepRequest grep_req;
+  grep_req.pattern = req.query;
+  grep_req.path = ".";
+  grep_req.context = 0;
+  return Grep(grep_req, cancellation);
 }
 
-absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args,
+absl::StatusOr<std::string> ToolExecutor::GitGrep(const GitGrepRequest& req,
                                                   std::shared_ptr<CancellationRequest> cancellation) {
   // Check if git is available
-  auto git_check = ExecuteBash("git --version", cancellation);
+  ExecuteBashRequest git_check_req;
+  git_check_req.command = "git --version";
+  auto git_check = ExecuteBash(git_check_req, cancellation);
   if (!git_check.ok() || git_check->find("git version") == std::string::npos) {
     return "Error: git is not available on this system. git_grep_tool is not supported.";
   }
 
   // Check if it is a git repository
-  auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree", cancellation);
+  ExecuteBashRequest git_repo_req;
+  git_repo_req.command = "git rev-parse --is-inside-work-tree";
+  auto git_repo_check = ExecuteBash(git_repo_req, cancellation);
   if (!git_repo_check.ok() || git_repo_check->find("true") == std::string::npos) {
     return "Error: not a git repository. git_grep_tool is not supported.";
   }
 
   std::string cmd = "git grep";
 
-  if (args.value("line_number", true)) cmd += " -n";
-  if (args.value("case_insensitive", false)) cmd += " -i";
-  if (args.value("count", false)) cmd += " -c";
-  if (args.value("show_function", false)) cmd += " -p";
-  if (args.value("function_context", false)) cmd += " -W";
-  if (args.value("files_with_matches", false)) cmd += " -l";
-  if (args.value("word_regexp", false)) cmd += " -w";
-  if (args.value("pcre", false)) cmd += " -P";
-  if (args.value("cached", false)) cmd += " --cached";
-  if (args.value("all_match", false)) cmd += " --all-match";
+  if (req.line_number) cmd += " -n";
+  if (req.case_insensitive) cmd += " -i";
+  if (req.count) cmd += " -c";
+  if (req.show_function) cmd += " -p";
+  if (req.function_context) cmd += " -W";
+  if (req.files_with_matches) cmd += " -l";
+  if (req.word_regexp) cmd += " -w";
+  if (req.pcre) cmd += " -P";
+  if (req.cached) cmd += " --cached";
+  if (req.all_match) cmd += " --all-match";
 
-  if (args.contains("context")) {
-    cmd += " -C " + std::to_string(args["context"].get<int>());
+  if (req.context) {
+    cmd += " -C " + std::to_string(*req.context);
   } else {
-    if (args.contains("before")) cmd += " -B " + std::to_string(args["before"].get<int>());
-    if (args.contains("after")) cmd += " -A " + std::to_string(args["after"].get<int>());
+    if (req.before) cmd += " -B " + std::to_string(*req.before);
+    if (req.after) cmd += " -A " + std::to_string(*req.after);
   }
 
-  if (args.contains("branch")) {
-    cmd += " " + EscapeShellArg(args["branch"].get<std::string>());
+  if (req.branch) {
+    cmd += " " + EscapeShellArg(*req.branch);
   }
 
-  if (args.contains("patterns")) {
-    for (const auto& p : args["patterns"]) {
-      std::string val = p.get<std::string>();
-      if (val == "--and" || val == "--or" || val == "--not" || val == "(" || val == ")") {
-        cmd += " " + EscapeShellArg(val);
+  if (!req.patterns.empty()) {
+    for (const auto& p : req.patterns) {
+      if (p == "--and" || p == "--or" || p == "--not" || p == "(" || p == ")") {
+        cmd += " " + EscapeShellArg(p);
       } else {
-        cmd += " -e " + EscapeShellArg(val);
+        cmd += " -e " + EscapeShellArg(p);
       }
     }
-  } else if (args.contains("pattern")) {
-    cmd += " -e " + EscapeShellArg(args["pattern"].get<std::string>());
+  } else if (req.pattern) {
+    cmd += " -e " + EscapeShellArg(*req.pattern);
   }
 
-  bool untracked = args.value("untracked", false);
-  bool no_index = args.value("no_index", false);
-  if (untracked) cmd += " --untracked";
-  if (no_index) cmd += " --no-index";
-  if ((untracked || no_index) && args.value("exclude_standard", true)) {
+  if (req.untracked) cmd += " --untracked";
+  if (req.no_index) cmd += " --no-index";
+  if ((req.untracked || req.no_index) && req.exclude_standard) {
     cmd += " --exclude-standard";
   }
-  if (args.value("fixed_strings", false)) cmd += " -F";
+  if (req.fixed_strings) cmd += " -F";
 
-  if (args.contains("max_depth")) {
-    cmd += " --max-depth " + std::to_string(args["max_depth"].get<int>());
+  if (req.max_depth) {
+    cmd += " --max-depth " + std::to_string(*req.max_depth);
   }
 
-  if (args.contains("path")) {
+  if (!req.path.empty()) {
     cmd += " --";
-    if (args["path"].is_array()) {
-      for (const auto& p : args["path"]) {
-        cmd += " " + EscapeShellArg(p.get<std::string>());
-      }
-    } else {
-      cmd += " " + EscapeShellArg(args["path"].get<std::string>());
+    for (const auto& p : req.path) {
+      cmd += " " + EscapeShellArg(p);
     }
   }
 
@@ -386,15 +373,15 @@ absl::StatusOr<std::string> ToolExecutor::GitGrep(const nlohmann::json& args,
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::SaveMemo(const std::string& content, const std::vector<std::string>& tags) {
-  nlohmann::json tags_json = tags;
-  auto status = db_->AddMemo(content, tags_json.dump());
+absl::StatusOr<std::string> ToolExecutor::SaveMemo(const SaveMemoRequest& req) {
+  nlohmann::json tags_json = req.tags;
+  auto status = db_->AddMemo(req.content, tags_json.dump());
   if (!status.ok()) return status;
   return "Memo saved successfully.";
 }
 
-absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const std::vector<std::string>& tags) {
-  auto memos_or = db_->GetMemosByTags(tags);
+absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const RetrieveMemosRequest& req) {
+  auto memos_or = db_->GetMemosByTags(req.tags);
   if (!memos_or.ok()) return memos_or.status();
 
   nlohmann::json result = nlohmann::json::array();
@@ -409,19 +396,21 @@ absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const std::vector<std::s
   return result.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
-absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& args,
+absl::StatusOr<std::string> ToolExecutor::ListDirectory(const ListDirectoryRequest& req,
                                                         std::shared_ptr<CancellationRequest> cancellation) {
-  std::string path = args.contains("path") ? args["path"].get<std::string>() : ".";
-  int max_depth = args.contains("depth") ? args["depth"].get<int>() : 1;
-  bool git_only = args.contains("git_only") ? args["git_only"].get<bool>() : true;
+  int max_depth = req.depth.value_or(1);
 
-  auto git_repo_check = ExecuteBash("git rev-parse --is-inside-work-tree", cancellation);
-  if (git_only && git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
+  ExecuteBashRequest git_check_req;
+  git_check_req.command = "git rev-parse --is-inside-work-tree";
+  auto git_repo_check = ExecuteBash(git_check_req, cancellation);
+  if (req.git_only && git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
     std::string cmd = "git ls-files --cached --others --exclude-standard";
-    if (path != ".") {
-      cmd += " " + path;
+    if (req.path != ".") {
+      cmd += " " + req.path;
     }
-    auto git_res = ExecuteBash(cmd, cancellation);
+    ExecuteBashRequest git_ls_req;
+    git_ls_req.command = cmd;
+    auto git_res = ExecuteBash(git_ls_req, cancellation);
     if (git_res.ok()) {
       return git_res;
     }
@@ -429,10 +418,10 @@ absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& ar
 
   // Fallback to std::filesystem
   std::stringstream ss;
-  if (!std::filesystem::exists(path)) return absl::NotFoundError("Directory not found: " + path);
+  if (!std::filesystem::exists(req.path)) return absl::NotFoundError("Directory not found: " + req.path);
 
-  for (const auto& entry : std::filesystem::recursive_directory_iterator(path)) {
-    auto relative = std::filesystem::relative(entry.path(), path);
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(req.path)) {
+    auto relative = std::filesystem::relative(entry.path(), req.path);
     int depth = std::distance(relative.begin(), relative.end());
     if (depth > max_depth) continue;
 
@@ -446,11 +435,10 @@ absl::StatusOr<std::string> ToolExecutor::ListDirectory(const nlohmann::json& ar
   return ss.str();
 }
 
-absl::StatusOr<std::string> ToolExecutor::ManageScratchpad(const nlohmann::json& args) {
+absl::StatusOr<std::string> ToolExecutor::ManageScratchpad(const ManageScratchpadRequest& req) {
   if (session_id_.empty()) return absl::FailedPreconditionError("No active session");
-  std::string action = args.contains("action") ? args["action"].get<std::string>() : "read";
 
-  if (action == "read") {
+  if (req.action == "read") {
     auto res = db_->GetScratchpad(session_id_);
     if (!res.ok()) {
       if (absl::IsNotFound(res.status())) return "Scratchpad is empty.";
@@ -459,48 +447,42 @@ absl::StatusOr<std::string> ToolExecutor::ManageScratchpad(const nlohmann::json&
     if (res->empty()) return "Scratchpad is empty.";
     return *res;
   }
-  if (action == "update") {
-    if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' for update");
-    std::string content = args["content"].get<std::string>();
-    auto status = db_->UpdateScratchpad(session_id_, content);
+  if (req.action == "update") {
+    if (!req.content) return absl::InvalidArgumentError("Missing 'content' for update");
+    auto status = db_->UpdateScratchpad(session_id_, *req.content);
     if (!status.ok()) return status;
     return "Scratchpad updated.";
   }
-  if (action == "append") {
-    if (!args.contains("content")) return absl::InvalidArgumentError("Missing 'content' for append");
-    std::string content = args["content"].get<std::string>();
+  if (req.action == "append") {
+    if (!req.content) return absl::InvalidArgumentError("Missing 'content' for append");
     auto current = db_->GetScratchpad(session_id_);
-    std::string new_content = (current.ok() ? *current : "") + content;
+    std::string new_content = (current.ok() ? *current : "") + *req.content;
     auto status = db_->UpdateScratchpad(session_id_, new_content);
     if (!status.ok()) return status;
     return "Content appended to scratchpad.";
   }
-  return absl::InvalidArgumentError("Unknown action: " + action);
+  return absl::InvalidArgumentError("Unknown action: " + req.action);
 }
 
 absl::StatusOr<std::string> ToolExecutor::DescribeDb() {
   return db_->Query("SELECT name, sql FROM sqlite_master WHERE type='table'");
 }
 
-absl::StatusOr<std::string> ToolExecutor::UseSkill(const nlohmann::json& args) {
-  if (!args.contains("name")) return absl::InvalidArgumentError("Missing 'name' argument");
-  std::string name = args["name"].get<std::string>();
-  std::string action = args.contains("action") ? args["action"].get<std::string>() : "activate";
-
+absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   if (session_id_.empty()) return absl::FailedPreconditionError("No active session");
 
   auto active_skills_or = db_->GetActiveSkills(session_id_);
   if (!active_skills_or.ok()) return active_skills_or.status();
   std::vector<std::string> active_skills = *active_skills_or;
 
-  if (action == "activate") {
+  if (req.action == "activate") {
     // Increment count
-    auto status = db_->IncrementSkillActivationCount(name);
+    auto status = db_->IncrementSkillActivationCount(req.name);
     if (!status.ok()) return status;
 
     // Add to active if not present
-    if (std::find(active_skills.begin(), active_skills.end(), name) == active_skills.end()) {
-      active_skills.push_back(name);
+    if (std::find(active_skills.begin(), active_skills.end(), req.name) == active_skills.end()) {
+      active_skills.push_back(req.name);
       status = db_->SetActiveSkills(session_id_, active_skills);
       if (!status.ok()) return status;
     }
@@ -509,25 +491,25 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const nlohmann::json& args) {
     auto skills_or = db_->GetSkills();
     if (!skills_or.ok()) return skills_or.status();
     for (const auto& s : *skills_or) {
-      if (s.name == name) {
-        return "Skill '" + name + "' activated.\n\n" + s.system_prompt_patch;
+      if (s.name == req.name) {
+        return "Skill '" + req.name + "' activated.\n\n" + s.system_prompt_patch;
       }
     }
-    return absl::NotFoundError("Skill not found: " + name);
+    return absl::NotFoundError("Skill not found: " + req.name);
   }
 
-  if (action == "deactivate") {
-    auto it = std::find(active_skills.begin(), active_skills.end(), name);
+  if (req.action == "deactivate") {
+    auto it = std::find(active_skills.begin(), active_skills.end(), req.name);
     if (it != active_skills.end()) {
       active_skills.erase(it);
       auto status = db_->SetActiveSkills(session_id_, active_skills);
       if (!status.ok()) return status;
-      return "Skill '" + name + "' deactivated.";
+      return "Skill '" + req.name + "' deactivated.";
     }
-    return "Skill '" + name + "' was not active.";
+    return "Skill '" + req.name + "' was not active.";
   }
 
-  return absl::InvalidArgumentError("Unknown action: " + action);
+  return absl::InvalidArgumentError("Unknown action: " + req.action);
 }
 
 }  // namespace slop

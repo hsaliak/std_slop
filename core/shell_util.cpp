@@ -22,7 +22,7 @@
 
 namespace slop {
 
-absl::StatusOr<CommandResult> RunCommand(const std::string& command,
+absl::StatusOr<CommandResult> RunCommand(std::string_view command,
                                          std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Running command: " << command;
   std::array<int, 2> stdout_pipe;
@@ -58,7 +58,7 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command,
     close(stdout_pipe[1]);
     close(stderr_pipe[1]);
 
-    execl("/bin/sh", "sh", "-c", command.c_str(), nullptr);
+    execl("/bin/sh", "sh", "-c", std::string(command).c_str(), nullptr);
     _exit(1);
   }
 
@@ -147,7 +147,7 @@ absl::StatusOr<CommandResult> RunCommand(const std::string& command,
   return CommandResult{stdout_str, stderr_str, exit_code};
 }
 
-std::string EscapeShellArg(const std::string& arg) {
+std::string EscapeShellArg(std::string_view arg) {
   std::string escaped = "'";
   for (char c : arg) {
     if (c == '\'') {
