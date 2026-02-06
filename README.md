@@ -1,4 +1,12 @@
 # std::slop
+```
+    ____ _____ ____               ____  _     ___  ____  
+   / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ 
+   \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |
+    ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ 
+   |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    
+```
+  
 
 `std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through a per-project ledger, providing long-term recall, structured state management, and first-class Git integration. It's goal is to make the context and it's use fully transparent and configurable.
 
