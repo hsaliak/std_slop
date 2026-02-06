@@ -555,6 +555,51 @@ TEST_F(CommandHandlerTest, ReviewRequiresPrefixAtStartOfLine) {
   EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
 }
 
+TEST_F(CommandHandlerTest, ReviewHistorical) {
+  TestableCommandHandler handler(&db);
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git diff HEAD~1"] = "diff --git a/old.cpp b/old.cpp\n+historical line";
+  handler.next_editor_output = "R: Reviewing history";
+
+  std::string input = "/review 1";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+
+  // Verify git diff HEAD~1 was called
+  bool found_diff = false;
+  bool found_ls_files = false;
+  for (const auto& cmd : handler.executed_commands) {
+    if (cmd == "git diff HEAD~1") found_diff = true;
+    if (absl::StrContains(cmd, "ls-files")) found_ls_files = true;
+  }
+  EXPECT_TRUE(found_diff);
+  EXPECT_FALSE(found_ls_files); // Should skip untracked files for historical diff
+}
+
+TEST_F(CommandHandlerTest, ReviewRef) {
+  TestableCommandHandler handler(&db);
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git diff main"] = "diff --git a/old.cpp b/old.cpp\n+ref line";
+  handler.next_editor_output = "R: Reviewing ref";
+
+  std::string input = "/review main";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+
+  // Verify git diff main was called
+  bool found_diff = false;
+  for (const auto& cmd : handler.executed_commands) {
+    if (cmd == "git diff main") found_diff = true;
+  }
+  EXPECT_TRUE(found_diff);
+}
+
 TEST_F(CommandHandlerTest, FeedbackFailsWithNoHistory) {
   TestableCommandHandler handler(&db);
   std::string sid = "s1";

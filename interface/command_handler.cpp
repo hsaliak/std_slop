@@ -850,26 +850,40 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     return Result::HANDLED;
   }
 
+  std::string diff_cmd = "git diff";
+  bool is_historical = false;
+  if (!args.args.empty()) {
+    is_historical = true;
+    int n;
+    if (absl::SimpleAtoi(args.args, &n)) {
+      diff_cmd = absl::StrCat("git diff HEAD~", n);
+    } else {
+      diff_cmd = absl::StrCat("git diff ", args.args);
+    }
+  }
+
   // Handle new files with intent-to-add
-  auto untracked_or = ExecuteCommand("git ls-files --others --exclude-standard");
-  if (untracked_or.ok() && !untracked_or->empty()) {
-    std::vector<std::string> files = absl::StrSplit(*untracked_or, '\n', absl::SkipEmpty());
-    if (!files.empty()) {
-      std::string cmd = "git add -N --";
-      for (const auto& file : files) {
-        // Simple shell escaping: wrap in single quotes, replace ' with '\''
-        std::string escaped = file;
-        absl::StrReplaceAll({{"'", "'\\''"}}, &escaped);
-        absl::StrAppend(&cmd, " '", escaped, "'");
-      }
-      auto res = ExecuteCommand(cmd);
-      if (!res.ok()) {
-        slop::HandleStatus(res.status(), "Failed to stage untracked files");
+  if (!is_historical) {
+    auto untracked_or = ExecuteCommand("git ls-files --others --exclude-standard");
+    if (untracked_or.ok() && !untracked_or->empty()) {
+      std::vector<std::string> files = absl::StrSplit(*untracked_or, '\n', absl::SkipEmpty());
+      if (!files.empty()) {
+        std::string cmd = "git add -N --";
+        for (const auto& file : files) {
+          // Simple shell escaping: wrap in single quotes, replace ' with '\''
+          std::string escaped = file;
+          absl::StrReplaceAll({{"'", "'\\''"}}, &escaped);
+          absl::StrAppend(&cmd, " '", escaped, "'");
+        }
+        auto res = ExecuteCommand(cmd);
+        if (!res.ok()) {
+          slop::HandleStatus(res.status(), "Failed to stage untracked files");
+        }
       }
     }
   }
 
-  auto diff_or = ExecuteCommand("git diff");
+  auto diff_or = ExecuteCommand(diff_cmd);
   if (!diff_or.ok() || diff_or->empty()) {
     std::cout << "No changes to review." << std::endl;
     return Result::HANDLED;
