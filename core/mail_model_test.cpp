@@ -230,16 +230,46 @@ TEST_F(MailModelTest, DynamicBaseBranchWorkflow) {
     auto current_branch = executor_->Execute("execute_bash", {{"command", "git rev-parse --abbrev-ref HEAD"}});
     EXPECT_TRUE(current_branch->find(base_branch) != std::string::npos);
     
+    // Verify content was merged and exists on the base branch
+    EXPECT_TRUE(std::filesystem::exists("feature.txt"));
+    
+    // Verify the slop.basebranch configuration was cleaned up
     auto cleanup_res = executor_->Execute("execute_bash", {{"command", "git config slop.basebranch"}});
-    // git config returns 1 if key missing, which Execute/RunCommand might wrap in an error or just return exit_code
-    // Based on ToolExecutor::Execute implementation, bash commands might return status 0 even if they fail if not handled.
-    // But RunCommand returns struct with exit_code.
+    // Git returns non-zero when config is not found.
+    EXPECT_TRUE(cleanup_res->find("exit_code: 1") != std::string::npos || cleanup_res->empty());
     
     // Cleanup repo
     (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
     (void)executor_->Execute("execute_bash", {{"command", "git branch -D " + base_branch}});
+    // staging branch should already be deleted by git_finalize_series, but we ensure it for robustness
     (void)executor_->Execute("execute_bash", {{"command", "git branch -D slop/staging/" + staging_name}});
     std::filesystem::remove("feature.txt");
+}
+
+TEST_F(MailModelTest, VerifySeriesDynamicBase) {
+    std::string base_branch = "test-verify-base";
+    (void)executor_->Execute("execute_bash", {{"command", "git checkout -b " + base_branch}});
+    
+    std::string staging_name = "feat-verify-test";
+    auto branch_res = executor_->Execute("git_branch_staging", {{"name", staging_name}});
+    ASSERT_TRUE(branch_res.ok());
+    
+    // Create a commit
+    { 
+        std::ofstream ofs("verify_me.txt"); ofs << "content"; ofs.close(); 
+    }
+    ASSERT_TRUE(executor_->Execute("git_commit_patch", {{"summary", "test verify"}, {"rationale", "r"}}).ok());
+    
+    // Verify should work implicitly using the base branch from config
+    // We use a simple command that succeeds if the file is present
+    auto verify_res = executor_->Execute("git_verify_series", {{"command", "ls verify_me.txt"}});
+    EXPECT_TRUE(verify_res.ok()) << verify_res.status().message();
+    
+    // Cleanup
+    (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
+    (void)executor_->Execute("execute_bash", {{"command", "git branch -D " + base_branch}});
+    (void)executor_->Execute("execute_bash", {{"command", "git branch -D slop/staging/" + staging_name}});
+    std::filesystem::remove("verify_me.txt");
 }
 
 TEST_F(MailModelTest, GetBaseBranchResolution) {
