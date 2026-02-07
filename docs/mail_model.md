@@ -80,6 +80,9 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 ### CLI Commands (User Interface)
 - **`/review mail`**: Opens the current patch series in the review editor.
 - **`/review mail <index>`**: Opens a specific patch for detailed inspection and `R:` commenting.
+- **Diagnostics**: The review system provides contextual tips:
+    - Running `/review` without changes in Mail Mode will suggest `/review mail`.
+    - Running `/review mail` without commits on a staging branch will suggest using `git_commit_patch`.
 
 ### Finalization (The "LGTM" Flow)
 - **Conversational Approval**: There is no mandatory `/approve` command. Instead, the agent detects the user's intent to finalize from the chat (e.g., "LGTM", "Ship it", "Looks good, merge it").
