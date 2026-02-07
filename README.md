@@ -18,6 +18,7 @@
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long term memory.
 - **🔍 Advanced Search**: `git_grep_tool` with boolean operators, multiple pathspecs, and smart truncation.
 - **⚡ Parallel Execution**: Executes multiple tool calls in parallel with result ordering and UI-thread safety.
+- **📬 Mail Mode**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
 
 ## 🚀 Quick Start

@@ -303,6 +303,16 @@ You can configure the parallelism level using the `--max_parallel_tools` flag:
 bazel run //:std_slop -- --max_parallel_tools=8
 ```
 
+### Mail Mode (Patch-Based Workflow)
+For complex features that require multiple iterations and clean commit history, use **Mail Mode**.
+
+1. **Activate**: `/mode mail` (Requires a Git repository).
+2. **Indicator**: The modeline will show `std::slop<MAIL, ...>` and the `patcher` skill will be active.
+3. **Tooling**: Use `git_branch_staging`, `git_commit_patch`, `git_format_patch_series`, `git_verify_series`, `git_reroll_patch`, and `git_finalize_series`.
+4. **Review**: Use `/review patch [index]` to review specific patches. Use `R:` comments in the editor for feedback.
+
+For more details, see [docs/mail_model.md](docs/mail_model.md).
+
 ### Interrupting Active Tasks
 If a tool is taking too long (e.g., a massive `grep` or a complex build), or if you realize the agent is going in the wrong direction, you can interrupt the current turn.
 

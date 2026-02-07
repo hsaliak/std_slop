@@ -192,5 +192,15 @@ For quick, one-off tasks, you don't even need to enter the interactive loop. Use
 bazel run //:std_slop -- --prompt "Review the changes in main.cpp and suggest improvements"
 ```
 
+### Advanced: Patch-Based Development (Mail Mode)
+For non-trivial features, it's recommended to use the **Mail Model**.
+
+1. **Enter Mail Mode**: `/mode mail`.
+2. **Develop**: Work on a feature. Use `git_commit_patch` for logical steps.
+3. **Review**: Run `/review patch` to see the series. Add `R: ...` comments for revisions.
+4. **Finalize**: When everything is ready, say "LGTM" or call `git_finalize_series`.
+
+This workflow ensures bisect-safe history and high-quality rationale for every change. See [docs/mail_model.md](docs/mail_model.md) for a full example.
+
 ### Finishing Up
 Once you are done, you can exit the session with `/exit` or `/quit`. Happy slopping!
