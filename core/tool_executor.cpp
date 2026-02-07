@@ -214,7 +214,7 @@ absl::StatusOr<std::string> ToolExecutor::QueryDb(const QueryDbRequest& req) { r
 
 absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const ExecuteBashRequest& req,
                                                       std::shared_ptr<CancellationRequest> cancellation) {
-  auto res = RunCommand(req.command, cancellation);
+  auto res = RunCommand(req.command, cancellation, req.input);
   if (!res.ok()) return res.status();
   std::string output = res->stdout_out;
   if (!res->stderr_out.empty()) {

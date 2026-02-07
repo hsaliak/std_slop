@@ -64,6 +64,7 @@ struct GitGrepRequest {
 
 struct ExecuteBashRequest {
   std::string command;
+  std::string input;
 };
 
 struct QueryDbRequest {
@@ -219,6 +220,7 @@ inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
 
 inline void from_json(const nlohmann::json& j, ExecuteBashRequest& r) {
   r.command = j.at("command").get<std::string>();
+  r.input = j.value("input", "");
 }
 
 inline void from_json(const nlohmann::json& j, QueryDbRequest& r) { r.sql = j.at("sql").get<std::string>(); }

@@ -74,4 +74,27 @@ TEST(ShellUtilTest, RunCommandCancellation) {
   EXPECT_EQ(res.status().code(), absl::StatusCode::kCancelled);
 }
 
+TEST(ShellUtilTest, RunCommandWithInput) {
+  auto res = RunCommand("cat", nullptr, "hello world");
+  ASSERT_TRUE(res.ok());
+  EXPECT_EQ(res->stdout_out, "hello world");
+  EXPECT_EQ(res->exit_code, 0);
+}
+
+TEST(ShellUtilTest, RunCommandNoHangOnInput) {
+  // cat without input will hang if stdin is not closed/redirected.
+  // Our implementation should provide an empty pipe which is closed,
+  // effectively giving EOF to the child.
+  auto res = RunCommand("cat");
+  ASSERT_TRUE(res.ok());
+  EXPECT_EQ(res->stdout_out, "");
+  EXPECT_EQ(res->exit_code, 0);
+}
+
+TEST(ShellUtilTest, RunCommandTimeout) {
+  auto res = RunCommand("sleep 10", nullptr, "", 1);
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kDeadlineExceeded);
+}
+
 }  // namespace slop

@@ -20,7 +20,9 @@ struct CommandResult {
 // Runs a shell command and returns the output and exit code.
 // If cancellation is requested, the process and its children are killed.
 absl::StatusOr<CommandResult> RunCommand(std::string_view command,
-                                         std::shared_ptr<CancellationRequest> cancellation = nullptr);
+                                         std::shared_ptr<CancellationRequest> cancellation = nullptr,
+                                         std::string_view input = "",
+                                         int timeout_seconds = 0);
 
 // Escapes a string for use as a shell argument.
 std::string EscapeShellArg(std::string_view arg);

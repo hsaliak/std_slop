@@ -17,20 +17,32 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 
 #include <sys/wait.h>
 
 namespace slop {
 
-absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<CommandResult> RunCommand(std::string_view command,
+                                         std::shared_ptr<CancellationRequest> cancellation,
+                                         std::string_view input,
+                                         int timeout_seconds) {
   LOG(INFO) << "Running command: " << command;
+  std::array<int, 2> stdin_pipe;
   std::array<int, 2> stdout_pipe;
   std::array<int, 2> stderr_pipe;
 
+  if (pipe(stdin_pipe.data()) == -1) {
+    return absl::InternalError("Failed to create stdin pipe");
+  }
   if (pipe(stdout_pipe.data()) == -1) {
+    close(stdin_pipe[0]);
+    close(stdin_pipe[1]);
     return absl::InternalError("Failed to create stdout pipe");
   }
   if (pipe(stderr_pipe.data()) == -1) {
+    close(stdin_pipe[0]);
+    close(stdin_pipe[1]);
     close(stdout_pipe[0]);
     close(stdout_pipe[1]);
     return absl::InternalError("Failed to create stderr pipe");
@@ -38,6 +50,8 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
 
   pid_t pid = fork();
   if (pid == -1) {
+    close(stdin_pipe[0]);
+    close(stdin_pipe[1]);
     close(stdout_pipe[0]);
     close(stdout_pipe[1]);
     close(stderr_pipe[0]);
@@ -49,6 +63,10 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
     // Child process
     // Set process group ID to own PID so we can kill the whole group
     setpgid(0, 0);
+
+    close(stdin_pipe[1]);
+    dup2(stdin_pipe[0], STDIN_FILENO);
+    close(stdin_pipe[0]);
 
     close(stdout_pipe[0]);
     close(stderr_pipe[0]);
@@ -62,8 +80,19 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
   }
 
   // Parent process
+  close(stdin_pipe[0]);
   close(stdout_pipe[1]);
   close(stderr_pipe[1]);
+
+  if (!input.empty()) {
+    // For small inputs, we can write directly.
+    // NOTE: This might block if input > PIPE_BUF (usually 4KB or 64KB).
+    // For larger inputs, we should move this to the poll loop.
+    if (write(stdin_pipe[1], input.data(), input.size()) == -1) {
+      LOG(WARNING) << "Failed to write to child stdin: " << strerror(errno);
+    }
+  }
+  close(stdin_pipe[1]);
 
   std::string stdout_str;
   std::string stderr_str;
@@ -77,6 +106,8 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
 
   bool stdout_open = true;
   bool stderr_open = true;
+
+  auto start_time = std::chrono::steady_clock::now();
 
   auto cleanup_child = [&](int sig) {
     LOG(INFO) << "Cleaning up child process " << pid << " with signal " << sig;
@@ -98,6 +129,19 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
       close(stdout_pipe[0]);
       close(stderr_pipe[0]);
       return absl::CancelledError("Command cancelled");
+    }
+
+    if (timeout_seconds > 0) {
+      auto now = std::chrono::steady_clock::now();
+      if (std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count() >=
+          timeout_seconds) {
+        LOG(INFO) << "Command timed out after " << timeout_seconds << " seconds";
+        cleanup_child(SIGKILL);
+        close(stdout_pipe[0]);
+        close(stderr_pipe[0]);
+        return absl::DeadlineExceededError(
+            absl::StrCat("Command timed out after ", timeout_seconds, " seconds"));
+      }
     }
 
     int ret = poll(fds.data(), fds.size(), 50);  // Shorter timeout for faster cancellation check
