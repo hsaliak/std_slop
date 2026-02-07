@@ -551,12 +551,6 @@ absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagin
   (void)RunCommand("git config slop.basebranch " + EscapeShellArg(base));
 
   return "Created and checked out staging branch: " + branch_name + " (base: " + base + ")";
-  if (!res.ok()) return res.status();
-  if (res->exit_code != 0) {
-    return absl::InternalError("Failed to create staging branch: " + res->stderr_out);
-  }
-
-  return "Created and checked out staging branch: " + branch_name;
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchRequest& req) {
@@ -711,11 +705,12 @@ absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(const GitVerifySeriesR
     auto verify_res = RunCommand(req.command, cancellation);
     bool passed = verify_res.ok() && verify_res->exit_code == 0;
 
-    report.push_back({{"patch_index", i + 1},
-                      {"hash", hash},
-                      {"status", passed ? "passed" : "failed"},
-                      {"stdout", verify_res.ok() ? verify_res->stdout_out : ""},
-                      {"stderr", verify_res.ok() ? verify_res->stderr_out : verify_res.status().ToString()}});
+    nlohmann::json item = {{"patch_index", i + 1}, {"hash", hash}, {"status", passed ? "passed" : "failed"}};
+    if (!passed) {
+      item["stdout"] = verify_res.ok() ? verify_res->stdout_out : "";
+      item["stderr"] = verify_res.ok() ? verify_res->stderr_out : verify_res.status().ToString();
+    }
+    report.push_back(item);
 
     if (!passed) {
       all_passed = false;
