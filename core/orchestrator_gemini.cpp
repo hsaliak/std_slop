@@ -134,7 +134,9 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
 
   absl::Status status = absl::InternalError("No candidates in response");
   if (target->contains("candidates") && !(*target)["candidates"].empty()) {
-    CHECK((*target)["candidates"][0].contains("content"));
+    if (!(*target)["candidates"][0].contains("content")) {
+      return absl::InternalError("Gemini response candidate missing 'content'");
+    }
     auto& parts = (*target)["candidates"][0]["content"]["parts"];
     for (const auto& part : parts) {
       if (part.contains("functionCall")) {

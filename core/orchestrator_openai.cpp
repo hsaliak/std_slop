@@ -132,7 +132,9 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
 
   absl::Status status = absl::InternalError("No choices in response");
   if (j.contains("choices") && !j["choices"].empty()) {
-    CHECK(j["choices"][0].contains("message"));
+    if (!j["choices"][0].contains("message")) {
+      return absl::InternalError("OpenAI response choice missing 'message'");
+    }
     auto& msg = j["choices"][0]["message"];
     if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
       status = db_->AppendMessage(session_id, "assistant",
