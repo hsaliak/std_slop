@@ -101,9 +101,9 @@ Defining the persona and intent detection.
 
 ### 6.2 "LGTM" Intent Detection
 - **Logic**:
-    - Implement a small "Intent Guard" in the agent's main loop.
-    - If `mail_mode` is active, scan user input for approval keywords (LGTM, Ship it, etc.).
-    - If detected, trigger `git_finalize_series`.
+    - Delegate intent detection to the LLM via the `patcher` skill's system prompt.
+    - The `patcher` persona is explicitly instructed to call `git_finalize_series` when the user provides positive feedback (e.g., "LGTM", "Looks good", "Approved").
+    - This allows for more flexible, natural language interpretation of approval without hardcoded keywords.
 
 ---
 

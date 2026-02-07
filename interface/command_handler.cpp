@@ -93,15 +93,6 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
   if (trimmed.empty()) return Result::NOT_A_COMMAND;
 
   if (trimmed[0] != '/') {
-    if (mail_mode_) {
-      std::string upper = absl::AsciiStrToUpper(trimmed);
-      if (upper == "LGTM" || upper == "LOOKS GOOD" || upper == "LOOKS GOOD TO ME" ||
-          upper == "APPROVED" || upper == "APPROVE") {
-        input = "The user has approved the series (" + trimmed +
-                "). Please finalize the series using git_finalize_series.";
-        return Result::PROCEED_TO_LLM;
-      }
-    }
     return Result::NOT_A_COMMAND;
   }
 
