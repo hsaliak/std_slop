@@ -900,6 +900,9 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
         std::cout << "Tip: You are currently on the base branch '" << base << "'. "
                   << "Commits here are not treated as patches. Use '/mode mail' to start a staging branch."
                   << std::endl;
+      } else if (absl::StartsWith(current_branch, "slop/staging/")) {
+        std::cout << "Tip: If you are on a staging branch, in mail mode, but do not see patches yet, "
+                  << "ask the agent to git_commit_patch the changes as a patch" << std::endl;
       }
       return Result::HANDLED;
     }
@@ -982,6 +985,9 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
   auto diff_or = ExecuteCommand(diff_cmd);
   if (!diff_or.ok() || diff_or->empty()) {
     std::cout << "No changes to review." << std::endl;
+    if (mail_mode_) {
+      std::cout << "Tip: Did you mean to use '/review mail' to review patches in the current series?" << std::endl;
+    }
     return Result::HANDLED;
   }
 

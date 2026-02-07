@@ -767,4 +767,60 @@ TEST_F(CommandHandlerTest, ReviewPatchDiagnosticsOnBaseBranch) {
   EXPECT_TRUE(absl::StrContains(output, "Tip: You are currently on the base branch 'main'"));
 }
 
+TEST_F(CommandHandlerTest, ReviewMailEmptyStagingBranch) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
+  handler.command_responses["git config slop.basebranch"] = "main";
+  handler.command_responses["git rev-list --reverse main..HEAD"] = "";
+
+  testing::internal::CaptureStdout();
+  std::string input = "/review mail";
+  handler.Handle(input, sid, active_skills, []() {}, {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_TRUE(absl::StrContains(output, "No patches found to review in range main..HEAD"));
+  EXPECT_TRUE(absl::StrContains(output, "Tip: If you are on a staging branch, in mail mode, but do not see patches yet, ask the agent to git_commit_patch the changes as a patch"));
+}
+
+TEST_F(CommandHandlerTest, ReviewStandardSuggestsMail) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git diff HEAD"] = "";  // No changes
+
+  // 1. Without mail mode
+  {
+    testing::internal::CaptureStdout();
+    std::string input = "/review";
+    handler.Handle(input, sid, active_skills, []() {}, {});
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(absl::StrContains(output, "No changes to review."));
+    EXPECT_FALSE(absl::StrContains(output, "Tip: Did you mean to use '/review mail'"));
+  }
+
+  // 2. With mail mode
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";  // reset/ensure git
+  // Switch to mail mode first
+  {
+    std::string mode_input = "/mode mail";
+    handler.Handle(mode_input, sid, active_skills, []() {});
+  }
+
+  {
+    testing::internal::CaptureStdout();
+    std::string input = "/review";
+    handler.Handle(input, sid, active_skills, []() {}, {});
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(absl::StrContains(output, "No changes to review."));
+    EXPECT_TRUE(absl::StrContains(output,
+                                  "Tip: Did you mean to use '/review mail' to review patches in the current series?"));
+  }
+}
+
 }  // namespace slop
