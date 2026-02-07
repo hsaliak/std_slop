@@ -24,8 +24,7 @@ class TestableCommandHandler : public CommandHandler {
   std::vector<std::string> executed_commands;
 
  protected:
-  std::string TriggerEditor(const std::string& initial_content,
-                            const std::string& extension) override {
+  std::string TriggerEditor(const std::string& initial_content, const std::string& extension) override {
     editor_was_called = true;
     last_initial_content = initial_content;
     last_extension = extension;
@@ -578,7 +577,7 @@ TEST_F(CommandHandlerTest, ReviewHistorical) {
     if (absl::StrContains(cmd, "ls-files")) found_ls_files = true;
   }
   EXPECT_TRUE(found_diff);
-  EXPECT_FALSE(found_ls_files); // Should skip untracked files for historical diff
+  EXPECT_FALSE(found_ls_files);  // Should skip untracked files for historical diff
 }
 
 TEST_F(CommandHandlerTest, ReviewRef) {
@@ -700,28 +699,28 @@ TEST_F(CommandHandlerTest, SkillListCleansNewlinesAndPipes) {
 
 TEST_F(CommandHandlerTest, ModeMailRequiresGit) {
   TestableCommandHandler handler(&db);
-  
+
   std::string session_id = "test_session";
   std::vector<std::string> active_skills;
   std::string input = "/mode mail";
-  
+
   // 1. Test failure when not in a git repo
   handler.command_responses["git rev-parse --is-inside-work-tree"] = absl::NotFoundError("not a git repo");
-  
+
   testing::internal::CaptureStdout();
-  auto result = handler.Handle(input, session_id, active_skills, [](){});
+  auto result = handler.Handle(input, session_id, active_skills, []() {});
   std::string output = testing::internal::GetCapturedStdout();
-  
+
   EXPECT_EQ(result, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(absl::StrContains(output, "Error: Not a git repository. Please run 'git init' first."));
   EXPECT_FALSE(absl::StrContains(output, "Switched to MAIL mode"));
-  
+
   // 2. Test success when in a git repo
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   testing::internal::CaptureStdout();
-  result = handler.Handle(input, session_id, active_skills, [](){});
+  result = handler.Handle(input, session_id, active_skills, []() {});
   output = testing::internal::GetCapturedStdout();
-  
+
   EXPECT_EQ(result, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
 }
@@ -730,17 +729,17 @@ TEST_F(CommandHandlerTest, ReviewPatchUsesPatchExtension) {
   TestableCommandHandler handler(&db);
   std::string sid = "s1";
   std::vector<std::string> active_skills;
-  
+
   // Mock git commands for GitFormatPatchSeries
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-list --reverse main..HEAD"] = "hash1";
   handler.command_responses["git show --no-patch --format='%s%n%nRationale: %b' hash1"] = "feat: test patch";
   handler.command_responses["git show hash1"] = "diff content";
-  
+
   handler.next_editor_output = "R: LGTM";
   std::string input = "/review patch";
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
-  
+
   EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
   EXPECT_TRUE(handler.editor_was_called);
   EXPECT_EQ(handler.last_extension, ".patch");
@@ -752,18 +751,18 @@ TEST_F(CommandHandlerTest, ReviewPatchDiagnosticsOnBaseBranch) {
   TestableCommandHandler handler(&db);
   std::string sid = "s1";
   std::vector<std::string> active_skills;
-  
+
   // 1. Mock we are on main and comparing main..HEAD (empty)
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "main";
-  handler.command_responses["git config slop.basebranch"] = "main"; 
-  handler.command_responses["git rev-list --reverse main..HEAD"] = ""; // No patches
-  
+  handler.command_responses["git config slop.basebranch"] = "main";
+  handler.command_responses["git rev-list --reverse main..HEAD"] = "";  // No patches
+
   testing::internal::CaptureStdout();
   std::string input = "/review patch";
   handler.Handle(input, sid, active_skills, []() {}, {});
   std::string output = testing::internal::GetCapturedStdout();
-  
+
   EXPECT_TRUE(absl::StrContains(output, "No patches found to review in range main..HEAD"));
   EXPECT_TRUE(absl::StrContains(output, "Tip: You are currently on the base branch 'main'"));
 }

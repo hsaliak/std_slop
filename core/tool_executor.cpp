@@ -582,15 +582,15 @@ absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchReq
   return "Committed patch: " + req.summary;
 }
 
-absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(
-    const GitFormatPatchSeriesRequest& req) {
+absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPatchSeriesRequest& req) {
   std::string base = GetBaseBranch(req.base_branch);
 
   // Get list of commits
   std::string rev_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
   auto rev_res = RunCommand(rev_cmd);
   if (!rev_res.ok() || rev_res->exit_code != 0) {
-    return absl::InternalError("Failed to get commit list: " + (rev_res.ok() ? rev_res->stderr_out : rev_res.status().ToString()));
+    return absl::InternalError("Failed to get commit list: " +
+                               (rev_res.ok() ? rev_res->stderr_out : rev_res.status().ToString()));
   }
 
   std::stringstream ss(rev_res->stdout_out);
@@ -616,7 +616,8 @@ absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(
     auto diff_res = RunCommand(diff_cmd);
     if (!diff_res.ok()) return diff_res.status();
 
-    output += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) + "]: " + show_res->stdout_out + " ###\n";
+    output += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) +
+              "]: " + show_res->stdout_out + " ###\n";
     // git show -p includes the diff and the header. We might want to clean it up or just use it.
     output += diff_res->stdout_out + "\n\n";
   }
@@ -644,9 +645,8 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
 
   auto merge_res = RunCommand("git merge --ff-only " + EscapeShellArg(current_branch));
   if (!merge_res.ok() || merge_res->exit_code != 0) {
-    return absl::InternalError(
-        "Failed to merge series into " + target + ": " +
-        (merge_res.ok() ? merge_res->stderr_out : merge_res.status().ToString()));
+    return absl::InternalError("Failed to merge series into " + target + ": " +
+                               (merge_res.ok() ? merge_res->stderr_out : merge_res.status().ToString()));
   }
 
   // Clean up
@@ -656,8 +656,8 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
   return "Finalized series and merged into " + target;
 }
 
-absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
-    const GitVerifySeriesRequest& req, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(const GitVerifySeriesRequest& req,
+                                                          std::shared_ptr<CancellationRequest> cancellation) {
   // 1. Get current branch to return to it later
   auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
   if (!branch_res.ok()) return branch_res.status();
@@ -703,7 +703,7 @@ absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
                         {"hash", hash},
                         {"status", "failed"},
                         {"error", "Checkout failed: " + (checkout_res.ok() ? checkout_res->stderr_out
-                                                                          : checkout_res.status().ToString())}});
+                                                                           : checkout_res.status().ToString())}});
       continue;
     }
 
@@ -789,8 +789,8 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
                                (rebase_res.ok() ? rebase_res->stderr_out : rebase_res.status().ToString()));
   }
 
-  return "Successfully rerolled changes into patch " + std::to_string(req.index) + " (" +
-         target_hash.substr(0, 7) + ").";
+  return "Successfully rerolled changes into patch " + std::to_string(req.index) + " (" + target_hash.substr(0, 7) +
+         ").";
 }
 
 std::string ToolExecutor::GetBaseBranch(const std::string& requested_base) {

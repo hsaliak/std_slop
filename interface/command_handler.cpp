@@ -885,7 +885,7 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
 
     std::string rev_cmd = "git rev-list --reverse " + base + "..HEAD";
     auto rev_res = ExecuteCommand(rev_cmd);
-    
+
     // Diagnostic check: are we on the base branch?
     auto current_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
     std::string current_branch;
@@ -898,27 +898,29 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       std::cout << "No patches found to review in range " << base << "..HEAD." << std::endl;
       if (current_branch == base) {
         std::cout << "Tip: You are currently on the base branch '" << base << "'. "
-                  << "Commits here are not treated as patches. Use '/mode mail' to start a staging branch." << std::endl;
+                  << "Commits here are not treated as patches. Use '/mode mail' to start a staging branch."
+                  << std::endl;
       }
       return Result::HANDLED;
     }
 
     std::vector<std::string> commits = absl::StrSplit(*rev_res, '\n', absl::SkipEmpty());
     std::cout << "Reviewing " << commits.size() << " patch(es) in range " << base << "..HEAD" << std::endl;
-    
+
     std::string review_content;
     if (patch_idx > 0 && patch_idx <= static_cast<int>(commits.size())) {
       std::string hash = commits[patch_idx - 1];
       auto show_res = ExecuteCommand("git show -s --pretty=format:\"%s%n%b\" " + hash);
       auto diff_res = ExecuteCommand("git show -p " + hash);
-      review_content = "### Patch [" + std::to_string(patch_idx) + "/" + std::to_string(commits.size()) + "]: " + 
-                       (show_res.ok() ? *show_res : "") + " ###\n" + (diff_res.ok() ? *diff_res : "");
+      review_content = "### Patch [" + std::to_string(patch_idx) + "/" + std::to_string(commits.size()) +
+                       "]: " + (show_res.ok() ? *show_res : "") + " ###\n" + (diff_res.ok() ? *diff_res : "");
     } else {
       for (size_t i = 0; i < commits.size(); ++i) {
         auto show_res = ExecuteCommand("git show -s --pretty=format:\"%s%n%b\" " + commits[i]);
         auto diff_res = ExecuteCommand("git show -p " + commits[i]);
-        review_content += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) + "]: " + 
-                         (show_res.ok() ? *show_res : "") + " ###\n" + (diff_res.ok() ? *diff_res : "") + "\n\n";
+        review_content += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) +
+                          "]: " + (show_res.ok() ? *show_res : "") + " ###\n" + (diff_res.ok() ? *diff_res : "") +
+                          "\n\n";
       }
     }
 
@@ -937,7 +939,7 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     }
 
     if (absl::StrContains(feedback, "R:")) {
-      args.input = "I have reviewed the patches. Here are my comments:\n\n" + feedback + 
+      args.input = "I have reviewed the patches. Here are my comments:\n\n" + feedback +
                    "\n\nPlease address only the comments marked with 'R:' in the patches above.";
       return Result::PROCEED_TO_LLM;
     }
@@ -1107,8 +1109,7 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
       base = *config_res;
       absl::StripAsciiWhitespace(&base);
     } else {
-      if (ExecuteCommand("git rev-parse --verify master").ok() &&
-          !ExecuteCommand("git rev-parse --verify main").ok()) {
+      if (ExecuteCommand("git rev-parse --verify master").ok() && !ExecuteCommand("git rev-parse --verify main").ok()) {
         base = "master";
       } else {
         base = "main";
