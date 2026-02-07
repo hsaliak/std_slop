@@ -529,10 +529,28 @@ absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagin
         "Repository is dirty. Please commit or stash changes before starting a staging branch.");
   }
 
+  // Capture current branch as base before switching
+  auto current_branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
+  std::string detected_base = "main";
+  if (current_branch_res.ok() && current_branch_res->exit_code == 0) {
+    detected_base = current_branch_res->stdout_out;
+    if (!detected_base.empty() && detected_base.back() == '\n') detected_base.pop_back();
+  }
+
+  std::string base = req.base_branch.empty() ? detected_base : req.base_branch;
+
   std::string branch_name = "slop/staging/" + req.name;
-  std::string cmd =
-      "git checkout -b " + EscapeShellArg(branch_name) + " " + EscapeShellArg(req.base_branch);
+  std::string cmd = "git checkout -b " + EscapeShellArg(branch_name) + " " + EscapeShellArg(base);
   auto res = RunCommand(cmd);
+  if (!res.ok()) return res.status();
+  if (res->exit_code != 0) {
+    return absl::InternalError("Failed to create staging branch: " + res->stderr_out);
+  }
+
+  // Store the base branch in git config for future tool calls in this series
+  (void)RunCommand("git config slop.basebranch " + EscapeShellArg(base));
+
+  return "Created and checked out staging branch: " + branch_name + " (base: " + base + ")";
   if (!res.ok()) return res.status();
   if (res->exit_code != 0) {
     return absl::InternalError("Failed to create staging branch: " + res->stderr_out);
@@ -566,7 +584,7 @@ absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchReq
 
 absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(
     const GitFormatPatchSeriesRequest& req) {
-  std::string base = req.base_branch.empty() ? "main" : req.base_branch;
+  std::string base = GetBaseBranch(req.base_branch);
 
   // Get list of commits
   std::string rev_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
@@ -607,7 +625,7 @@ absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSeriesRequest& req) {
-  std::string target = req.target_branch.empty() ? "main" : req.target_branch;
+  std::string target = GetBaseBranch(req.target_branch);
 
   // Get current branch name
   auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
@@ -633,6 +651,7 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
 
   // Clean up
   (void)RunCommand("git branch -d " + EscapeShellArg(current_branch));
+  (void)RunCommand("git config --unset slop.basebranch");
 
   return "Finalized series and merged into " + target;
 }
@@ -646,7 +665,7 @@ absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
   if (!original_branch.empty() && original_branch.back() == '\n') original_branch.pop_back();
 
   // 2. Get list of commits between base and HEAD
-  std::string base = req.base_branch.empty() ? "main" : req.base_branch;
+  std::string base = GetBaseBranch(req.base_branch);
   std::string log_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
   auto log_res = RunCommand(log_cmd);
   if (!log_res.ok()) return log_res.status();
@@ -772,6 +791,36 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
 
   return "Successfully rerolled changes into patch " + std::to_string(req.index) + " (" +
          target_hash.substr(0, 7) + ").";
+}
+
+std::string ToolExecutor::GetBaseBranch(const std::string& requested_base) {
+  if (!requested_base.empty()) {
+    return requested_base;
+  }
+
+  // 1. Try git config slop.basebranch
+  auto config_res = RunCommand("git config slop.basebranch");
+  if (config_res.ok() && config_res->exit_code == 0) {
+    std::string base = config_res->stdout_out;
+    if (!base.empty() && base.back() == '\n') base.pop_back();
+    if (!base.empty()) return base;
+  }
+
+  // 2. Try common default branch names
+  auto main_res = RunCommand("git rev-parse --verify main");
+  if (main_res.ok() && main_res->exit_code == 0) return "main";
+
+  auto master_res = RunCommand("git rev-parse --verify master");
+  if (master_res.ok() && master_res->exit_code == 0) return "master";
+
+  // 3. Fallback to origin/main or origin/master
+  auto omain_res = RunCommand("git rev-parse --verify origin/main");
+  if (omain_res.ok() && omain_res->exit_code == 0) return "origin/main";
+
+  auto omaster_res = RunCommand("git rev-parse --verify origin/master");
+  if (omaster_res.ok() && omaster_res->exit_code == 0) return "origin/master";
+
+  return "main";  // Final fallback
 }
 
 }  // namespace slop

@@ -866,7 +866,7 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
 
   // Handle patch review
   if (absl::StartsWith(args.args, "patch")) {
-    std::string base = "main";
+    std::string base;
     std::vector<std::string> patch_args = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
     int patch_idx = -1;
     if (patch_args.size() > 1) {
@@ -875,13 +875,45 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       }
     }
 
+    if (base.empty()) {
+      // Resolve base branch
+      auto config_res = ExecuteCommand("git config slop.basebranch");
+      if (config_res.ok() && !config_res->empty()) {
+        base = *config_res;
+        absl::StripAsciiWhitespace(&base);
+      } else {
+        // Defaults
+        if (ExecuteCommand("git rev-parse --verify master").ok() &&
+            !ExecuteCommand("git rev-parse --verify main").ok()) {
+          base = "master";
+        } else {
+          base = "main";
+        }
+      }
+    }
+
     std::string rev_cmd = "git rev-list --reverse " + base + "..HEAD";
     auto rev_res = ExecuteCommand(rev_cmd);
-    if (!rev_res.ok()) {
-      std::cerr << "Failed to get patch list: " << rev_res.status().message() << std::endl;
+    
+    // Diagnostic check: are we on the base branch?
+    auto current_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
+    std::string current_branch;
+    if (current_res.ok()) {
+      current_branch = *current_res;
+      absl::StripAsciiWhitespace(&current_branch);
+    }
+
+    if (!rev_res.ok() || rev_res->empty()) {
+      std::cout << "No patches found to review in range " << base << "..HEAD." << std::endl;
+      if (current_branch == base) {
+        std::cout << "Tip: You are currently on the base branch '" << base << "'. "
+                  << "Commits here are not treated as patches. Use '/mode mail' to start a staging branch." << std::endl;
+      }
       return Result::HANDLED;
     }
+
     std::vector<std::string> commits = absl::StrSplit(*rev_res, '\n', absl::SkipEmpty());
+    std::cout << "Reviewing " << commits.size() << " patch(es) in range " << base << "..HEAD" << std::endl;
     
     std::string review_content;
     if (patch_idx > 0 && patch_idx <= static_cast<int>(commits.size())) {
@@ -897,11 +929,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
         review_content += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) + "]: " + 
                          (show_res.ok() ? *show_res : "") + " ###\n" + (diff_res.ok() ? *diff_res : "") + "\n\n";
       }
-    }
-
-    if (review_content.empty()) {
-      std::cout << "No patches found to review." << std::endl;
-      return Result::HANDLED;
     }
 
     std::string initial_content =
@@ -1083,8 +1110,23 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
       return Result::HANDLED;
     }
     mail_mode_ = true;
+    std::string base = "main";
+    auto config_res = ExecuteCommand("git config slop.basebranch");
+    if (config_res.ok() && !config_res->empty()) {
+      base = *config_res;
+      absl::StripAsciiWhitespace(&base);
+    } else {
+      if (ExecuteCommand("git rev-parse --verify master").ok() &&
+          !ExecuteCommand("git rev-parse --verify main").ok()) {
+        base = "master";
+      } else {
+        base = "main";
+      }
+    }
+
     std::cout << "Switched to MAIL mode." << std::endl;
     std::cout << "  - Modeline: std::slop<MAIL, ...>" << std::endl;
+    std::cout << "  - Base Branch: " << base << std::endl;
     std::cout << "  - Workflow: Use /review patch [index] to iterate on patches." << std::endl;
     // Auto-activate patcher skill if it exists
     auto res = db_->Query("SELECT name FROM skills WHERE name = 'patcher'");

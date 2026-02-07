@@ -107,6 +107,27 @@ Defining the persona and intent detection.
 
 ---
 
+## Phase 7: Dynamic Base Branch & Persistence
+Ensuring the workflow is robust across different repository structures and session restarts.
+
+### 7.1 Metadata Persistence (`slop.basebranch`)
+- **Mechanism**: Use `git config slop.basebranch <name>` to store the target branch for a staging series.
+- **Logic**:
+    1. `git_branch_staging` captures the current branch (e.g., `main`, `develop`, or a feature branch) and stores it in the local git config.
+    2. All subsequent tools (`git_format_patch_series`, `git_verify_series`, `git_reroll_patch`, `git_finalize_series`) use a centralized `GetBaseBranch()` helper.
+- **Resolution Order**:
+    1. Explicit `base_branch` argument (if provided).
+    2. `slop.basebranch` from git config.
+    3. Auto-detected `main` or `master`.
+    4. Fallback to `origin/main` or `origin/master`.
+
+### 7.2 Diagnostics & UX
+- **No-Patch Messaging**: If `base..HEAD` is empty, the system checks if the user is currently on the base branch and provides a contextual tip.
+- **Transparency**: Commands like `/review patch` and `/mode mail` now display the detected base branch to avoid ambiguity.
+- **Auto-Cleanup**: `git_finalize_series` unsets the `slop.basebranch` config after a successful merge.
+
+---
+
 ## Success Criteria
 1. **Atomic History**: A feature developed in Mail Mode results in a series of logical commits in the main branch.
 2. **Bisect-Safe**: Every commit in that series compiles and passes tests.
