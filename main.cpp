@@ -34,6 +34,7 @@
 #include "core/orchestrator.h"
 #include "core/tool_dispatcher.h"
 #include "core/tool_executor.h"
+#include "interface/color.h"
 #include "interface/command_handler.h"
 #include "interface/interaction_engine.h"
 #include "interface/ui.h"
@@ -101,8 +102,10 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
     std::string model_name = orchestrator.GetModel();
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
-    std::string mode = engine.GetCommandHandler().IsMailMode() ? "MAIL" : "STD";
-    std::string modeline = absl::StrCat("std::slop<", mode, ", W:", window_str, ", M:", model_name, ", P:", persona,
+    bool is_mail = engine.GetCommandHandler().IsMailMode();
+    std::string mode_str = is_mail ? absl::StrCat(ansi::Green, icons::Mailbox, " MAIL_MODEL", ansi::Reset)
+                                   : absl::StrCat(ansi::Cyan, icons::Robot, " STANDARD", ansi::Reset);
+    std::string modeline = absl::StrCat("std::slop <", mode_str, " | W:", window_str, ", M:", model_name, ", P:", persona,
                                         ", S:", session_id, ", T:", orchestrator.GetThrottle(), "s>");
 
     std::string input = slop::ReadLine(modeline);
