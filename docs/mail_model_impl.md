@@ -126,7 +126,7 @@ Ensuring the workflow is robust across different repository structures and sessi
     - If `/review` (uncommitted session changes) finds no changes while in Mail Mode, it suggests using `/review mail` to review the committed patch series.
     - If `/review mail` finds no patches while on a staging branch, it informs the user they might need to commit changes using `git_commit_patch` first.
     - If on the base branch, it suggests using `/mode mail` to start a staging branch.
-- **Transparency**: Commands like `/review mail` and `/mode mail` now display the detected base branch to avoid ambiguity.
+- **Transparency**: Commands like `/review mail` and `/mode mail` now display the detected base branch. The modeline also provides a persistent visual cue with icons (`🤖` vs `📬`) and colorization.
 - **Auto-Cleanup**: `git_finalize_series` unsets the `slop.basebranch` config after a successful merge.
 
 ---

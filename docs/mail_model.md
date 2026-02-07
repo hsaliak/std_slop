@@ -72,9 +72,9 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 ## 4. Required Tooling & Commands
 
 ### Mode Activation
-- **`/mode mail`**: Enables the "Mail Model" persona. This activates the `patcher` skill and injects the corresponding system prompt. Be sure to provide a visual update to the modeline
+- **`/mode mail`**: Enables the "Mail Model" persona. This activates the `patcher` skill and injects the corresponding system prompt. The modeline will update to show a green `📬 MAIL_MODEL` indicator.
 - **Session Toggle**: This mode can be toggled on/off. When off, the agent reverts to direct file modification. When on, all modifications must go through the staging/patch loop.
-- The Mode state default vs mail is shown in the modeline of the UI.
+- The Mode state (Standard vs Mail) is shown in the modeline of the UI using icons (`🤖` vs `📬`) and colorization.
 - When the /mode mail is toggled in a directory that is not a valid git repository, it should ask the user to git init, if not, it should not toggle the mode. 
 
 ### CLI Commands (User Interface)

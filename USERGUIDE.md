@@ -307,7 +307,7 @@ bazel run //:std_slop -- --max_parallel_tools=8
 For complex features that require multiple iterations and clean commit history, use **Mail Mode**.
 
 1. **Activate**: `/mode mail` (Requires a Git repository).
-2. **Indicator**: The modeline will show `std::slop<MAIL, ...>` and the `patcher` skill will be active.
+2. **Indicator**: The modeline will show `std::slop <📬 MAIL_MODEL | ...>` (in green) and the `patcher` skill will be active. In standard mode, it shows `std::slop <🤖 STANDARD | ...>` (in cyan).
 3. **Tooling**: Use `git_branch_staging`, `git_commit_patch`, `git_format_patch_series`, `git_verify_series`, `git_reroll_patch`, and `git_finalize_series`.
 4. **Review**: Use `/review mail [index]` to review specific patches. Use `R:` comments in the editor for feedback.
 
