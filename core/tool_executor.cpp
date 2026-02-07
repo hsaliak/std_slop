@@ -520,6 +520,21 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   return absl::InvalidArgumentError("Unknown action: " + req.action);
 }
 
+absl::StatusOr<std::string> ToolExecutor::CheckStagingBranch() {
+  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
+  if (!branch_res.ok()) return branch_res.status();
+  std::string current_branch = branch_res->stdout_out;
+  if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
+
+  if (!absl::StartsWith(current_branch, "slop/staging/")) {
+    return absl::FailedPreconditionError(
+        "This tool can only be used on a staging branch (starting with 'slop/staging/'). "
+        "You are currently on '" +
+        current_branch + "'. Please use git_branch_staging to create a new staging branch.");
+  }
+  return current_branch;
+}
+
 absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagingRequest& req) {
   // Check if repo is clean
   auto status_res = RunCommand("git status --porcelain");
@@ -554,6 +569,9 @@ absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagin
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchRequest& req) {
+  auto branch_status = CheckStagingBranch();
+  if (!branch_status.ok()) return branch_status.status();
+
   if (req.summary.empty() || req.rationale.empty()) {
     return absl::InvalidArgumentError("Both summary and rationale are required for a patch commit.");
   }
@@ -577,6 +595,9 @@ absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchReq
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPatchSeriesRequest& req) {
+  auto branch_status = CheckStagingBranch();
+  if (!branch_status.ok()) return branch_status.status();
+
   std::string base = GetBaseBranch(req.base_branch);
 
   // Get list of commits
@@ -620,14 +641,11 @@ absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPa
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSeriesRequest& req) {
-  std::string target = GetBaseBranch(req.target_branch);
+  auto branch_status = CheckStagingBranch();
+  if (!branch_status.ok()) return branch_status.status();
+  std::string current_branch = *branch_status;
 
-  // Get current branch name
-  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
-  if (!branch_res.ok()) return branch_res.status();
-  std::string current_branch = branch_res->stdout_out;
-  // strip newline
-  if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
+  std::string target = GetBaseBranch(req.target_branch);
 
   if (current_branch == target) {
     return absl::FailedPreconditionError("Already on target branch " + target);
@@ -647,16 +665,15 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
   (void)RunCommand("git branch -d " + EscapeShellArg(current_branch));
   (void)RunCommand("git config --unset slop.basebranch");
 
-  return "Finalized series and merged into " + target;
+  return "Finalized series, merged into " + target + ", and deleted staging branch " + current_branch +
+         ". You are now on " + target + ".";
 }
 
-absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(const GitVerifySeriesRequest& req,
-                                                          std::shared_ptr<CancellationRequest> cancellation) {
-  // 1. Get current branch to return to it later
-  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
-  if (!branch_res.ok()) return branch_res.status();
-  std::string original_branch = branch_res->stdout_out;
-  if (!original_branch.empty() && original_branch.back() == '\n') original_branch.pop_back();
+absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
+    const GitVerifySeriesRequest& req, std::shared_ptr<CancellationRequest> cancellation) {
+  auto branch_status = CheckStagingBranch();
+  if (!branch_status.ok()) return branch_status.status();
+  std::string original_branch = *branch_status;
 
   // 2. Get list of commits between base and HEAD
   std::string base = GetBaseBranch(req.base_branch);

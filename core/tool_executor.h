@@ -48,6 +48,9 @@ class ToolExecutor {
   absl::StatusOr<std::string> DescribeDb();
   absl::StatusOr<std::string> UseSkill(const UseSkillRequest& req);
 
+  // Verifies current branch is a staging branch.
+  absl::StatusOr<std::string> CheckStagingBranch();
+
   absl::StatusOr<std::string> Grep(const GrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> ReadFile(const ReadFileRequest& req);
   absl::StatusOr<std::string> WriteFile(const WriteFileRequest& req);
