@@ -64,6 +64,11 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
       {"/models", {}, {}, {"/models [filter]       List available models"}, "Model & Configuration"},
       {"/throttle", {}, {}, {"/throttle [N]          Set/show request throttle"}, "Model & Configuration"},
       {"/schema", {}, {}, {"Show current database schema"}, "Model & Configuration"},
+      {"/mode",
+       {"mail", "standard"},
+       {},
+       {"/mode [mail|standard]    Toggle between MAIL (patch-based) and STANDARD modes"},
+       "Model & Configuration"},
 
       // Agent Capabilities
       {"/tool",

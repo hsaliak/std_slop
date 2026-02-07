@@ -1077,6 +1077,8 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
     }
     mail_mode_ = true;
     std::cout << "Switched to MAIL mode." << std::endl;
+    std::cout << "  - Modeline: std::slop<MAIL, ...>" << std::endl;
+    std::cout << "  - Workflow: Use /review patch [index] to iterate on patches." << std::endl;
     // Auto-activate patcher skill if it exists
     auto res = db_->Query("SELECT name FROM skills WHERE name = 'patcher'");
     if (res.ok()) {
