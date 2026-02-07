@@ -783,7 +783,9 @@ TEST_F(CommandHandlerTest, ReviewMailEmptyStagingBranch) {
   std::string output = testing::internal::GetCapturedStdout();
 
   EXPECT_TRUE(absl::StrContains(output, "No patches found to review in range main..HEAD"));
-  EXPECT_TRUE(absl::StrContains(output, "Tip: If you are on a staging branch, in mail mode, but do not see patches yet, ask the agent to git_commit_patch the changes as a patch"));
+  EXPECT_TRUE(absl::StrContains(output,
+                                "Tip: If you are on a staging branch, in mail mode, but do not see patches yet, ask "
+                                "the agent to git_commit_patch the changes as a patch"));
 }
 
 TEST_F(CommandHandlerTest, ReviewStandardSuggestsMail) {
@@ -818,8 +820,8 @@ TEST_F(CommandHandlerTest, ReviewStandardSuggestsMail) {
     handler.Handle(input, sid, active_skills, []() {}, {});
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(absl::StrContains(output, "No changes to review."));
-    EXPECT_TRUE(absl::StrContains(output,
-                                  "Tip: Did you mean to use '/review mail' to review patches in the current series?"));
+    EXPECT_TRUE(
+        absl::StrContains(output, "Tip: Did you mean to use '/review mail' to review patches in the current series?"));
   }
 }
 
