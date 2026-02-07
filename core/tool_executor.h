@@ -34,6 +34,10 @@ class ToolExecutor {
   absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args,
                                       std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
+  // Resolves the base branch for git operations.
+  // Checks git config slop.basebranch, then defaults to main/master.
+  std::string GetBaseBranch(const std::string& requested_base);
+
  private:
   Database* db_;
   std::string session_id_;
@@ -64,10 +68,6 @@ class ToolExecutor {
   absl::StatusOr<std::string> GitVerifySeries(const GitVerifySeriesRequest& req,
                                               std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> GitRerollPatch(const GitRerollPatchRequest& req);
-
-  // Resolves the base branch for git operations.
-  // Checks git config slop.basebranch, then defaults to main/master.
-  std::string GetBaseBranch(const std::string& requested_base);
 };
 
 }  // namespace slop

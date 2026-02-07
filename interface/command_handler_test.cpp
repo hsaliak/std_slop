@@ -748,4 +748,24 @@ TEST_F(CommandHandlerTest, ReviewPatchUsesPatchExtension) {
   EXPECT_FALSE(absl::StrContains(handler.last_initial_content, "Add your comments starting with 'R:' below."));
 }
 
+TEST_F(CommandHandlerTest, ReviewPatchDiagnosticsOnBaseBranch) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  
+  // 1. Mock we are on main and comparing main..HEAD (empty)
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "main";
+  handler.command_responses["git config slop.basebranch"] = "main"; 
+  handler.command_responses["git rev-list --reverse main..HEAD"] = ""; // No patches
+  
+  testing::internal::CaptureStdout();
+  std::string input = "/review patch";
+  handler.Handle(input, sid, active_skills, []() {}, {});
+  std::string output = testing::internal::GetCapturedStdout();
+  
+  EXPECT_TRUE(absl::StrContains(output, "No patches found to review in range main..HEAD"));
+  EXPECT_TRUE(absl::StrContains(output, "Tip: You are currently on the base branch 'main'"));
+}
+
 }  // namespace slop
