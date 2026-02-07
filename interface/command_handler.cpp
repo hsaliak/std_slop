@@ -60,6 +60,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/memo"] = [this](CommandArgs& args) { return HandleMemo(args); };
   commands_["/review"] = [this](CommandArgs& args) { return HandleReview(args); };
   commands_["/feedback"] = [this](CommandArgs& args) { return HandleFeedback(args); };
+  commands_["/mode"] = [this](CommandArgs& args) { return HandleMode(args); };
 
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
@@ -89,7 +90,20 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                                               std::function<void()> show_help_fn,
                                               const std::vector<std::string>& selected_groups) {
   std::string trimmed = std::string(absl::StripLeadingAsciiWhitespace(input));
-  if (trimmed.empty() || trimmed[0] != '/') return Result::NOT_A_COMMAND;
+  if (trimmed.empty()) return Result::NOT_A_COMMAND;
+
+  if (trimmed[0] != '/') {
+    if (mail_mode_) {
+      std::string upper = absl::AsciiStrToUpper(trimmed);
+      if (upper == "LGTM" || upper == "LOOKS GOOD" || upper == "LOOKS GOOD TO ME" ||
+          upper == "APPROVED" || upper == "APPROVE") {
+        input = "The user has approved the series (" + trimmed +
+                "). Please finalize the series using git_finalize_series.";
+        return Result::PROCEED_TO_LLM;
+      }
+    }
+    return Result::NOT_A_COMMAND;
+  }
 
   std::vector<std::string> parts = absl::StrSplit(trimmed, absl::MaxSplits(' ', 1));
   std::string cmd = parts[0];
@@ -850,6 +864,61 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     return Result::HANDLED;
   }
 
+  // Handle patch review
+  if (absl::StartsWith(args.args, "patch")) {
+    std::string base = "main";
+    std::vector<std::string> patch_args = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
+    int patch_idx = -1;
+    if (patch_args.size() > 1) {
+      if (!absl::SimpleAtoi(patch_args[1], &patch_idx)) {
+        base = patch_args[1];
+      }
+    }
+
+    std::string rev_cmd = "git rev-list --reverse " + base + "..HEAD";
+    auto rev_res = ExecuteCommand(rev_cmd);
+    if (!rev_res.ok()) {
+      std::cerr << "Failed to get patch list: " << rev_res.status().message() << std::endl;
+      return Result::HANDLED;
+    }
+    std::vector<std::string> commits = absl::StrSplit(*rev_res, '\n', absl::SkipEmpty());
+    
+    std::string review_content;
+    if (patch_idx > 0 && patch_idx <= static_cast<int>(commits.size())) {
+      std::string hash = commits[patch_idx - 1];
+      auto show_res = ExecuteCommand("git show -s --pretty=format:\"%s%n%b\" " + hash);
+      auto diff_res = ExecuteCommand("git show -p " + hash);
+      review_content = "### Patch [" + std::to_string(patch_idx) + "/" + std::to_string(commits.size()) + "]: " + 
+                       (show_res.ok() ? *show_res : "") + " ###\n" + (diff_res.ok() ? *diff_res : "");
+    } else {
+      for (size_t i = 0; i < commits.size(); ++i) {
+        auto show_res = ExecuteCommand("git show -s --pretty=format:\"%s%n%b\" " + commits[i]);
+        auto diff_res = ExecuteCommand("git show -p " + commits[i]);
+        review_content += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) + "]: " + 
+                         (show_res.ok() ? *show_res : "") + " ###\n" + (diff_res.ok() ? *diff_res : "") + "\n\n";
+      }
+    }
+
+    if (review_content.empty()) {
+      std::cout << "No patches found to review." << std::endl;
+      return Result::HANDLED;
+    }
+
+    std::string template_md = "## Patch Review\n\n" + review_content + 
+                             "\n\n--- Add your comments starting with 'R:' below. ---\n\n";
+    std::string feedback = TriggerEditor(template_md, ".md");
+    if (feedback.empty() || feedback == template_md) {
+      return Result::HANDLED;
+    }
+
+    if (absl::StrContains(feedback, "R:")) {
+      args.input = "I have reviewed the patches. Here are my comments:\n\n" + feedback + 
+                   "\n\nPlease address only the comments marked with 'R:' in the patches above.";
+      return Result::PROCEED_TO_LLM;
+    }
+    return Result::HANDLED;
+  }
+
   std::string diff_cmd = "git diff";
   bool is_historical = false;
   if (!args.args.empty()) {
@@ -995,6 +1064,54 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
       edited + "\n\nPlease address the feedback marked with 'R:' in the message above.";
 
   return Result::PROCEED_TO_LLM;
+}
+
+CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
+  std::string mode = std::string(absl::StripAsciiWhitespace(args.args));
+  if (mode == "mail") {
+    // Check if it's a git repo
+    auto git_check = ExecuteCommand("git rev-parse --is-inside-work-tree");
+    if (!git_check.ok()) {
+      std::cout << "Error: Not a git repository. Please run 'git init' first." << std::endl;
+      return Result::HANDLED;
+    }
+    mail_mode_ = true;
+    std::cout << "Switched to MAIL mode." << std::endl;
+    // Auto-activate patcher skill if it exists
+    auto res = db_->Query("SELECT name FROM skills WHERE name = 'patcher'");
+    if (res.ok()) {
+      auto j = nlohmann::json::parse(*res, nullptr, false);
+      if (!j.is_discarded() && j.is_array() && !j.empty()) {
+        bool already_active = false;
+        for (const auto& s : args.active_skills) {
+          if (s == "patcher") {
+            already_active = true;
+            break;
+          }
+        }
+        if (!already_active) {
+          args.active_skills.emplace_back("patcher");
+          (void)db_->SetActiveSkills(args.session_id, args.active_skills);
+          std::cout << "Skill 'patcher' auto-activated." << std::endl;
+        }
+      }
+    }
+  } else if (mode == "standard" || mode == "default") {
+    mail_mode_ = false;
+    std::cout << "Switched to STANDARD mode." << std::endl;
+    // Deactivate patcher skill
+    auto it = std::remove(args.active_skills.begin(), args.active_skills.end(), "patcher");
+    if (it != args.active_skills.end()) {
+      args.active_skills.erase(it, args.active_skills.end());
+      (void)db_->SetActiveSkills(args.session_id, args.active_skills);
+      std::cout << "Skill 'patcher' deactivated." << std::endl;
+    }
+  } else if (mode.empty()) {
+    std::cout << "Current mode: " << (mail_mode_ ? "MAIL" : "STANDARD") << std::endl;
+  } else {
+    std::cout << "Unknown mode: " << mode << ". Use 'mail' or 'standard'." << std::endl;
+  }
+  return Result::HANDLED;
 }
 
 std::string CommandHandler::SkillToMarkdown(const Database::Skill& skill) {

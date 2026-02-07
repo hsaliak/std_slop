@@ -143,6 +143,7 @@ cc_library(
         "cancellation_test",
         "tool_dispatcher_test",
         "ui_thread_safety_test",
+        "mail_model_test",
     ]
 ]
 

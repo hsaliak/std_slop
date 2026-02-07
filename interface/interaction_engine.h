@@ -33,6 +33,8 @@ class InteractionEngine {
   bool Process(std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
                const Config& config);
 
+  CommandHandler& GetCommandHandler() { return cmd_handler_; }
+
  private:
   Database& db_;
   Orchestrator& orchestrator_;

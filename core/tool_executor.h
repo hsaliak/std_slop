@@ -56,6 +56,14 @@ class ToolExecutor {
   absl::StatusOr<std::string> GitGrep(const GitGrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> SaveMemo(const SaveMemoRequest& req);
   absl::StatusOr<std::string> RetrieveMemos(const RetrieveMemosRequest& req);
+
+  absl::StatusOr<std::string> GitBranchStaging(const GitBranchStagingRequest& req);
+  absl::StatusOr<std::string> GitCommitPatch(const GitCommitPatchRequest& req);
+  absl::StatusOr<std::string> GitFormatPatchSeries(const GitFormatPatchSeriesRequest& req);
+  absl::StatusOr<std::string> GitFinalizeSeries(const GitFinalizeSeriesRequest& req);
+  absl::StatusOr<std::string> GitVerifySeries(const GitVerifySeriesRequest& req,
+                                              std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> GitRerollPatch(const GitRerollPatchRequest& req);
 };
 
 }  // namespace slop

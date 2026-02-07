@@ -56,6 +56,8 @@ class CommandHandler {
 
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
 
+  bool IsMailMode() const { return mail_mode_; }
+
  private:
   void RegisterCommands();
 
@@ -78,8 +80,10 @@ class CommandHandler {
   Result HandleMemo(CommandArgs& args);
   Result HandleReview(CommandArgs& args);
   Result HandleFeedback(CommandArgs& args);
+  Result HandleMode(CommandArgs& args);
 
   Database* db_;
+  bool mail_mode_ = false;
   class Orchestrator* orchestrator_;
   OAuthHandler* oauth_handler_;
   std::string google_api_key_;

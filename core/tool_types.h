@@ -99,6 +99,34 @@ struct SearchCodeRequest {
   std::string query;
 };
 
+struct GitBranchStagingRequest {
+  std::string name;
+  std::string base_branch = "main";
+};
+
+struct GitCommitPatchRequest {
+  std::string summary;
+  std::string rationale;
+};
+
+struct GitFormatPatchSeriesRequest {
+  std::string base_branch;
+};
+
+struct GitFinalizeSeriesRequest {
+  std::string target_branch;
+};
+
+struct GitVerifySeriesRequest {
+  std::string command;
+  std::string base_branch = "main";
+};
+
+struct GitRerollPatchRequest {
+  int index;
+  std::string base_branch = "main";
+};
+
 }  // namespace slop
 
 namespace nlohmann {
@@ -221,6 +249,34 @@ inline void from_json(const nlohmann::json& j, UseSkillRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) { r.query = j.at("query").get<std::string>(); }
+
+inline void from_json(const nlohmann::json& j, GitBranchStagingRequest& r) {
+  r.name = j.at("name").get<std::string>();
+  r.base_branch = j.value("base_branch", "main");
+}
+
+inline void from_json(const nlohmann::json& j, GitCommitPatchRequest& r) {
+  r.summary = j.at("summary").get<std::string>();
+  r.rationale = j.at("rationale").get<std::string>();
+}
+
+inline void from_json(const nlohmann::json& j, GitFormatPatchSeriesRequest& r) {
+  r.base_branch = j.value("base_branch", "main");
+}
+
+inline void from_json(const nlohmann::json& j, GitFinalizeSeriesRequest& r) {
+  r.target_branch = j.at("target_branch").get<std::string>();
+}
+
+inline void from_json(const nlohmann::json& j, GitVerifySeriesRequest& r) {
+  r.command = j.at("command").get<std::string>();
+  r.base_branch = j.value("base_branch", "main");
+}
+
+inline void from_json(const nlohmann::json& j, GitRerollPatchRequest& r) {
+  r.index = j.at("index").get<int>();
+  r.base_branch = j.value("base_branch", "main");
+}
 
 }  // namespace slop
 

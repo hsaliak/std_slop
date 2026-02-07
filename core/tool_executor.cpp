@@ -78,6 +78,18 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     result = UseSkill(args.get<UseSkillRequest>());
   } else if (name == "search_code") {
     result = SearchCode(args.get<SearchCodeRequest>(), cancellation);
+  } else if (name == "git_branch_staging") {
+    result = GitBranchStaging(args.get<GitBranchStagingRequest>());
+  } else if (name == "git_commit_patch") {
+    result = GitCommitPatch(args.get<GitCommitPatchRequest>());
+  } else if (name == "git_format_patch_series") {
+    result = GitFormatPatchSeries(args.get<GitFormatPatchSeriesRequest>());
+  } else if (name == "git_finalize_series") {
+    result = GitFinalizeSeries(args.get<GitFinalizeSeriesRequest>());
+  } else if (name == "git_verify_series") {
+    result = GitVerifySeries(args.get<GitVerifySeriesRequest>(), cancellation);
+  } else if (name == "git_reroll_patch") {
+    result = GitRerollPatch(args.get<GitRerollPatchRequest>());
   } else {
     return absl::NotFoundError("Tool not found: " + name);
   }
@@ -506,6 +518,260 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   }
 
   return absl::InvalidArgumentError("Unknown action: " + req.action);
+}
+
+absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagingRequest& req) {
+  // Check if repo is clean
+  auto status_res = RunCommand("git status --porcelain");
+  if (!status_res.ok()) return status_res.status();
+  if (!status_res->stdout_out.empty()) {
+    return absl::FailedPreconditionError(
+        "Repository is dirty. Please commit or stash changes before starting a staging branch.");
+  }
+
+  std::string branch_name = "slop/staging/" + req.name;
+  std::string cmd =
+      "git checkout -b " + EscapeShellArg(branch_name) + " " + EscapeShellArg(req.base_branch);
+  auto res = RunCommand(cmd);
+  if (!res.ok()) return res.status();
+  if (res->exit_code != 0) {
+    return absl::InternalError("Failed to create staging branch: " + res->stderr_out);
+  }
+
+  return "Created and checked out staging branch: " + branch_name;
+}
+
+absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchRequest& req) {
+  if (req.summary.empty() || req.rationale.empty()) {
+    return absl::InvalidArgumentError("Both summary and rationale are required for a patch commit.");
+  }
+
+  // git add .
+  auto add_res = RunCommand("git add .");
+  if (!add_res.ok()) return add_res.status();
+  if (add_res->exit_code != 0) {
+    return absl::InternalError("git add failed: " + add_res->stderr_out);
+  }
+
+  std::string commit_msg = req.summary + "\n\nRationale: " + req.rationale;
+  std::string cmd = "git commit -m " + EscapeShellArg(commit_msg);
+  auto commit_res = RunCommand(cmd);
+  if (!commit_res.ok()) return commit_res.status();
+  if (commit_res->exit_code != 0) {
+    return absl::InternalError("git commit failed: " + commit_res->stderr_out);
+  }
+
+  return "Committed patch: " + req.summary;
+}
+
+absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(
+    const GitFormatPatchSeriesRequest& req) {
+  std::string base = req.base_branch.empty() ? "main" : req.base_branch;
+
+  // Get list of commits
+  std::string rev_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
+  auto rev_res = RunCommand(rev_cmd);
+  if (!rev_res.ok() || rev_res->exit_code != 0) {
+    return absl::InternalError("Failed to get commit list: " + (rev_res.ok() ? rev_res->stderr_out : rev_res.status().ToString()));
+  }
+
+  std::stringstream ss(rev_res->stdout_out);
+  std::vector<std::string> commits;
+  std::string hash;
+  while (ss >> hash) {
+    commits.push_back(hash);
+  }
+
+  if (commits.empty()) {
+    return "No patches found in the current series.";
+  }
+
+  std::string output;
+  for (size_t i = 0; i < commits.size(); ++i) {
+    // Get commit info (subject and body/rationale)
+    std::string show_cmd = "git show -s --pretty=format:\"%s%n%b\" " + EscapeShellArg(commits[i]);
+    auto show_res = RunCommand(show_cmd);
+    if (!show_res.ok()) return show_res.status();
+
+    // Get diff
+    std::string diff_cmd = "git show -p " + EscapeShellArg(commits[i]);
+    auto diff_res = RunCommand(diff_cmd);
+    if (!diff_res.ok()) return diff_res.status();
+
+    output += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) + "]: " + show_res->stdout_out + " ###\n";
+    // git show -p includes the diff and the header. We might want to clean it up or just use it.
+    output += diff_res->stdout_out + "\n\n";
+  }
+
+  return output;
+}
+
+absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSeriesRequest& req) {
+  std::string target = req.target_branch.empty() ? "main" : req.target_branch;
+
+  // Get current branch name
+  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
+  if (!branch_res.ok()) return branch_res.status();
+  std::string current_branch = branch_res->stdout_out;
+  // strip newline
+  if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
+
+  if (current_branch == target) {
+    return absl::FailedPreconditionError("Already on target branch " + target);
+  }
+
+  // Merge into target
+  auto checkout_res = RunCommand("git checkout " + EscapeShellArg(target));
+  if (!checkout_res.ok()) return checkout_res.status();
+
+  auto merge_res = RunCommand("git merge --ff-only " + EscapeShellArg(current_branch));
+  if (!merge_res.ok() || merge_res->exit_code != 0) {
+    return absl::InternalError(
+        "Failed to merge series into " + target + ": " +
+        (merge_res.ok() ? merge_res->stderr_out : merge_res.status().ToString()));
+  }
+
+  // Clean up
+  (void)RunCommand("git branch -d " + EscapeShellArg(current_branch));
+
+  return "Finalized series and merged into " + target;
+}
+
+absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
+    const GitVerifySeriesRequest& req, std::shared_ptr<CancellationRequest> cancellation) {
+  // 1. Get current branch to return to it later
+  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
+  if (!branch_res.ok()) return branch_res.status();
+  std::string original_branch = branch_res->stdout_out;
+  if (!original_branch.empty() && original_branch.back() == '\n') original_branch.pop_back();
+
+  // 2. Get list of commits between base and HEAD
+  std::string base = req.base_branch.empty() ? "main" : req.base_branch;
+  std::string log_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
+  auto log_res = RunCommand(log_cmd);
+  if (!log_res.ok()) return log_res.status();
+  if (log_res->exit_code != 0) {
+    return absl::InternalError("Failed to get commit list: " + log_res->stderr_out);
+  }
+
+  std::stringstream commits_ss(log_res->stdout_out);
+  std::vector<std::string> commits;
+  std::string commit_hash;
+  while (commits_ss >> commit_hash) {
+    commits.push_back(commit_hash);
+  }
+
+  if (commits.empty()) {
+    return "No patches found to verify.";
+  }
+
+  nlohmann::json report = nlohmann::json::array();
+  bool all_passed = true;
+
+  for (size_t i = 0; i < commits.size(); ++i) {
+    if (cancellation && cancellation->IsCancelled()) {
+      (void)RunCommand("git checkout " + EscapeShellArg(original_branch));
+      return absl::CancelledError("Verification cancelled.");
+    }
+
+    const auto& hash = commits[i];
+
+    // Checkout commit
+    auto checkout_res = RunCommand("git checkout " + EscapeShellArg(hash));
+    if (!checkout_res.ok() || checkout_res->exit_code != 0) {
+      all_passed = false;
+      report.push_back({{"patch_index", i + 1},
+                        {"hash", hash},
+                        {"status", "failed"},
+                        {"error", "Checkout failed: " + (checkout_res.ok() ? checkout_res->stderr_out
+                                                                          : checkout_res.status().ToString())}});
+      continue;
+    }
+
+    // Run verification command
+    auto verify_res = RunCommand(req.command, cancellation);
+    bool passed = verify_res.ok() && verify_res->exit_code == 0;
+
+    report.push_back({{"patch_index", i + 1},
+                      {"hash", hash},
+                      {"status", passed ? "passed" : "failed"},
+                      {"stdout", verify_res.ok() ? verify_res->stdout_out : ""},
+                      {"stderr", verify_res.ok() ? verify_res->stderr_out : verify_res.status().ToString()}});
+
+    if (!passed) {
+      all_passed = false;
+    }
+  }
+
+  // Return to original branch
+  (void)RunCommand("git checkout " + EscapeShellArg(original_branch));
+
+  nlohmann::json final_result;
+  final_result["all_passed"] = all_passed;
+  final_result["report"] = report;
+
+  return final_result.dump(2);
+}
+
+absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchRequest& req) {
+  if (req.index <= 0) {
+    return absl::InvalidArgumentError("Patch index must be 1-based.");
+  }
+
+  // 1. Get list of commits
+  std::string base = req.base_branch.empty() ? "main" : req.base_branch;
+  std::string log_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
+  auto log_res = RunCommand(log_cmd);
+  if (!log_res.ok()) return log_res.status();
+  if (log_res->exit_code != 0) {
+    return absl::InternalError("Failed to get commit list: " + log_res->stderr_out);
+  }
+
+  std::stringstream commits_ss(log_res->stdout_out);
+  std::vector<std::string> commits;
+  std::string commit_hash;
+  while (commits_ss >> commit_hash) {
+    commits.push_back(commit_hash);
+  }
+
+  if (req.index > static_cast<int>(commits.size())) {
+    return absl::NotFoundError("Patch index " + std::to_string(req.index) + " exceeds series length (" +
+                               std::to_string(commits.size()) + ").");
+  }
+
+  const std::string& target_hash = commits[req.index - 1];
+
+  // 2. Stage changes
+  auto add_res = RunCommand("git add .");
+  if (!add_res.ok() || add_res->exit_code != 0) {
+    return absl::InternalError("git add failed: " + (add_res.ok() ? add_res->stderr_out : add_res.status().ToString()));
+  }
+
+  // Check if there are actually changes to commit
+  auto diff_res = RunCommand("git diff --cached --quiet");
+  if (diff_res.ok() && diff_res->exit_code == 0) {
+    return "No changes found to reroll into patch " + std::to_string(req.index);
+  }
+
+  // 3. Create fixup commit
+  std::string fixup_cmd = "git commit --fixup " + EscapeShellArg(target_hash);
+  auto fixup_res = RunCommand(fixup_cmd);
+  if (!fixup_res.ok() || fixup_res->exit_code != 0) {
+    return absl::InternalError("Failed to create fixup commit: " +
+                               (fixup_res.ok() ? fixup_res->stderr_out : fixup_res.status().ToString()));
+  }
+
+  // 4. Autosquash rebase
+  // We use GIT_SEQUENCE_EDITOR=true to make the interactive rebase non-interactive.
+  std::string rebase_cmd = "GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash " + EscapeShellArg(base);
+  auto rebase_res = RunCommand(rebase_cmd);
+  if (!rebase_res.ok() || rebase_res->exit_code != 0) {
+    return absl::InternalError("Autosquash rebase failed: " +
+                               (rebase_res.ok() ? rebase_res->stderr_out : rebase_res.status().ToString()));
+  }
+
+  return "Successfully rerolled changes into patch " + std::to_string(req.index) + " (" +
+         target_hash.substr(0, 7) + ").";
 }
 
 }  // namespace slop

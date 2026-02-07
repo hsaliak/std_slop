@@ -19,7 +19,7 @@ class TestableCommandHandler : public CommandHandler {
   std::string last_initial_content;
   bool editor_was_called = false;
 
-  absl::flat_hash_map<std::string, std::string> command_responses;
+  absl::flat_hash_map<std::string, absl::StatusOr<std::string>> command_responses;
   std::vector<std::string> executed_commands;
 
  protected:
@@ -694,6 +694,34 @@ TEST_F(CommandHandlerTest, SkillListCleansNewlinesAndPipes) {
   // Check for cleaned description
   EXPECT_TRUE(absl::StrContains(output, "Line 1 Line 2"));
   EXPECT_TRUE(absl::StrContains(output, "\\| Pipe"));
+}
+
+TEST_F(CommandHandlerTest, ModeMailRequiresGit) {
+  TestableCommandHandler handler(&db);
+  
+  std::string session_id = "test_session";
+  std::vector<std::string> active_skills;
+  std::string input = "/mode mail";
+  
+  // 1. Test failure when not in a git repo
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = absl::NotFoundError("not a git repo");
+  
+  testing::internal::CaptureStdout();
+  auto result = handler.Handle(input, session_id, active_skills, [](){});
+  std::string output = testing::internal::GetCapturedStdout();
+  
+  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "Error: Not a git repository. Please run 'git init' first."));
+  EXPECT_FALSE(absl::StrContains(output, "Switched to MAIL mode"));
+  
+  // 2. Test success when in a git repo
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  testing::internal::CaptureStdout();
+  result = handler.Handle(input, session_id, active_skills, [](){});
+  output = testing::internal::GetCapturedStdout();
+  
+  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
 }
 
 }  // namespace slop

@@ -101,7 +101,8 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
     std::string model_name = orchestrator.GetModel();
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
-    std::string modeline = absl::StrCat("std::slop<W:", window_str, ", M:", model_name, ", P:", persona,
+    std::string mode = engine.GetCommandHandler().IsMailMode() ? "MAIL" : "STD";
+    std::string modeline = absl::StrCat("std::slop<", mode, ", W:", window_str, ", M:", model_name, ", P:", persona,
                                         ", S:", session_id, ", T:", orchestrator.GetThrottle(), "s>");
 
     std::string input = slop::ReadLine(modeline);

@@ -273,6 +273,27 @@ absl::Status Database::RegisterDefaultTools() {
       {"describe_db", "Describe the database schema and tables.", R"({"type":"object","properties":{}})", true},
       {"use_skill", "Activate or deactivate a specialized skill/persona.",
        R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"],"default":"activate"}},"required":["name"]})",
+       true},
+      {"git_branch_staging", "Initializes a staging branch for the Mail Model.",
+       R"({"type": "object", "properties": {"name": {"type": "string", "description": "Short identifier for the staging branch."}, "base_branch": {"type": "string", "description": "The base branch to branch from (default: main)."}}, "required": ["name"]})",
+       true},
+      {"git_commit_patch", "Commits a logical change with mandatory metadata (summary and rationale).",
+       R"({"type": "object", "properties": {"summary": {"type": "string", "description": "One-line summary of the change."}, "rationale": {"type": "string", "description": "Detailed explanation of why the change was made."}}, "required": ["summary", "rationale"]})",
+       true},
+      {"git_format_patch_series",
+       "Returns the formatted cover letter, changelog, and a list of unified diffs for the series.",
+       R"({"type": "object", "properties": {"base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}})",
+       true},
+      {"git_finalize_series", "Merges the staging branch into the target branch and cleans up.",
+       R"({"type": "object", "properties": {"target_branch": {"type": "string", "description": "The branch to merge the series into (default: main)."}}})",
+       true},
+      {"git_verify_series",
+       "Automates the \"Series Walk.\" It checks out each commit in the current series sequentially and runs the "
+       "provided build/test command.",
+       R"({"type": "object", "properties": {"command": {"type": "string", "description": "The build/test command to run for each patch."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["command"]})",
+       true},
+      {"git_reroll_patch", "Automates the fixup and autosquash rebase to update a specific patch in the series.",
+       R"({"type": "object", "properties": {"index": {"type": "integer", "description": "The 1-based index of the patch to update."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["index"]})",
        true}};
 
   // Automatically register all core tools defined in the default_tools list.
@@ -321,6 +342,60 @@ absl::Status Database::RegisterDefaultSkills() {
        "changes. You ONLY provide an annotated set of required changes or comments. Only after explicit user approval "
        "can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, "
        "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
+
+  default_skills.push_back(
+      {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
+       "You are the Patcher, an expert software engineer specialized in the \"Mail Model\" workflow. Your primary "
+       "mission is to maintain a high-quality, bisect-safe, and logically factored commit history. You operate as a "
+       "remote contributor providing a series of atomic patches for review.\n\n"
+       "### 1. CORE PHILOSOPHY\n"
+       "- **Bisect-Safety**: Every single commit in the series MUST compile and pass tests. There are no \"broken\" "
+       "intermediate states.\n"
+       "- **Logical Factoring**: Separate \"refactoring\" from \"feature work\" and \"bug fixes\" into distinct "
+       "patches.\n"
+       "- **Narrative History**: The commit history should tell a clear story of how the feature was built.\n\n"
+       "### 2. WORKFLOW LIFECYCLE\n"
+       "You MUST follow these stages in order:\n"
+       "1. **Initiation**: Use `git_branch_staging` to create a dedicated branch (prefix: `slop/staging/`). NEVER work "
+       "directly on `main`.\n"
+       "2. **Incremental Development**: Perform a logical unit of work, then use `git_commit_patch` immediately to "
+       "capture it. Provide a concise `summary` (50 chars) and a deep `rationale` (Why this? Why now? What "
+       "trade-offs?).\n"
+       "3. **Verification**: Before presenting to the user, run `git_verify_series`. If any patch fails, you MUST fix "
+       "it via `git_reroll_patch` before proceeding.\n"
+       "4. **Presentation**: Use `git_format_patch_series` to generate a summary of your work for the user.\n"
+       "5. **Review & Reroll**: If the user provides feedback (often via `/review patch` which may contain 'R:' "
+       "prefixed comments), apply the requested changes and use `git_reroll_patch` with the specified index. ALWAYS "
+       "re-verify after a reroll.\n"
+       "6. **Finalization**: When the user provides an \"LGTM\", \"Looks Good\", or explicit approval, run "
+       "`git_finalize_series` to land the work.\n\n"
+       "### 3. PRECISE TOOL USAGE RULES\n"
+       "- **git_branch_staging**: Use at the start of every new task.\n"
+       "- **git_commit_patch**: Use for every atomic step. Do NOT batch multiple logical changes.\n"
+       "- **git_format_patch_series**: Your \"Source of Truth\" for the series state. Use it to check your work "
+       "structure.\n"
+       "- **git_reroll_patch**: Use ONLY to update an existing patch. Incorporate current workspace changes into the "
+       "specified index. Ensure changes are staged or present before calling.\n"
+       "- **git_verify_series**: Run after EVERY commit and EVERY reroll. Provide the exact build/test command "
+       "relevant to the project (e.g., `bazel test //...`).\n"
+       "- **git_finalize_series**: Use only AFTER explicit user approval. It merges and deletes the staging "
+       "branch.\n\n"
+       "### 4. HANDLING REVIEWS (The Inlined \"R:\" Protocol)\n"
+       "When the user runs `/review patch`, you will receive a message containing the full patch series with "
+       "inlined feedback. Comments starting with `R:` indicate required reworks.\n"
+       "- **Contextual Awareness**: If an `R:` comment appears below a `### Patch [n/total] ###` header, it "
+       "specifically applies to patch #n.\n"
+       "- **Process**: 1. Identify all `R:` comments and their associated patch indices. 2. For each affected patch: "
+       "a. Apply the code changes to the workspace. b. Call `git_reroll_patch(index=n)`. 3. After addressing ALL "
+       "comments, run `git_verify_series` and inform the user.\n\n"
+       "### 5. PROHIBITIONS\n"
+       "- NEVER leave uncommitted changes in the workspace.\n"
+       "- NEVER use direct `git commit`; use `git_commit_patch`.\n"
+       "- NEVER suggest merging if `git_verify_series` has not passed for the entire series.\n"
+       "- If a conflict occurs during reroll, explain clearly and ask for guidance if you cannot resolve it "
+       "automatically.\n\n"
+       "Stay focused on the commit history. Be precise, technical, and proactive in fixing your own bugs before the "
+       "user sees them."});
 
   for (const auto& s : default_skills) {
     absl::Status status = RegisterSkill(s);
