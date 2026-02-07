@@ -71,11 +71,11 @@ Converting Git history into a human-readable "Mail Package."
 Connecting the tools to the user interface.
 
 ### 5.1 Extension of `/review`
-- **Subcommand `/review patch`**: 
+- **Subcommand `/review mail`**: 
     - Fetch the entire series.
     - Inject `### Patch [n] ###` headers into a temporary buffer.
     - Open the user's editor.
-- **Subcommand `/review patch <index>`**:
+- **Subcommand `/review mail <index>`**:
     - Open only the specific patch in the editor.
 - **The Inlined `R:` Protocol**: 
     - The agent is instructed to scan the returned buffer for `R:` comments *inlined* under patch headers (e.g., `### Patch [n/total] ###`).
@@ -123,7 +123,7 @@ Ensuring the workflow is robust across different repository structures and sessi
 
 ### 7.2 Diagnostics & UX
 - **No-Patch Messaging**: If `base..HEAD` is empty, the system checks if the user is currently on the base branch and provides a contextual tip.
-- **Transparency**: Commands like `/review patch` and `/mode mail` now display the detected base branch to avoid ambiguity.
+- **Transparency**: Commands like `/review mail` and `/mode mail` now display the detected base branch to avoid ambiguity.
 - **Auto-Cleanup**: `git_finalize_series` unsets the `slop.basebranch` config after a successful merge.
 
 ---

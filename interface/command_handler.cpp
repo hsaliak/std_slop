@@ -855,8 +855,8 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     return Result::HANDLED;
   }
 
-  // Handle patch review
-  if (absl::StartsWith(args.args, "patch")) {
+  // Handle mail review
+  if (absl::StartsWith(args.args, "mail")) {
     std::string base;
     std::vector<std::string> patch_args = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
     int patch_idx = -1;
@@ -925,7 +925,7 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     }
 
     std::string initial_content =
-        "# --- PATCH REVIEW ---\n"
+        "# --- MAIL REVIEW ---\n"
         "# Add your review comments on new lines starting with 'R:'\n"
         "# Example:\n"
         "# R: Please refactor this function to be more concise.\n"
@@ -1119,7 +1119,7 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
     std::cout << "Switched to MAIL mode." << std::endl;
     std::cout << "  - Modeline: std::slop<MAIL, ...>" << std::endl;
     std::cout << "  - Base Branch: " << base << std::endl;
-    std::cout << "  - Workflow: Use /review patch [index] to iterate on patches." << std::endl;
+    std::cout << "  - Workflow: Use /review mail [index] to iterate on patches." << std::endl;
     // Auto-activate patcher skill if it exists
     auto res = db_->Query("SELECT name FROM skills WHERE name = 'patcher'");
     if (res.ok()) {

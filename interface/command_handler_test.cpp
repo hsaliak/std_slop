@@ -737,13 +737,13 @@ TEST_F(CommandHandlerTest, ReviewPatchUsesPatchExtension) {
   handler.command_responses["git show hash1"] = "diff content";
 
   handler.next_editor_output = "R: LGTM";
-  std::string input = "/review patch";
+  std::string input = "/review mail";
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
 
   EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
   EXPECT_TRUE(handler.editor_was_called);
   EXPECT_EQ(handler.last_extension, ".patch");
-  EXPECT_TRUE(absl::StrContains(handler.last_initial_content, "--- PATCH REVIEW ---"));
+  EXPECT_TRUE(absl::StrContains(handler.last_initial_content, "--- MAIL REVIEW ---"));
   EXPECT_FALSE(absl::StrContains(handler.last_initial_content, "Add your comments starting with 'R:' below."));
 }
 
@@ -759,7 +759,7 @@ TEST_F(CommandHandlerTest, ReviewPatchDiagnosticsOnBaseBranch) {
   handler.command_responses["git rev-list --reverse main..HEAD"] = "";  // No patches
 
   testing::internal::CaptureStdout();
-  std::string input = "/review patch";
+  std::string input = "/review mail";
   handler.Handle(input, sid, active_skills, []() {}, {});
   std::string output = testing::internal::GetCapturedStdout();
 

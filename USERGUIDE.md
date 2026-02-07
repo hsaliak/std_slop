@@ -309,7 +309,7 @@ For complex features that require multiple iterations and clean commit history, 
 1. **Activate**: `/mode mail` (Requires a Git repository).
 2. **Indicator**: The modeline will show `std::slop<MAIL, ...>` and the `patcher` skill will be active.
 3. **Tooling**: Use `git_branch_staging`, `git_commit_patch`, `git_format_patch_series`, `git_verify_series`, `git_reroll_patch`, and `git_finalize_series`.
-4. **Review**: Use `/review patch [index]` to review specific patches. Use `R:` comments in the editor for feedback.
+4. **Review**: Use `/review mail [index]` to review specific patches. Use `R:` comments in the editor for feedback.
 
 For more details, see [docs/mail_model.md](docs/mail_model.md).
 

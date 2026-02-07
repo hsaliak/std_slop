@@ -20,8 +20,8 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 - **The Cover Letter**: The agent summarizes the entire series in the chat.
 - **Review Interface (The `/review` Flow)**:
     - **Automated Summary**: A Markdown table listing patch indices, summaries, and rationales.
-    - **`/review patch`**: Opens the *entire* patch series in the editor for review. Patch headers (e.g., `### Patch [1/2] ###`) are injected into the buffer to partition the changes.
-    - **`/review patch <index>`**: Opens only the specified patch in the editor.
+    - **`/review mail`**: Opens the *entire* patch series in the editor for review. Patch headers (e.g., `### Patch [1/2] ###`) are injected into the buffer to partition the changes.
+    - **`/review mail <index>`**: Opens only the specified patch in the editor.
 - **Feedback Methods**:
     - **Inlined Reworks**: Users add comments starting with `R: ` directly under the lines they want changed in the review editor.
     - **Contextual Rerolling**: The agent uses the `### Patch [n/total] ###` headers to automatically map `R:` comments to the correct atomic commit. If an `R:` comment is found under Patch 2's header, the agent will apply the fix to Patch 2 using `git_reroll_patch(index=2)`.
@@ -58,7 +58,7 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 4. **The "Mail" (Presentation)**:
    - Agent calls `git_format_patch_series()` and presents the work to the user.
 5. **Review**:
-   - **User** runs `/review patch`.
+   - **User** runs `/review mail`.
    - In the editor, under `### Patch [1/2] ###`, user adds: `R: Use std::string_view for keys here.`
 6. **Reroll**:
    - Agent applies the code change to `interface/cache.h`.
@@ -78,8 +78,8 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 - When the /mode mail is toggled in a directory that is not a valid git repository, it should ask the user to git init, if not, it should not toggle the mode. 
 
 ### CLI Commands (User Interface)
-- **`/review patch`**: Opens the current patch series in the review editor.
-- **`/review patch <index>`**: Opens a specific patch for detailed inspection and `R:` commenting.
+- **`/review mail`**: Opens the current patch series in the review editor.
+- **`/review mail <index>`**: Opens a specific patch for detailed inspection and `R:` commenting.
 
 ### Finalization (The "LGTM" Flow)
 - **Conversational Approval**: There is no mandatory `/approve` command. Instead, the agent detects the user's intent to finalize from the chat (e.g., "LGTM", "Ship it", "Looks good, merge it").
