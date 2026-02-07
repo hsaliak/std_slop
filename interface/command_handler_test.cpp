@@ -17,6 +17,7 @@ class TestableCommandHandler : public CommandHandler {
 
   std::string next_editor_output;
   std::string last_initial_content;
+  std::string last_extension;
   bool editor_was_called = false;
 
   absl::flat_hash_map<std::string, absl::StatusOr<std::string>> command_responses;
@@ -24,9 +25,10 @@ class TestableCommandHandler : public CommandHandler {
 
  protected:
   std::string TriggerEditor(const std::string& initial_content,
-                            const std::string& extension [[maybe_unused]]) override {
+                            const std::string& extension) override {
     editor_was_called = true;
     last_initial_content = initial_content;
+    last_extension = extension;
     return next_editor_output;
   }
 
@@ -722,6 +724,28 @@ TEST_F(CommandHandlerTest, ModeMailRequiresGit) {
   
   EXPECT_EQ(result, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
+}
+
+TEST_F(CommandHandlerTest, ReviewPatchUsesPatchExtension) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  
+  // Mock git commands for GitFormatPatchSeries
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git rev-list --reverse main..HEAD"] = "hash1";
+  handler.command_responses["git show --no-patch --format='%s%n%nRationale: %b' hash1"] = "feat: test patch";
+  handler.command_responses["git show hash1"] = "diff content";
+  
+  handler.next_editor_output = "R: LGTM";
+  std::string input = "/review patch";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+  EXPECT_TRUE(handler.editor_was_called);
+  EXPECT_EQ(handler.last_extension, ".patch");
+  EXPECT_TRUE(absl::StrContains(handler.last_initial_content, "--- PATCH REVIEW ---"));
+  EXPECT_FALSE(absl::StrContains(handler.last_initial_content, "Add your comments starting with 'R:' below."));
 }
 
 }  // namespace slop

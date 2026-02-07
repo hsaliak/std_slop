@@ -904,10 +904,17 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       return Result::HANDLED;
     }
 
-    std::string template_md = "## Patch Review\n\n" + review_content + 
-                             "\n\n--- Add your comments starting with 'R:' below. ---\n\n";
-    std::string feedback = TriggerEditor(template_md, ".md");
-    if (feedback.empty() || feedback == template_md) {
+    std::string initial_content =
+        "# --- PATCH REVIEW ---\n"
+        "# Add your review comments on new lines starting with 'R:'\n"
+        "# Example:\n"
+        "# R: Please refactor this function to be more concise.\n"
+        "#\n"
+        "# Save and exit to send comments to the LLM.\n"
+        "# --------------------\n\n" +
+        review_content;
+    std::string feedback = TriggerEditor(initial_content, ".patch");
+    if (feedback.empty() || feedback == initial_content) {
       return Result::HANDLED;
     }
 
