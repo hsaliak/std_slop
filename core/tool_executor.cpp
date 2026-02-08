@@ -683,7 +683,10 @@ absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPa
     return "No patches found in the current series.";
   }
 
-  std::string output;
+  auto summary_res = GetPatchSeriesSummary(req.base_branch);
+  if (!summary_res.ok()) return summary_res.status();
+
+  std::string output = *summary_res + "\n\n";
   for (size_t i = 0; i < commits.size(); ++i) {
     // Get commit info (subject and body/rationale)
     std::string show_cmd = absl::Substitute("git show -s --pretty=format:\"%s%n%b\" $0", EscapeShellArg(commits[i]));
