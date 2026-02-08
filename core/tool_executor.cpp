@@ -1,6 +1,7 @@
 #include "core/tool_executor.h"
 
 #include <array>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -537,7 +538,36 @@ bool ToolExecutor::IsProtectedTool(const std::string& name) {
   return protected_tools.count(name) > 0;
 }
 
+// Environment Variable Overrides for Mail Model Enforcement:
+//
+// SLOP_FORCE_BRANCH_NAME:
+//   Used to simulate being on a specific branch. If set and non-empty,
+//   GetCurrentBranch() returns this value instead of querying git.
+//   Useful for testing enforcement logic without changing the repo state.
+//
+// SLOP_SKIP_STAGING_CHECK:
+//   If set to "1", CheckStagingBranch() will always succeed with "skipped".
+//   Used in unit tests to allow setup/teardown with protected tools (like write_file)
+//   without needing a staging branch.
+
+std::optional<std::string> ToolExecutor::GetForcedBranch() {
+  const char* forced_branch = std::getenv("SLOP_FORCE_BRANCH_NAME");
+  if (forced_branch && strlen(forced_branch) > 0) {
+    return std::string(forced_branch);
+  }
+  return std::nullopt;
+}
+
+bool ToolExecutor::ShouldSkipStagingCheck() {
+  const char* skip_check = std::getenv("SLOP_SKIP_STAGING_CHECK");
+  return skip_check && std::string(skip_check) == "1";
+}
+
 absl::StatusOr<std::string> ToolExecutor::GetCurrentBranch() {
+  if (auto forced = GetForcedBranch()) {
+    return *forced;
+  }
+
   auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
   if (!branch_res.ok()) return branch_res.status();
   if (branch_res->exit_code != 0) {
@@ -549,18 +579,18 @@ absl::StatusOr<std::string> ToolExecutor::GetCurrentBranch() {
 }
 
 absl::StatusOr<std::string> ToolExecutor::CheckStagingBranch() {
-  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
-  if (!branch_res.ok()) return branch_res.status();
+  if (ShouldSkipStagingCheck()) {
+    return std::string("skipped");
+  }
 
-  if (branch_res->exit_code != 0) {
-    // Not in a git repository or other git error.
-    // We allow this to support environments without git (like bazel tests).
+  auto branch_res = GetCurrentBranch();
+  if (!branch_res.ok()) {
+    // If getting the branch fails, we assume we might not be in a git repo.
+    // We allow this to support environments without git (like some bazel sandboxes).
     return std::string("not-a-git-repo");
   }
 
-  std::string current_branch = branch_res->stdout_out;
-  if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
-
+  std::string current_branch = *branch_res;
   if (!absl::StartsWith(current_branch, "slop/staging/")) {
     return absl::FailedPreconditionError(
         "Mail Model Violation: This tool is restricted to staging branches (slop/staging/*). "

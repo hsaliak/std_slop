@@ -57,6 +57,12 @@ class ToolExecutor {
   // Returns true if the tool is restricted to staging branches.
   bool IsProtectedTool(const std::string& name);
 
+  // Helpers for environment variable overrides.
+  // SLOP_FORCE_BRANCH_NAME: Overrides the detected git branch.
+  // SLOP_SKIP_STAGING_CHECK: If "1", skips the staging branch enforcement.
+  std::optional<std::string> GetForcedBranch();
+  bool ShouldSkipStagingCheck();
+
   absl::StatusOr<std::string> Grep(const GrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> ReadFile(const ReadFileRequest& req);
   absl::StatusOr<std::string> WriteFile(const WriteFileRequest& req);
