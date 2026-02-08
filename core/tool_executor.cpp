@@ -619,18 +619,18 @@ absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagin
 
   std::string base = req.base_branch.empty() ? detected_base : req.base_branch;
 
-  std::string branch_name = "slop/staging/" + req.name;
-  std::string cmd = "git checkout -b " + EscapeShellArg(branch_name) + " " + EscapeShellArg(base);
+  std::string branch_name = absl::StrCat("slop/staging/", req.name);
+  std::string cmd = absl::Substitute("git checkout -b $0 $1", EscapeShellArg(branch_name), EscapeShellArg(base));
   auto res = RunCommand(cmd);
   if (!res.ok()) return res.status();
   if (res->exit_code != 0) {
-    return absl::InternalError("Failed to create staging branch: " + res->stderr_out);
+    return absl::InternalError(absl::StrCat("Failed to create staging branch: ", res->stderr_out));
   }
 
   // Store the base branch in git config for future tool calls in this series
-  (void)RunCommand("git config slop.basebranch " + EscapeShellArg(base));
+  (void)RunCommand(absl::Substitute("git config slop.basebranch $0", EscapeShellArg(base)));
 
-  return "Created and checked out staging branch: " + branch_name + " (base: " + base + ")";
+  return absl::Substitute("Created and checked out staging branch: $0 (base: $1)", branch_name, base);
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchRequest& req) {
@@ -681,19 +681,18 @@ absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPa
   std::string output;
   for (size_t i = 0; i < commits.size(); ++i) {
     // Get commit info (subject and body/rationale)
-    std::string show_cmd = "git show -s --pretty=format:\"%s%n%b\" " + EscapeShellArg(commits[i]);
+    std::string show_cmd = absl::Substitute("git show -s --pretty=format:\"%s%n%b\" $0", EscapeShellArg(commits[i]));
     auto show_res = RunCommand(show_cmd);
     if (!show_res.ok()) return show_res.status();
 
     // Get diff
-    std::string diff_cmd = "git show -p " + EscapeShellArg(commits[i]);
+    std::string diff_cmd = absl::Substitute("git show -p $0", EscapeShellArg(commits[i]));
     auto diff_res = RunCommand(diff_cmd);
     if (!diff_res.ok()) return diff_res.status();
 
-    output += "### Patch [" + std::to_string(i + 1) + "/" + std::to_string(commits.size()) +
-              "]: " + show_res->stdout_out + " ###\n";
+    absl::StrAppend(&output, "### Patch [", i + 1, "/", commits.size(), "]: ", show_res->stdout_out, " ###\n");
     // git show -p includes the diff and the header. We might want to clean it up or just use it.
-    output += diff_res->stdout_out + "\n\n";
+    absl::StrAppend(&output, diff_res->stdout_out, "\n\n");
   }
 
   return output;
@@ -714,18 +713,18 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
   auto checkout_res = RunCommand("git checkout " + EscapeShellArg(target));
   if (!checkout_res.ok()) return checkout_res.status();
 
-  auto merge_res = RunCommand("git merge --ff-only " + EscapeShellArg(current_branch));
+  auto merge_res = RunCommand(absl::Substitute("git merge --ff-only $0", EscapeShellArg(current_branch)));
   if (!merge_res.ok() || merge_res->exit_code != 0) {
-    return absl::InternalError("Failed to merge series into " + target + ": " +
-                               (merge_res.ok() ? merge_res->stderr_out : merge_res.status().ToString()));
+    return absl::InternalError(absl::StrCat("Failed to merge series into ", target, ": ",
+                               (merge_res.ok() ? merge_res->stderr_out : merge_res.status().ToString())));
   }
 
   // Clean up
-  (void)RunCommand("git branch -d " + EscapeShellArg(current_branch));
+  (void)RunCommand(absl::Substitute("git branch -d $0", EscapeShellArg(current_branch)));
   (void)RunCommand("git config --unset slop.basebranch");
 
-  return "Finalized series, merged into " + target + ", and deleted staging branch " + current_branch +
-         ". You are now on " + target + ".";
+  return absl::Substitute("Finalized series, merged into $0, and deleted staging branch $1. You are now on $0.",
+                          target, current_branch);
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
@@ -892,6 +891,22 @@ std::string ToolExecutor::GetBaseBranch(const std::string& requested_base) {
   if (omaster_res.ok() && omaster_res->exit_code == 0) return "origin/master";
 
   return "main";  // Final fallback
+}
+
+absl::StatusOr<std::string> ToolExecutor::GetPatchSeriesSummary(const std::string& requested_base) {
+  std::string base = GetBaseBranch(requested_base);
+
+  std::string log_cmd = absl::Substitute("git log --oneline --reverse $0..HEAD", EscapeShellArg(base));
+  auto log_res = RunCommand(log_cmd);
+  if (!log_res.ok()) return log_res.status();
+
+  if (log_res->exit_code != 0 || log_res->stdout_out.empty()) {
+    return absl::Substitute("No patches in series (base: $0)", base);
+  }
+
+  std::string summary = absl::Substitute("\n\n--- Current Patch Series (base: $0) ---\n", base);
+  absl::StrAppend(&summary, log_res->stdout_out);
+  return summary;
 }
 
 }  // namespace slop
