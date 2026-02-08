@@ -51,6 +51,12 @@ class ToolExecutor {
   // Verifies current branch is a staging branch.
   absl::StatusOr<std::string> CheckStagingBranch();
 
+  // Gets the current branch name.
+  absl::StatusOr<std::string> GetCurrentBranch();
+
+  // Returns true if the tool is restricted to staging branches.
+  bool IsProtectedTool(const std::string& name);
+
   absl::StatusOr<std::string> Grep(const GrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> ReadFile(const ReadFileRequest& req);
   absl::StatusOr<std::string> WriteFile(const WriteFileRequest& req);

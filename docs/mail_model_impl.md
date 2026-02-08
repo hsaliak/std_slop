@@ -131,6 +131,21 @@ Ensuring the workflow is robust across different repository structures and sessi
 
 ---
 
+## Phase 8: Centralized Enforcement (The Guard)
+Ensuring the agent cannot bypass the Mail Model by accident.
+
+### 8.1 Tool Interception
+- **Logic**: The `ToolExecutor::Execute` method acts as a central dispatcher.
+- **Protection List**: 
+    - **Modifying Tools**: `write_file`, `apply_patch`, `execute_bash`.
+    - **Mail Model Tools**: `git_commit_patch`, `git_reroll_patch`, `git_verify_series`, `git_format_patch_series`, `git_finalize_series`.
+- **Enforcement Rules**:
+    1. Before executing any "Protected" tool, the system verifies the current branch.
+    2. If the branch does not start with `slop/staging/`, the tool call is rejected with a `FailedPrecondition` error.
+    3. **Exception**: If not in a Git repository (detected by `git rev-parse --abbrev-ref HEAD` returning an error), enforcement is bypassed to allow local development and testing.
+
+---
+
 ## Success Criteria
 1. **Atomic History**: A feature developed in Mail Mode results in a series of logical commits in the main branch.
 2. **Bisect-Safe**: Every commit in that series compiles and passes tests.

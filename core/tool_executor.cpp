@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <unordered_set>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -19,6 +20,14 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
                                                   std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Executing tool: " << name
             << " with args: " << args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+
+  if (IsProtectedTool(name)) {
+    auto branch_status = CheckStagingBranch();
+    if (!branch_status.ok()) {
+      return branch_status.status();
+    }
+  }
+
   auto wrap_result = [&](const std::string& tool_name, const std::string& content) {
     return absl::StrCat("### TOOL_RESULT: ", tool_name, "\n", content, "\n\n---");
   };
@@ -520,17 +529,43 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   return absl::InvalidArgumentError("Unknown action: " + req.action);
 }
 
+bool ToolExecutor::IsProtectedTool(const std::string& name) {
+  static const std::unordered_set<std::string> protected_tools = {
+      "write_file",         "apply_patch",         "execute_bash",      "git_commit_patch",
+      "git_reroll_patch",   "git_verify_series",   "git_format_patch_series",
+      "git_finalize_series"};
+  return protected_tools.count(name) > 0;
+}
+
+absl::StatusOr<std::string> ToolExecutor::GetCurrentBranch() {
+  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
+  if (!branch_res.ok()) return branch_res.status();
+  if (branch_res->exit_code != 0) {
+    return absl::InternalError("Failed to get current branch: " + branch_res->stderr_out);
+  }
+  std::string current_branch = branch_res->stdout_out;
+  if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
+  return current_branch;
+}
+
 absl::StatusOr<std::string> ToolExecutor::CheckStagingBranch() {
   auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
   if (!branch_res.ok()) return branch_res.status();
+
+  if (branch_res->exit_code != 0) {
+    // Not in a git repository or other git error.
+    // We allow this to support environments without git (like bazel tests).
+    return std::string("not-a-git-repo");
+  }
+
   std::string current_branch = branch_res->stdout_out;
   if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
 
   if (!absl::StartsWith(current_branch, "slop/staging/")) {
     return absl::FailedPreconditionError(
-        "This tool can only be used on a staging branch (starting with 'slop/staging/'). "
+        "Mail Model Violation: This tool is restricted to staging branches (slop/staging/*). "
         "You are currently on '" +
-        current_branch + "'. Please use git_branch_staging to create a new staging branch.");
+        current_branch + "'. Please use git_branch_staging to start a new series.");
   }
   return current_branch;
 }
@@ -569,9 +604,6 @@ absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagin
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchRequest& req) {
-  auto branch_status = CheckStagingBranch();
-  if (!branch_status.ok()) return branch_status.status();
-
   if (req.summary.empty() || req.rationale.empty()) {
     return absl::InvalidArgumentError("Both summary and rationale are required for a patch commit.");
   }
@@ -595,9 +627,6 @@ absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchReq
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPatchSeriesRequest& req) {
-  auto branch_status = CheckStagingBranch();
-  if (!branch_status.ok()) return branch_status.status();
-
   std::string base = GetBaseBranch(req.base_branch);
 
   // Get list of commits
@@ -641,7 +670,7 @@ absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPa
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSeriesRequest& req) {
-  auto branch_status = CheckStagingBranch();
+  auto branch_status = GetCurrentBranch();
   if (!branch_status.ok()) return branch_status.status();
   std::string current_branch = *branch_status;
 
@@ -671,7 +700,7 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
 
 absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
     const GitVerifySeriesRequest& req, std::shared_ptr<CancellationRequest> cancellation) {
-  auto branch_status = CheckStagingBranch();
+  auto branch_status = GetCurrentBranch();
   if (!branch_status.ok()) return branch_status.status();
   std::string original_branch = *branch_status;
 
