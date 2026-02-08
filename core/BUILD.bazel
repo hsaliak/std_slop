@@ -118,6 +118,9 @@ cc_library(
             "-DSQLITE_ENABLE_COLUMN_METADATA",
             "-DSQLITE_ENABLE_FTS5",
         ],
+        env = {
+            "SLOP_SKIP_STAGING_CHECK": "1",
+        },
         deps = [
             ":core",
             ":dispatcher",

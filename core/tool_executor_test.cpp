@@ -1,5 +1,6 @@
 #include "core/tool_executor.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -96,6 +97,37 @@ TEST(ToolExecutorTest, ReadFileMetadata) {
   EXPECT_TRUE(absl::StrContains(*res, "Use 'read_file' with start_line=3"));
 
   std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, MailModelEnforcement) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // 1. Test failure on 'main' branch
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+  unsetenv("SLOP_SKIP_STAGING_CHECK");
+
+  auto write_res = executor.Execute("write_file", {{"path", "fail_test.txt"}, {"content", "fail"}});
+  EXPECT_FALSE(write_res.ok());
+  EXPECT_TRUE(absl::StrContains(write_res.status().message(), "Mail Model Violation"));
+
+  // 2. Test success on staging branch
+  setenv("SLOP_FORCE_BRANCH_NAME", "slop/staging/test-feature", 1);
+  auto write_res2 = executor.Execute("write_file", {{"path", "success_test.txt"}, {"content", "success"}});
+  EXPECT_TRUE(write_res2.ok());
+  std::filesystem::remove("success_test.txt");
+
+  // 3. Test that read_file (non-protected) works on any branch
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+  auto read_res = executor.Execute("read_file", {{"path", "core/tool_executor.cpp"}, {"start_line", 1}, {"end_line", 1}});
+  EXPECT_TRUE(read_res.ok());
+
+  // Clean up environment
+  unsetenv("SLOP_FORCE_BRANCH_NAME");
+  setenv("SLOP_SKIP_STAGING_CHECK", "1", 1); // Restore for other tests if they run in same process
 }
 
 TEST(ToolExecutorTest, GitGrepSummary) {
