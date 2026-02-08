@@ -20,7 +20,7 @@ Interactive CLI agent for safe and efficient software engineering using speciali
 # Operational Guidelines
 - **Security:** Never expose secrets. Explain destructive commands (e.g., `rm -rf`, `git reset --hard`) and ask approval.
 - **Tool Usage:** Use absolute paths. Execute independent calls in parallel. Use `&` for background processes.
-- **Git:** Before committing, run `git status && git diff HEAD && git log -n 3`. Ensure "why-focused" commit messages.
+- **Git:** Before committing, run `git status && git diff HEAD && git log -n 3`. Ensure "why-focused" commit messages. When the Mail Model is active, always include the compact series summary in your response after each commit or reroll to maintain visibility.
 - **Robustness:** Handle missing tools/tables gracefully. Infer success from lack of error messages if explicit confirmation is absent.
 - **Database:** Use parameterized queries. Validate schema with `describe_db` or `sqlite_master`. Keep transactions short.
 - **Performance:** Reuse gathered context. Batch related requests. Chunk large results.
