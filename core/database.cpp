@@ -211,6 +211,11 @@ absl::Status Database::Init(const std::string& db_path) {
     return absl::InternalError("Schema error: " + err);
   }
 
+  // Enable WAL mode for better concurrency and performance.
+  (void)sqlite3_exec(raw_db, "PRAGMA journal_mode = WAL;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "PRAGMA synchronous = NORMAL;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "PRAGMA busy_timeout = 5000;", nullptr, nullptr, nullptr);
+
   // Migration: Add tokens column to messages table if it doesn't exist
   (void)sqlite3_exec(raw_db, "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE skills ADD COLUMN activation_count INTEGER DEFAULT 0;", nullptr, nullptr,
