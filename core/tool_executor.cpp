@@ -642,18 +642,23 @@ absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchReq
   auto add_res = RunCommand("git add .");
   if (!add_res.ok()) return add_res.status();
   if (add_res->exit_code != 0) {
-    return absl::InternalError("git add failed: " + add_res->stderr_out);
+    return absl::InternalError(absl::StrCat("git add failed: ", add_res->stderr_out));
   }
 
-  std::string commit_msg = req.summary + "\n\nRationale: " + req.rationale;
-  std::string cmd = "git commit -m " + EscapeShellArg(commit_msg);
+  std::string commit_msg = absl::StrCat(req.summary, "\n\nRationale: ", req.rationale);
+  std::string cmd = absl::Substitute("git commit -m $0", EscapeShellArg(commit_msg));
   auto commit_res = RunCommand(cmd);
   if (!commit_res.ok()) return commit_res.status();
   if (commit_res->exit_code != 0) {
-    return absl::InternalError("git commit failed: " + commit_res->stderr_out);
+    return absl::InternalError(absl::StrCat("git commit failed: ", commit_res->stderr_out));
   }
 
-  return "Committed patch: " + req.summary;
+  std::string result = absl::StrCat("Committed patch: ", req.summary);
+  auto summary_res = GetPatchSeriesSummary("");
+  if (summary_res.ok()) {
+    absl::StrAppend(&result, *summary_res);
+  }
+  return result;
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPatchSeriesRequest& req) {
@@ -824,8 +829,7 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
   }
 
   if (req.index > static_cast<int>(commits.size())) {
-    return absl::NotFoundError("Patch index " + std::to_string(req.index) + " exceeds series length (" +
-                               std::to_string(commits.size()) + ").");
+    return absl::NotFoundError(absl::Substitute("Patch index $0 exceeds series length ($1).", req.index, commits.size()));
   }
 
   const std::string& target_hash = commits[req.index - 1];
@@ -833,34 +837,38 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
   // 2. Stage changes
   auto add_res = RunCommand("git add .");
   if (!add_res.ok() || add_res->exit_code != 0) {
-    return absl::InternalError("git add failed: " + (add_res.ok() ? add_res->stderr_out : add_res.status().ToString()));
+    return absl::InternalError(absl::StrCat("git add failed: ", (add_res.ok() ? add_res->stderr_out : add_res.status().ToString())));
   }
 
   // Check if there are actually changes to commit
   auto diff_res = RunCommand("git diff --cached --quiet");
   if (diff_res.ok() && diff_res->exit_code == 0) {
-    return "No changes found to reroll into patch " + std::to_string(req.index);
+    return absl::Substitute("No changes found to reroll into patch $0", req.index);
   }
 
   // 3. Create fixup commit
-  std::string fixup_cmd = "git commit --fixup " + EscapeShellArg(target_hash);
+  std::string fixup_cmd = absl::Substitute("git commit --fixup $0", EscapeShellArg(target_hash));
   auto fixup_res = RunCommand(fixup_cmd);
   if (!fixup_res.ok() || fixup_res->exit_code != 0) {
-    return absl::InternalError("Failed to create fixup commit: " +
-                               (fixup_res.ok() ? fixup_res->stderr_out : fixup_res.status().ToString()));
+    return absl::InternalError(absl::StrCat("Failed to create fixup commit: ",
+                               (fixup_res.ok() ? fixup_res->stderr_out : fixup_res.status().ToString())));
   }
 
   // 4. Autosquash rebase
   // We use GIT_SEQUENCE_EDITOR=true to make the interactive rebase non-interactive.
-  std::string rebase_cmd = "GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash " + EscapeShellArg(base);
+  std::string rebase_cmd = absl::Substitute("GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash $0", EscapeShellArg(base));
   auto rebase_res = RunCommand(rebase_cmd);
   if (!rebase_res.ok() || rebase_res->exit_code != 0) {
-    return absl::InternalError("Autosquash rebase failed: " +
-                               (rebase_res.ok() ? rebase_res->stderr_out : rebase_res.status().ToString()));
+    return absl::InternalError(absl::StrCat("Autosquash rebase failed: ",
+                               (rebase_res.ok() ? rebase_res->stderr_out : rebase_res.status().ToString())));
   }
 
-  return "Successfully rerolled changes into patch " + std::to_string(req.index) + " (" + target_hash.substr(0, 7) +
-         ").";
+  std::string result = absl::Substitute("Successfully rerolled changes into patch $0 ($1).", req.index, target_hash.substr(0, 7));
+  auto summary_res = GetPatchSeriesSummary(req.base_branch);
+  if (summary_res.ok()) {
+    absl::StrAppend(&result, *summary_res);
+  }
+  return result;
 }
 
 std::string ToolExecutor::GetBaseBranch(const std::string& requested_base) {
