@@ -85,7 +85,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> GitRerollPatch(const GitRerollPatchRequest& req);
 
   // Returns a concise summary of the current patch series.
-  absl::StatusOr<std::string> GetPatchSeriesSummary(const std::string& base_branch);
+  absl::StatusOr<std::string> GetPatchSeriesSummary(const std::string& requested_base);
 };
 
 }  // namespace slop
