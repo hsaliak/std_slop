@@ -6,7 +6,7 @@ This document describes the "Mail Model" workflow for `std::slop`, a Git-native,
 The agent acts as a **Remote Contributor**. Instead of directly modifying the project's main files, it submits a **Patch Series** for review. This forces architectural thinking, atomic changes, and a clear audit trail of design decisions.
 ## 2. The Four Stages
 
-![Mail Model](docs/mail_model.jpg)
+![Mail Model](mail_model.jpg)
 ### Stage 1: The Staging Layer (The Sandbox)
 - **Branching**: All work happens on a dedicated staging branch (e.g., `slop/staging/feature-name`) branched from the current HEAD.
 - **Atomic Commits**: Every logical change (e.g., "Defined Interface", "Added Implementation", "Updated Tests") is a separate Git commit.
