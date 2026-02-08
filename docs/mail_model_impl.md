@@ -127,6 +127,7 @@ Ensuring the workflow is robust across different repository structures and sessi
     - If `/review mail` finds no patches while on a staging branch, it informs the user they might need to commit changes using `git_commit_patch` first.
     - If on the base branch, it suggests using `/mode mail` to start a staging branch.
 - **Transparency**: Commands like `/review mail` and `/mode mail` now display the detected base branch. The modeline also provides a persistent visual cue with icons (`🤖` vs `📬`) and colorization.
+- **Automatic Feedback**: `git_commit_patch` and `git_reroll_patch` automatically append a concise summary of the current patch series (via `GetPatchSeriesSummary`) to their return values, keeping the user and agent synchronized with the series' state.
 - **Auto-Cleanup**: `git_finalize_series` unsets the `slop.basebranch` config after a successful merge.
 
 ---

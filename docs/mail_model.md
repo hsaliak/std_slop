@@ -90,9 +90,9 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 
 ### Agent Tools (The Engine)
 - **`git_branch_staging(name, base_branch)`**: Initializes the staging environment.
-- **`git_commit_patch(summary, rationale)`**: Commits a logical change with mandatory metadata.
+- **`git_commit_patch(summary, rationale)`**: Commits a logical change with mandatory metadata. Returns a concise summary of the current patch series for immediate feedback.
 - **`git_format_patch_series(base_branch)`**: Returns the formatted cover letter, changelog, and a list of unified diffs for the LLM to present.
-- **`git_reroll_patch(index, base_branch)`**: A high-level tool that handles the `fixup` + `rebase` logic. It incorporates current workspace changes into a specific patch in the series.
+- **`git_reroll_patch(index, base_branch)`**: A high-level tool that handles the `fixup` + `rebase` logic. It incorporates current workspace changes into a specific patch in the series. Returns the updated patch series summary.
 - **`git_verify_series(command, base_branch)`**: Automates the "Series Walk." It checks out each commit in the current series sequentially and runs the provided build/test command. It returns a report of which patches passed or failed.
 - **`git_finalize_series(target_branch)`**: Merges the staging branch into the target branch and cleans up.
 
