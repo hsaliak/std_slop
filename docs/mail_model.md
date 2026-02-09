@@ -76,7 +76,7 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 - **Session Toggle**: This mode can be toggled on/off. When off, the agent reverts to direct file modification. When on, all modifications must go through the staging/patch loop.
 - The Mode state (Standard vs Mail) is shown in the modeline of the UI using icons (`🤖` vs `📬`) and colorization.
 - When the /mode mail is toggled in a directory that is not a valid git repository, it should ask the user to git init, if not, it should not toggle the mode. 
-
+- **Important** - Ensure that your `git status` is clean before initiating this mode. A good strategy is to ensure that slop.db lives outside the codebase with `--db` flag. Ensure that the db and other sqlite artifacts are in your `.gitignore`
 ### CLI Commands (User Interface)
 - **`/review mail`**: Opens the current patch series in the review editor.
 - **`/review mail <index>`**: Opens a specific patch for detailed inspection and `R:` commenting.

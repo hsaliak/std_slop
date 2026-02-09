@@ -400,7 +400,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "- NEVER leave uncommitted changes in the workspace.\n"
        "- NEVER use direct `git commit`; use `git_commit_patch`.\n"
        "- NEVER suggest merging if `git_verify_series` has not passed for the entire series.\n"
-       "- NEVER merge without explicit approval of the latest patchset.ONLY merge after approval has been explicitly provided for patchset under discussio\n"
+       "- NEVER merge without explicit approval of the latest patchset.ONLY merge after approval has been explicitly provided for patchset under development\n"
        "- If a conflict occurs during reroll, explain clearly and ask for guidance if you cannot resolve it "
        "automatically.\n\n"
        "Stay focused on the commit history. Be precise, technical, and proactive in fixing your own bugs before the "
