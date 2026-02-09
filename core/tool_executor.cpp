@@ -711,6 +711,24 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
   if (!branch_status.ok()) return branch_status.status();
   std::string current_branch = *branch_status;
 
+  // Verify approval
+  auto head_res = RunCommand("git rev-parse HEAD");
+  if (!head_res.ok()) return head_res.status();
+  std::string current_hash = head_res->stdout_out;
+  absl::StripAsciiWhitespace(&current_hash);
+
+  auto approval_or = db_->GetPatchApproval(current_branch);
+  if (!approval_or.ok()) {
+    return absl::FailedPreconditionError(
+        "Approval missing. The current patchset has not been approved. Please ask the user to run "
+        "'/review mail approve' before finalizing.");
+  }
+  if (*approval_or != current_hash) {
+    return absl::FailedPreconditionError(
+        "Approval hash mismatch. The patchset has changed since the last approval. Please ask the "
+        "user to review the latest changes and run '/review mail approve' before finalizing.");
+  }
+
   std::string target = GetBaseBranch(req.target_branch);
 
   if (current_branch == target) {
@@ -730,6 +748,7 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
   // Clean up
   (void)RunCommand(absl::Substitute("git branch -d $0", EscapeShellArg(current_branch)));
   (void)RunCommand("git config --unset slop.basebranch");
+  (void)db_->ClearPatchApproval(current_branch);
 
   return absl::Substitute("Finalized series, merged into $0, and deleted staging branch $1. You are now on $0.",
                           target, current_branch);
