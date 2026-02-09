@@ -199,11 +199,15 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
 }
 
 void ShowBanner() {
-  std::cout << Colorize(R"(  ____ _____ ____               ____  _     ___  ____  )", "", ansi::Logo) << std::endl;
-  std::cout << Colorize(R"( / ___|_   _|  _ \     _   _   / ___|| |   / _ \|  _ \ )", "", ansi::Logo) << std::endl;
-  std::cout << Colorize(R"( \___ \ | | | | | |   (_) (_)  \___ \| |  | | | | |_) |)", "", ansi::Logo) << std::endl;
-  std::cout << Colorize(R"(  ___) || | | |_| |    _   _   |___) | |__| |_| |  __/ )", "", ansi::Logo) << std::endl;
-  std::cout << Colorize(R"( |____/ |_| |____/    (_) (_)  |____/|_____\___/|_|    )", "", ansi::Logo) << std::endl;
+std::string banner = R"(
+███████╗████████╗██████╗       ███████╗██╗      ██████╗ ██████╗
+██╔════╝╚══██╔══╝██╔══██╗██╗██╗██╔════╝██║     ██╔═══██╗██╔══██╗
+███████╗   ██║   ██║  ██║╚═╝╚═╝███████╗██║     ██║   ██║██████╔╝
+╚════██║   ██║   ██║  ██║██╗██╗╚════██║██║     ██║   ██║██╔═══╝
+███████║   ██║   ██████╔╝╚═╝╚═╝███████║███████╗╚██████╔╝██║
+╚══════╝   ╚═╝   ╚═════╝       ╚══════╝╚══════╝ ╚═════╝ ╚═╝
+)";
+std::cout << Colorize(banner,"", ansi::Logo) << std::endl;
   std::cout << std::endl;
 #ifdef SLOP_VERSION
   std::cout << " std::slop version " << SLOP_VERSION << std::endl;
