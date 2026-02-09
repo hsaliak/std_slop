@@ -10,6 +10,7 @@ bazel-*
 *.db-journal
 *.db-shm
 *.db-wal
+*.log
 
 # Logs
 *.log
