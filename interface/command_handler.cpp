@@ -860,7 +860,7 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     std::string base;
     std::vector<std::string> patch_args = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
     int patch_idx = -1;
-    if (patch_args.size() > 1) {
+    if (patch_args.size() > 1 && patch_args[1] != "approve") {
       if (!absl::SimpleAtoi(patch_args[1], &patch_idx)) {
         base = patch_args[1];
       }
