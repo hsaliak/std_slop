@@ -725,6 +725,38 @@ TEST_F(CommandHandlerTest, ModeMailRequiresGit) {
   EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
 }
 
+TEST_F(CommandHandlerTest, ModeMailRequiresCleanRepo) {
+  TestableCommandHandler handler(&db);
+
+  std::string session_id = "test_session";
+  std::vector<std::string> active_skills;
+  std::string input = "/mode mail";
+
+  // 1. Repo is inside work tree but dirty
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git status --porcelain"] = "M interface/command_handler.cpp";
+
+  testing::internal::CaptureStdout();
+  auto result = handler.Handle(input, session_id, active_skills, []() {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "Error: Git repository is dirty"));
+  EXPECT_TRUE(absl::StrContains(output, "Dirty files:"));
+  EXPECT_TRUE(absl::StrContains(output, "M interface/command_handler.cpp"));
+  EXPECT_FALSE(absl::StrContains(output, "Switched to MAIL mode"));
+
+  // 2. Repo is inside work tree and clean
+  handler.command_responses["git status --porcelain"] = "";
+
+  testing::internal::CaptureStdout();
+  result = handler.Handle(input, session_id, active_skills, []() {});
+  output = testing::internal::GetCapturedStdout();
+
+  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
+}
+
 TEST_F(CommandHandlerTest, ReviewPatchUsesPatchExtension) {
   TestableCommandHandler handler(&db);
   std::string sid = "s1";

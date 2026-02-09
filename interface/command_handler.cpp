@@ -1138,6 +1138,20 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
       std::cout << "Error: Not a git repository. Please run 'git init' first." << std::endl;
       return Result::HANDLED;
     }
+
+    auto status_check = ExecuteCommand("git status --porcelain");
+    if (!status_check.ok()) {
+      std::cout << "Error: Failed to check git status: " << status_check.status().message() << std::endl;
+      return Result::HANDLED;
+    }
+
+    if (!absl::StripAsciiWhitespace(*status_check).empty()) {
+      std::cout << "Error: Git repository is dirty. The Mail Model requires a clean state because 'git_commit_patch' automatically includes all local changes (including untracked files) into your patches." << std::endl;
+      std::cout << "Please commit, stash, or .gitignore your changes before switching to MAIL mode." << std::endl;
+      std::cout << "\nDirty files:\n" << *status_check << std::endl;
+      return Result::HANDLED;
+    }
+
     mail_mode_ = true;
     std::string base = "main";
     auto config_res = ExecuteCommand("git config slop.basebranch");
