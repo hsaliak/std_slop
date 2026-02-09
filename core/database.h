@@ -199,6 +199,11 @@ class Database {
   absl::Status UpdateScratchpad(const std::string& session_id, const std::string& scratchpad);
   absl::StatusOr<std::string> GetScratchpad(const std::string& session_id);
 
+  // Patch Approval
+  absl::Status SetPatchApproval(const std::string& branch_name, const std::string& hash);
+  absl::StatusOr<std::string> GetPatchApproval(const std::string& branch_name);
+  absl::Status ClearPatchApproval(const std::string& branch_name);
+
   struct Memo {
     int id;
     std::string content;

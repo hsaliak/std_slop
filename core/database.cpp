@@ -223,6 +223,15 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
 
+  // Patch Approval Table
+  (void)sqlite3_exec(raw_db, R"(
+    CREATE TABLE IF NOT EXISTS patch_approvals (
+        branch_name TEXT PRIMARY KEY,
+        approved_hash TEXT NOT NULL,
+        approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  )", nullptr, nullptr, nullptr);
+
   {
     absl::MutexLock lock(&mu_);
     db_.reset(raw_db);
@@ -1030,6 +1039,34 @@ absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_i
   if (!res.ok()) return res.status();
   if (!*res) return "";  // Return empty string if session not found
   return stmt->ColumnText(0);
+}
+
+absl::Status Database::SetPatchApproval(const std::string& branch_name, const std::string& hash) {
+  auto stmt_or = Prepare("INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, CURRENT_TIMESTAMP)");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto stmt = std::move(*stmt_or);
+  (void)stmt->BindText(1, branch_name);
+  (void)stmt->BindText(2, hash);
+  return stmt->Run();
+}
+
+absl::StatusOr<std::string> Database::GetPatchApproval(const std::string& branch_name) {
+  auto stmt_or = Prepare("SELECT approved_hash FROM patch_approvals WHERE branch_name = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto stmt = std::move(*stmt_or);
+  (void)stmt->BindText(1, branch_name);
+  auto res = stmt->Step();
+  if (!res.ok()) return res.status();
+  if (!*res) return absl::NotFoundError("No approval found for branch " + branch_name);
+  return stmt->ColumnText(0);
+}
+
+absl::Status Database::ClearPatchApproval(const std::string& branch_name) {
+  auto stmt_or = Prepare("DELETE FROM patch_approvals WHERE branch_name = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto stmt = std::move(*stmt_or);
+  (void)stmt->BindText(1, branch_name);
+  return stmt->Run();
 }
 
 }  // namespace slop
