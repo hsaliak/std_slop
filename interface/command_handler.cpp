@@ -894,6 +894,33 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       absl::StripAsciiWhitespace(&current_branch);
     }
 
+    // Handle approval
+    if (patch_args.size() > 1 && patch_args[1] == "approve") {
+      if (!absl::StartsWith(current_branch, "slop/staging/")) {
+        std::cerr << "Error: Approval can only be performed on a staging branch." << std::endl;
+        return Result::HANDLED;
+      }
+      if (!rev_res.ok() || rev_res->empty()) {
+        std::cerr << "Error: No patches found to approve in range " << base << "..HEAD." << std::endl;
+        return Result::HANDLED;
+      }
+      auto head_res = ExecuteCommand("git rev-parse HEAD");
+      if (!head_res.ok()) {
+        std::cerr << "Error: Failed to get current HEAD hash." << std::endl;
+        return Result::HANDLED;
+      }
+      std::string head_hash = *head_res;
+      absl::StripAsciiWhitespace(&head_hash);
+
+      auto status = db_->SetPatchApproval(current_branch, head_hash);
+      if (status.ok()) {
+        std::cout << "Approved patchset for branch '" << current_branch << "' at hash " << head_hash << std::endl;
+      } else {
+        std::cerr << "Error: Failed to save approval to database: " << status.message() << std::endl;
+      }
+      return Result::HANDLED;
+    }
+
     if (!rev_res.ok() || rev_res->empty()) {
       std::cout << "No patches found to review in range " << base << "..HEAD." << std::endl;
       if (current_branch == base) {
