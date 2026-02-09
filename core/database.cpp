@@ -373,7 +373,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "prefixed comments), apply the requested changes and use `git_reroll_patch` with the specified index. ALWAYS "
        "re-verify after a reroll.\n"
        "6. **Finalization**: When the user provides an \"LGTM\", \"Looks Good\", or explicit approval, run "
-       "`git_finalize_series` to land the work.\n\n"
+       "`git_finalize_series` to land the work. **CRITICAL** you MUST obtain explicit approval for the latest patchset under review, disregard prior approvals.\n\n"
        "### 3. PRECISE TOOL USAGE RULES\n"
        "- **git_branch_staging**: Use at the start of every new task.\n"
        "- **git_commit_patch**: Use for every atomic step. Do NOT batch multiple logical changes. ALWAYS include "
