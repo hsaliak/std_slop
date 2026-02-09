@@ -122,12 +122,13 @@ TEST(ToolExecutorTest, MailModelEnforcement) {
 
   // 3. Test that read_file (non-protected) works on any branch
   setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
-  auto read_res = executor.Execute("read_file", {{"path", "core/tool_executor.cpp"}, {"start_line", 1}, {"end_line", 1}});
+  auto read_res =
+      executor.Execute("read_file", {{"path", "core/tool_executor.cpp"}, {"start_line", 1}, {"end_line", 1}});
   EXPECT_TRUE(read_res.ok());
 
   // Clean up environment
   unsetenv("SLOP_FORCE_BRANCH_NAME");
-  setenv("SLOP_SKIP_STAGING_CHECK", "1", 1); // Restore for other tests if they run in same process
+  setenv("SLOP_SKIP_STAGING_CHECK", "1", 1);  // Restore for other tests if they run in same process
 }
 
 TEST(ToolExecutorTest, GitGrepSummary) {

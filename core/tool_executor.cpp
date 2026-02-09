@@ -531,10 +531,14 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
 }
 
 bool ToolExecutor::IsProtectedTool(const std::string& name) {
-  static const std::unordered_set<std::string> protected_tools = {
-      "write_file",         "apply_patch",         "execute_bash",      "git_commit_patch",
-      "git_reroll_patch",   "git_verify_series",   "git_format_patch_series",
-      "git_finalize_series"};
+  static const std::unordered_set<std::string> protected_tools = {"write_file",
+                                                                  "apply_patch",
+                                                                  "execute_bash",
+                                                                  "git_commit_patch",
+                                                                  "git_reroll_patch",
+                                                                  "git_verify_series",
+                                                                  "git_format_patch_series",
+                                                                  "git_finalize_series"};
   return protected_tools.count(name) > 0;
 }
 
@@ -742,7 +746,7 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
   auto merge_res = RunCommand(absl::Substitute("git merge --ff-only $0", EscapeShellArg(current_branch)));
   if (!merge_res.ok() || merge_res->exit_code != 0) {
     return absl::InternalError(absl::StrCat("Failed to merge series into ", target, ": ",
-                               (merge_res.ok() ? merge_res->stderr_out : merge_res.status().ToString())));
+                                            (merge_res.ok() ? merge_res->stderr_out : merge_res.status().ToString())));
   }
 
   // Clean up
@@ -750,12 +754,12 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
   (void)RunCommand("git config --unset slop.basebranch");
   (void)db_->ClearPatchApproval(current_branch);
 
-  return absl::Substitute("Finalized series, merged into $0, and deleted staging branch $1. You are now on $0.",
-                          target, current_branch);
+  return absl::Substitute("Finalized series, merged into $0, and deleted staging branch $1. You are now on $0.", target,
+                          current_branch);
 }
 
-absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(
-    const GitVerifySeriesRequest& req, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(const GitVerifySeriesRequest& req,
+                                                          std::shared_ptr<CancellationRequest> cancellation) {
   auto branch_status = GetCurrentBranch();
   if (!branch_status.ok()) return branch_status.status();
   std::string original_branch = *branch_status;
@@ -851,7 +855,8 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
   }
 
   if (req.index > static_cast<int>(commits.size())) {
-    return absl::NotFoundError(absl::Substitute("Patch index $0 exceeds series length ($1).", req.index, commits.size()));
+    return absl::NotFoundError(
+        absl::Substitute("Patch index $0 exceeds series length ($1).", req.index, commits.size()));
   }
 
   const std::string& target_hash = commits[req.index - 1];
@@ -859,7 +864,8 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
   // 2. Stage changes
   auto add_res = RunCommand("git add .");
   if (!add_res.ok() || add_res->exit_code != 0) {
-    return absl::InternalError(absl::StrCat("git add failed: ", (add_res.ok() ? add_res->stderr_out : add_res.status().ToString())));
+    return absl::InternalError(
+        absl::StrCat("git add failed: ", (add_res.ok() ? add_res->stderr_out : add_res.status().ToString())));
   }
 
   // Check if there are actually changes to commit
@@ -873,19 +879,21 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
   auto fixup_res = RunCommand(fixup_cmd);
   if (!fixup_res.ok() || fixup_res->exit_code != 0) {
     return absl::InternalError(absl::StrCat("Failed to create fixup commit: ",
-                               (fixup_res.ok() ? fixup_res->stderr_out : fixup_res.status().ToString())));
+                                            (fixup_res.ok() ? fixup_res->stderr_out : fixup_res.status().ToString())));
   }
 
   // 4. Autosquash rebase
   // We use GIT_SEQUENCE_EDITOR=true to make the interactive rebase non-interactive.
-  std::string rebase_cmd = absl::Substitute("GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash $0", EscapeShellArg(base));
+  std::string rebase_cmd =
+      absl::Substitute("GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash $0", EscapeShellArg(base));
   auto rebase_res = RunCommand(rebase_cmd);
   if (!rebase_res.ok() || rebase_res->exit_code != 0) {
-    return absl::InternalError(absl::StrCat("Autosquash rebase failed: ",
-                               (rebase_res.ok() ? rebase_res->stderr_out : rebase_res.status().ToString())));
+    return absl::InternalError(absl::StrCat(
+        "Autosquash rebase failed: ", (rebase_res.ok() ? rebase_res->stderr_out : rebase_res.status().ToString())));
   }
 
-  std::string result = absl::Substitute("Successfully rerolled changes into patch $0 ($1).", req.index, target_hash.substr(0, 7));
+  std::string result =
+      absl::Substitute("Successfully rerolled changes into patch $0 ($1).", req.index, target_hash.substr(0, 7));
   auto summary_res = GetPatchSeriesSummary(req.base_branch);
   if (summary_res.ok()) {
     absl::StrAppend(&result, *summary_res);

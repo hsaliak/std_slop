@@ -199,7 +199,7 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
 }
 
 void ShowBanner() {
-std::string banner = R"(
+  std::string banner = R"(
 ███████╗████████╗██████╗       ███████╗██╗      ██████╗ ██████╗
 ██╔════╝╚══██╔══╝██╔══██╗██╗██╗██╔════╝██║     ██╔═══██╗██╔══██╗
 ███████╗   ██║   ██║  ██║╚═╝╚═╝███████╗██║     ██║   ██║██████╔╝
@@ -207,7 +207,7 @@ std::string banner = R"(
 ███████║   ██║   ██████╔╝╚═╝╚═╝███████║███████╗╚██████╔╝██║
 ╚══════╝   ╚═╝   ╚═════╝       ╚══════╝╚══════╝ ╚═════╝ ╚═╝
 )";
-std::cout << Colorize(banner,"", ansi::Logo) << std::endl;
+  std::cout << Colorize(banner, "", ansi::Logo) << std::endl;
   std::cout << std::endl;
 #ifdef SLOP_VERSION
   std::cout << " std::slop version " << SLOP_VERSION << std::endl;

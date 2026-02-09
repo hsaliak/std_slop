@@ -872,8 +872,9 @@ TEST_F(CommandHandlerTest, ReviewMailApproveProceedsToLLM) {
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
 
   EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
-  EXPECT_TRUE(absl::StrContains(input, "I have approved the patchset for branch 'slop/staging/feature' at hash abcd123"));
-  
+  EXPECT_TRUE(
+      absl::StrContains(input, "I have approved the patchset for branch 'slop/staging/feature' at hash abcd123"));
+
   // Verify database record
   auto approved_hash = db.GetPatchApproval("slop/staging/feature");
   ASSERT_TRUE(approved_hash.ok());

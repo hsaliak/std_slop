@@ -23,10 +23,8 @@
 
 namespace slop {
 
-absl::StatusOr<CommandResult> RunCommand(std::string_view command,
-                                         std::shared_ptr<CancellationRequest> cancellation,
-                                         std::string_view input,
-                                         int timeout_seconds) {
+absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_ptr<CancellationRequest> cancellation,
+                                         std::string_view input, int timeout_seconds) {
   LOG(INFO) << "Running command: " << command;
   std::array<int, 2> stdin_pipe;
   std::array<int, 2> stdout_pipe;
@@ -133,14 +131,12 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command,
 
     if (timeout_seconds > 0) {
       auto now = std::chrono::steady_clock::now();
-      if (std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count() >=
-          timeout_seconds) {
+      if (std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count() >= timeout_seconds) {
         LOG(INFO) << "Command timed out after " << timeout_seconds << " seconds";
         cleanup_child(SIGKILL);
         close(stdout_pipe[0]);
         close(stderr_pipe[0]);
-        return absl::DeadlineExceededError(
-            absl::StrCat("Command timed out after ", timeout_seconds, " seconds"));
+        return absl::DeadlineExceededError(absl::StrCat("Command timed out after ", timeout_seconds, " seconds"));
       }
     }
 

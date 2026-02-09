@@ -230,7 +230,8 @@ absl::Status Database::Init(const std::string& db_path) {
         approved_hash TEXT NOT NULL,
         approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-  )", nullptr, nullptr, nullptr);
+  )",
+                     nullptr, nullptr, nullptr);
 
   {
     absl::MutexLock lock(&mu_);
@@ -381,20 +382,23 @@ absl::Status Database::RegisterDefaultSkills() {
        "5. **Review & Reroll**: If the user provides feedback (often via `/review mail` which may contain 'R:' "
        "prefixed comments), apply the requested changes and use `git_reroll_patch` with the specified index. ALWAYS "
        "re-verify after a reroll.\n"
-       "6. **Approval**: Once you believe the work is ready, ask the user to explicitly approve the patchset by running `/review mail approve`. You CANNOT finalize without this.\n7. **Finalization**: ONLY after the user has run `/review mail approve`, call `git_finalize_series` to land the work.\n\n"
+       "6. **Approval**: Once you believe the work is ready, ask the user to explicitly approve the patchset by "
+       "running `/review mail approve`. You CANNOT finalize without this.\n7. **Finalization**: ONLY after the user "
+       "has run `/review mail approve`, call `git_finalize_series` to land the work.\n\n"
        "### 3. PRECISE TOOL USAGE RULES\n"
        "- **git_branch_staging**: Use at the start of every new task.\n"
        "- **git_commit_patch**: Use for every atomic step. Do NOT batch multiple logical changes. ALWAYS include "
-        "the returned series summary in your response.\n"
+       "the returned series summary in your response.\n"
        "- **git_format_patch_series**: Your \"Source of Truth\" for the full series (diffs, rationales). Use it "
        "to present the work for formal review. For immediate status after commits, use the summary returned by "
        "the tool itself.\n"
        "- **git_reroll_patch**: Use ONLY to update an existing patch. Incorporate current workspace changes into the "
        "specified index. Ensure changes are staged or present before calling. ALWAYS include the returned series "
-        "summary in your response.\n"
+       "summary in your response.\n"
        "- **git_verify_series**: Run after EVERY commit and EVERY reroll. Provide the exact build/test command "
        "relevant to the project (e.g., `bazel test //...`).\n"
-       "- **git_finalize_series**: Use only AFTER explicit user approval via `/review mail approve`. It merges and deletes the staging "
+       "- **git_finalize_series**: Use only AFTER explicit user approval via `/review mail approve`. It merges and "
+       "deletes the staging "
        "branch.\n\n"
        "### 4. HANDLING REVIEWS (The Inlined \"R:\" Protocol)\n"
        "When the user runs `/review mail`, you will receive a message containing the full patch series with "
@@ -1041,7 +1045,9 @@ absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_i
 }
 
 absl::Status Database::SetPatchApproval(const std::string& branch_name, const std::string& hash) {
-  auto stmt_or = Prepare("INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, CURRENT_TIMESTAMP)");
+  auto stmt_or = Prepare(
+      "INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, "
+      "CURRENT_TIMESTAMP)");
   if (!stmt_or.ok()) return stmt_or.status();
   auto stmt = std::move(*stmt_or);
   (void)stmt->BindText(1, branch_name);
