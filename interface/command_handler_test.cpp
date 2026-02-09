@@ -825,4 +825,27 @@ TEST_F(CommandHandlerTest, ReviewStandardSuggestsMail) {
   }
 }
 
+TEST_F(CommandHandlerTest, ReviewMailApproveProceedsToLLM) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
+  handler.command_responses["git config slop.basebranch"] = "main";
+  handler.command_responses["git rev-list --reverse main..HEAD"] = "commit_hash_123";
+  handler.command_responses["git rev-parse HEAD"] = "abcd123";
+
+  std::string input = "/review mail approve";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::PROCEED_TO_LLM);
+  EXPECT_TRUE(absl::StrContains(input, "I have approved the patchset for branch 'slop/staging/feature' at hash abcd123"));
+  
+  // Verify database record
+  auto approved_hash = db.GetPatchApproval("slop/staging/feature");
+  ASSERT_TRUE(approved_hash.ok());
+  EXPECT_EQ(*approved_hash, "abcd123");
+}
+
 }  // namespace slop

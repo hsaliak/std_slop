@@ -915,9 +915,12 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       auto status = db_->SetPatchApproval(current_branch, head_hash);
       if (status.ok()) {
         std::cout << "Approved patchset for branch '" << current_branch << "' at hash " << head_hash << std::endl;
-      } else {
-        std::cerr << "Error: Failed to save approval to database: " << status.message() << std::endl;
+        args.input = absl::Substitute(
+            "I have approved the patchset for branch '$0' at hash $1. Please proceed with git_finalize_series.",
+            current_branch, head_hash);
+        return Result::PROCEED_TO_LLM;
       }
+      std::cerr << "Error: Failed to save approval to database: " << status.message() << std::endl;
       return Result::HANDLED;
     }
 
