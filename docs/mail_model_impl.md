@@ -99,11 +99,12 @@ Defining the persona and intent detection.
     - Instructs the model to use the Stage 1-4 tools exclusively for modifications.
     - Explains how to interpret `R:` comments from the review tool.
 
-### 6.2 "LGTM" Intent Detection
+### 6.2 Explicit Approval Command
 - **Logic**:
-    - Delegate intent detection to the LLM via the `patcher` skill's system prompt.
-    - The `patcher` persona is explicitly instructed to call `git_finalize_series` when the user provides positive feedback (e.g., "LGTM", "Looks good", "Approved").
-    - This allows for more flexible, natural language interpretation of approval without hardcoded keywords.
+    - A dedicated command `/review mail approve` is used to "sign" a patchset.
+    - This command captures the current `HEAD` hash of the staging branch and stores it in a `patch_approvals` table in the database.
+    - The `git_finalize_series` tool is modified to verify that the current `HEAD` hash matches the approved hash in the database.
+    - This ensures that only the exact code reviewed and approved by the user can be merged. Any further modification invalidates the approval.
 
 ---
 
@@ -147,8 +148,27 @@ Ensuring the agent cannot bypass the Mail Model by accident.
 
 ---
 
+## Phase 9: Commit-Locked Approval System (The Lock)
+Hardening the finalization step to prevent accidental merges of unreviewed or modified code.
+
+### 9.1 The `patch_approvals` Table
+- **Schema**: `branch_name TEXT PRIMARY KEY, approved_hash TEXT NOT NULL, approved_at DATETIME DEFAULT CURRENT_TIMESTAMP`.
+- **Persistence**: Stored in `slop.db`.
+
+### 9.2 The Approval Workflow
+1.  **Review**: The user reviews the patches via `/review mail`.
+2.  **Approve**: The user runs `/review mail approve`.
+    - `CommandHandler` gets the current `HEAD` hash and saves it to the database for the current branch.
+3.  **Finalize**: The agent calls `git_finalize_series`.
+    - `ToolExecutor` checks the database for a matching approval hash.
+    - If mismatch (e.g., agent performed a `reroll` after approval) or missing, the tool returns a `FailedPrecondition` error.
+    - On success, the approval record is cleared.
+
+---
+
 ## Success Criteria
 1. **Atomic History**: A feature developed in Mail Mode results in a series of logical commits in the main branch.
 2. **Bisect-Safe**: Every commit in that series compiles and passes tests.
 3. **Traceability**: Every commit has a clear rationale recorded in its body.
-4. **Clean Exit**: Merging the series cleans up the staging branch and returns the user to a clean workspace.
+4. **Approval-Locked**: Finalization is impossible without an explicit user signature of the exact commit hash.
+5. **Clean Exit**: Merging the series cleans up the staging branch and returns the user to a clean workspace.

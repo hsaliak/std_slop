@@ -310,6 +310,7 @@ For complex features that require multiple iterations and clean commit history, 
 2. **Indicator**: The modeline will show `std::slop <📬 MAIL_MODEL | ...>` (in green) and the `patcher` skill will be active. In standard mode, it shows `std::slop <🤖 STANDARD | ...>` (in cyan).
 3. **Tooling**: Use `git_branch_staging`, `git_commit_patch`, `git_format_patch_series`, `git_verify_series`, `git_reroll_patch`, and `git_finalize_series`.
 4. **Review**: Use `/review mail [index]` to review specific patches. Use `R:` comments in the editor for feedback.
+5. **Approval**: Run `/review mail approve` to sign the current patchset. This is **required** before calling `git_finalize_series`. Approval is non-sticky; any new commit or reroll will invalidate it.
 
 For more details, see [docs/mail_model.md](docs/mail_model.md).
 

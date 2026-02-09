@@ -65,9 +65,11 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
    - Agent calls `git_reroll_patch(index=1)`.
    - Agent calls `git_verify_series(command="bazel test //...")`.
    - Agent presents updated series to the user.
-7. **Finalize**:
-   - **User**: "LGTM."
-   - Agent calls `git_finalize_series()`. The staging branch is merged and deleted.
+7. **Approve**:
+   - **User** runs `/review mail approve`. This "signs" the current HEAD hash in the database.
+8. **Finalize**:
+   - Agent calls `git_finalize_series()`. The tool verifies the signature and merges the series.
+   - The staging branch is deleted.
 
 ## 4. Required Tooling & Commands
 
@@ -80,13 +82,14 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 ### CLI Commands (User Interface)
 - **`/review mail`**: Opens the current patch series in the review editor.
 - **`/review mail <index>`**: Opens a specific patch for detailed inspection and `R:` commenting.
+- **`/review mail approve`**: Approves the current patchset for finalization. This is **required** before `git_finalize_series` can be executed. Any new commit or reroll invalidates this approval.
 - **Diagnostics**: The review system provides contextual tips:
     - Running `/review` without changes in Mail Mode will suggest `/review mail`.
     - Running `/review mail` without commits on a staging branch will suggest using `git_commit_patch`.
 
-### Finalization (The "LGTM" Flow)
-- **Conversational Approval**: There is no mandatory `/approve` command. Instead, the agent detects the user's intent to finalize from the chat (e.g., "LGTM", "Ship it", "Looks good, merge it").
-- **Review Tool Signal**: If the user closes the `/review` buffer without adding any `R:` comments, the agent will prompt: "I see no comments in the review. Should I land this patch series?"
+### Finalization (The Approval Flow)
+- **Explicit Approval**: The `/review mail approve` command is mandatory. The agent cannot call `git_finalize_series` without a verified signature in the database matching the current HEAD hash.
+- **Non-Stickiness**: If the agent modifies the patchset (e.g., via `git_reroll_patch`) after approval, the approval is invalidated, and the user must re-run `/review mail approve` on the latest version.
 
 ### Agent Tools (The Engine)
 - **`git_branch_staging(name, base_branch)`**: Initializes the staging environment.

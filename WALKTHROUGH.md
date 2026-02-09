@@ -198,7 +198,8 @@ For non-trivial features, it's recommended to use the **Mail Model**.
 1. **Enter Mail Mode**: `/mode mail`.
 2. **Develop**: Work on a feature. Use `git_commit_patch` for logical steps.
 3. **Review**: Run `/review mail` to see the series. Add `R: ...` comments for revisions.
-4. **Finalize**: When everything is ready, say "LGTM" or call `git_finalize_series`.
+4. **Approve**: Run `/review mail approve` to sign the current patchset.
+5. **Finalize**: After approval, call `git_finalize_series` to merge.
 
 This workflow ensures bisect-safe history and high-quality rationale for every change. See [docs/mail_model.md](docs/mail_model.md) for a full example.
 
