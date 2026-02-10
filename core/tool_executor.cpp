@@ -22,7 +22,15 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   LOG(INFO) << "Executing tool: " << name
             << " with args: " << args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 
-  if (IsProtectedTool(name)) {
+  bool restricted = false;
+  if (mail_mode_) {
+    restricted = IsMailModelWorkflowTool(name) || IsBaseModificationTool(name);
+  } else {
+    // Standard mode: Only Mail Model workflow tools are restricted.
+    restricted = IsMailModelWorkflowTool(name);
+  }
+
+  if (restricted) {
     auto branch_status = CheckStagingBranch();
     if (!branch_status.ok()) {
       return branch_status.status();
@@ -530,16 +538,16 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   return absl::InvalidArgumentError("Unknown action: " + req.action);
 }
 
-bool ToolExecutor::IsProtectedTool(const std::string& name) {
-  static const std::unordered_set<std::string> protected_tools = {"write_file",
-                                                                  "apply_patch",
-                                                                  "execute_bash",
-                                                                  "git_commit_patch",
-                                                                  "git_reroll_patch",
-                                                                  "git_verify_series",
-                                                                  "git_format_patch_series",
-                                                                  "git_finalize_series"};
-  return protected_tools.count(name) > 0;
+bool ToolExecutor::IsMailModelWorkflowTool(const std::string& name) {
+  static const std::unordered_set<std::string> tools = {
+      "git_branch_staging", "git_commit_patch",  "git_reroll_patch",
+      "git_verify_series",  "git_format_patch_series", "git_finalize_series"};
+  return tools.count(name) > 0;
+}
+
+bool ToolExecutor::IsBaseModificationTool(const std::string& name) {
+  static const std::unordered_set<std::string> tools = {"write_file", "apply_patch", "execute_bash"};
+  return tools.count(name) > 0;
 }
 
 // Environment Variable Overrides for Mail Model Enforcement:

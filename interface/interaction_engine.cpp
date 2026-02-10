@@ -49,6 +49,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   }
 
   tool_executor_.SetSessionId(session_id);
+  tool_executor_.SetMailMode(cmd_handler_.IsMailMode());
 
   // Execute interaction
   std::string group_id = std::to_string(absl::ToUnixNanos(absl::Now()));

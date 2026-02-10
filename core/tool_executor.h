@@ -26,6 +26,7 @@ class ToolExecutor {
   }
 
   void SetSessionId(const std::string& session_id) { session_id_ = session_id; }
+  void SetMailMode(bool enabled) { mail_mode_ = enabled; }
 
  private:
   explicit ToolExecutor(Database* db) : db_(db) {}
@@ -41,6 +42,7 @@ class ToolExecutor {
  private:
   Database* db_;
   std::string session_id_;
+  bool mail_mode_ = false;
 
   absl::StatusOr<std::string> ListDirectory(const ListDirectoryRequest& req,
                                             std::shared_ptr<CancellationRequest> cancellation);
@@ -55,7 +57,8 @@ class ToolExecutor {
   absl::StatusOr<std::string> GetCurrentBranch();
 
   // Returns true if the tool is restricted to staging branches.
-  bool IsProtectedTool(const std::string& name);
+  bool IsMailModelWorkflowTool(const std::string& name);
+  bool IsBaseModificationTool(const std::string& name);
 
   // Helpers for environment variable overrides.
   // SLOP_FORCE_BRANCH_NAME: Overrides the detected git branch.
