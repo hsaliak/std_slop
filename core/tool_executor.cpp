@@ -412,10 +412,11 @@ absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const RetrieveMemosReque
 
   nlohmann::json result = nlohmann::json::array();
   for (const auto& m : *memos_or) {
+    auto tags = nlohmann::json::parse(m.semantic_tags, nullptr, false);
     result.push_back({
         {"id", m.id},
         {"content", m.content},
-        {"tags", nlohmann::json::parse(m.semantic_tags)},
+        {"tags", tags.is_discarded() ? nlohmann::json::array() : tags},
         {"created_at", m.created_at},
     });
   }
