@@ -41,7 +41,7 @@
 #include "interface/ui.h"
 
 ABSL_FLAG(std::string, config, "", "Path to the configuration INI file");
-ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
+ABSL_FLAG(std::string, db, "", "Path to SQLite database (default: slop.db)");
 ABSL_FLAG(std::string, log, "", "Log file path");
 ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
@@ -127,6 +127,11 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
 int main(int argc, char* argv[]) {
   absl::SetProgramUsageMessage(slop::GetHelpText());
   (void)absl::ParseCommandLine(argc, argv);
+
+  // Check if --db was specified on the command line before applying config.
+  // We use the fact that the default is now an empty string.
+  bool db_on_cli = !absl::GetFlag(FLAGS_db).empty();
+
   slop::LoadConfigAndApply(absl::GetFlag(FLAGS_config));
   absl::InitializeLog();
 
@@ -137,7 +142,29 @@ int main(int argc, char* argv[]) {
     absl::AddLogSink(log_sink.get());
   }
 
-  std::string db_path = absl::GetFlag(FLAGS_db);
+  std::string prompt = absl::GetFlag(FLAGS_prompt);
+  std::string db_path;
+
+  if (!prompt.empty()) {
+    // Batch mode defaults to in-memory database unless --prompt-db is specified.
+    // --db is forbidden on the command line in batch mode to prevent accidental
+    // pollution of the main database.
+    if (db_on_cli) {
+      std::cerr << "Error: --db and --prompt are mutually exclusive. Use --prompt-db "
+                   "if you need a persistent database for a single prompt."
+                << std::endl;
+      return 1;
+    }
+    std::string prompt_db = absl::GetFlag(FLAGS_prompt_db);
+    db_path = !prompt_db.empty() ? prompt_db : ":memory:";
+  } else {
+    // Interactive mode. Use --db if specified (CLI or INI), else default to slop.db.
+    db_path = absl::GetFlag(FLAGS_db);
+    if (db_path.empty()) {
+      db_path = "slop.db";
+    }
+  }
+
   bool google_auth = absl::GetFlag(FLAGS_google_oauth);
   std::string manual_project_id = absl::GetFlag(FLAGS_project);
 
