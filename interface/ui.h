@@ -18,7 +18,7 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
                            const absl::flat_hash_map<std::string, std::vector<std::string>>& sub_commands = {});
 std::string ReadLine(const std::string& modeline);
 std::string OpenInEditor(const std::string& initial_content = "", const std::string& extension = ".txt");
-absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit = 5);
+absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit = 3);
 
 // Formats the context JSON into a human-readable string.
 std::string FormatAssembledContext(const std::string& json_str);
