@@ -49,7 +49,7 @@ Persists user settings for each conversation session.
 | :--- | :--- | :--- |
 | id | TEXT | Primary Key. Session ID. |
 | name | TEXT | Human-readable name (Optional). |
-| context_size | INTEGER | Size of the sequential rolling window (number of groups). Default: 2. |
+| context_size | INTEGER | Size of the sequential rolling window (number of groups). Default: 3. |
 | scratchpad | TEXT | A flexible workspace for the LLM to store plans and notes. |
 | active_skills | TEXT | JSON array of currently active skill names for this session. |
 
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS skills (
 
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
-    context_size INTEGER DEFAULT 5,
+    context_size INTEGER DEFAULT 3,
     scratchpad TEXT,
     active_skills TEXT
 );
