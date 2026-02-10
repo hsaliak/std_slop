@@ -102,7 +102,8 @@ TEST_F(MailModelTest, VerifySeries) {
   // 4. Verify series with a command that passes
   auto verify_res = executor_->Execute("git_verify_series", {{"command", "ls good.txt"}, {"base_branch", "HEAD~2"}});
   ASSERT_TRUE(verify_res.ok()) << verify_res.status().message();
-  nlohmann::json report = nlohmann::json::parse(*verify_res);
+  nlohmann::json report = nlohmann::json::parse(*verify_res, nullptr, false);
+  ASSERT_FALSE(report.is_discarded());
   EXPECT_TRUE(report["all_passed"].get<bool>());
   EXPECT_EQ(report["report"].size(), 2);
 
@@ -111,7 +112,9 @@ TEST_F(MailModelTest, VerifySeries) {
   auto verify_fail_res =
       executor_->Execute("git_verify_series", {{"command", "ls next.txt"}, {"base_branch", "HEAD~2"}});
   ASSERT_TRUE(verify_fail_res.ok());
-  nlohmann::json report_fail = nlohmann::json::parse(*verify_fail_res);
+  nlohmann::json report_fail =
+      nlohmann::json::parse(*verify_fail_res, nullptr, false);
+  ASSERT_FALSE(report_fail.is_discarded());
   EXPECT_FALSE(report_fail["all_passed"].get<bool>());
   EXPECT_EQ(report_fail["report"][0]["status"], "failed");  // next.txt doesn't exist in first patch
   EXPECT_EQ(report_fail["report"][1]["status"], "passed");  // next.txt exists in second patch
