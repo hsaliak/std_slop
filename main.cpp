@@ -27,6 +27,7 @@
 #include "absl/time/time.h"
 
 #include "core/cancellation.h"
+#include "core/config.h"
 #include "core/constants.h"
 #include "core/database.h"
 #include "core/http_client.h"
@@ -39,6 +40,7 @@
 #include "interface/interaction_engine.h"
 #include "interface/ui.h"
 
+ABSL_FLAG(std::string, config, "", "Path to the configuration INI file");
 ABSL_FLAG(std::string, db, "slop.db", "Path to SQLite database");
 ABSL_FLAG(std::string, log, "", "Log file path");
 ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
@@ -123,6 +125,7 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
 int main(int argc, char* argv[]) {
   absl::SetProgramUsageMessage(slop::GetHelpText());
   (void)absl::ParseCommandLine(argc, argv);
+  slop::LoadConfigAndApply(absl::GetFlag(FLAGS_config));
   absl::InitializeLog();
 
   std::string log_path = absl::GetFlag(FLAGS_log);
