@@ -201,7 +201,7 @@ For non-trivial features, it's recommended to use the **Mail Model**.
 4. **Approve**: Run `/review mail approve` to sign the current patchset.
 5. **Finalize**: After approval, call `git_finalize_series` to merge.
 
-This workflow ensures bisect-safe history and high-quality rationale for every change. See [docs/mail_model.md](docs/mail_model.md) for a full example.
+This workflow ensures bisect-safe history and high-quality rationale for every change. See [mail_model.md](mail_model.md) for a full example.
 
 ### Finishing Up
 Once you are done, you can exit the session with `/exit` or `/quit`. Happy slopping!

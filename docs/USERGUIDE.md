@@ -31,7 +31,7 @@ google_api_key = AIza...
 max_parallel_tools = 8
 ```
 
-See [docs/example_config.ini](docs/example_config.ini) for a template with all supported options.
+See [example_config.ini](example_config.ini) for a template with all supported options.
 
 ### Environment Variables
 For quick setup or CI environments, you can use environment variables:
@@ -334,7 +334,7 @@ For complex features that require multiple iterations and clean commit history, 
 4. **Review**: Use `/review mail [index]` to review specific patches. Use `R:` comments in the editor for feedback.
 5. **Approval**: Run `/review mail approve` to sign the current patchset. This is **required** before calling `git_finalize_series`. Approval is non-sticky; any new commit or reroll will invalidate it.
 
-For more details, see [docs/mail_model.md](docs/mail_model.md).
+For more details, see [mail_model.md](mail_model.md).
 
 ### Interrupting Active Tasks
 If a tool is taking too long (e.g., a massive `grep` or a complex build), or if you realize the agent is going in the wrong direction, you can interrupt the current turn.

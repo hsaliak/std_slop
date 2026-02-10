@@ -27,7 +27,7 @@ This document outlines the implementation plan for adding INI configuration supp
     - **Crucial**: Only update flags if `!flag->IsSpecifiedOnCommandLine()`.
 
 ### 4. Documentation
-- **`docs/example_config.ini`**: Provide a template with all supported keys and descriptions.
+- **`example_config.ini`**: Provide a template with all supported keys and descriptions.
 
 ### 5. Main Integration
 - Add `ABSL_FLAG(std::string, config, "", "Path to config INI file");`.
