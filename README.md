@@ -48,7 +48,7 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 
 This is a good way to make `std::slop` act as a sub agent.
 
-Read the [User Guide](USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](WALKTHROUGH.md) to start with something simple.
+Read the [User Guide](docs/USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](docs/WALKTHROUGH.md) to start with something simple.
 
 ### ⚙️ Configuration
 You can configure `std::slop` using environment variables or a configuration file.
@@ -87,13 +87,12 @@ You can also use Google OAuth login if no keys are provided.
 
 ## 📚 Documentation
 
-- **[User Guide](USERGUIDE.md)**: Detailed commands and workflow tips.
-- **[Architecture & Schema](SCHEMA.md)**: Understanding the database-driven engine.
-- **[Sessions](SESSIONS.md)**: How context isolation and management work.
-- **[Context Management](CONTEXT_MANAGEMENT.md)**: The evolutionary history and strategy for managing model memory.
-- **[Walkthrough](WALKTHROUGH.md)**: A step-by-step example of using the agent.
-- **[Contributing](CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
-- **[Context management](CONTEXT_MANAGEMENT.md)**: Details on how context is put together every turn, and how it's evolved.
+- **[User Guide](docs/USERGUIDE.md)**: Detailed commands and workflow tips.
+- **[Architecture & Schema](docs/SCHEMA.md)**: Understanding the database-driven engine.
+- **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
+- **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The evolutionary history and strategy for managing model memory.
+- **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
+- **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
 ## 🏗️ Architecture & Codebase Layout
 
