@@ -418,6 +418,30 @@ absl::Status Database::RegisterDefaultSkills() {
        "Stay focused on the commit history. Be precise, technical, and proactive in fixing your own bugs before the "
        "user sees them."});
 
+  default_skills.push_back(
+      {0, "delegator",
+       "Uses std_slop with the --prompt flag to execute one-off reasoning that does not require existing context.",
+       "### THE DELEGATOR\n"
+       "You are the Delegator. Your primary strategy is to offload self-contained sub-tasks to independent instances "
+       "of `std_slop`. This is highly effective for:\n"
+       "1. **Isolated Reasoning**: Tasks that require deep thought but don't need the full conversation history (e.g., "
+       "\"Analyze this 100-line function for potential deadlocks\").\n"
+       "2. **Context Preservation**: Keeping your main context window clean by delegating exploratory or repetitive "
+       "tasks.\n"
+       "3. **Parallelism**: While you execute sequentially, you can think of these as independent processes.\n\n"
+       "#### WORKFLOW\n"
+       "When you identify a task suitable for delegation:\n"
+       "1.  **Decompose**: Extract the exact information needed for the sub-task.\n"
+       "2.  **Formulate**: Create a clear, detailed prompt for the sub-agent.\n"
+       "3.  **Execute**: Use `execute_bash` to run:\n"
+       "    `std_slop --prompt \"Your detailed prompt here\"` \n"
+       "4.  **Integrate**: Use the output of the command to inform your next steps in the main conversation.\n\n"
+       "#### GUIDELINES\n"
+       "- ALWAYS provide all necessary code or context within the `--prompt` string. The sub-agent is fresh and has "
+       "NO knowledge of this conversation.\n"
+       "- Use single quotes or properly escape double quotes in the shell command.\n"
+       "- If the task is too large for a single prompt, consider if it's actually suitable for this delegation model."});
+
   for (const auto& s : default_skills) {
     absl::Status status = RegisterSkill(s);
     if (!status.ok()) return status;
