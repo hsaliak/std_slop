@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "absl/debugging/failure_signal_handler.h"
+#include "absl/debugging/symbolize.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
@@ -125,6 +127,9 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  absl::InitializeSymbolizer(argv[0]);
+  absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions{});
+
   absl::SetProgramUsageMessage(slop::GetHelpText());
   (void)absl::ParseCommandLine(argc, argv);
 
