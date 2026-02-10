@@ -56,6 +56,8 @@ ABSL_FLAG(bool, strip_reasoning, false,
 ABSL_FLAG(int, max_parallel_tools, 4, "Maximum number of tools to execute in parallel");
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
+ABSL_FLAG(std::string, prompt_db, "",
+          "Database to use for batch mode. Defaults to in-memory (':memory:'). Mutually exclusive with --db.");
 
 // Help text is now in interface/ui.h
 
