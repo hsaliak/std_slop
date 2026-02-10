@@ -1,0 +1,20 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "ini_parser",
+    srcs = ["ini_parser.cpp"],
+    hdrs = ["ini_parser.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "ini_parser_test",
+    srcs = ["ini_parser_test.cpp"],
+    deps = [
+        ":ini_parser",
+        "@googletest//:gtest_main",
+    ],
+)
