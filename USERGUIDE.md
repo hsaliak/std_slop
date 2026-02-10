@@ -9,10 +9,34 @@ Build using Bazel:
 bazel build //:std_slop
 ```
 
-## Setup
-You need an API key for either Google Gemini or an OpenAI compatible endpoint. By default, `std::slop` uses OpenRouter for OpenAI-compatible models.
+## Configuration
+`std::slop` supports three levels of configuration, in order of precedence:
+1.  **Command-line Flags** (e.g., `--model=gpt-4o`)
+2.  **Configuration File** (`~/.config/slop/config.ini`)
+3.  **Environment Variables** (e.g., `GOOGLE_API_KEY`)
 
-### For Gemini:
+### Configuration File
+By default, the application looks for a configuration file at `~/.config/slop/config.ini`. You can override this path using the `--config` flag:
+```bash
+bazel run //:std_slop -- --config=/path/to/my_config.ini
+```
+
+The file uses a standard INI format. All settings should be under the `[slop]` section. Keys in the INI file correspond directly to the command-line flags (replace hyphens with underscores).
+
+Example `config.ini`:
+```ini
+[slop]
+model = gemini-2.0-flash-exp
+google_api_key = AIza...
+max_parallel_tools = 8
+```
+
+See [docs/example_config.ini](docs/example_config.ini) for a template with all supported options.
+
+### Environment Variables
+For quick setup or CI environments, you can use environment variables:
+
+#### For Google Gemini:
 ```bash
 export GOOGLE_API_KEY="your_api_key"
 ```
@@ -20,9 +44,7 @@ Or use Google OAuth (recommended):
 ```bash
 bazel run //:std_slop
 ```
-If no API keys are found, the CLI defaults to Google OAuth. It automatically discovers your project ID using the authoritative `loadCodeAssist` endpoint.
-
-To authenticate, run the provided script:
+If no API keys are found, the CLI defaults to Google OAuth. To authenticate, run:
 ```bash
 ./slop_auth.sh
 ```
@@ -41,8 +63,8 @@ Set your API key:
 export OPENAI_API_KEY="your_api_key"
 ```
 
-### Recommended Settings for OpenRouter:
-When using newer models via OpenRouter, it is highly recommended to use the `--strip_reasoning` flag. This improves response focus and can reduce latency by preventing the reasoning chain from being included in the final output.
+#### Recommended Settings for OpenRouter:
+When using newer models via OpenRouter, it is highly recommended to use the `strip_reasoning = true` in your `config.ini` or the `--strip_reasoning` flag. This improves response focus and can reduce latency by preventing the reasoning chain from being included in the final output.
 
 ```bash
 bazel run //:std_slop -- --strip_reasoning
