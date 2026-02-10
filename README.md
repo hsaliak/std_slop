@@ -51,18 +51,29 @@ This is a good way to make `std::slop` act as a sub agent.
 Read the [User Guide](USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](WALKTHROUGH.md) to start with something simple.
 
 ### ⚙️ Configuration
-Set your API keys:
-```bash
-export GEMINI_API_KEY="your-key"
+You can configure `std::slop` using environment variables or a configuration file.
+
+#### Configuration File
+The agent looks for a configuration file at `~/.config/slop/config.ini`. You can also specify a custom path using the `--config` flag.
+
+```ini
+[slop]
+model = gemini-2.0-flash-exp
+google_api_key = AIza...
 # OR
-export OPENAI_API_KEY="your-key"
-export OPENAI_API_BASE="https://openrouter.ai/api/v1"
+openai_api_key = sk-...
+openai_base_url = https://api.openai.com/v1
 ```
 
-You can also use Google OAuth login.
+See [docs/example_config.ini](docs/example_config.ini) for a full list of options.
 
-#### Optional Environment Variables:
+#### Environment Variables
+- `GEMINI_API_KEY`: Google API key.
+- `OPENAI_API_KEY`: OpenAI-compatible API key.
+- `OPENAI_API_BASE`: Base URL for OpenAI-compatible providers.
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
+
+You can also use Google OAuth login if no keys are provided.
 
 ## 💻 Code
 
