@@ -16,6 +16,7 @@
 #include "nlohmann/json.hpp"
 
 #include "core/constants.h"
+#include "core/shell_util.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -25,11 +26,6 @@ namespace slop {
 namespace {
 const char* kGeminiClientId = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
 const char* kGeminiClientSecret = "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";
-
-std::string GetHomeDir() {
-  const char* home = std::getenv("HOME");
-  return home ? home : "";
-}
 }  // namespace
 absl::Status MaybeCreateDirectory(const std::string& dir_path) {
   std::error_code ec;

@@ -4,8 +4,10 @@
 #include <poll.h>
 #include <termios.h>
 #include <unistd.h>
+#include <pwd.h>
 
 #include <array>
+#include <cstdlib>
 #include <cerrno>
 #include <chrono>
 #include <csignal>
@@ -232,6 +234,18 @@ bool IsEscPressed() {
   (void)fcntl(STDIN_FILENO, F_SETFL, oldf);
 
   return ch == 27;
+}
+
+std::string GetHomeDir() {
+  const char* home = std::getenv("HOME");
+  if (home) {
+    return std::string(home);
+  }
+  struct passwd* pw = getpwuid(getuid());
+  if (pw) {
+    return std::string(pw->pw_dir);
+  }
+  return "";
 }
 
 }  // namespace slop

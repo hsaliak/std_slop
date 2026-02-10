@@ -31,6 +31,9 @@ std::string EscapeShellArg(std::string_view arg);
 // NOTE: Not thread-safe if called from multiple threads simultaneously.
 bool IsEscPressed();
 
+// Returns the current user's home directory.
+std::string GetHomeDir();
+
 }  // namespace slop
 
 #endif  // SLOP_SHELL_UTIL_H_
