@@ -855,8 +855,51 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     return Result::HANDLED;
   }
 
+  std::vector<std::string> tokens = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
+
+  // --- Dashboard ---
+  if (tokens.empty()) {
+    std::cout << "--- Review Dashboard ---" << std::endl;
+
+    // Session Status
+    auto status_res = ExecuteCommand("git status --porcelain");
+    if (status_res.ok() && !status_res->empty()) {
+      std::vector<std::string> lines = absl::StrSplit(*status_res, '\n', absl::SkipEmpty());
+      size_t file_count = lines.size();
+      std::cout << "[Session] Uncommitted changes detected in " << file_count << " file(s)." << std::endl;
+      std::cout << "          Use '/review session' to review." << std::endl;
+    } else {
+      std::cout << "[Session] No uncommitted changes." << std::endl;
+    }
+
+    // Mail Status
+    auto branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
+    if (branch_res.ok()) {
+      std::string branch = *branch_res;
+      absl::StripAsciiWhitespace(&branch);
+      if (absl::StartsWith(branch, "slop/staging/")) {
+        std::string base = ResolveBaseBranch(branch);
+        auto rev_res = ExecuteCommand("git rev-list --count " + base + "..HEAD");
+        if (rev_res.ok()) {
+          std::string count = *rev_res;
+          absl::StripAsciiWhitespace(&count);
+          std::cout << "[Mail]    Active series: " << count << " patch(es) in branch '" << branch << "'." << std::endl;
+          std::cout << "          Use '/review mail' to review the whole series." << std::endl;
+          std::cout << "          Use '/review mail <n>' for a specific patch." << std::endl;
+        }
+      } else {
+        std::cout << "[Mail]    No active staging branch." << std::endl;
+      }
+    }
+
+    std::cout << "\n[Git]     Review any git reference (branch, hash, or HEAD~n)." << std::endl;
+    std::cout << "          Use '/review git <ref>'." << std::endl;
+
+    return Result::HANDLED;
+  }
+
   // Handle mail review
-  if (absl::StartsWith(args.args, "mail")) {
+  if (tokens[0] == "mail") {
     std::string base;
     std::vector<std::string> patch_args = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
     int patch_idx = -1;
@@ -867,20 +910,10 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     }
 
     if (base.empty()) {
-      // Resolve base branch
-      auto config_res = ExecuteCommand("git config slop.basebranch");
-      if (config_res.ok() && !config_res->empty()) {
-        base = *config_res;
-        absl::StripAsciiWhitespace(&base);
-      } else {
-        // Defaults
-        if (ExecuteCommand("git rev-parse --verify master").ok() &&
-            !ExecuteCommand("git rev-parse --verify main").ok()) {
-          base = "master";
-        } else {
-          base = "main";
-        }
-      }
+      auto branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
+      std::string branch = branch_res.ok() ? *branch_res : "";
+      absl::StripAsciiWhitespace(&branch);
+      base = ResolveBaseBranch(branch);
     }
 
     std::string rev_cmd = "git rev-list --reverse " + base + "..HEAD";
@@ -979,16 +1012,35 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     return Result::HANDLED;
   }
 
-  std::string diff_cmd = "git diff";
+  std::string diff_cmd;
   bool is_historical = false;
-  if (!args.args.empty()) {
+
+  if (tokens[0] == "session") {
+    diff_cmd = "git diff";
+    for (size_t i = 1; i < tokens.size(); ++i) {
+      absl::StrAppend(&diff_cmd, " ", tokens[i]);
+    }
+    is_historical = false;
+  } else if (tokens[0] == "git") {
+    if (tokens.size() < 2) {
+      std::cerr << "Error: /review git requires a reference (e.g., /review git HEAD~1)." << std::endl;
+      return Result::HANDLED;
+    }
     is_historical = true;
+    std::string ref = tokens[1];
     int n;
-    if (absl::SimpleAtoi(args.args, &n)) {
+    if (absl::SimpleAtoi(ref, &n)) {
       diff_cmd = absl::StrCat("git diff HEAD~", n);
     } else {
-      diff_cmd = absl::StrCat("git diff ", args.args);
+      diff_cmd = absl::StrCat("git diff ", ref);
     }
+    for (size_t i = 2; i < tokens.size(); ++i) {
+      absl::StrAppend(&diff_cmd, " ", tokens[i]);
+    }
+  } else {
+    std::cerr << "Unknown review command: " << tokens[0] << std::endl;
+    std::cerr << "Use /review for a list of available commands." << std::endl;
+    return Result::HANDLED;
   }
 
   // Handle new files with intent-to-add
@@ -1263,6 +1315,33 @@ Database::Memo CommandHandler::MarkdownToMemo(const std::string& md, int id) {
   }
   m.content = std::string(absl::StripAsciiWhitespace(m.content));
   return m;
+}
+
+std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch) {
+  // Try per-branch config first (set by git_branch_staging)
+  if (!current_branch.empty()) {
+    auto config_res = ExecuteCommand("git config branch." + current_branch + ".base");
+    if (config_res.ok() && !config_res->empty()) {
+      std::string base = *config_res;
+      absl::StripAsciiWhitespace(&base);
+      if (!base.empty()) return base;
+    }
+  }
+
+  // Fallback to global/local slop config
+  auto config_res = ExecuteCommand("git config slop.basebranch");
+  if (config_res.ok() && !config_res->empty()) {
+    std::string base = *config_res;
+    absl::StripAsciiWhitespace(&base);
+    if (!base.empty()) return base;
+  }
+
+  // Final fallbacks
+  if (ExecuteCommand("git rev-parse --verify master").ok() &&
+      !ExecuteCommand("git rev-parse --verify main").ok()) {
+    return "master";
+  }
+  return "main";
 }
 
 }  // namespace slop

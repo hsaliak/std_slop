@@ -518,7 +518,7 @@ TEST_F(CommandHandlerTest, ReviewHandlesChanges) {
 
   handler.next_editor_output = "diff --git a/old.cpp b/old.cpp\n+new line\nR: This looks good";
 
-  std::string input = "/review";
+  std::string input = "/review session";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
@@ -543,7 +543,7 @@ TEST_F(CommandHandlerTest, ReviewRequiresPrefixAtStartOfLine) {
   // R: in the middle of a line should not trigger
   handler.next_editor_output = "This line has R: but not at start";
 
-  std::string input = "/review";
+  std::string input = "/review session";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
@@ -562,7 +562,7 @@ TEST_F(CommandHandlerTest, ReviewHistorical) {
   handler.command_responses["git diff HEAD~1"] = "diff --git a/old.cpp b/old.cpp\n+historical line";
   handler.next_editor_output = "R: Reviewing history";
 
-  std::string input = "/review 1";
+  std::string input = "/review git 1";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
@@ -586,7 +586,7 @@ TEST_F(CommandHandlerTest, ReviewRef) {
   handler.command_responses["git diff main"] = "diff --git a/old.cpp b/old.cpp\n+ref line";
   handler.next_editor_output = "R: Reviewing ref";
 
-  std::string input = "/review main";
+  std::string input = "/review git main";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
@@ -831,7 +831,7 @@ TEST_F(CommandHandlerTest, ReviewStandardSuggestsMail) {
   // 1. Without mail mode
   {
     testing::internal::CaptureStdout();
-    std::string input = "/review";
+    std::string input = "/review session";
     handler.Handle(input, sid, active_skills, []() {}, {});
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(absl::StrContains(output, "No changes to review."));
@@ -848,7 +848,7 @@ TEST_F(CommandHandlerTest, ReviewStandardSuggestsMail) {
 
   {
     testing::internal::CaptureStdout();
-    std::string input = "/review";
+    std::string input = "/review session";
     handler.Handle(input, sid, active_skills, []() {}, {});
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(absl::StrContains(output, "No changes to review."));
@@ -879,6 +879,29 @@ TEST_F(CommandHandlerTest, ReviewMailApproveProceedsToLLM) {
   auto approved_hash = db.GetPatchApproval("slop/staging/feature");
   ASSERT_TRUE(approved_hash.ok());
   EXPECT_EQ(*approved_hash, "abcd123");
+}
+
+TEST_F(CommandHandlerTest, ReviewDashboard) {
+  TestableCommandHandler handler(&db);
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git status --porcelain"] = "M file.cpp";
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
+  handler.command_responses["git config branch.slop/staging/feature.base"] = "main";
+  handler.command_responses["git rev-list --count main..HEAD"] = "1";
+
+  std::string input = "/review";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  
+  testing::internal::CaptureStdout();
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "--- Review Dashboard ---"));
+  EXPECT_TRUE(absl::StrContains(output, "/review session"));
+  EXPECT_TRUE(absl::StrContains(output, "/review mail"));
+  EXPECT_TRUE(absl::StrContains(output, "/review git <ref>"));
 }
 
 }  // namespace slop

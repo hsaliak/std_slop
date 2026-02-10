@@ -102,6 +102,8 @@ class CommandHandler {
   // Testing hook for shell commands.
   virtual absl::StatusOr<std::string> ExecuteCommand(const std::string& command);
 
+  std::string ResolveBaseBranch(const std::string& current_branch);
+
   // Helper methods for Markdown editing
   static std::string SkillToMarkdown(const Database::Skill& skill);
   static Database::Skill MarkdownToSkill(const std::string& md, int id);
