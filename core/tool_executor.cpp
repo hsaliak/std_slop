@@ -539,9 +539,8 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
 }
 
 bool ToolExecutor::IsMailModelWorkflowTool(const std::string& name) {
-  static const std::unordered_set<std::string> tools = {
-      "git_commit_patch",  "git_reroll_patch", "git_verify_series",
-      "git_format_patch_series", "git_finalize_series"};
+  static const std::unordered_set<std::string> tools = {"git_commit_patch", "git_reroll_patch", "git_verify_series",
+                                                        "git_format_patch_series", "git_finalize_series"};
   return tools.count(name) > 0;
 }
 

@@ -105,6 +105,7 @@ TEST(ToolExecutorTest, MailModelEnforcement) {
   auto executor_or = ToolExecutor::Create(&db);
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
+  executor.SetMailMode(true);
 
   // 1. Test failure on 'main' branch
   setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
@@ -118,13 +119,15 @@ TEST(ToolExecutorTest, MailModelEnforcement) {
   setenv("SLOP_FORCE_BRANCH_NAME", "slop/staging/test-feature", 1);
   auto write_res2 = executor.Execute("write_file", {{"path", "success_test.txt"}, {"content", "success"}});
   EXPECT_TRUE(write_res2.ok());
-  std::filesystem::remove("success_test.txt");
 
   // 3. Test that read_file (non-protected) works on any branch
+  // Using success_test.txt which we just wrote, so we know it exists in the sandbox.
   setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
   auto read_res =
-      executor.Execute("read_file", {{"path", "core/tool_executor.cpp"}, {"start_line", 1}, {"end_line", 1}});
+      executor.Execute("read_file", {{"path", "success_test.txt"}, {"start_line", 1}, {"end_line", 1}});
   EXPECT_TRUE(read_res.ok());
+
+  std::filesystem::remove("success_test.txt");
 
   // Clean up environment
   unsetenv("SLOP_FORCE_BRANCH_NAME");
