@@ -1,10 +1,12 @@
 #ifndef SLOP_SQL_TOOL_EXECUTOR_H_
 #define SLOP_SQL_TOOL_EXECUTOR_H_
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 
@@ -29,7 +31,7 @@ class ToolExecutor {
   void SetMailMode(bool enabled) { mail_mode_ = enabled; }
 
  private:
-  explicit ToolExecutor(Database* db) : db_(db) {}
+  explicit ToolExecutor(Database* db);
 
  public:
   absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args,
@@ -89,6 +91,13 @@ class ToolExecutor {
 
   // Returns a concise summary of the current patch series.
   absl::StatusOr<std::string> GetPatchSeriesSummary(const std::string& requested_base);
+
+  using ToolHandler = std::function<absl::StatusOr<std::string>(
+      const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
+  absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
+
+  absl::StatusOr<std::string> DispatchGrep(const nlohmann::json& args,
+                                          std::shared_ptr<CancellationRequest> cancellation);
 };
 
 }  // namespace slop

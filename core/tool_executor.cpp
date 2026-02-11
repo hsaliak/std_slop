@@ -17,6 +17,94 @@
 #include "core/shell_util.h"
 namespace slop {
 
+ToolExecutor::ToolExecutor(Database* db) : db_(db) {
+  dispatch_map_["read_file"] = [this](const nlohmann::json& args, auto) {
+    return ReadFile(args.get<ReadFileRequest>());
+  };
+  dispatch_map_["write_file"] = [this](const nlohmann::json& args, auto) {
+    return WriteFile(args.get<WriteFileRequest>());
+  };
+  dispatch_map_["apply_patch"] = [this](const nlohmann::json& args, auto) {
+    return ApplyPatch(args.get<ApplyPatchRequest>());
+  };
+  dispatch_map_["grep_tool"] = [this](const nlohmann::json& args, auto cancellation) {
+    return DispatchGrep(args, cancellation);
+  };
+  dispatch_map_["git_grep_tool"] = [this](const nlohmann::json& args, auto cancellation) {
+    return GitGrep(args.get<GitGrepRequest>(), cancellation);
+  };
+  dispatch_map_["execute_bash"] = [this](const nlohmann::json& args, auto cancellation) {
+    return ExecuteBash(args.get<ExecuteBashRequest>(), cancellation);
+  };
+  dispatch_map_["query_db"] = [this](const nlohmann::json& args, auto) {
+    return QueryDb(args.get<QueryDbRequest>());
+  };
+  dispatch_map_["save_memo"] = [this](const nlohmann::json& args, auto) {
+    return SaveMemo(args.get<SaveMemoRequest>());
+  };
+  dispatch_map_["retrieve_memos"] = [this](const nlohmann::json& args, auto) {
+    return RetrieveMemos(args.get<RetrieveMemosRequest>());
+  };
+  dispatch_map_["list_directory"] = [this](const nlohmann::json& args, auto cancellation) {
+    return ListDirectory(args.get<ListDirectoryRequest>(), cancellation);
+  };
+  dispatch_map_["manage_scratchpad"] = [this](const nlohmann::json& args, auto) {
+    return ManageScratchpad(args.get<ManageScratchpadRequest>());
+  };
+  dispatch_map_["describe_db"] = [this](const nlohmann::json&, auto) { return DescribeDb(); };
+  dispatch_map_["use_skill"] = [this](const nlohmann::json& args, auto) {
+    return UseSkill(args.get<UseSkillRequest>());
+  };
+  dispatch_map_["search_code"] = [this](const nlohmann::json& args, auto cancellation) {
+    return SearchCode(args.get<SearchCodeRequest>(), cancellation);
+  };
+  dispatch_map_["git_branch_staging"] = [this](const nlohmann::json& args, auto) {
+    return GitBranchStaging(args.get<GitBranchStagingRequest>());
+  };
+  dispatch_map_["git_commit_patch"] = [this](const nlohmann::json& args, auto) {
+    return GitCommitPatch(args.get<GitCommitPatchRequest>());
+  };
+  dispatch_map_["git_format_patch_series"] = [this](const nlohmann::json& args, auto) {
+    return GitFormatPatchSeries(args.get<GitFormatPatchSeriesRequest>());
+  };
+  dispatch_map_["git_finalize_series"] = [this](const nlohmann::json& args, auto) {
+    return GitFinalizeSeries(args.get<GitFinalizeSeriesRequest>());
+  };
+  dispatch_map_["git_verify_series"] = [this](const nlohmann::json& args, auto cancellation) {
+    return GitVerifySeries(args.get<GitVerifySeriesRequest>(), cancellation);
+  };
+  dispatch_map_["git_reroll_patch"] = [this](const nlohmann::json& args, auto) {
+    return GitRerollPatch(args.get<GitRerollPatchRequest>());
+  };
+}
+
+absl::StatusOr<std::string> ToolExecutor::DispatchGrep(
+    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+  auto req = args.get<GrepRequest>();
+  // Delegate to GitGrep if in a git repo
+  ExecuteBashRequest git_check_req;
+  git_check_req.command = "git rev-parse --is-inside-work-tree";
+  auto git_repo_check = ExecuteBash(git_check_req, cancellation);
+  if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
+    GitGrepRequest git_req;
+    git_req.pattern = req.pattern;
+    git_req.path = {req.path};
+    git_req.context = req.context;
+    auto git_res = GitGrep(git_req, cancellation);
+    if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
+      return git_res;
+    }
+    return Grep(req, cancellation);
+  }
+  auto grep_res = Grep(req, cancellation);
+  if (grep_res.ok()) {
+    return "Notice: Not a git repository. Consider running 'git init' for better search "
+           "performance and feature support.\n\n" +
+           *grep_res;
+  }
+  return grep_res;
+}
+
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
                                                   std::shared_ptr<CancellationRequest> cancellation) {
   LOG(INFO) << "Executing tool: " << name
@@ -41,76 +129,12 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     return absl::StrCat("### TOOL_RESULT: ", tool_name, "\n", content, "\n\n---");
   };
 
-  absl::StatusOr<std::string> result;
-  if (name == "read_file") {
-    result = ReadFile(args.get<ReadFileRequest>());
-  } else if (name == "write_file") {
-    result = WriteFile(args.get<WriteFileRequest>());
-  } else if (name == "apply_patch") {
-    result = ApplyPatch(args.get<ApplyPatchRequest>());
-  } else if (name == "grep_tool") {
-    auto req = args.get<GrepRequest>();
-    // Delegate to GitGrep if in a git repo
-    ExecuteBashRequest git_check_req;
-    git_check_req.command = "git rev-parse --is-inside-work-tree";
-    auto git_repo_check = ExecuteBash(git_check_req, cancellation);
-    if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
-      GitGrepRequest git_req;
-      git_req.pattern = req.pattern;
-      git_req.path = {req.path};
-      git_req.context = req.context;
-      auto git_res = GitGrep(git_req, cancellation);
-      if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
-        result = git_res;
-      } else {
-        result = Grep(req, cancellation);
-      }
-    } else {
-      auto grep_res = Grep(req, cancellation);
-      if (grep_res.ok()) {
-        result =
-            "Notice: Not a git repository. Consider running 'git init' for better search performance and feature "
-            "support.\n\n" +
-            *grep_res;
-      } else {
-        result = grep_res;
-      }
-    }
-  } else if (name == "git_grep_tool") {
-    result = GitGrep(args.get<GitGrepRequest>(), cancellation);
-  } else if (name == "execute_bash") {
-    result = ExecuteBash(args.get<ExecuteBashRequest>(), cancellation);
-  } else if (name == "query_db") {
-    result = QueryDb(args.get<QueryDbRequest>());
-  } else if (name == "save_memo") {
-    result = SaveMemo(args.get<SaveMemoRequest>());
-  } else if (name == "retrieve_memos") {
-    result = RetrieveMemos(args.get<RetrieveMemosRequest>());
-  } else if (name == "list_directory") {
-    result = ListDirectory(args.get<ListDirectoryRequest>(), cancellation);
-  } else if (name == "manage_scratchpad") {
-    result = ManageScratchpad(args.get<ManageScratchpadRequest>());
-  } else if (name == "describe_db") {
-    result = DescribeDb();
-  } else if (name == "use_skill") {
-    result = UseSkill(args.get<UseSkillRequest>());
-  } else if (name == "search_code") {
-    result = SearchCode(args.get<SearchCodeRequest>(), cancellation);
-  } else if (name == "git_branch_staging") {
-    result = GitBranchStaging(args.get<GitBranchStagingRequest>());
-  } else if (name == "git_commit_patch") {
-    result = GitCommitPatch(args.get<GitCommitPatchRequest>());
-  } else if (name == "git_format_patch_series") {
-    result = GitFormatPatchSeries(args.get<GitFormatPatchSeriesRequest>());
-  } else if (name == "git_finalize_series") {
-    result = GitFinalizeSeries(args.get<GitFinalizeSeriesRequest>());
-  } else if (name == "git_verify_series") {
-    result = GitVerifySeries(args.get<GitVerifySeriesRequest>(), cancellation);
-  } else if (name == "git_reroll_patch") {
-    result = GitRerollPatch(args.get<GitRerollPatchRequest>());
-  } else {
+  auto it = dispatch_map_.find(name);
+  if (it == dispatch_map_.end()) {
     return absl::NotFoundError("Tool not found: " + name);
   }
+
+  absl::StatusOr<std::string> result = it->second(args, cancellation);
 
   if (!result.ok()) {
     std::string error_msg = result.status().ToString();
