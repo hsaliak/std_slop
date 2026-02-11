@@ -14,55 +14,49 @@
 #include <sqlite3.h>
 namespace slop {
 
-absl::Status Database::Statement::Prepare() {
-  sqlite3_stmt* raw_stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql_.c_str(), -1, &raw_stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    std::string err = sqlite3_errmsg(db_);
-    LOG(ERROR) << "Prepare error: " << err << " (SQL: " << sql_ << ")";
-    return absl::InternalError("Prepare error: " + err + " (SQL: " + sql_ + ")");
+Database::Statement::~Statement() {
+  if (stmt_) {
+    db_wrapper_->ReturnStatement(sql_, stmt_);
   }
-  stmt_.reset(raw_stmt);
-  return absl::OkStatus();
 }
 
 absl::Status Database::Statement::BindInt(int index, int value) {
-  if (sqlite3_bind_int(stmt_.get(), index, value) != SQLITE_OK) {
+  if (sqlite3_bind_int(stmt_, index, value) != SQLITE_OK) {
     return absl::InternalError("BindInt error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
 
 absl::Status Database::Statement::BindInt64(int index, int64_t value) {
-  if (sqlite3_bind_int64(stmt_.get(), index, value) != SQLITE_OK) {
+  if (sqlite3_bind_int64(stmt_, index, value) != SQLITE_OK) {
     return absl::InternalError("BindInt64 error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
 
 absl::Status Database::Statement::BindDouble(int index, double value) {
-  if (sqlite3_bind_double(stmt_.get(), index, value) != SQLITE_OK) {
+  if (sqlite3_bind_double(stmt_, index, value) != SQLITE_OK) {
     return absl::InternalError("BindDouble error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
 
 absl::Status Database::Statement::BindText(int index, const std::string& value) {
-  if (sqlite3_bind_text(stmt_.get(), index, value.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+  if (sqlite3_bind_text(stmt_, index, value.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
     return absl::InternalError("BindText error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
 
 absl::Status Database::Statement::BindNull(int index) {
-  if (sqlite3_bind_null(stmt_.get(), index) != SQLITE_OK) {
+  if (sqlite3_bind_null(stmt_, index) != SQLITE_OK) {
     return absl::InternalError("BindNull error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
 
 absl::StatusOr<bool> Database::Statement::Step() {
-  int rc = sqlite3_step(stmt_.get());
+  int rc = sqlite3_step(stmt_);
   if (rc == SQLITE_ROW) return true;
   if (rc == SQLITE_DONE) return false;
   std::string err = sqlite3_errmsg(db_);
@@ -76,22 +70,22 @@ absl::Status Database::Statement::Run() {
   return absl::OkStatus();
 }
 
-int Database::Statement::ColumnInt(int index) { return sqlite3_column_int(stmt_.get(), index); }
+int Database::Statement::ColumnInt(int index) { return sqlite3_column_int(stmt_, index); }
 
-int64_t Database::Statement::ColumnInt64(int index) { return sqlite3_column_int64(stmt_.get(), index); }
+int64_t Database::Statement::ColumnInt64(int index) { return sqlite3_column_int64(stmt_, index); }
 
-double Database::Statement::ColumnDouble(int index) { return sqlite3_column_double(stmt_.get(), index); }
+double Database::Statement::ColumnDouble(int index) { return sqlite3_column_double(stmt_, index); }
 
 std::string Database::Statement::ColumnText(int index) {
-  const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt_.get(), index));
+  const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt_, index));
   return text ? std::string(text) : "";
 }
 
-int Database::Statement::ColumnType(int index) { return sqlite3_column_type(stmt_.get(), index); }
+int Database::Statement::ColumnType(int index) { return sqlite3_column_type(stmt_, index); }
 
-const char* Database::Statement::ColumnName(int index) { return sqlite3_column_name(stmt_.get(), index); }
+const char* Database::Statement::ColumnName(int index) { return sqlite3_column_name(stmt_, index); }
 
-int Database::Statement::ColumnCount() { return sqlite3_column_count(stmt_.get()); }
+int Database::Statement::ColumnCount() { return sqlite3_column_count(stmt_); }
 
 bool Database::IsStopWord(const std::string& word) {
   static const absl::flat_hash_set<std::string> kStopWords = {
@@ -122,12 +116,39 @@ std::vector<std::string> Database::ExtractTags(const std::string& text) {
   return tags;
 }
 
-absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std::string& sql) {
+absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(
+    const std::string& sql) {
   absl::MutexLock lock(&mu_);
-  auto stmt = std::make_unique<Statement>(db_.get(), sql);
-  auto status = stmt->Prepare();
-  if (!status.ok()) return status;
-  return stmt;
+  sqlite3_stmt* raw_stmt = nullptr;
+  auto it = stmt_cache_.find(sql);
+  if (it != stmt_cache_.end() && !it->second.empty()) {
+    raw_stmt = it->second.back();
+    it->second.pop_back();
+  } else {
+    int rc = sqlite3_prepare_v2(db_.get(), sql.c_str(), -1, &raw_stmt, nullptr);
+    if (rc != SQLITE_OK) {
+      std::string err = sqlite3_errmsg(db_.get());
+      LOG(ERROR) << "Prepare error: " << err << " (SQL: " << sql << ")";
+      return absl::InternalError("Prepare error: " + err + " (SQL: " + sql + ")");
+    }
+  }
+  return std::make_unique<Statement>(this, db_.get(), sql, raw_stmt);
+}
+
+void Database::ReturnStatement(const std::string& sql, sqlite3_stmt* stmt) {
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
+  absl::MutexLock lock(&mu_);
+  stmt_cache_[sql].push_back(stmt);
+}
+
+Database::~Database() {
+  absl::MutexLock lock(&mu_);
+  for (auto& pair : stmt_cache_) {
+    for (sqlite3_stmt* stmt : pair.second) {
+      sqlite3_finalize(stmt);
+    }
+  }
 }
 
 absl::Status Database::Init(const std::string& db_path) {

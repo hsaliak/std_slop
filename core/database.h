@@ -8,6 +8,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
 
 #include <sqlite3.h>
@@ -17,7 +18,7 @@ namespace slop {
 class Database {
  public:
   Database() : db_(nullptr) {}
-  ~Database() = default;
+  ~Database();
 
   // Non-copyable
   Database(const Database&) = delete;
@@ -45,9 +46,10 @@ class Database {
 
   class Statement {
    public:
-    Statement(sqlite3* db, const std::string& sql) : db_(db), sql_(sql) {}
+    Statement(Database* db_wrapper, sqlite3* db, const std::string& sql, sqlite3_stmt* stmt)
+        : db_wrapper_(db_wrapper), db_(db), sql_(sql), stmt_(stmt) {}
+    ~Statement();
 
-    absl::Status Prepare();
     absl::Status BindInt(int index, int value);
     absl::Status BindInt64(int index, int64_t value);
     absl::Status BindDouble(int index, double value);
@@ -88,9 +90,10 @@ class Database {
       return BindRecursive(index + 1, std::forward<Rest>(rest)...);
     }
 
+    Database* db_wrapper_;
     sqlite3* db_;
     std::string sql_;
-    UniqueStmt stmt_;
+    sqlite3_stmt* stmt_;
   };
 
   absl::StatusOr<std::unique_ptr<Statement>> Prepare(const std::string& sql);
@@ -233,8 +236,11 @@ class Database {
       if (db) sqlite3_close(db);
     }
   };
+  void ReturnStatement(const std::string& sql, sqlite3_stmt* stmt);
+
   absl::Mutex mu_;
   std::unique_ptr<sqlite3, DbDeleter> db_ ABSL_GUARDED_BY(mu_);
+  absl::flat_hash_map<std::string, std::vector<sqlite3_stmt*>> stmt_cache_ ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace slop
