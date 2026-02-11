@@ -14,11 +14,6 @@ This report outlines algorithmic and data structure optimization opportunities d
 - **Issue**: The orchestrator parses the JSON schema of *every* available tool from a string on *every* request to the LLM.
 - **Optimization**: Store tool schemas as pre-parsed `nlohmann::json` objects in the `Tool` structure or a static cache.
 
-### 1.3. Memo Search Efficiency
-- **Location**: `core/database.cpp`, `Database::GetMemosByTags`
-- **Issue**: Uses `json_each` combined with `LIKE '%tag%'` queries. These queries are typically $O(N)$ as they cannot efficiently use standard B-Tree indexes for middle-string or suffix matches.
-- **Optimization**: If memo search becomes a bottleneck, consider using an auxiliary table for a many-to-many relationship between memos and tags, or leverage SQLite's FTS5 (Full Text Search) for tag indexing.
-
 ---
 
 ## 2. Tool Execution & Management
