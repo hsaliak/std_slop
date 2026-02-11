@@ -151,13 +151,19 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             done = true;
           });
 
-          while (!done) {
-            if (slop::IsEscPressed()) {
-              cancellation->Cancel();
-              std::cerr << "\n"
-                        << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m") << std::endl;
+          {
+            slop::ScopedRawMode raw;
+            while (!done) {
+              if (slop::IsEscPressed()) {
+                cancellation->Cancel();
+                std::cerr << "\n"
+                          << "  "
+                          << slop::Colorize("[Esc] Cancellation requested...", "",
+                                           "\033[31m")
+                          << std::endl;
+              }
+              std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
           }
           t.join();
 

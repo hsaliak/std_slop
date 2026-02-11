@@ -25,6 +25,47 @@
 
 namespace slop {
 
+namespace {
+struct GlobalTerminalState {
+  int refcount = 0;
+  struct termios oldt;
+  int oldf = -1;
+  bool active = false;
+};
+GlobalTerminalState g_terminal_state;
+}  // namespace
+
+ScopedRawMode::ScopedRawMode() {
+  if (g_terminal_state.refcount++ == 0) {
+    if (isatty(STDIN_FILENO) &&
+        tcgetattr(STDIN_FILENO, &g_terminal_state.oldt) == 0) {
+      struct termios newt = g_terminal_state.oldt;
+      newt.c_lflag &= ~(ICANON | ECHO);
+      if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) == 0) {
+        g_terminal_state.oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+        if (g_terminal_state.oldf != -1) {
+          fcntl(STDIN_FILENO, F_SETFL, g_terminal_state.oldf | O_NONBLOCK);
+        }
+        g_terminal_state.active = true;
+      }
+    }
+  }
+}
+
+ScopedRawMode::~ScopedRawMode() {
+  if (--g_terminal_state.refcount == 0) {
+    if (g_terminal_state.active) {
+      tcsetattr(STDIN_FILENO, TCSANOW, &g_terminal_state.oldt);
+      if (g_terminal_state.oldf != -1) {
+        fcntl(STDIN_FILENO, F_SETFL, g_terminal_state.oldf);
+      }
+      g_terminal_state.active = false;
+    }
+  }
+}
+
+bool ScopedRawMode::IsActive() const { return g_terminal_state.active; }
+
 absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_ptr<CancellationRequest> cancellation,
                                          std::string_view input, int timeout_seconds) {
   LOG(INFO) << "Running command: " << command;
@@ -204,13 +245,19 @@ std::string EscapeShellArg(std::string_view arg) {
 bool IsEscPressed() {
   static auto last_check = std::chrono::steady_clock::now();
   auto now = std::chrono::steady_clock::now();
-  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check).count() < 100) {
+  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check)
+          .count() < 100) {
     return false;
   }
   last_check = now;
 
   if (!isatty(STDIN_FILENO)) {
     return false;
+  }
+
+  if (g_terminal_state.active) {
+    int ch = getchar();
+    return ch == 27;
   }
 
   struct termios oldt, newt;

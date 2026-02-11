@@ -26,8 +26,19 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command,
 // Escapes a string for use as a shell argument.
 std::string EscapeShellArg(std::string_view arg);
 
+// ScopedRAII class to enter raw mode for efficient terminal polling.
+class ScopedRawMode {
+ public:
+  ScopedRawMode();
+  ~ScopedRawMode();
+
+  // Returns true if raw mode was successfully entered.
+  bool IsActive() const;
+};
+
 // Checks if the Escape key was pressed.
 // This function is non-blocking and throttled to once every 100ms.
+// If a ScopedRawMode is active, it uses the existing terminal state.
 // NOTE: Not thread-safe if called from multiple threads simultaneously.
 bool IsEscPressed();
 

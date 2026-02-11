@@ -113,10 +113,11 @@ absl::StatusOr<std::string> HttpClient::Get(const std::string& url, const std::v
   return ExecuteWithRetry(url, "GET", "", headers);
 }
 
-absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url, const std::string& method,
-                                                         const std::string& body,
-                                                         const std::vector<std::string>& headers) {
+absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(
+    const std::string& url, const std::string& method, const std::string& body,
+    const std::vector<std::string>& headers) {
   ResetAbort();
+  ScopedRawMode raw;
   LOG(INFO) << "Executing HTTP " << method << " to " << url;
 
   int max_retries = 6;
