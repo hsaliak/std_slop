@@ -500,20 +500,25 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
     PrintStyledBlock(absl::StrCat(" > ", msg.content, " "), prefix, ansi::EchoFg, ansi::EchoBg);
   } else if (msg.role == "assistant") {
     if (msg.status == "tool_call") {
-      std::string text = MessageParser::ExtractAssistantText(msg);
+      MessageContext ctx(msg);
+      std::string text = MessageParser::ExtractAssistantText(ctx);
       if (!text.empty()) {
         PrintAssistantMessage(text, prefix + "  ", msg.tokens);
       }
 
-      auto calls_or = MessageParser::ExtractToolCalls(msg);
+      auto calls_or = MessageParser::ExtractToolCalls(ctx);
       if (calls_or.ok() && !calls_or->empty()) {
         for (const auto& call : *calls_or) {
-          PrintToolCallMessage(call.name, call.args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
-                               prefix + "  ", msg.tokens);
+          PrintToolCallMessage(
+              call.name,
+              call.args.dump(-1, ' ', false,
+                             nlohmann::json::error_handler_t::replace),
+              prefix + "  ", msg.tokens);
         }
       } else if (!calls_or.ok() || calls_or->empty()) {
         // Fallback for unidentified tool calls
-        PrintToolCallMessage("tool_call", msg.content, prefix + "  ", msg.tokens);
+        PrintToolCallMessage("tool_call", msg.content, prefix + "  ",
+                             msg.tokens);
       }
     } else {
       PrintAssistantMessage(msg.content, prefix + "  ", msg.tokens);

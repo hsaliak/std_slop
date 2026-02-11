@@ -26,11 +26,6 @@ bool MessageContext::is_valid() const {
 }
 
 absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
-    const Database::Message& msg) {
-  return ExtractToolCalls(MessageContext(msg));
-}
-
-absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
     const MessageContext& ctx) {
   const auto& msg = ctx.message();
   if (msg.status != "tool_call") return std::vector<ToolCall>();
@@ -84,10 +79,6 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
   }
 
   return calls;
-}
-
-std::string MessageParser::ExtractAssistantText(const Database::Message& msg) {
-  return ExtractAssistantText(MessageContext(msg));
 }
 
 std::string MessageParser::ExtractAssistantText(const MessageContext& ctx) {

@@ -41,12 +41,9 @@ class MessageParser {
  public:
   // Extracts ToolCall objects from a message based on its parsing_strategy.
   static absl::StatusOr<std::vector<ToolCall>> ExtractToolCalls(
-      const Database::Message& msg);
-  static absl::StatusOr<std::vector<ToolCall>> ExtractToolCalls(
       const MessageContext& ctx);
 
   // Extracts any assistant text content from a JSON-encoded tool_call message.
-  static std::string ExtractAssistantText(const Database::Message& msg);
   static std::string ExtractAssistantText(const MessageContext& ctx);
 };
 

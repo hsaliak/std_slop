@@ -166,8 +166,9 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
   return total_tokens;
 }
 
-absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const Database::Message& msg) {
-  return MessageParser::ExtractToolCalls(msg);
+absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(
+    const Database::Message& msg) {
+  return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 
 absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key) {
