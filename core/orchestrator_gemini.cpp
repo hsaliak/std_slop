@@ -99,9 +99,18 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
   nlohmann::json f_decls = nlohmann::json::array();
   if (tools_or.ok()) {
     for (const auto& t : *tools_or) {
-      auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
-      if (!schema.is_discarded())
-        f_decls.push_back({{"name", t.name}, {"description", t.description}, {"parameters", schema}});
+      auto it = tool_schema_cache_.find(t.name);
+      if (it == tool_schema_cache_.end()) {
+        auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
+        if (!schema.is_discarded()) {
+          it = tool_schema_cache_.emplace(t.name, std::move(schema)).first;
+        }
+      }
+      if (it != tool_schema_cache_.end()) {
+        f_decls.push_back({{"name", t.name},
+                           {"description", t.description},
+                           {"parameters", it->second}});
+      }
     }
   }
   if (!f_decls.empty()) payload["tools"] = {{{"function_declarations", f_decls}}};

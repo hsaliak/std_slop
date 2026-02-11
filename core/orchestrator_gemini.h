@@ -4,6 +4,8 @@
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/orchestrator_strategy.h"
+#include "absl/container/flat_hash_map.h"
+#include "nlohmann/json.hpp"
 
 namespace slop {
 
@@ -29,6 +31,7 @@ class GeminiOrchestrator : public OrchestratorStrategy {
   HttpClient* http_client_;
   std::string model_;
   std::string base_url_;
+  absl::flat_hash_map<std::string, nlohmann::json> tool_schema_cache_;
 };
 
 class GeminiGcaOrchestrator : public GeminiOrchestrator {
