@@ -80,13 +80,7 @@ class FileLogSink : public absl::LogSink {
   std::ofstream file_;
 };
 
-std::vector<std::string> GetActiveSkills(slop::Database& db, const std::string& session_id) {
-  auto active_skills_or = db.GetActiveSkills(session_id);
-  if (active_skills_or.ok()) {
-    return *active_skills_or;
-  }
-  return {};
-}
+
 
 void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slop::Orchestrator& orchestrator,
                         slop::ToolExecutor& tool_executor, std::string& session_id,
@@ -101,7 +95,8 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
   (void)orchestrator.RebuildContext(session_id);
 
   while (true) {
-    std::vector<std::string> active_skills = GetActiveSkills(db, session_id);
+    tool_executor.SetSessionId(session_id);
+    std::vector<std::string> active_skills = tool_executor.GetActiveSkills();
 
     auto settings_or = db.GetContextSettings(session_id);
     int window_size = settings_or.ok() ? settings_or->size : 0;
@@ -117,7 +112,6 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
                      ", S:", session_id, ", T:", orchestrator.GetThrottle(), "s>", ansi::Reset);
 
     std::string input = slop::ReadLine(modeline);
-    tool_executor.SetSessionId(session_id);
     if (!engine.Process(input, session_id, active_skills, engine_config)) {
       break;
     }
@@ -287,8 +281,9 @@ int main(int argc, char* argv[]) {
     session_id = "default_session";
     std::cout << "Using default session: " << session_id << std::endl;
   }
+  tool_executor->SetSessionId(session_id);
 
-  std::vector<std::string> active_skills = GetActiveSkills(db, session_id);
+  std::vector<std::string> active_skills = tool_executor->GetActiveSkills();
 
   slop::InteractionEngine engine(db, *orchestrator, cmd_handler, dispatcher, *tool_executor, http_client,
                                  oauth_handler);

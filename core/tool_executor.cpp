@@ -78,6 +78,28 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
   };
 }
 
+void ToolExecutor::SetSessionId(const std::string& session_id) {
+  if (session_id == session_id_ && !session_id_.empty()) {
+    return;
+  }
+  session_id_ = session_id;
+  active_skills_.clear();
+  auto skills_or = db_->GetActiveSkills(session_id_);
+  if (skills_or.ok()) {
+    for (const auto& skill : *skills_or) {
+      active_skills_.insert(skill);
+    }
+  } else {
+    LOG(WARNING) << "Failed to load active skills for session " << session_id << ": " << skills_or.status().message();
+  }
+}
+
+bool ToolExecutor::IsSkillActive(const std::string& name) const { return active_skills_.contains(name); }
+
+std::vector<std::string> ToolExecutor::GetActiveSkills() const {
+  return {active_skills_.begin(), active_skills_.end()};
+}
+
 absl::StatusOr<std::string> ToolExecutor::DispatchGrep(
     const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
   auto req = args.get<GrepRequest>();
@@ -522,20 +544,21 @@ absl::StatusOr<std::string> ToolExecutor::DescribeDb() {
 absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   if (session_id_.empty()) return absl::FailedPreconditionError("No active session");
 
-  auto active_skills_or = db_->GetActiveSkills(session_id_);
-  if (!active_skills_or.ok()) return active_skills_or.status();
-  std::vector<std::string> active_skills = *active_skills_or;
-
   if (req.action == "activate") {
     // Increment count
     auto status = db_->IncrementSkillActivationCount(req.name);
     if (!status.ok()) return status;
 
     // Add to active if not present
-    if (std::find(active_skills.begin(), active_skills.end(), req.name) == active_skills.end()) {
-      active_skills.push_back(req.name);
-      status = db_->SetActiveSkills(session_id_, active_skills);
-      if (!status.ok()) return status;
+    if (!active_skills_.contains(req.name)) {
+      active_skills_.insert(req.name);
+      // Convert set to vector for DB update
+      std::vector<std::string> skills_vec(active_skills_.begin(), active_skills_.end());
+      status = db_->SetActiveSkills(session_id_, skills_vec);
+      if (!status.ok()) {
+        active_skills_.erase(req.name);  // Rollback cache
+        return status;
+      }
     }
 
     // Return patch
@@ -550,11 +573,14 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   }
 
   if (req.action == "deactivate") {
-    auto it = std::find(active_skills.begin(), active_skills.end(), req.name);
-    if (it != active_skills.end()) {
-      active_skills.erase(it);
-      auto status = db_->SetActiveSkills(session_id_, active_skills);
-      if (!status.ok()) return status;
+    if (active_skills_.contains(req.name)) {
+      active_skills_.erase(req.name);
+      std::vector<std::string> skills_vec(active_skills_.begin(), active_skills_.end());
+      auto status = db_->SetActiveSkills(session_id_, skills_vec);
+      if (!status.ok()) {
+        active_skills_.insert(req.name);  // Rollback cache
+        return status;
+      }
       return "Skill '" + req.name + "' deactivated.";
     }
     return "Skill '" + req.name + "' was not active.";

@@ -7,6 +7,7 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 
@@ -27,13 +28,13 @@ class ToolExecutor {
     return std::unique_ptr<ToolExecutor>(new ToolExecutor(db));
   }
 
-  void SetSessionId(const std::string& session_id) { session_id_ = session_id; }
+  void SetSessionId(const std::string& session_id);
   void SetMailMode(bool enabled) { mail_mode_ = enabled; }
+  const std::string& session_id() const { return session_id_; }
 
- private:
-  explicit ToolExecutor(Database* db);
+  bool IsSkillActive(const std::string& name) const;
+  std::vector<std::string> GetActiveSkills() const;
 
- public:
   absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args,
                                       std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
@@ -42,6 +43,8 @@ class ToolExecutor {
   std::string GetBaseBranch(const std::string& requested_base);
 
  private:
+  explicit ToolExecutor(Database* db);
+
   Database* db_;
   std::string session_id_;
   bool mail_mode_ = false;
@@ -95,6 +98,7 @@ class ToolExecutor {
   using ToolHandler = std::function<absl::StatusOr<std::string>(
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
+  absl::flat_hash_set<std::string> active_skills_;
 
   absl::StatusOr<std::string> DispatchGrep(const nlohmann::json& args,
                                           std::shared_ptr<CancellationRequest> cancellation);
