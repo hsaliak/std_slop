@@ -6,14 +6,40 @@
 
 namespace slop {
 
-absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Database::Message& msg) {
+MessageContext::MessageContext(const Database::Message& msg) : msg_(msg) {}
+
+void MessageContext::EnsureParsed() const {
+  if (parsed_) return;
+  json_ = nlohmann::json::parse(msg_.content, nullptr, false);
+  valid_ = !json_.is_discarded();
+  parsed_ = true;
+}
+
+const nlohmann::json& MessageContext::json() const {
+  EnsureParsed();
+  return json_;
+}
+
+bool MessageContext::is_valid() const {
+  EnsureParsed();
+  return valid_;
+}
+
+absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
+    const Database::Message& msg) {
+  return ExtractToolCalls(MessageContext(msg));
+}
+
+absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
+    const MessageContext& ctx) {
+  const auto& msg = ctx.message();
   if (msg.status != "tool_call") return std::vector<ToolCall>();
 
-  auto j = nlohmann::json::parse(msg.content, nullptr, false);
-  if (j.is_discarded()) {
+  if (!ctx.is_valid()) {
     return absl::InternalError("Failed to parse message content as JSON");
   }
 
+  const auto& j = ctx.json();
   std::vector<ToolCall> calls;
 
   if (msg.parsing_strategy == "openai") {
@@ -29,7 +55,8 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Data
         calls.push_back(tc);
       }
     }
-  } else if (msg.parsing_strategy == "gemini" || msg.parsing_strategy == "gemini_gca") {
+  } else if (msg.parsing_strategy == "gemini" ||
+             msg.parsing_strategy == "gemini_gca") {
     ToolCall tc;
     tc.id = msg.tool_call_id;
     tc.name = msg.tool_call_id;  // Default to ID if name not in JSON
@@ -49,7 +76,8 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Data
       for (const auto& call : j["functionCalls"]) {
         ToolCall tc;
         tc.name = call.value("name", "unknown");
-        tc.args = call.contains("args") ? call["args"] : nlohmann::json::object();
+        tc.args =
+            call.contains("args") ? call["args"] : nlohmann::json::object();
         calls.push_back(tc);
       }
     }
@@ -59,11 +87,16 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Data
 }
 
 std::string MessageParser::ExtractAssistantText(const Database::Message& msg) {
+  return ExtractAssistantText(MessageContext(msg));
+}
+
+std::string MessageParser::ExtractAssistantText(const MessageContext& ctx) {
+  const auto& msg = ctx.message();
   if (msg.status != "tool_call") return msg.content;
 
-  auto j = nlohmann::json::parse(msg.content, nullptr, false);
-  if (j.is_discarded()) return "";
+  if (!ctx.is_valid()) return "";
 
+  const auto& j = ctx.json();
   if (j.contains("content") && j["content"].is_string()) {
     return j["content"];
   }
