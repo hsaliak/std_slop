@@ -80,6 +80,15 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
 
 void ToolExecutor::SetSessionId(const std::string& session_id) {
   if (session_id == session_id_ && !session_id_.empty()) {
+    // If we're in the same session, we should still refresh skills to pick up
+    // changes made by the user via slash commands or direct DB updates.
+    auto skills_or = db_->GetActiveSkills(session_id_);
+    if (skills_or.ok()) {
+      active_skills_.clear();
+      for (const auto& skill : *skills_or) {
+        active_skills_.insert(skill);
+      }
+    }
     return;
   }
   session_id_ = session_id;
