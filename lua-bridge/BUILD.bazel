@@ -1,0 +1,22 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "interpreter",
+    srcs = ["interpreter.cpp"],
+    hdrs = ["interpreter.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@lua",
+        "@sol2",
+    ],
+)
+
+cc_test(
+    name = "lua_test",
+    srcs = ["lua_test.cpp"],
+    data = ["test_script.lua"],
+    deps = [
+        ":interpreter",
+        "@googletest//:gtest_main",
+    ],
+)
