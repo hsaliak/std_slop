@@ -298,25 +298,25 @@ TEST_F(MailModelTest, VerifySeriesDynamicBase) {
 
 TEST_F(MailModelTest, GetBaseBranchResolution) {
   // Priority 1: Requested base
-  EXPECT_EQ(executor_->GetBaseBranch("custom-branch"), "custom-branch");
+  EXPECT_EQ(*executor_->GetBaseBranch("custom-branch"), "custom-branch");
 
   // Priority 2: Config slop.basebranch
   (void)executor_->Execute("execute_bash", {{"command", "git config slop.basebranch config-branch"}});
-  EXPECT_EQ(executor_->GetBaseBranch(""), "config-branch");
+  EXPECT_EQ(*executor_->GetBaseBranch(""), "config-branch");
 
   // Priority 1 still wins over Config
-  EXPECT_EQ(executor_->GetBaseBranch("explicit-wins"), "explicit-wins");
+  EXPECT_EQ(*executor_->GetBaseBranch("explicit-wins"), "explicit-wins");
 
   // Clear config
   (void)executor_->Execute("execute_bash", {{"command", "git config --unset slop.basebranch"}});
 
-  // Priority 3: Fallback detection
-  // This is harder to test without messing with 'main'/'master' existence,
-  // but we can at least verify it returns 'main' if it exists.
-  auto main_exists = executor_->Execute("execute_bash", {{"command", "git rev-parse --verify main"}});
-  if (main_exists.ok()) {
-    EXPECT_EQ(executor_->GetBaseBranch(""), "main");
-  }
+  // Priority 3: Failure when no upstream and no config
+  // (We expect it to fail now instead of falling back to 'main')
+  // We'll skip testing the exact @{u} logic here as it depends on local git state,
+  // but we verify that it returns an error when no discovery is possible.
+  (void)executor_->Execute("execute_bash", {{"command", "git branch --unset-upstream"}});
+  auto res = executor_->GetBaseBranch("");
+  EXPECT_FALSE(res.ok());
 }
 
 }  // namespace slop

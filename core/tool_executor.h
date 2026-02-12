@@ -40,7 +40,7 @@ class ToolExecutor {
 
   // Resolves the base branch for git operations.
   // Checks git config slop.basebranch, then defaults to main/master.
-  std::string GetBaseBranch(const std::string& requested_base);
+  absl::StatusOr<std::string> GetBaseBranch(const std::string& requested_base);
 
  private:
   explicit ToolExecutor(Database* db);

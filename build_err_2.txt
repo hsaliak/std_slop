@@ -1,0 +1,24 @@
+Computing main repo mapping: 
+Loading: 
+Loading: 0 packages loaded
+Analyzing: 52 targets (0 packages loaded, 0 targets configured)
+Analyzing: 52 targets (0 packages loaded, 0 targets configured)
+
+INFO: Analyzed 52 targets (0 packages loaded, 0 targets configured).
+[93 / 114] Compiling interface/ui.cpp; 1s darwin-sandbox ... (8 actions running)
+[123 / 149] Compiling interface/ui.cpp; 5s darwin-sandbox ... (8 actions, 7 running)
+[145 / 171] Compiling interface/ui.cpp; 6s darwin-sandbox ... (8 actions running)
+[174 / 202] Compiling interface/command_handler.cpp; 7s darwin-sandbox ... (7 actions running)
+[175 / 202] Compiling core/tool_executor.cpp; 10s darwin-sandbox ... (7 actions, 6 running)
+[179 / 202] Linting //:std_slop with clang-tidy; 11s darwin-sandbox ... (8 actions, 7 running)
+[184 / 202] Linting //:std_slop with clang-tidy; 12s darwin-sandbox ... (8 actions, 7 running)
+[190 / 202] Linting //:std_slop with clang-tidy; 13s darwin-sandbox ... (8 actions, 7 running)
+[199 / 202] Linting //:std_slop with clang-tidy; 14s darwin-sandbox ... (3 actions running)
+[200 / 202] Linting //core:core with clang-tidy; 17s darwin-sandbox ... (2 actions running)
+[201 / 202] Linting //core:core with clang-tidy; 21s darwin-sandbox
+[201 / 202] Linting //core:core with clang-tidy; 33s darwin-sandbox
+[201 / 202] Linting //core:core with clang-tidy; 63s darwin-sandbox
+INFO: Found 52 targets...
+INFO: Elapsed time: 79.946s, Critical Path: 79.67s
+INFO: 34 processes: 61 action cache hit, 1 internal, 33 darwin-sandbox.
+INFO: Build completed successfully, 34 total actions
