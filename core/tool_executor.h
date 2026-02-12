@@ -91,6 +91,8 @@ class ToolExecutor {
   absl::StatusOr<std::string> GitVerifySeries(const GitVerifySeriesRequest& req,
                                               std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> GitRerollPatch(const GitRerollPatchRequest& req);
+  absl::StatusOr<std::string> RunLua(const RunLuaRequest& req,
+                                     std::shared_ptr<CancellationRequest> cancellation);
 
   // Returns a concise summary of the current patch series.
   absl::StatusOr<std::string> GetPatchSeriesSummary(const std::string& requested_base);

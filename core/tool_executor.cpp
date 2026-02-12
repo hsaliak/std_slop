@@ -1,4 +1,6 @@
 #include "core/tool_executor.h"
+#include "lua-bridge/interpreter.h"
+#include "core/lua_bridge_util.h"
 
 #include <array>
 #include <cstring>
@@ -75,6 +77,9 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
   };
   dispatch_map_["git_reroll_patch"] = [this](const nlohmann::json& args, auto) {
     return GitRerollPatch(args.get<GitRerollPatchRequest>());
+  };
+  dispatch_map_["run_lua"] = [this](const nlohmann::json& args, auto cancellation) {
+    return RunLua(args.get<RunLuaRequest>(), cancellation);
   };
 }
 
@@ -596,6 +601,61 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
   }
 
   return absl::InvalidArgumentError("Unknown action: " + req.action);
+}
+
+absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
+                                                 std::shared_ptr<CancellationRequest> cancellation) {
+  slop::Interpreter interpreter;
+  sol::state& lua = interpreter.state();
+
+  // Redirect print
+  std::stringstream stdout_buffer;
+  lua.set_function("print", [&stdout_buffer, &lua](sol::variadic_args args) {
+    sol::function tostring = lua["tostring"];
+    for (auto arg : args) {
+      std::string s = tostring(arg);
+      stdout_buffer << s << "\t";
+    }
+    stdout_buffer << "\n";
+  });
+
+  // Create 'tools' table
+  sol::table tools = lua.create_named_table("tools");
+
+  for (auto const& entry : dispatch_map_) {
+    const std::string& name = entry.first;
+    // Avoid infinite recursion
+    if (name == "run_lua") continue;
+
+    tools.set_function(name, [this, name, cancellation](sol::table args_table) {
+      nlohmann::json json_args = LuaToJSON(args_table);
+      auto result = this->Execute(name, json_args, cancellation);
+      
+      if (!result.ok()) {
+        return std::make_pair(false, std::string(result.status().message()));
+      }
+      return std::make_pair(true, *result);
+    });
+  }
+
+  // Execute the script
+  auto result = lua.safe_script(req.script, sol::script_pass_on_error);
+
+  if (!result.valid()) {
+    sol::error err = result;
+    return absl::InternalError(absl::StrCat("Lua Error: ", err.what(), "\nOutput:\n", stdout_buffer.str()));
+  }
+
+  // Combine output and return value if any
+  std::string output = stdout_buffer.str();
+  if (result.return_count() > 0) {
+    sol::object rv = result[0];
+    if (rv.is<std::string>()) {
+      output += "\nReturn Value: " + rv.as<std::string>();
+    }
+  }
+
+  return output;
 }
 
 bool ToolExecutor::IsMailModelWorkflowTool(const std::string& name) {
