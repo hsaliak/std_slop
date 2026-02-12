@@ -1352,11 +1352,13 @@ std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch)
     if (!base.empty()) return base;
   }
 
-  // Final fallbacks
-  if (ExecuteCommand("git rev-parse --verify master").ok() &&
-      !ExecuteCommand("git rev-parse --verify main").ok()) {
-    return "master";
+  // Final fallbacks: Check for common local branch names in order of preference
+  for (const std::string& candidate : {"main", "master"}) {
+    if (ExecuteCommand("git rev-parse --verify " + candidate).ok()) {
+      return candidate;
+    }
   }
+
   return "main";
 }
 
