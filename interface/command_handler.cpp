@@ -1334,6 +1334,12 @@ Database::Memo CommandHandler::MarkdownToMemo(const std::string& md, int id) {
 }
 
 std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch) {
+  // If we are not on a staging branch, then we are on what will be the base branch
+  // for any subsequent Mail Model actions.
+  if (!current_branch.empty() && !absl::StartsWith(current_branch, "slop/staging/")) {
+    return current_branch;
+  }
+
   // Try per-branch config first (set by git_branch_staging)
   if (!current_branch.empty()) {
     auto config_res = ExecuteCommand("git config branch." + current_branch + ".base");

@@ -904,4 +904,33 @@ TEST_F(CommandHandlerTest, ReviewDashboard) {
   EXPECT_TRUE(absl::StrContains(output, "/review git <ref>"));
 }
 
+TEST_F(CommandHandlerTest, ModeMailResolvesCorrectBaseBranch) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  
+  // Case 1: On 'develop' (non-staging)
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "develop";
+  {
+    testing::internal::CaptureStdout();
+    std::string input = "/mode mail";
+    handler.Handle(input, sid, active_skills, []() {});
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(absl::StrContains(output, "Base Branch: develop"));
+  }
+
+  // Case 2: On 'slop/staging/fix' (staging) with config set to 'main'
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/fix";
+  handler.command_responses["git config branch.slop/staging/fix.base"] = "main";
+  {
+    testing::internal::CaptureStdout();
+    std::string input = "/mode mail";
+    handler.Handle(input, sid, active_skills, []() {});
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(absl::StrContains(output, "Base Branch: main"));
+  }
+}
+
 }  // namespace slop
