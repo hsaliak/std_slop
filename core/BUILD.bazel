@@ -84,6 +84,7 @@ cc_library(
         "orchestrator_strategy.h",
         "tool_executor.h",
         "tool_types.h",
+        "lua_bridge_util.h",
         "constants.h",
         "status_macros.h",
         ":generate_system_prompt",
