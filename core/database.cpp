@@ -329,6 +329,11 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"git_reroll_patch", "Automates the fixup and autosquash rebase to update a specific patch in the series.",
        R"({"type": "object", "properties": {"index": {"type": "integer", "description": "The 1-based index of the patch to update."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["index"]})",
+       true},
+      {"run_lua",
+       "Execute a Lua 5.4 script with access to the full standard library and a 'tools' table for calling other C++ "
+       "tools. Output and return values are captured.",
+       R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
        true}};
 
   // Automatically register all core tools defined in the default_tools list.
@@ -377,6 +382,13 @@ absl::Status Database::RegisterDefaultSkills() {
        "changes. You ONLY provide an annotated set of required changes or comments. Only after explicit user approval "
        "can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, "
        "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
+
+  default_skills.push_back(
+      {0, "run_lua", "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
+       "You are a Lua scripting expert. You use the 'run_lua' tool to automate repetitive tasks, orchestrate multiple "
+       "tool calls, and perform complex data processing. The 'tools' table in Lua provides access to all your standard "
+       "tools (e.g., 'tools.read_file({path = ''...''})'). Always return descriptive values from your scripts and use "
+       "'print()' for debugging or logging output that should be visible to you."});
 
   default_skills.push_back(
       {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
