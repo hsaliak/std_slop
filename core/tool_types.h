@@ -128,6 +128,10 @@ struct GitRerollPatchRequest {
   std::string base_branch;
 };
 
+struct RunLuaRequest {
+  std::string script;
+};
+
 }  // namespace slop
 
 namespace nlohmann {
@@ -278,6 +282,10 @@ inline void from_json(const nlohmann::json& j, GitVerifySeriesRequest& r) {
 inline void from_json(const nlohmann::json& j, GitRerollPatchRequest& r) {
   r.index = j.at("index").get<int>();
   r.base_branch = j.value("base_branch", "");
+}
+
+inline void from_json(const nlohmann::json& j, RunLuaRequest& r) {
+  r.script = j.at("script").get<std::string>();
 }
 
 }  // namespace slop
