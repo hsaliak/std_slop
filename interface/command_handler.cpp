@@ -1231,18 +1231,10 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
     }
 
     mail_mode_ = true;
-    std::string base = "main";
-    auto config_res = ExecuteCommand("git config slop.basebranch");
-    if (config_res.ok() && !config_res->empty()) {
-      base = *config_res;
-      absl::StripAsciiWhitespace(&base);
-    } else {
-      if (ExecuteCommand("git rev-parse --verify master").ok() && !ExecuteCommand("git rev-parse --verify main").ok()) {
-        base = "master";
-      } else {
-        base = "main";
-      }
-    }
+    auto current_branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
+    std::string current_branch = current_branch_res.ok() ? *current_branch_res : "";
+    absl::StripAsciiWhitespace(&current_branch);
+    std::string base = ResolveBaseBranch(current_branch);
 
     std::cout << "Switched to MAIL mode." << std::endl;
     std::cout << "  - Modeline: std::slop<MAIL, ...>" << std::endl;
