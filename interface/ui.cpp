@@ -290,22 +290,34 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
 
 std::string OpenInEditor(const std::string& initial_content, const std::string& extension) {
   const char* editor = std::getenv("EDITOR");
-  if (!editor) editor = "vi";
+  if (!editor || std::string(editor).empty()) editor = "vi";
 
-  std::string filename = "slop_edit" + extension;
+  std::string filename = absl::StrCat("slop_edit_", getpid(), "_", std::time(nullptr), extension);
   std::string tmp_path = (std::filesystem::temp_directory_path() / filename).string();
   {
     std::ofstream out(tmp_path);
     if (!initial_content.empty()) out << initial_content;
   }
 
-  std::string cmd = std::string(editor) + " " + tmp_path;
+  std::string cmd = absl::StrCat(editor, " ", tmp_path);
   int res = std::system(cmd.c_str());
-  if (res != 0) return "";
 
+  std::string content;
   std::ifstream in(tmp_path);
-  std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  std::filesystem::remove(tmp_path);
+  if (in) {
+    content.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  }
+
+  if (std::filesystem::exists(tmp_path)) {
+    std::filesystem::remove(tmp_path);
+  }
+
+  if (res != 0) {
+    LOG(INFO) << "Editor exited with non-zero status: " << res;
+    std::cerr << "Editor exited with non-zero status: " << res << std::endl;
+    return "";
+  }
+
   return content;
 }
 

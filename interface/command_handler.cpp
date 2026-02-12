@@ -27,7 +27,40 @@
 
 namespace slop {
 
-namespace {}  // namespace
+namespace {
+
+bool HasReviewComments(const std::string& content) {
+  std::vector<std::string> lines = absl::StrSplit(content, '\n');
+  for (const auto& line : lines) {
+    std::string_view trimmed = absl::StripLeadingAsciiWhitespace(line);
+    // Skip common list markers
+    if (!trimmed.empty() && (trimmed[0] == '*' || trimmed[0] == '-' || trimmed[0] == '>')) {
+      trimmed.remove_prefix(1);
+      trimmed = absl::StripLeadingAsciiWhitespace(trimmed);
+    }
+    // Handle numbered lists like "1. R:"
+    if (!trimmed.empty() && std::isdigit(trimmed[0])) {
+      size_t i = 0;
+      while (i < trimmed.size() && std::isdigit(trimmed[i])) i++;
+      if (i < trimmed.size() && trimmed[i] == '.') {
+        trimmed.remove_prefix(i + 1);
+        trimmed = absl::StripLeadingAsciiWhitespace(trimmed);
+      }
+    }
+
+    if (!trimmed.empty() && (trimmed[0] == 'R' || trimmed[0] == 'r')) {
+      std::string_view rest = trimmed;
+      rest.remove_prefix(1);
+      rest = absl::StripLeadingAsciiWhitespace(rest);
+      if (absl::StartsWith(rest, ":")) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+}  // namespace
 
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
                                std::string google_api_key, std::string openai_api_key)
@@ -1003,11 +1036,12 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       return Result::HANDLED;
     }
 
-    if (absl::StrContains(feedback, "R:")) {
+    if (HasReviewComments(feedback)) {
       args.input = "I have reviewed the patches. Here are my comments:\n\n" + feedback +
                    "\n\nPlease address only the comments marked with 'R:' in the patches above.";
       return Result::PROCEED_TO_LLM;
     }
+    std::cout << "No 'R:' comments found. Ignoring review." << std::endl;
     return Result::HANDLED;
   }
 
@@ -1083,22 +1117,17 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       *diff_or;
 
   std::string edited = TriggerEditor(initial_content, ".diff");
-  if (edited.empty() || edited == initial_content) {
+  if (edited.empty()) {
+    LOG(INFO) << "Editor returned no content or failed for review.";
+    std::cerr << "Editor returned no content or failed. Ignoring review." << std::endl;
+    return Result::HANDLED;
+  }
+  if (absl::StripAsciiWhitespace(edited) == absl::StripAsciiWhitespace(initial_content)) {
+    std::cout << "No changes detected. Ignoring review." << std::endl;
     return Result::HANDLED;
   }
 
-  // Check if any R: comments were added (at the start of a line)
-  bool has_comments = false;
-  std::vector<std::string> lines = absl::StrSplit(edited, '\n');
-  for (const auto& line : lines) {
-    std::string_view trimmed = absl::StripLeadingAsciiWhitespace(line);
-    if (absl::StartsWith(trimmed, "R:")) {
-      has_comments = true;
-      break;
-    }
-  }
-
-  if (!has_comments) {
+  if (!HasReviewComments(edited)) {
     std::cout << "No 'R:' comments found. Ignoring review." << std::endl;
     return Result::HANDLED;
   }
@@ -1154,22 +1183,17 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
   }
 
   std::string edited = TriggerEditor(initial_content, ".txt");
-  if (edited.empty() || edited == initial_content) {
+  if (edited.empty()) {
+    LOG(INFO) << "Editor returned no content or failed for feedback.";
+    std::cerr << "Editor returned no content or failed. Ignoring feedback." << std::endl;
+    return Result::HANDLED;
+  }
+  if (absl::StripAsciiWhitespace(edited) == absl::StripAsciiWhitespace(initial_content)) {
+    std::cout << "No changes detected. Ignoring feedback." << std::endl;
     return Result::HANDLED;
   }
 
-  // Check if any R: comments were added
-  bool has_comments = false;
-  std::vector<std::string> edited_lines = absl::StrSplit(edited, '\n');
-  for (const auto& line : edited_lines) {
-    std::string_view trimmed = absl::StripLeadingAsciiWhitespace(line);
-    if (absl::StartsWith(trimmed, "R:")) {
-      has_comments = true;
-      break;
-    }
-  }
-
-  if (!has_comments) {
+  if (!HasReviewComments(edited)) {
     std::cout << "No 'R:' comments found. Ignoring feedback." << std::endl;
     return Result::HANDLED;
   }
