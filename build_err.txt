@@ -1,0 +1,464 @@
+Computing main repo mapping: 
+Loading: 
+Loading: 0 packages loaded
+Analyzing: 52 targets (0 packages loaded, 0 targets configured)
+Analyzing: 52 targets (0 packages loaded, 0 targets configured)
+
+INFO: Analyzed 52 targets (0 packages loaded, 0 targets configured).
+[125 / 152] Compiling core/tool_executor.cpp; 1s darwin-sandbox ... (8 actions running)
+ERROR: /Users/kailashs/Source/std_slop/core/BUILD.bazel:120:12: Compiling core/mail_model_test.cpp failed: (Exit 1): cc_wrapper.sh failed: error executing CppCompile command (from target //core:mail_model_test) external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh -U_FORTIFY_SOURCE '--target=aarch64-apple-macosx' -U_FORTIFY_SOURCE -fstack-protector -fno-omit-frame-pointer -fcolor-diagnostics -Wall ... (remaining 202 arguments skipped)
+
+Use --sandbox_debug to see verbose messages from the sandbox and retain the sandbox build root for debugging
+In file included from core/mail_model_test.cpp:8:
+external/googletest+/googletest/include/gtest/gtest.h:1379:11: error: invalid operands to binary expression ('const absl::StatusOr<std::string>' and 'const char[14]')
+ 1379 |   if (lhs == rhs) {
+      |       ~~~ ^  ~~~
+external/googletest+/googletest/include/gtest/gtest.h:1398:12: note: in instantiation of function template specialization 'testing::internal::CmpHelperEQ<absl::StatusOr<std::string>, char[14]>' requested here
+ 1398 |     return CmpHelperEQ(lhs_expression, rhs_expression, lhs, rhs);
+      |            ^
+core/mail_model_test.cpp:301:3: note: in instantiation of function template specialization 'testing::internal::EqHelper::Compare<absl::StatusOr<std::string>, char[14], nullptr>' requested here
+  301 |   EXPECT_EQ(executor_->GetBaseBranch("custom-branch"), "custom-branch");
+      |   ^
+external/googletest+/googletest/include/gtest/gtest.h:1869:54: note: expanded from macro 'EXPECT_EQ'
+ 1869 |   EXPECT_PRED_FORMAT2(::testing::internal::EqHelper::Compare, val1, val2)
+      |                                                      ^
+external/abseil-cpp+/absl/strings/cord.h:1668:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const Cord' for 1st argument
+ 1668 | inline bool operator==(const Cord& lhs, absl::string_view rhs) {
+      |             ^          ~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__variant/monostate.h:28:38: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'monostate' for 1st argument
+   28 | _LIBCPP_HIDE_FROM_ABI constexpr bool operator==(monostate, monostate) noexcept { return true; }
+      |                                      ^          ~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_condition.h:98:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_condition' for 1st argument
+   98 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_condition& __x, const error_condition& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_code.h:94:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_code' for 1st argument
+   94 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_code& __x, const error_code& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_code.h:98:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_code' for 1st argument
+   98 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_code& __x, const error_condition& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_code.h:103:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_condition' for 1st argument
+  103 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_condition& __x, const error_code& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__thread/id.h:78:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to '__thread_id' for 1st argument
+   78 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(__thread_id __x, __thread_id __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~
+external/abseil-cpp+/absl/numeric/int128.h:798:16: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'uint128' for 1st argument
+  798 | constexpr bool operator==(uint128 lhs, uint128 rhs) {
+      |                ^          ~~~~~~~~~~~
+external/abseil-cpp+/absl/numeric/int128_have_intrinsic.inc:199:16: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'int128' for 1st argument
+  199 | constexpr bool operator==(int128 lhs, int128 rhs) {
+      |                ^          ~~~~~~~~~~
+external/abseil-cpp+/absl/time/time.h:867:46: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'Time' for 1st argument
+  867 | ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator==(Time lhs, Time rhs) {
+      |                                              ^          ~~~~~~~~
+external/abseil-cpp+/absl/time/time.h:1730:46: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'Duration' for 1st argument
+ 1730 | ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator==(Duration lhs,
+      |                                              ^          ~~~~~~~~~~~~
+external/abseil-cpp+/absl/strings/cord.h:1647:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const Cord' for 1st argument
+ 1647 | inline bool operator==(const Cord& lhs, const Cord& rhs) {
+      |             ^          ~~~~~~~~~~~~~~~
+external/abseil-cpp+/absl/strings/cord.h:1675:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'absl::string_view' (aka 'basic_string_view<char>') for 1st argument
+ 1675 | inline bool operator==(absl::string_view x, const Cord& y) { return y == x; }
+      |             ^          ~~~~~~~~~~~~~~~~~~~
+external/abseil-cpp+/absl/status/status.h:836:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const Status' for 1st argument
+  836 | inline bool operator==(const Status& lhs, const Status& rhs) {
+      |             ^          ~~~~~~~~~~~~~~~~~
+external/googletest+/googletest/include/gtest/gtest.h:1371:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'faketype' for 1st argument
+ 1371 | inline bool operator==(faketype, faketype) { return true; }
+      |             ^          ~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__utility/pair.h:611:1: note: candidate template ignored: could not match 'pair' against 'StatusOr'
+  611 | operator==(const pair<_T1,_T2>& __x, const pair<_U1,_U2>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__ios/fpos.h:67:6: note: candidate template ignored: could not match 'fpos' against 'StatusOr'
+   67 | bool operator==(const fpos<_StateT>& __x, const fpos<_StateT>& __y) {
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/reverse_iterator.h:209:1: note: candidate template ignored: could not match 'reverse_iterator' against 'StatusOr'
+  209 | operator==(const reverse_iterator<_Iter1>& __x, const reverse_iterator<_Iter2>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/wrap_iter.h:109:6: note: candidate template ignored: could not match '__wrap_iter' against 'StatusOr'
+  109 | bool operator==(const __wrap_iter<_Iter1>& __x, const __wrap_iter<_Iter1>& __y) _NOEXCEPT
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/wrap_iter.h:116:6: note: candidate template ignored: could not match '__wrap_iter' against 'StatusOr'
+  116 | bool operator==(const __wrap_iter<_Iter1>& __x, const __wrap_iter<_Iter2>& __y) _NOEXCEPT
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/allocator.h:263:6: note: candidate template ignored: could not match 'allocator' against 'StatusOr'
+  263 | bool operator==(const allocator<_Tp>&, const allocator<_Up>&) _NOEXCEPT {return true;}
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/tuple:1564:1: note: candidate template ignored: could not match 'tuple' against 'StatusOr'
+ 1564 | operator==(const tuple<_Tp...>& __x, const tuple<_Up...>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string_view:782:6: note: candidate template ignored: could not match 'basic_string_view' against 'StatusOr'
+  782 | bool operator==(basic_string_view<_CharT, _Traits> __lhs,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string_view:793:6: note: candidate template ignored: could not match 'basic_string_view' against 'StatusOr'
+  793 | bool operator==(basic_string_view<_CharT, _Traits> __lhs,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string_view:804:6: note: candidate template ignored: could not match 'basic_string_view<_CharT, _Traits>' against 'const char *'
+  804 | bool operator==(__type_identity_t<basic_string_view<_CharT, _Traits> > __lhs,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/unique_ptr.h:524:1: note: candidate template ignored: could not match 'unique_ptr' against 'StatusOr'
+  524 | operator==(const unique_ptr<_T1, _D1>& __x, const unique_ptr<_T2, _D2>& __y) {
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/unique_ptr.h:576:1: note: candidate template ignored: could not match 'unique_ptr' against 'StatusOr'
+  576 | operator==(const unique_ptr<_T1, _D1>& __x, nullptr_t) _NOEXCEPT {
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/unique_ptr.h:584:1: note: candidate template ignored: could not match 'const unique_ptr<_T1, _D1>' against 'const char[14]'
+  584 | operator==(nullptr_t, const unique_ptr<_T1, _D1>& __x) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/variant:1650:16: note: candidate template ignored: could not match 'variant' against 'StatusOr'
+ 1650 | constexpr bool operator==(const variant<_Types...>& __lhs,
+      |                ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/istream_iterator.h:86:1: note: candidate template ignored: could not match 'istream_iterator' against 'StatusOr'
+   86 | operator==(const istream_iterator<_Tp, _CharT, _Traits, _Distance>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/istreambuf_iterator.h:105:6: note: candidate template ignored: could not match 'istreambuf_iterator' against 'StatusOr'
+  105 | bool operator==(const istreambuf_iterator<_CharT,_Traits>& __a,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/move_iterator.h:255:6: note: candidate template ignored: could not match 'move_iterator' against 'StatusOr'
+  255 | bool operator==(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/shared_ptr.h:1344:1: note: candidate template ignored: could not match 'shared_ptr' against 'StatusOr'
+ 1344 | operator==(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/shared_ptr.h:1411:1: note: candidate template ignored: could not match 'shared_ptr' against 'StatusOr'
+ 1411 | operator==(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/shared_ptr.h:1421:1: note: candidate template ignored: could not match 'const shared_ptr<_Tp>' against 'const char[14]'
+ 1421 | operator==(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3878:1: note: candidate template ignored: could not match 'basic_string' against 'StatusOr'
+ 3878 | operator==(const basic_string<_CharT, _Traits, _Allocator>& __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3894:1: note: candidate template ignored: could not match 'basic_string' against 'StatusOr'
+ 3894 | operator==(const basic_string<char, char_traits<char>, _Allocator>& __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3914:1: note: candidate template ignored: could not match 'const _CharT *' against 'absl::StatusOr<std::string>'
+ 3914 | operator==(const _CharT* __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3928:1: note: candidate template ignored: could not match 'basic_string' against 'StatusOr'
+ 3928 | operator==(const basic_string<_CharT,_Traits,_Allocator>& __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/array:404:1: note: candidate template ignored: could not match 'array' against 'StatusOr'
+  404 | operator==(const array<_Tp, _Size>& __x, const array<_Tp, _Size>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1256:1: note: candidate template ignored: could not match 'optional' against 'StatusOr'
+ 1256 | operator==(const optional<_Tp>& __x, const optional<_Up>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1361:1: note: candidate template ignored: could not match 'optional' against 'StatusOr'
+ 1361 | operator==(const optional<_Tp>& __x, nullopt_t) noexcept
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1371:1: note: candidate template ignored: could not match 'const optional<_Tp>' against 'const char[14]'
+ 1371 | operator==(nullopt_t, const optional<_Tp>& __x) noexcept
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1473:1: note: candidate template ignored: could not match 'optional' against 'StatusOr'
+ 1473 | operator==(const optional<_Tp>& __x, const _Up& __v)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1485:1: note: candidate template ignored: could not match 'const optional<_Up>' against 'const char[14]'
+ 1485 | operator==(const _Tp& __v, const optional<_Up>& __x)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_map:1988:1: note: candidate template ignored: could not match 'unordered_map' against 'StatusOr'
+ 1988 | operator==(const unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_map:2746:1: note: candidate template ignored: could not match 'unordered_multimap' against 'StatusOr'
+ 2746 | operator==(const unordered_multimap<_Key, _Tp, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/vector:3324:1: note: candidate template ignored: could not match 'vector' against 'StatusOr'
+ 3324 | operator==(const vector<_Tp, _Allocator>& __x, const vector<_Tp, _Allocator>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__functional/function.h:1201:1: note: candidate template ignored: could not match 'function' against 'StatusOr'
+ 1201 | operator==(const function<_Rp(_ArgTypes...)>& __f, nullptr_t) _NOEXCEPT {return !__f;}
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__functional/function.h:1208:1: note: candidate template ignored: could not match 'const function<_Rp (_ArgTypes...)>' against 'const char[14]'
+ 1208 | operator==(nullptr_t, const function<_Rp(_ArgTypes...)>& __f) _NOEXCEPT {return !__f;}
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_set:1240:1: note: candidate template ignored: could not match 'unordered_set' against 'StatusOr'
+ 1240 | operator==(const unordered_set<_Value, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_set:1926:1: note: candidate template ignored: could not match 'unordered_multiset' against 'StatusOr'
+ 1926 | operator==(const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/deque:2887:1: note: candidate template ignored: could not match 'deque' against 'StatusOr'
+ 2887 | operator==(const deque<_Tp, _Allocator>& __x, const deque<_Tp, _Allocator>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/forward_list:1823:6: note: candidate template ignored: could not match 'forward_list' against 'StatusOr'
+ 1823 | bool operator==(const forward_list<_Tp, _Alloc>& __x,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/list:2032:1: note: candidate template ignored: could not match 'list' against 'StatusOr'
+ 2032 | operator==(const list<_Tp, _Alloc>& __x, const list<_Tp, _Alloc>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/map:1767:1: note: candidate template ignored: could not match 'map' against 'StatusOr'
+ 1767 | operator==(const map<_Key, _Tp, _Compare, _Allocator>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/map:2422:1: note: candidate template ignored: could not match 'multimap' against 'StatusOr'
+ 2422 | operator==(const multimap<_Key, _Tp, _Compare, _Allocator>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/set:1070:1: note: candidate template ignored: could not match 'set' against 'StatusOr'
+ 1070 | operator==(const set<_Key, _Compare, _Allocator>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/set:1661:1: note: candidate template ignored: could not match 'multiset' against 'StatusOr'
+ 1661 | operator==(const multiset<_Key, _Compare, _Allocator>& __x,
+      | ^
+external/abseil-cpp+/absl/types/span.h:494:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  494 | bool operator==(Span<T> a, Span<T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:498:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  498 | bool operator==(Span<const T> a, Span<T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:502:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  502 | bool operator==(Span<T> a, Span<const T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:508:6: note: candidate template ignored: could not match 'Span<T>' against 'const char *'
+  508 | bool operator==(const U& a, Span<T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:514:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  514 | bool operator==(Span<T> a, const U& b) {
+      |      ^
+external/abseil-cpp+/absl/container/inlined_vector.h:930:6: note: candidate template ignored: could not match 'InlinedVector' against 'StatusOr'
+  930 | bool operator==(const absl::InlinedVector<T, N, A>& a,
+      |      ^
+external/abseil-cpp+/absl/status/statusor.h:645:6: note: candidate template ignored: could not match 'const StatusOr<T>' against 'const char[14]'
+  645 | bool operator==(const StatusOr<T>& lhs, const StatusOr<T>& rhs) {
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/valarray:4351:1: note: candidate template ignored: requirement '__is_val_expr<absl::StatusOr<std::string>>::value' was not satisfied [with _Expr1 = absl::StatusOr<std::string>, _Expr2 = char[14]]
+ 4351 | operator==(const _Expr1& __x, const _Expr2& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/valarray:4366:1: note: candidate template ignored: requirement '__is_val_expr<absl::StatusOr<std::string>>::value' was not satisfied [with _Expr = absl::StatusOr<std::string>]
+ 4366 | operator==(const _Expr& __x, const typename _Expr::value_type& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/valarray:4382:1: note: candidate template ignored: substitution failure [with _Expr = char[14]]: type 'char[14]' cannot be used prior to '::' because it has no members
+ 4379 |     __val_expr<_BinaryOp<equal_to<typename _Expr::value_type>,
+      |                                            ~~~~~
+ 4380 |                __scalar_expr<typename _Expr::value_type>, _Expr> >
+ 4381 | >::type
+ 4382 | operator==(const typename _Expr::value_type& __x, const _Expr& __y)
+      | ^
+In file included from core/mail_model_test.cpp:8:
+external/googletest+/googletest/include/gtest/gtest.h:1379:11: error: invalid operands to binary expression ('const absl::StatusOr<std::string>' and 'const char[5]')
+ 1379 |   if (lhs == rhs) {
+      |       ~~~ ^  ~~~
+external/googletest+/googletest/include/gtest/gtest.h:1398:12: note: in instantiation of function template specialization 'testing::internal::CmpHelperEQ<absl::StatusOr<std::string>, char[5]>' requested here
+ 1398 |     return CmpHelperEQ(lhs_expression, rhs_expression, lhs, rhs);
+      |            ^
+core/mail_model_test.cpp:318:5: note: in instantiation of function template specialization 'testing::internal::EqHelper::Compare<absl::StatusOr<std::string>, char[5], nullptr>' requested here
+  318 |     EXPECT_EQ(executor_->GetBaseBranch(""), "main");
+      |     ^
+external/googletest+/googletest/include/gtest/gtest.h:1869:54: note: expanded from macro 'EXPECT_EQ'
+ 1869 |   EXPECT_PRED_FORMAT2(::testing::internal::EqHelper::Compare, val1, val2)
+      |                                                      ^
+external/abseil-cpp+/absl/strings/cord.h:1668:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const Cord' for 1st argument
+ 1668 | inline bool operator==(const Cord& lhs, absl::string_view rhs) {
+      |             ^          ~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__variant/monostate.h:28:38: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'monostate' for 1st argument
+   28 | _LIBCPP_HIDE_FROM_ABI constexpr bool operator==(monostate, monostate) noexcept { return true; }
+      |                                      ^          ~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_condition.h:98:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_condition' for 1st argument
+   98 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_condition& __x, const error_condition& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_code.h:94:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_code' for 1st argument
+   94 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_code& __x, const error_code& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_code.h:98:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_code' for 1st argument
+   98 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_code& __x, const error_condition& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__system_error/error_code.h:103:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const error_condition' for 1st argument
+  103 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(const error_condition& __x, const error_code& __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~~~~~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__thread/id.h:78:35: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to '__thread_id' for 1st argument
+   78 | inline _LIBCPP_HIDE_FROM_ABI bool operator==(__thread_id __x, __thread_id __y) _NOEXCEPT {
+      |                                   ^          ~~~~~~~~~~~~~~~
+external/abseil-cpp+/absl/numeric/int128.h:798:16: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'uint128' for 1st argument
+  798 | constexpr bool operator==(uint128 lhs, uint128 rhs) {
+      |                ^          ~~~~~~~~~~~
+external/abseil-cpp+/absl/numeric/int128_have_intrinsic.inc:199:16: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'int128' for 1st argument
+  199 | constexpr bool operator==(int128 lhs, int128 rhs) {
+      |                ^          ~~~~~~~~~~
+external/abseil-cpp+/absl/time/time.h:867:46: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'Time' for 1st argument
+  867 | ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator==(Time lhs, Time rhs) {
+      |                                              ^          ~~~~~~~~
+external/abseil-cpp+/absl/time/time.h:1730:46: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'Duration' for 1st argument
+ 1730 | ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator==(Duration lhs,
+      |                                              ^          ~~~~~~~~~~~~
+external/abseil-cpp+/absl/strings/cord.h:1647:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const Cord' for 1st argument
+ 1647 | inline bool operator==(const Cord& lhs, const Cord& rhs) {
+      |             ^          ~~~~~~~~~~~~~~~
+external/abseil-cpp+/absl/strings/cord.h:1675:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'absl::string_view' (aka 'basic_string_view<char>') for 1st argument
+ 1675 | inline bool operator==(absl::string_view x, const Cord& y) { return y == x; }
+      |             ^          ~~~~~~~~~~~~~~~~~~~
+external/abseil-cpp+/absl/status/status.h:836:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'const Status' for 1st argument
+  836 | inline bool operator==(const Status& lhs, const Status& rhs) {
+      |             ^          ~~~~~~~~~~~~~~~~~
+external/googletest+/googletest/include/gtest/gtest.h:1371:13: note: candidate function not viable: no known conversion from 'const absl::StatusOr<std::string>' to 'faketype' for 1st argument
+ 1371 | inline bool operator==(faketype, faketype) { return true; }
+      |             ^          ~~~~~~~~
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__utility/pair.h:611:1: note: candidate template ignored: could not match 'pair' against 'StatusOr'
+  611 | operator==(const pair<_T1,_T2>& __x, const pair<_U1,_U2>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__ios/fpos.h:67:6: note: candidate template ignored: could not match 'fpos' against 'StatusOr'
+   67 | bool operator==(const fpos<_StateT>& __x, const fpos<_StateT>& __y) {
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/reverse_iterator.h:209:1: note: candidate template ignored: could not match 'reverse_iterator' against 'StatusOr'
+  209 | operator==(const reverse_iterator<_Iter1>& __x, const reverse_iterator<_Iter2>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/wrap_iter.h:109:6: note: candidate template ignored: could not match '__wrap_iter' against 'StatusOr'
+  109 | bool operator==(const __wrap_iter<_Iter1>& __x, const __wrap_iter<_Iter1>& __y) _NOEXCEPT
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/wrap_iter.h:116:6: note: candidate template ignored: could not match '__wrap_iter' against 'StatusOr'
+  116 | bool operator==(const __wrap_iter<_Iter1>& __x, const __wrap_iter<_Iter2>& __y) _NOEXCEPT
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/allocator.h:263:6: note: candidate template ignored: could not match 'allocator' against 'StatusOr'
+  263 | bool operator==(const allocator<_Tp>&, const allocator<_Up>&) _NOEXCEPT {return true;}
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/tuple:1564:1: note: candidate template ignored: could not match 'tuple' against 'StatusOr'
+ 1564 | operator==(const tuple<_Tp...>& __x, const tuple<_Up...>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string_view:782:6: note: candidate template ignored: could not match 'basic_string_view' against 'StatusOr'
+  782 | bool operator==(basic_string_view<_CharT, _Traits> __lhs,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string_view:793:6: note: candidate template ignored: could not match 'basic_string_view' against 'StatusOr'
+  793 | bool operator==(basic_string_view<_CharT, _Traits> __lhs,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string_view:804:6: note: candidate template ignored: could not match 'basic_string_view<_CharT, _Traits>' against 'const char *'
+  804 | bool operator==(__type_identity_t<basic_string_view<_CharT, _Traits> > __lhs,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/unique_ptr.h:524:1: note: candidate template ignored: could not match 'unique_ptr' against 'StatusOr'
+  524 | operator==(const unique_ptr<_T1, _D1>& __x, const unique_ptr<_T2, _D2>& __y) {
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/unique_ptr.h:576:1: note: candidate template ignored: could not match 'unique_ptr' against 'StatusOr'
+  576 | operator==(const unique_ptr<_T1, _D1>& __x, nullptr_t) _NOEXCEPT {
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/unique_ptr.h:584:1: note: candidate template ignored: could not match 'const unique_ptr<_T1, _D1>' against 'const char[5]'
+  584 | operator==(nullptr_t, const unique_ptr<_T1, _D1>& __x) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/variant:1650:16: note: candidate template ignored: could not match 'variant' against 'StatusOr'
+ 1650 | constexpr bool operator==(const variant<_Types...>& __lhs,
+      |                ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/istream_iterator.h:86:1: note: candidate template ignored: could not match 'istream_iterator' against 'StatusOr'
+   86 | operator==(const istream_iterator<_Tp, _CharT, _Traits, _Distance>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/istreambuf_iterator.h:105:6: note: candidate template ignored: could not match 'istreambuf_iterator' against 'StatusOr'
+  105 | bool operator==(const istreambuf_iterator<_CharT,_Traits>& __a,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__iterator/move_iterator.h:255:6: note: candidate template ignored: could not match 'move_iterator' against 'StatusOr'
+  255 | bool operator==(const move_iterator<_Iter1>& __x, const move_iterator<_Iter2>& __y)
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/shared_ptr.h:1344:1: note: candidate template ignored: could not match 'shared_ptr' against 'StatusOr'
+ 1344 | operator==(const shared_ptr<_Tp>& __x, const shared_ptr<_Up>& __y) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/shared_ptr.h:1411:1: note: candidate template ignored: could not match 'shared_ptr' against 'StatusOr'
+ 1411 | operator==(const shared_ptr<_Tp>& __x, nullptr_t) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__memory/shared_ptr.h:1421:1: note: candidate template ignored: could not match 'const shared_ptr<_Tp>' against 'const char[5]'
+ 1421 | operator==(nullptr_t, const shared_ptr<_Tp>& __x) _NOEXCEPT
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3878:1: note: candidate template ignored: could not match 'basic_string' against 'StatusOr'
+ 3878 | operator==(const basic_string<_CharT, _Traits, _Allocator>& __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3894:1: note: candidate template ignored: could not match 'basic_string' against 'StatusOr'
+ 3894 | operator==(const basic_string<char, char_traits<char>, _Allocator>& __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3914:1: note: candidate template ignored: could not match 'const _CharT *' against 'absl::StatusOr<std::string>'
+ 3914 | operator==(const _CharT* __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/string:3928:1: note: candidate template ignored: could not match 'basic_string' against 'StatusOr'
+ 3928 | operator==(const basic_string<_CharT,_Traits,_Allocator>& __lhs,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/array:404:1: note: candidate template ignored: could not match 'array' against 'StatusOr'
+  404 | operator==(const array<_Tp, _Size>& __x, const array<_Tp, _Size>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1256:1: note: candidate template ignored: could not match 'optional' against 'StatusOr'
+ 1256 | operator==(const optional<_Tp>& __x, const optional<_Up>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1361:1: note: candidate template ignored: could not match 'optional' against 'StatusOr'
+ 1361 | operator==(const optional<_Tp>& __x, nullopt_t) noexcept
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1371:1: note: candidate template ignored: could not match 'const optional<_Tp>' against 'const char[5]'
+ 1371 | operator==(nullopt_t, const optional<_Tp>& __x) noexcept
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1473:1: note: candidate template ignored: could not match 'optional' against 'StatusOr'
+ 1473 | operator==(const optional<_Tp>& __x, const _Up& __v)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/optional:1485:1: note: candidate template ignored: could not match 'const optional<_Up>' against 'const char[5]'
+ 1485 | operator==(const _Tp& __v, const optional<_Up>& __x)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_map:1988:1: note: candidate template ignored: could not match 'unordered_map' against 'StatusOr'
+ 1988 | operator==(const unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_map:2746:1: note: candidate template ignored: could not match 'unordered_multimap' against 'StatusOr'
+ 2746 | operator==(const unordered_multimap<_Key, _Tp, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/vector:3324:1: note: candidate template ignored: could not match 'vector' against 'StatusOr'
+ 3324 | operator==(const vector<_Tp, _Allocator>& __x, const vector<_Tp, _Allocator>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__functional/function.h:1201:1: note: candidate template ignored: could not match 'function' against 'StatusOr'
+ 1201 | operator==(const function<_Rp(_ArgTypes...)>& __f, nullptr_t) _NOEXCEPT {return !__f;}
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/__functional/function.h:1208:1: note: candidate template ignored: could not match 'const function<_Rp (_ArgTypes...)>' against 'const char[5]'
+ 1208 | operator==(nullptr_t, const function<_Rp(_ArgTypes...)>& __f) _NOEXCEPT {return !__f;}
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_set:1240:1: note: candidate template ignored: could not match 'unordered_set' against 'StatusOr'
+ 1240 | operator==(const unordered_set<_Value, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/unordered_set:1926:1: note: candidate template ignored: could not match 'unordered_multiset' against 'StatusOr'
+ 1926 | operator==(const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/deque:2887:1: note: candidate template ignored: could not match 'deque' against 'StatusOr'
+ 2887 | operator==(const deque<_Tp, _Allocator>& __x, const deque<_Tp, _Allocator>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/forward_list:1823:6: note: candidate template ignored: could not match 'forward_list' against 'StatusOr'
+ 1823 | bool operator==(const forward_list<_Tp, _Alloc>& __x,
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/list:2032:1: note: candidate template ignored: could not match 'list' against 'StatusOr'
+ 2032 | operator==(const list<_Tp, _Alloc>& __x, const list<_Tp, _Alloc>& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/map:1767:1: note: candidate template ignored: could not match 'map' against 'StatusOr'
+ 1767 | operator==(const map<_Key, _Tp, _Compare, _Allocator>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/map:2422:1: note: candidate template ignored: could not match 'multimap' against 'StatusOr'
+ 2422 | operator==(const multimap<_Key, _Tp, _Compare, _Allocator>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/set:1070:1: note: candidate template ignored: could not match 'set' against 'StatusOr'
+ 1070 | operator==(const set<_Key, _Compare, _Allocator>& __x,
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/set:1661:1: note: candidate template ignored: could not match 'multiset' against 'StatusOr'
+ 1661 | operator==(const multiset<_Key, _Compare, _Allocator>& __x,
+      | ^
+external/abseil-cpp+/absl/types/span.h:494:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  494 | bool operator==(Span<T> a, Span<T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:498:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  498 | bool operator==(Span<const T> a, Span<T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:502:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  502 | bool operator==(Span<T> a, Span<const T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:508:6: note: candidate template ignored: could not match 'Span<T>' against 'const char *'
+  508 | bool operator==(const U& a, Span<T> b) {
+      |      ^
+external/abseil-cpp+/absl/types/span.h:514:6: note: candidate template ignored: could not match 'Span' against 'StatusOr'
+  514 | bool operator==(Span<T> a, const U& b) {
+      |      ^
+external/abseil-cpp+/absl/container/inlined_vector.h:930:6: note: candidate template ignored: could not match 'InlinedVector' against 'StatusOr'
+  930 | bool operator==(const absl::InlinedVector<T, N, A>& a,
+      |      ^
+external/abseil-cpp+/absl/status/statusor.h:645:6: note: candidate template ignored: could not match 'const StatusOr<T>' against 'const char[5]'
+  645 | bool operator==(const StatusOr<T>& lhs, const StatusOr<T>& rhs) {
+      |      ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/valarray:4351:1: note: candidate template ignored: requirement '__is_val_expr<absl::StatusOr<std::string>>::value' was not satisfied [with _Expr1 = absl::StatusOr<std::string>, _Expr2 = char[5]]
+ 4351 | operator==(const _Expr1& __x, const _Expr2& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/valarray:4366:1: note: candidate template ignored: requirement '__is_val_expr<absl::StatusOr<std::string>>::value' was not satisfied [with _Expr = absl::StatusOr<std::string>]
+ 4366 | operator==(const _Expr& __x, const typename _Expr::value_type& __y)
+      | ^
+external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/../include/c++/v1/valarray:4382:1: note: candidate template ignored: substitution failure [with _Expr = char[5]]: type 'char[5]' cannot be used prior to '::' because it has no members
+ 4379 |     __val_expr<_BinaryOp<equal_to<typename _Expr::value_type>,
+      |                                            ~~~~~
+ 4380 |                __scalar_expr<typename _Expr::value_type>, _Expr> >
+ 4381 | >::type
+ 4382 | operator==(const typename _Expr::value_type& __x, const _Expr& __y)
+      | ^
+2 errors generated.
+Use --verbose_failures to see the command lines of failed build steps.
+INFO: Elapsed time: 6.410s, Critical Path: 6.22s
+INFO: 10 processes: 3 action cache hit, 10 internal.
+ERROR: Build did NOT complete successfully

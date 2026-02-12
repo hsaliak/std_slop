@@ -682,13 +682,13 @@ absl::StatusOr<std::string> ToolExecutor::GitBranchStaging(const GitBranchStagin
 
   // Capture current branch as base before switching
   auto current_branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
-  std::string detected_base = "main";
-  if (current_branch_res.ok() && current_branch_res->exit_code == 0) {
-    detected_base = current_branch_res->stdout_out;
-    if (!detected_base.empty() && detected_base.back() == '\n') detected_base.pop_back();
+  if (!current_branch_res.ok() || current_branch_res->exit_code != 0) {
+    return absl::InternalError("Failed to determine current branch.");
   }
+  std::string current_branch = current_branch_res->stdout_out;
+  if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
 
-  std::string base = req.base_branch.empty() ? detected_base : req.base_branch;
+  std::string base = req.base_branch.empty() ? current_branch : req.base_branch;
 
   std::string branch_name = absl::StrCat("slop/staging/", req.name);
   std::string cmd = absl::Substitute("git checkout -b $0 $1", EscapeShellArg(branch_name), EscapeShellArg(base));
@@ -733,7 +733,9 @@ absl::StatusOr<std::string> ToolExecutor::GitCommitPatch(const GitCommitPatchReq
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitFormatPatchSeries(const GitFormatPatchSeriesRequest& req) {
-  std::string base = GetBaseBranch(req.base_branch);
+  auto base_res = GetBaseBranch(req.base_branch);
+  if (!base_res.ok()) return base_res.status();
+  std::string base = *base_res;
 
   // Get list of commits
   std::string rev_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
@@ -800,7 +802,9 @@ absl::StatusOr<std::string> ToolExecutor::GitFinalizeSeries(const GitFinalizeSer
         "user to review the latest changes and run '/review mail approve' before finalizing.");
   }
 
-  std::string target = GetBaseBranch(req.target_branch);
+  auto target_res = GetBaseBranch(req.target_branch);
+  if (!target_res.ok()) return target_res.status();
+  std::string target = *target_res;
 
   if (current_branch == target) {
     return absl::FailedPreconditionError("Already on target branch " + target);
@@ -832,7 +836,10 @@ absl::StatusOr<std::string> ToolExecutor::GitVerifySeries(const GitVerifySeriesR
   std::string original_branch = *branch_status;
 
   // 2. Get list of commits between base and HEAD
-  std::string base = GetBaseBranch(req.base_branch);
+  auto base_res = GetBaseBranch(req.base_branch);
+  if (!base_res.ok()) return base_res.status();
+  std::string base = *base_res;
+
   std::string log_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
   auto log_res = RunCommand(log_cmd);
   if (!log_res.ok()) return log_res.status();
@@ -906,7 +913,10 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
   }
 
   // 1. Get list of commits
-  std::string base = req.base_branch.empty() ? "main" : req.base_branch;
+  auto base_res = GetBaseBranch(req.base_branch);
+  if (!base_res.ok()) return base_res.status();
+  std::string base = *base_res;
+
   std::string log_cmd = "git rev-list --reverse " + EscapeShellArg(base) + "..HEAD";
   auto log_res = RunCommand(log_cmd);
   if (!log_res.ok()) return log_res.status();
@@ -968,12 +978,12 @@ absl::StatusOr<std::string> ToolExecutor::GitRerollPatch(const GitRerollPatchReq
   return result;
 }
 
-std::string ToolExecutor::GetBaseBranch(const std::string& requested_base) {
+absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& requested_base) {
   if (!requested_base.empty()) {
     return requested_base;
   }
 
-  // 1. Try git config slop.basebranch
+  // 1. Try to read from git config first (set by git_branch_staging)
   auto config_res = RunCommand("git config slop.basebranch");
   if (config_res.ok() && config_res->exit_code == 0) {
     std::string base = config_res->stdout_out;
@@ -981,25 +991,23 @@ std::string ToolExecutor::GetBaseBranch(const std::string& requested_base) {
     if (!base.empty()) return base;
   }
 
-  // 2. Try common default branch names
-  auto main_res = RunCommand("git rev-parse --verify main");
-  if (main_res.ok() && main_res->exit_code == 0) return "main";
+  // 2. Try to find the upstream branch of HEAD
+  auto upstream_res = RunCommand("git rev-parse --abbrev-ref @{u}");
+  if (upstream_res.ok() && upstream_res->exit_code == 0) {
+    std::string base = upstream_res->stdout_out;
+    if (!base.empty() && base.back() == '\n') base.pop_back();
+    if (!base.empty()) return base;
+  }
 
-  auto master_res = RunCommand("git rev-parse --verify master");
-  if (master_res.ok() && master_res->exit_code == 0) return "master";
-
-  // 3. Fallback to origin/main or origin/master
-  auto omain_res = RunCommand("git rev-parse --verify origin/main");
-  if (omain_res.ok() && omain_res->exit_code == 0) return "origin/main";
-
-  auto omaster_res = RunCommand("git rev-parse --verify origin/master");
-  if (omaster_res.ok() && omaster_res->exit_code == 0) return "origin/master";
-
-  return "main";  // Final fallback
+  return absl::NotFoundError(
+      "Could not determine the upstream (base) branch. Please ask the user to set the base "
+      "branch using 'git config slop.basebranch <branch>'.");
 }
 
 absl::StatusOr<std::string> ToolExecutor::GetPatchSeriesSummary(const std::string& requested_base) {
-  std::string base = GetBaseBranch(requested_base);
+  auto base_res = GetBaseBranch(requested_base);
+  if (!base_res.ok()) return base_res.status();
+  std::string base = *base_res;
 
   std::string log_cmd = absl::Substitute("git log --oneline --reverse $0..HEAD", EscapeShellArg(base));
   auto log_res = RunCommand(log_cmd);
