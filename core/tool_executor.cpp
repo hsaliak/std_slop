@@ -650,9 +650,9 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
   std::string output = stdout_buffer.str();
   if (result.return_count() > 0) {
     sol::object rv = result[0];
-    if (rv.is<std::string>()) {
-      output += "\nReturn Value: " + rv.as<std::string>();
-    }
+    sol::function tostring = lua["tostring"];
+    std::string s = tostring(rv);
+    output += "\nReturn Value: " + s;
   }
 
   return output;
