@@ -602,4 +602,54 @@ TEST(ToolExecutorTest, GitGrepBooleanExpressions) {
   EXPECT_TRUE(res3->find("RetrieveMemos") != std::string::npos);
 }
 
+TEST(ToolExecutorTest, RunLuaBasic) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // Simple script that calls another tool
+  std::string script = R"(
+    local ok, res = tools.execute_bash({command = "echo 'hello from lua'"})
+    if ok then
+      print("Bash said: " .. res)
+    else
+      print("Bash failed: " .. res)
+    end
+    return "lua_done"
+  )";
+
+  auto res = executor.Execute("run_lua", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(res->find("hello from lua") != std::string::npos);
+  EXPECT_TRUE(res->find("Return Value: lua_done") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, RunLuaFullSpectrum) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // Script that iterates over the tools table
+  std::string script = R"(
+    local count = 0
+    for name, func in pairs(tools) do
+      count = count + 1
+      print("Found tool: " .. name)
+      assert(type(func) == "function")
+    end
+    print("Total tools: " .. count)
+    return count
+  )";
+
+  auto res = executor.Execute("run_lua", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(res->find("Found tool: execute_bash") != std::string::npos);
+  EXPECT_TRUE(res->find("Found tool: read_file") != std::string::npos);
+  EXPECT_TRUE(res->find("Total tools: ") != std::string::npos);
+}
+
 }  // namespace slop
