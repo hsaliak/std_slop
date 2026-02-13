@@ -3,6 +3,7 @@
 #include "core/lua_bridge_util.h"
 #include "core/preamble_data.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <filesystem>
@@ -125,10 +126,8 @@ void ToolExecutor::SetSessionId(const std::string& session_id) {
 
 bool ToolExecutor::IsSkillActive(const std::string& name) {
   auto active = GetActiveSkills();
-  for (const auto& skill : active) {
-    if (skill == name) return true;
-  }
-  return false;
+  return std::any_of(active.begin(), active.end(),
+                     [&name](const std::string& s) { return s == name; });
 }
 
 std::vector<std::string> ToolExecutor::GetActiveSkills() {

@@ -114,34 +114,49 @@ end
 
 function tools.list_directory(args)
   local path = args.path or "."
-  local success, res = call_tool(tools.execute_bash, {command = "ls -F " .. shell_escape(path)})
-  if not success then error("Failed to list directory: " .. tostring(res)) end
+  local depth = args.depth or 1
+  local git_only = args.git_only
   
-  local lines = {}
-  for line in res:gmatch("[^\r\n]+") do
-    if line:find("/$") then
-      table.insert(lines, "Dir: " .. line:sub(1, -2))
-    elseif line:find("@$") or line:find("*$") or line:find("=$") or line:find("|$") then
-      table.insert(lines, "File: " .. line:sub(1, -2))
-    else
-      table.insert(lines, "File: " .. line)
+  if git_only then
+    local success_check, is_git = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree 2>/dev/null"})
+    if success_check and is_git:find("true") then
+       local cmd = "git ls-files --cached --others --exclude-standard"
+       if path ~= "." then cmd = cmd .. " " .. shell_escape(path) end
+       local success_git, res_git = call_tool(tools.execute_bash, {command = cmd})
+       if success_git then return res_git end
     end
   end
-  return table.concat(lines, "\n")
+
+  local cmd = string.format("find %s -maxdepth %d -mindepth 1", shell_escape(path), depth)
+  local success, res = call_tool(tools.execute_bash, {command = cmd})
+  if not success then error("Failed to list directory: " .. tostring(res)) end
+  
+  local output = {}
+  for line in res:gmatch("[^\r\n]+") do
+    local rel = line
+    if line:sub(1, #path) == path then
+      rel = line:sub(#path + 1)
+      if rel:sub(1, 1) == "/" then rel = rel:sub(2) end
+    end
+    
+    if rel ~= "" then
+      local type_check_cmd = string.format("if [ -d %s ]; then echo Directory; else echo File; fi", shell_escape(line))
+      local _, type_res = call_tool(tools.execute_bash, {command = type_check_cmd})
+      if type_res:find("Directory") then
+        table.insert(output, "Directory: " .. rel .. "/")
+      else
+        table.insert(output, "File: " .. rel)
+      end
+    end
+  end
+  return table.concat(output, "\n")
 end
 
 function tools.describe_db(args)
-  local query = "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+  local query = "SELECT name, sql FROM sqlite_master WHERE type='table'"
   local success, res = call_tool(tools.query_db, {sql = query})
   if not success then error("Failed to describe database: " .. tostring(res)) end
-  
-  local tables = JSON.parse(res)
-  local output = "Database Schema:\n\n"
-  for _, t in ipairs(tables) do
-    output = output .. "Table: " .. t.name .. "\n"
-    output = output .. t.sql .. ";\n\n"
-  end
-  return output
+  return res
 end
 
 function tools.use_skill(args)
