@@ -80,8 +80,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> QueryDb(const QueryDbRequest& req);
   absl::StatusOr<std::string> SearchCode(const SearchCodeRequest& req,
                                          std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> LlmQuery(const LlmQueryRequest& req,
-                                       std::shared_ptr<CancellationRequest> cancellation);
+
   absl::StatusOr<std::string> GitGrep(const GitGrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> SaveMemo(const SaveMemoRequest& req);
   absl::StatusOr<std::string> RetrieveMemos(const RetrieveMemosRequest& req);

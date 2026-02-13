@@ -100,10 +100,6 @@ struct SearchCodeRequest {
   std::string query;
 };
 
-struct LlmQueryRequest {
-  std::string query;
-};
-
 struct GitBranchStagingRequest {
   std::string name;
   std::string base_branch;
@@ -259,10 +255,6 @@ inline void from_json(const nlohmann::json& j, UseSkillRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) { r.query = j.at("query").get<std::string>(); }
-
-inline void from_json(const nlohmann::json& j, LlmQueryRequest& r) {
-  r.query = j.at("query").get<std::string>();
-}
 
 inline void from_json(const nlohmann::json& j, GitBranchStagingRequest& r) {
   r.name = j.at("name").get<std::string>();

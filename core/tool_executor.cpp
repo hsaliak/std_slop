@@ -60,9 +60,7 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
   dispatch_map_["search_code"] = [this](const nlohmann::json& args, auto cancellation) {
     return SearchCode(args.get<SearchCodeRequest>(), cancellation);
   };
-  dispatch_map_["llm_query"] = [this](const nlohmann::json& args, auto cancellation) {
-    return LlmQuery(args.get<LlmQueryRequest>(), cancellation);
-  };
+
   dispatch_map_["git_branch_staging"] = [this](const nlohmann::json& args, auto) {
     return GitBranchStaging(args.get<GitBranchStagingRequest>());
   };
@@ -351,18 +349,6 @@ absl::StatusOr<std::string> ToolExecutor::SearchCode(const SearchCodeRequest& re
   grep_req.path = ".";
   grep_req.context = 0;
   return Grep(grep_req, cancellation);
-}
-
-absl::StatusOr<std::string> ToolExecutor::LlmQuery(const LlmQueryRequest& req,
-                                                   std::shared_ptr<CancellationRequest> cancellation) {
-  std::string command = absl::StrCat("std_slop --prompt ", EscapeShellArg(req.query));
-  auto res_or = RunCommand(command, cancellation);
-  if (!res_or.ok()) return res_or.status();
-  if (res_or->exit_code != 0) {
-    return absl::InternalError(absl::StrCat("llm_query failed with exit code ",
-                                            res_or->exit_code, ": ", res_or->stderr_out));
-  }
-  return res_or->stdout_out;
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitGrep(const GitGrepRequest& req,
@@ -679,6 +665,30 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
       }
       return std::make_pair(true, *result);
     });
+  }
+
+  // Define preamble
+  const char* preamble = R"(
+-- Slop Lua Preamble
+function llm_query(query)
+  if not query or query == "" then error("llm_query requires a query string") end
+  local escaped = query:gsub("'", "'\\''")
+  local success, result = tools.execute_bash({command = "std_slop --prompt '" .. escaped .. "'"})
+  if not success then error("llm_query failed: " .. result) end
+  return result
+end
+
+manifest = { tools = {} }
+for name, _ in pairs(tools) do
+  table.insert(manifest.tools, name)
+end
+)";
+
+  // Execute preamble
+  auto preamble_result = lua.safe_script(preamble, sol::script_pass_on_error);
+  if (!preamble_result.valid()) {
+    sol::error err = preamble_result;
+    return absl::InternalError(absl::StrCat("Lua Preamble Error: ", err.what()));
   }
 
   // Execute the script

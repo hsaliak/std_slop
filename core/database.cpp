@@ -335,9 +335,6 @@ absl::Status Database::RegisterDefaultTools() {
        "tools, and global variables 'history', 'state', and 'scratchpad' for session context. Output and return "
        "values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
-       true},
-      {"llm_query", "Query the LLM for information or sub-task processing.",
-       R"({"type": "object", "properties": {"query": {"type": "string", "description": "The query to send to the LLM."}}, "required": ["query"]})",
        true}};
 
   // Automatically register all core tools defined in the default_tools list.
@@ -392,8 +389,9 @@ absl::Status Database::RegisterDefaultSkills() {
        "You are a Lua scripting expert. You use the 'run_lua' tool to automate repetitive tasks, orchestrate multiple "
        "tool calls, and perform complex data processing. The 'tools' table provides access to your standard tools. "
        "Additionally, 'history' (array of messages), 'state' (current session state), and 'scratchpad' (current plan) "
-       "are provided as global variables for context. Always return descriptive values from your scripts and use "
-       "'print()' for debugging or logging output that should be visible to you."});
+       "are provided as global variables for context. A built-in 'llm_query(query)' function is available for "
+       "sub-task processing. Always return descriptive values from your scripts and use 'print()' for debugging or "
+       "logging output that should be visible to you."});
 
   default_skills.push_back(
       {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
