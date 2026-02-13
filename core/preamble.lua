@@ -103,6 +103,35 @@ function tools.search_code(args)
   return tools.grep_tool({pattern = args.query, path = "."})
 end
 
+function tools.git_branch_staging(args)
+  local name = args.name
+  if not name or name == "" then
+    error("git_branch_staging requires a 'name' for the staging branch.")
+  end
+
+  local base = git.get_base_branch(args.base_branch)
+  local branch_name = "slop/staging/" .. name
+
+  -- Check if branch already exists
+  local check_cmd = "git rev-parse --verify " .. shell_escape(branch_name) .. " 2>/dev/null"
+  local exists, _ = tools.execute_bash({command = check_cmd})
+  if exists then
+    error("Branch '" .. branch_name .. "' already exists. Please choose a different name.")
+  end
+
+  -- Create and checkout the branch
+  local create_cmd = "git checkout -b " .. shell_escape(branch_name) .. " " .. shell_escape(base)
+  local success, res = tools.execute_bash({command = create_cmd})
+  if not success then
+    error("Failed to create staging branch: " .. res)
+  end
+
+  -- Store base branch in git config
+  tools.execute_bash({command = "git config slop.basebranch " .. shell_escape(base)})
+
+  return "Created and checked out staging branch: " .. branch_name .. " (base: " .. base .. ")"
+end
+
 -- Also available in the tools table for consistency with C++ tools
 tools.llm_query = function(args)
   return llm_query(args.query)
