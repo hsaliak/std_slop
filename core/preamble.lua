@@ -13,7 +13,7 @@ function git.get_current_branch()
   local forced = os.getenv("SLOP_FORCE_BRANCH_NAME")
   if forced and forced ~= "" then return forced end
   
-  local success, branch = tools.execute_bash({command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"})
+  local success, branch = pcall(tools.execute_bash, {command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"})
   if not success then return nil end
   return branch:gsub("%s+", "")
 end
@@ -24,14 +24,14 @@ function git.get_base_branch(requested_base)
   end
 
   -- 1. Try git config
-  local success, base = tools.execute_bash({command = "git config slop.basebranch"})
+  local success, base = pcall(tools.execute_bash, {command = "git config slop.basebranch"})
   if success then
     base = base:gsub("%s+", "")
     if base ~= "" then return base end
   end
 
   -- 2. Try upstream
-  success, base = tools.execute_bash({command = "git rev-parse --abbrev-ref @{u} 2>/dev/null"})
+  success, base = pcall(tools.execute_bash, {command = "git rev-parse --abbrev-ref @{u} 2>/dev/null"})
   if success then
     base = base:gsub("%s+", "")
     if base ~= "" then return base end
@@ -42,7 +42,7 @@ end
 
 function git.get_patch_series_summary(base)
   local cmd = "git log --oneline --reverse " .. shell_escape(base) .. "..HEAD"
-  local success, log = tools.execute_bash({command = cmd})
+  local success, log = pcall(tools.execute_bash, {command = cmd})
   
   if not success or log:gsub("%s+", "") == "" then
     return "\n\nNo patches in series (base: " .. base .. ")"
@@ -69,7 +69,7 @@ end
 function llm_query(query)
   if not query or query == "" then error("llm_query requires a query string") end
   local escaped = query:gsub("'", "'\\''")
-  local success, result = tools.execute_bash({command = "std_slop --prompt '" .. escaped .. "'"})
+  local success, result = pcall(tools.execute_bash, {command = "std_slop --prompt '" .. escaped .. "'"})
   if not success then error("llm_query failed: " .. result) end
   return result
 end
@@ -77,26 +77,120 @@ end
 -- Tool Implementations in Lua
 tools = tools or {}
 
+function tools.git_grep_tool(args)
+  local cmd = "git grep --line-number -I"
+  if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
+  if args.before and args.before > 0 then cmd = cmd .. " -B " .. args.before end
+  if args.after and args.after > 0 then cmd = cmd .. " -A " .. args.after end
+  if args.case_insensitive then cmd = cmd .. " -i" end
+  if args.word_regexp then cmd = cmd .. " -w" end
+  if args.files_with_matches then cmd = cmd .. " -l" end
+  if args.count then cmd = cmd .. " -c" end
+  if args.show_function then cmd = cmd .. " -p" end
+  if args.untracked then cmd = cmd .. " --untracked" end
+  if args.no_index then cmd = cmd .. " --no-index" end
+  if args.exclude_standard then cmd = cmd .. " --exclude-standard" end
+  if args.fixed_strings then cmd = cmd .. " -F" end
+  if args.max_depth then cmd = cmd .. " --max-depth=" .. args.max_depth end
+  
+  if args.branch then cmd = cmd .. " " .. shell_escape(args.branch) end
+
+  local patterns = args.patterns or {}
+  if args.pattern then table.insert(patterns, args.pattern) end
+  if #patterns == 0 then
+    error("git_grep_tool requires at least one pattern.")
+  end
+  for _, p in ipairs(patterns) do
+    cmd = cmd .. " -e " .. shell_escape(p)
+  end
+  
+  local paths = args.path or {"."}
+  if type(paths) == "string" then paths = {paths} end
+  cmd = cmd .. " --"
+  for _, p in ipairs(paths) do
+    cmd = cmd .. " " .. shell_escape(p)
+  end
+  
+  local success, res = pcall(tools.execute_bash, {command = cmd})
+  if not success then
+    if res:find("status 1") then
+      res = ""
+    else
+      error(res)
+    end
+  end
+  
+  local lines = {}
+  local count = 0
+  for line in res:gmatch("[^\r\n]+") do
+    count = count + 1
+    if count <= 500 then
+      table.insert(lines, line)
+    end
+  end
+  
+  local output = table.concat(lines, "\n")
+  if count > 500 then
+    output = output .. "\n[TRUNCATED: Use a more specific pattern or path to narrow results]"
+  end
+  
+  if count > 20 and not args.count and not args.files_with_matches then
+    local count_cmd = cmd:gsub("git grep", "git grep -c", 1)
+    local s_ok, s_res = pcall(tools.execute_bash, {command = count_cmd})
+    if s_ok and s_res and s_res ~= "" then
+      output = "### SEARCH_SUMMARY:\n" .. s_res .. "---\n" .. output
+    end
+  end
+  
+  return output
+end
+
 function tools.grep_tool(args)
   local pattern = args.pattern
   local path = args.path or "."
   
-  local success, is_git = tools.execute_bash({command = "git rev-parse --is-inside-work-tree 2>/dev/null"})
-  local is_git_repo = success and is_git:gsub("%s+", "") == "true"
+  local git_check_ok, git_check_res = pcall(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree"})
+  local is_git = git_check_ok and git_check_res:find("true")
   
-  local ok, res
-  if is_git_repo then
-    ok, res = tools.git_grep_tool({pattern = pattern, path = path})
-  else
-    local cmd = "grep -rnE -- " .. shell_escape(pattern) .. " " .. shell_escape(path)
-    ok, res = tools.execute_bash({command = cmd})
+  if is_git then
+    local ok, res = pcall(tools.git_grep_tool, {pattern = pattern, path = {path}, context = args.context})
+    if ok and res and res ~= "" and not res:find("Error:") then
+      return res
+    end
   end
   
-  if not ok then
-    return ""
+  local cmd = "grep -rnE"
+  if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
+  cmd = cmd .. " -- " .. shell_escape(pattern) .. " " .. shell_escape(path)
+  
+  local success, res = pcall(tools.execute_bash, {command = cmd})
+  if not success then
+    if res:find("status 1") then
+      res = ""
+    else
+      error(res)
+    end
   end
   
-  return res
+  local lines = {}
+  local count = 0
+  for line in res:gmatch("[^\r\n]+") do
+    count = count + 1
+    if count <= 50 then
+      table.insert(lines, line)
+    end
+  end
+  
+  local output = table.concat(lines, "\n")
+  if count > 50 then
+    output = output .. "\n[TRUNCATED: Use a more specific pattern or path to narrow results]"
+  end
+  
+  if not is_git then
+    output = "Notice: Not a git repository. Consider running 'git init' for better search performance and feature support.\n\n" .. output
+  end
+  
+  return output
 end
 
 function tools.search_code(args)
@@ -114,20 +208,20 @@ function tools.git_branch_staging(args)
 
   -- Check if branch already exists
   local check_cmd = "git rev-parse --verify " .. shell_escape(branch_name) .. " 2>/dev/null"
-  local exists, _ = tools.execute_bash({command = check_cmd})
+  local exists, _ = pcall(tools.execute_bash, {command = check_cmd})
   if exists then
     error("Branch '" .. branch_name .. "' already exists. Please choose a different name.")
   end
 
   -- Create and checkout the branch
   local create_cmd = "git checkout -b " .. shell_escape(branch_name) .. " " .. shell_escape(base)
-  local success, res = tools.execute_bash({command = create_cmd})
+  local success, res = pcall(tools.execute_bash, {command = create_cmd})
   if not success then
     error("Failed to create staging branch: " .. res)
   end
 
   -- Store base branch in git config
-  tools.execute_bash({command = "git config slop.basebranch " .. shell_escape(base)})
+  pcall(tools.execute_bash, {command = "git config slop.basebranch " .. shell_escape(base)})
 
   return "Created and checked out staging branch: " .. branch_name .. " (base: " .. base .. ")"
 end
@@ -146,11 +240,11 @@ function tools.git_commit_patch(args)
   end
 
   -- Stage all changes
-  tools.execute_bash({command = "git add -A"})
+  pcall(tools.execute_bash, {command = "git add -A"})
 
   -- Commit
   local cmd = "git commit -m " .. shell_escape(summary) .. " -m " .. shell_escape("Rationale: " .. rationale)
-  local success, res = tools.execute_bash({command = cmd})
+  local success, res = pcall(tools.execute_bash, {command = cmd})
   if not success then
     error("Failed to commit patch: " .. res)
   end
@@ -171,7 +265,7 @@ function tools.git_reroll_patch(args)
 
   -- 1. Get list of commits
   local log_cmd = "git rev-list --reverse " .. shell_escape(base) .. "..HEAD"
-  local success, log_res = tools.execute_bash({command = log_cmd})
+  local success, log_res = pcall(tools.execute_bash, {command = log_cmd})
   if not success then
     error("Failed to get commit list: " .. log_res)
   end
@@ -188,24 +282,24 @@ function tools.git_reroll_patch(args)
   local target_hash = commits[index]
 
   -- 2. Stage changes
-  tools.execute_bash({command = "git add ."})
+  pcall(tools.execute_bash, {command = "git add ."})
 
   -- Check if there are changes
-  local diff_success, _ = tools.execute_bash({command = "git diff --cached --quiet"})
+  local diff_success, _ = pcall(tools.execute_bash, {command = "git diff --cached --quiet"})
   if diff_success then
     return "No changes found to reroll into patch " .. index
   end
 
   -- 3. Create fixup commit
   local fixup_cmd = "git commit --fixup " .. shell_escape(target_hash)
-  local fixup_success, fixup_res = tools.execute_bash({command = fixup_cmd})
+  local fixup_success, fixup_res = pcall(tools.execute_bash, {command = fixup_cmd})
   if not fixup_success then
     error("Failed to create fixup commit: " .. fixup_res)
   end
 
   -- 4. Autosquash rebase
   local rebase_cmd = "GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash " .. shell_escape(base)
-  local rebase_success, rebase_res = tools.execute_bash({command = rebase_cmd})
+  local rebase_success, rebase_res = pcall(tools.execute_bash, {command = rebase_cmd})
   if not rebase_success then
     error("Autosquash rebase failed: " .. rebase_res)
   end
@@ -226,7 +320,7 @@ function tools.git_verify_series(args)
 
   -- 1. Get list of commits
   local log_cmd = "git rev-list --reverse " .. shell_escape(base) .. "..HEAD"
-  local success, log_res = tools.execute_bash({command = log_cmd})
+  local success, log_res = pcall(tools.execute_bash, {command = log_cmd})
   if not success then
     error("Failed to get commit list: " .. log_res)
   end
@@ -241,7 +335,7 @@ function tools.git_verify_series(args)
 
   for i, hash in ipairs(commits) do
     -- Checkout commit
-    local checkout_success, checkout_res = tools.execute_bash({command = "git checkout " .. shell_escape(hash)})
+    local checkout_success, checkout_res = pcall(tools.execute_bash, {command = "git checkout " .. shell_escape(hash)})
     if not checkout_success then
       all_passed = false
       table.insert(report, {
@@ -252,7 +346,7 @@ function tools.git_verify_series(args)
       })
     else
       -- Run verification command
-      local verify_success, verify_res = tools.execute_bash({command = command})
+      local verify_success, verify_res = pcall(tools.execute_bash, {command = command})
       local item = {
         patch_index = i,
         hash = hash,
@@ -267,7 +361,7 @@ function tools.git_verify_series(args)
   end
 
   -- Return to original branch
-  tools.execute_bash({command = "git checkout " .. shell_escape(original_branch)})
+  pcall(tools.execute_bash, {command = "git checkout " .. shell_escape(original_branch)})
 
   -- We return a JSON string to match the expected tool output format
   -- In Lua, we can use a helper or just build it.
@@ -298,13 +392,13 @@ function tools.git_format_patch_series(args)
   -- but we can use a simpler format and post-process.
   
   local log_cmd = "git log --reverse --format='---COMMIT_START---%n%H%n%an%n%ae%n%ad%n%s%n%b' " .. shell_escape(base) .. "..HEAD"
-  local log_success, log_res = tools.execute_bash({command = log_cmd})
+  local log_success, log_res = pcall(tools.execute_bash, {command = log_cmd})
   if not log_success then
     error("Failed to get commit log: " .. log_res)
   end
 
   local diff_cmd = "git diff " .. shell_escape(base) .. "..HEAD"
-  local diff_success, diff_res = tools.execute_bash({command = diff_cmd})
+  local diff_success, diff_res = pcall(tools.execute_bash, {command = diff_cmd})
   if not diff_success then
     error("Failed to get diff: " .. diff_res)
   end
@@ -352,12 +446,12 @@ function tools.git_finalize_series(args)
   local target_branch = args.target_branch or "main"
   
   -- 1. Verify approval
-  local success, hash = tools.execute_bash({command = "git rev-parse HEAD"})
+  local success, hash = pcall(tools.execute_bash, {command = "git rev-parse HEAD"})
   if not success then error("Failed to get current hash: " .. hash) end
   hash = hash:gsub("%s+", "")
 
   local approval_query = string.format("SELECT approved_hash FROM patch_approvals WHERE branch_name = %s", shell_escape(current_branch))
-  local approval_res = tools.query_db({sql = approval_query})
+  local approval_res = pcall(tools.query_db, {sql = approval_query})
   
   -- query_db returns a JSON string (list of objects)
   -- We need to parse it or check if it contains the hash.
@@ -368,13 +462,13 @@ function tools.git_finalize_series(args)
 
   -- 2. Merge into target
   local checkout_cmd = "git checkout " .. shell_escape(target_branch)
-  local checkout_success, checkout_res = tools.execute_bash({command = checkout_cmd})
+  local checkout_success, checkout_res = pcall(tools.execute_bash, {command = checkout_cmd})
   if not checkout_success then
     error("Failed to checkout target branch '" .. target_branch .. "': " .. checkout_res)
   end
 
   local merge_cmd = "git merge --ff-only " .. shell_escape(current_branch)
-  local merge_success, merge_res = tools.execute_bash({command = merge_cmd})
+  local merge_success, merge_res = pcall(tools.execute_bash, {command = merge_cmd})
   if not merge_success then
     -- Attempt a regular merge if ff-only fails? C++ used --ff-only for safety usually.
     -- Let's stick to ff-only or simple merge.
@@ -382,7 +476,7 @@ function tools.git_finalize_series(args)
   end
 
   -- 3. Cleanup
-  tools.execute_bash({command = "git branch -D " .. shell_escape(current_branch)})
+  pcall(tools.execute_bash, {command = "git branch -D " .. shell_escape(current_branch)})
 
   return "Successfully finalized series. Merged " .. current_branch .. " into " .. target_branch .. " and deleted staging branch."
 end

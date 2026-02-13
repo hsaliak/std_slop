@@ -71,17 +71,16 @@ class ToolExecutor {
   std::optional<std::string> GetForcedBranch();
   bool ShouldSkipStagingCheck();
 
-  absl::StatusOr<std::string> Grep(const GrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
+
   absl::StatusOr<std::string> ReadFile(const ReadFileRequest& req);
   absl::StatusOr<std::string> WriteFile(const WriteFileRequest& req);
   absl::StatusOr<std::string> ApplyPatch(const ApplyPatchRequest& req);
   absl::StatusOr<std::string> ExecuteBash(const ExecuteBashRequest& req,
                                           std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> QueryDb(const QueryDbRequest& req);
-  absl::StatusOr<std::string> SearchCode(const SearchCodeRequest& req,
-                                         std::shared_ptr<CancellationRequest> cancellation);
 
-  absl::StatusOr<std::string> GitGrep(const GitGrepRequest& req, std::shared_ptr<CancellationRequest> cancellation);
+
+
   absl::StatusOr<std::string> SaveMemo(const SaveMemoRequest& req);
   absl::StatusOr<std::string> RetrieveMemos(const RetrieveMemosRequest& req);
 
@@ -98,8 +97,7 @@ class ToolExecutor {
   absl::flat_hash_set<std::string> active_skills_;
   absl::flat_hash_set<std::string> lua_tools_;
 
-  absl::StatusOr<std::string> DispatchGrep(const nlohmann::json& args,
-                                          std::shared_ptr<CancellationRequest> cancellation);
+
 };
 
 }  // namespace slop

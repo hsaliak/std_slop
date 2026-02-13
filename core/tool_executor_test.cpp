@@ -611,12 +611,8 @@ TEST(ToolExecutorTest, RunLuaBasic) {
 
   // Simple script that calls another tool
   std::string script = R"(
-    local ok, res = tools.execute_bash({command = "echo 'hello from lua'"})
-    if ok then
-      print("Bash said: " .. res)
-    else
-      print("Bash failed: " .. res)
-    end
+    local res = tools.execute_bash({command = "echo 'hello from lua'"})
+    print("Bash said: " .. res)
     return "lua_done"
   )";
 

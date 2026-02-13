@@ -34,7 +34,7 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
     return RunLuaTool("grep_tool", args, cancellation);
   };
   dispatch_map_["git_grep_tool"] = [this](const nlohmann::json& args, auto cancellation) {
-    return GitGrep(args.get<GitGrepRequest>(), cancellation);
+    return RunLuaTool("git_grep_tool", args, cancellation);
   };
   dispatch_map_["execute_bash"] = [this](const nlohmann::json& args, auto cancellation) {
     return ExecuteBash(args.get<ExecuteBashRequest>(), cancellation);
@@ -63,6 +63,7 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
   };
 
   lua_tools_ = {"grep_tool",
+                "git_grep_tool",
                 "search_code",
                 "git_branch_staging",
                 "git_commit_patch",
@@ -125,32 +126,7 @@ std::vector<std::string> ToolExecutor::GetActiveSkills() const {
   return {active_skills_.begin(), active_skills_.end()};
 }
 
-absl::StatusOr<std::string> ToolExecutor::DispatchGrep(
-    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
-  auto req = args.get<GrepRequest>();
-  // Delegate to GitGrep if in a git repo
-  ExecuteBashRequest git_check_req;
-  git_check_req.command = "git rev-parse --is-inside-work-tree";
-  auto git_repo_check = ExecuteBash(git_check_req, cancellation);
-  if (git_repo_check.ok() && git_repo_check->find("true") != std::string::npos) {
-    GitGrepRequest git_req;
-    git_req.pattern = req.pattern;
-    git_req.path = {req.path};
-    git_req.context = req.context;
-    auto git_res = GitGrep(git_req, cancellation);
-    if (git_res.ok() && !git_res->empty() && git_res->find("Error:") == std::string::npos) {
-      return git_res;
-    }
-    return Grep(req, cancellation);
-  }
-  auto grep_res = Grep(req, cancellation);
-  if (grep_res.ok()) {
-    return "Notice: Not a git repository. Consider running 'git init' for better search "
-           "performance and feature support.\n\n" +
-           *grep_res;
-  }
-  return grep_res;
-}
+
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
                                                   std::shared_ptr<CancellationRequest> cancellation) {
@@ -313,160 +289,6 @@ absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const ExecuteBashRequest& 
   if (res->exit_code != 0) {
     return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", output));
   }
-  return output;
-}
-
-absl::StatusOr<std::string> ToolExecutor::Grep(const GrepRequest& req,
-                                               std::shared_ptr<CancellationRequest> cancellation) {
-  std::string cmd = "grep -n";
-  if (std::filesystem::is_directory(req.path)) {
-    cmd += "r";
-  }
-  if (req.context > 0) {
-    cmd += " -C " + std::to_string(req.context);
-  }
-  cmd += " -e " + EscapeShellArg(req.pattern) + " " + EscapeShellArg(req.path);
-
-  auto res = RunCommand(cmd, cancellation);
-  if (!res.ok()) return res.status();
-  if (res->exit_code != 0 && res->exit_code != 1) {
-    std::string err = res->stdout_out;
-    if (!res->stderr_out.empty()) {
-      if (!err.empty() && err.back() != '\n') err += "\n";
-      err += "### STDERR\n" + res->stderr_out;
-    }
-    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", err));
-  }
-
-  std::stringstream ss(res->stdout_out);
-  std::string line;
-  std::string output;
-  int count = 0;
-  while (std::getline(ss, line) && count < 50) {
-    output += line + "\n";
-    count++;
-  }
-  if (std::getline(ss, line)) {
-    output += "\n[TRUNCATED: Use a more specific pattern or path to narrow results]\n";
-  }
-  return output;
-}
-
-absl::StatusOr<std::string> ToolExecutor::SearchCode(const SearchCodeRequest& req,
-                                                     std::shared_ptr<CancellationRequest> cancellation) {
-  GrepRequest grep_req;
-  grep_req.pattern = req.query;
-  grep_req.path = ".";
-  grep_req.context = 0;
-  return Grep(grep_req, cancellation);
-}
-
-absl::StatusOr<std::string> ToolExecutor::GitGrep(const GitGrepRequest& req,
-                                                  std::shared_ptr<CancellationRequest> cancellation) {
-  // Check if git is available
-  ExecuteBashRequest git_check_req;
-  git_check_req.command = "git --version";
-  auto git_check = ExecuteBash(git_check_req, cancellation);
-  if (!git_check.ok() || git_check->find("git version") == std::string::npos) {
-    return "Error: git is not available on this system. git_grep_tool is not supported.";
-  }
-
-  // Check if it is a git repository
-  ExecuteBashRequest git_repo_req;
-  git_repo_req.command = "git rev-parse --is-inside-work-tree";
-  auto git_repo_check = ExecuteBash(git_repo_req, cancellation);
-  if (!git_repo_check.ok() || git_repo_check->find("true") == std::string::npos) {
-    return "Error: not a git repository. git_grep_tool is not supported.";
-  }
-
-  std::string cmd = "git grep";
-
-  if (req.line_number) cmd += " -n";
-  if (req.case_insensitive) cmd += " -i";
-  if (req.count) cmd += " -c";
-  if (req.show_function) cmd += " -p";
-  if (req.function_context) cmd += " -W";
-  if (req.files_with_matches) cmd += " -l";
-  if (req.word_regexp) cmd += " -w";
-  if (req.pcre) cmd += " -P";
-  if (req.cached) cmd += " --cached";
-  if (req.all_match) cmd += " --all-match";
-
-  if (req.context) {
-    cmd += " -C " + std::to_string(*req.context);
-  } else {
-    if (req.before) cmd += " -B " + std::to_string(*req.before);
-    if (req.after) cmd += " -A " + std::to_string(*req.after);
-  }
-
-  if (req.branch) {
-    cmd += " " + EscapeShellArg(*req.branch);
-  }
-
-  if (!req.patterns.empty()) {
-    for (const auto& p : req.patterns) {
-      if (p == "--and" || p == "--or" || p == "--not" || p == "(" || p == ")") {
-        cmd += " " + EscapeShellArg(p);
-      } else {
-        cmd += " -e " + EscapeShellArg(p);
-      }
-    }
-  } else if (req.pattern) {
-    cmd += " -e " + EscapeShellArg(*req.pattern);
-  }
-
-  if (req.untracked) cmd += " --untracked";
-  if (req.no_index) cmd += " --no-index";
-  if ((req.untracked || req.no_index) && req.exclude_standard) {
-    cmd += " --exclude-standard";
-  }
-  if (req.fixed_strings) cmd += " -F";
-
-  if (req.max_depth) {
-    cmd += " --max-depth " + std::to_string(*req.max_depth);
-  }
-
-  if (!req.path.empty()) {
-    cmd += " --";
-    for (const auto& p : req.path) {
-      cmd += " " + EscapeShellArg(p);
-    }
-  }
-
-  auto res = RunCommand(cmd, cancellation);
-  if (!res.ok()) return res.status();
-  if (res->exit_code != 0 && res->exit_code != 1) {
-    std::string err = res->stdout_out;
-    if (!res->stderr_out.empty()) {
-      if (!err.empty() && err.back() != '\n') err += "\n";
-      err += "### STDERR\n" + res->stderr_out;
-    }
-    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", err));
-  }
-
-  std::stringstream ss(res->stdout_out);
-  std::string line;
-  std::string output;
-  int count = 0;
-  while (std::getline(ss, line) && count < 500) {
-    output += line + "\n";
-    count++;
-  }
-  if (std::getline(ss, line)) {
-    output += "\n[TRUNCATED: Use a more specific pattern or path to narrow results]\n";
-  }
-
-  size_t line_count = count;
-  // If the result is substantial, prepend a summary of matches per file.
-  if (line_count > 20 && !absl::StrContains(cmd, " -c") && !absl::StrContains(cmd, " -l") &&
-      !absl::StrContains(cmd, " -L")) {
-    std::string count_cmd = cmd + " -c";
-    auto count_res = RunCommand(count_cmd);
-    if (count_res.ok() && count_res->exit_code == 0) {
-      output = absl::StrCat("### SEARCH_SUMMARY:\n", count_res->stdout_out, "---\n", output);
-    }
-  }
-
   return output;
 }
 
@@ -670,20 +492,22 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
     // Skip tools that are implemented in Lua to avoid recursion and allow Lua definitions to take precedence.
     if (lua_tools_.contains(name)) continue;
 
-    tools.set_function(name, [this, name, cancellation](sol::table args_table) {
+    tools.set_function(name, [this, name, cancellation](sol::table args_table, sol::this_state s) {
       nlohmann::json json_args = LuaToJSON(args_table);
       
       auto it = dispatch_map_.find(name);
       if (it == dispatch_map_.end()) {
-        return std::make_pair(false, std::string("Tool not found: " + name));
+        luaL_error(s, "Tool not found: %s", name.c_str());
+        return std::string(""); // Unreachable
       }
 
       auto result = it->second(json_args, cancellation);
       
       if (!result.ok()) {
-        return std::make_pair(false, std::string(result.status().message()));
+        luaL_error(s, "Error: %s", std::string{result.status().message()}.c_str());
+        return std::string(""); // Unreachable
       }
-      return std::make_pair(true, *result);
+      return *result;
     });
   }
 
@@ -711,7 +535,7 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
     if (result.return_count() > 0) {
       sol::object rv = result[0];
       sol::function tostring = lua["tostring"];
-      return std::string(tostring(rv));
+      return tostring(rv).get<std::string>();
     }
     return stdout_buffer.str();
   }
