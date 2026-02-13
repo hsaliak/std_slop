@@ -334,6 +334,9 @@ absl::Status Database::RegisterDefaultTools() {
        "Execute a Lua 5.4 script with access to the full standard library and a 'tools' table for calling other C++ "
        "tools. Output and return values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
+       true},
+      {"llm_query", "Query the LLM for information or sub-task processing.",
+       R"({"type": "object", "properties": {"query": {"type": "string", "description": "The query to send to the LLM."}}, "required": ["query"]})",
        true}};
 
   // Automatically register all core tools defined in the default_tools list.
