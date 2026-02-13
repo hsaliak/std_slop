@@ -634,6 +634,34 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
     stdout_buffer << "\n";
   });
 
+  // Inject context
+  if (db_) {
+    auto settings_or = db_->GetContextSettings(session_id_);
+    int window_size = settings_or.ok() ? settings_or->size : 0;
+    
+    auto history_or = db_->GetConversationHistory(session_id_, false, window_size);
+    if (history_or.ok()) {
+      sol::table history_table = lua.create_table();
+      for (size_t i = 0; i < history_or->size(); ++i) {
+        const auto& msg = (*history_or)[i];
+        sol::table msg_table = lua.create_table();
+        msg_table["role"] = msg.role;
+        msg_table["content"] = msg.content;
+        msg_table["created_at"] = msg.created_at;
+        msg_table["status"] = msg.status;
+        msg_table["tool_call_id"] = msg.tool_call_id;
+        history_table[i + 1] = msg_table;
+      }
+      lua["history"] = history_table;
+    }
+
+    auto state_or = db_->GetSessionState(session_id_);
+    lua["state"] = state_or.ok() ? *state_or : "";
+
+    auto scratchpad_or = db_->GetScratchpad(session_id_);
+    lua["scratchpad"] = scratchpad_or.ok() ? *scratchpad_or : "";
+  }
+
   // Create 'tools' table
   sol::table tools = lua.create_named_table("tools");
 

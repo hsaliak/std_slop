@@ -331,8 +331,9 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type": "object", "properties": {"index": {"type": "integer", "description": "The 1-based index of the patch to update."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["index"]})",
        true},
       {"run_lua",
-       "Execute a Lua 5.4 script with access to the full standard library and a 'tools' table for calling other C++ "
-       "tools. Output and return values are captured.",
+       "Execute a Lua 5.4 script with access to the full standard library, a 'tools' table for calling other C++ "
+       "tools, and global variables 'history', 'state', and 'scratchpad' for session context. Output and return "
+       "values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
        true},
       {"llm_query", "Query the LLM for information or sub-task processing.",
@@ -389,8 +390,9 @@ absl::Status Database::RegisterDefaultSkills() {
   default_skills.push_back(
       {0, "run_lua", "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
        "You are a Lua scripting expert. You use the 'run_lua' tool to automate repetitive tasks, orchestrate multiple "
-       "tool calls, and perform complex data processing. The 'tools' table in Lua provides access to all your standard "
-       "tools (e.g., 'tools.read_file({path = ''...''})'). Always return descriptive values from your scripts and use "
+       "tool calls, and perform complex data processing. The 'tools' table provides access to your standard tools. "
+       "Additionally, 'history' (array of messages), 'state' (current session state), and 'scratchpad' (current plan) "
+       "are provided as global variables for context. Always return descriptive values from your scripts and use "
        "'print()' for debugging or logging output that should be visible to you."});
 
   default_skills.push_back(
