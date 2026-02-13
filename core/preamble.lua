@@ -345,6 +345,48 @@ function tools.git_format_patch_series(args)
   return output
 end
 
+function tools.git_finalize_series(args)
+  slop_guard()
+
+  local current_branch = git.get_current_branch()
+  local target_branch = args.target_branch or "main"
+  
+  -- 1. Verify approval
+  local success, hash = tools.execute_bash({command = "git rev-parse HEAD"})
+  if not success then error("Failed to get current hash: " .. hash) end
+  hash = hash:gsub("%s+", "")
+
+  local approval_query = string.format("SELECT approved_hash FROM patch_approvals WHERE branch_name = %s", shell_escape(current_branch))
+  local approval_res = tools.query_db({sql = approval_query})
+  
+  -- query_db returns a JSON string (list of objects)
+  -- We need to parse it or check if it contains the hash.
+  -- In this environment, we can check if the result string contains the hash.
+  if not approval_res:find(hash) then
+    error("Patch series not approved or hash mismatch. Please obtain approval for hash " .. hash .. " before finalizing.")
+  end
+
+  -- 2. Merge into target
+  local checkout_cmd = "git checkout " .. shell_escape(target_branch)
+  local checkout_success, checkout_res = tools.execute_bash({command = checkout_cmd})
+  if not checkout_success then
+    error("Failed to checkout target branch '" .. target_branch .. "': " .. checkout_res)
+  end
+
+  local merge_cmd = "git merge --ff-only " .. shell_escape(current_branch)
+  local merge_success, merge_res = tools.execute_bash({command = merge_cmd})
+  if not merge_success then
+    -- Attempt a regular merge if ff-only fails? C++ used --ff-only for safety usually.
+    -- Let's stick to ff-only or simple merge.
+    error("Merge failed: " .. merge_res)
+  end
+
+  -- 3. Cleanup
+  tools.execute_bash({command = "git branch -D " .. shell_escape(current_branch)})
+
+  return "Successfully finalized series. Merged " .. current_branch .. " into " .. target_branch .. " and deleted staging branch."
+end
+
 -- Also available in the tools table for consistency with C++ tools
 tools.llm_query = function(args)
   return llm_query(args.query)
