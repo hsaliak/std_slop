@@ -290,6 +290,61 @@ function tools.git_verify_series(args)
   return res_str
 end
 
+function tools.git_format_patch_series(args)
+  local base = git.get_base_branch(args.base_branch)
+
+  local format = "### Patch [%N/%T]: %s%nRationale: %b%n ###%ncommit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n    %s%n%n%b"
+  -- Note: We need to handle the %N and %T separately as git doesn't support them directly in --format
+  -- but we can use a simpler format and post-process.
+  
+  local log_cmd = "git log --reverse --format='---COMMIT_START---%n%H%n%an%n%ae%n%ad%n%s%n%b' " .. shell_escape(base) .. "..HEAD"
+  local log_success, log_res = tools.execute_bash({command = log_cmd})
+  if not log_success then
+    error("Failed to get commit log: " .. log_res)
+  end
+
+  local diff_cmd = "git diff " .. shell_escape(base) .. "..HEAD"
+  local diff_success, diff_res = tools.execute_bash({command = diff_cmd})
+  if not diff_success then
+    error("Failed to get diff: " .. diff_res)
+  end
+
+  -- Parse commits and format them
+  local patches = {}
+  for commit_data in log_res:gmatch("---COMMIT_START---%s*(.-)%s*---COMMIT_START---") do
+    table.insert(patches, commit_data)
+  end
+  -- Catch the last one
+  local last_commit = log_res:match("---COMMIT_START---%s*([^-]+)$")
+  if last_commit then table.insert(patches, last_commit) end
+
+  local formatted_patches = {}
+  for i, patch in ipairs(patches) do
+    local lines = {}
+    for line in patch:gmatch("([^\n]*)\n?") do table.insert(lines, line) end
+    
+    local hash = lines[1]
+    local author = lines[2]
+    local email = lines[3]
+    local date = lines[4]
+    local subject = lines[5]
+    local body = ""
+    for j=6,#lines do body = body .. lines[j] .. "\n" end
+
+    -- Extract rationale if present in body
+    local rationale = body:match("Rationale: (.-)\n") or "No rationale provided."
+    -- Remove Rationale line from body for the final output if we want to mimic C++
+    
+    local formatted = string.format("### Patch [%d/%d]: %s\nRationale: %s\n ###\ncommit %s\nAuthor: %s <%s>\nDate:   %s\n\n    %s\n\n%s",
+      i, #patches, subject, rationale, hash, author, email, date, subject, body)
+    table.insert(formatted_patches, formatted)
+  end
+
+  local output = table.concat(formatted_patches, "\n")
+  output = output .. "\n\n" .. diff_res
+  return output
+end
+
 -- Also available in the tools table for consistency with C++ tools
 tools.llm_query = function(args)
   return llm_query(args.query)
