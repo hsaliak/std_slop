@@ -6,21 +6,59 @@ function shell_escape(s)
   return "'" .. string.gsub(s, "'", "'\\''") .. "'"
 end
 
+-- Git Helpers
+git = git or {}
+
+function git.get_current_branch()
+  local forced = os.getenv("SLOP_FORCE_BRANCH_NAME")
+  if forced and forced ~= "" then return forced end
+  
+  local success, branch = tools.execute_bash({command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"})
+  if not success then return nil end
+  return branch:gsub("%s+", "")
+end
+
+function git.get_base_branch(requested_base)
+  if requested_base and requested_base ~= "" then
+    return requested_base
+  end
+
+  -- 1. Try git config
+  local success, base = tools.execute_bash({command = "git config slop.basebranch"})
+  if success then
+    base = base:gsub("%s+", "")
+    if base ~= "" then return base end
+  end
+
+  -- 2. Try upstream
+  success, base = tools.execute_bash({command = "git rev-parse --abbrev-ref @{u} 2>/dev/null"})
+  if success then
+    base = base:gsub("%s+", "")
+    if base ~= "" then return base end
+  end
+
+  error("Could not determine the upstream (base) branch. Please set the base branch using 'git config slop.basebranch <branch>'.")
+end
+
+function git.get_patch_series_summary(base)
+  local cmd = "git log --oneline --reverse " .. shell_escape(base) .. "..HEAD"
+  local success, log = tools.execute_bash({command = cmd})
+  
+  if not success or log:gsub("%s+", "") == "" then
+    return "\n\nNo patches in series (base: " .. base .. ")"
+  end
+
+  return "\n\n--- Current Patch Series (base: " .. base .. ") ---\n" .. log
+end
+
 -- Guard for protected tools
 function slop_guard()
   if os.getenv("SLOP_SKIP_STAGING_CHECK") == "1" then
     return
   end
   
-  -- Check if we are in a git repo and get current branch
-  local success, branch = tools.execute_bash({command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"})
-  if not success then 
-    -- If not a git repo, we can't be on a staging branch.
-    return 
-  end
-  
-  branch = branch:gsub("%s+", "")
-  if branch == "" then return end
+  local branch = git.get_current_branch()
+  if not branch or branch == "" then return end
   
   if not branch:find("^slop/staging/") then
     error("Mail Model Violation: Branch '" .. branch .. "' is not a staging branch. " ..
