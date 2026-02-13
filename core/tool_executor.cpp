@@ -60,6 +60,9 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
   dispatch_map_["search_code"] = [this](const nlohmann::json& args, auto cancellation) {
     return SearchCode(args.get<SearchCodeRequest>(), cancellation);
   };
+  dispatch_map_["llm_query"] = [this](const nlohmann::json& args, auto cancellation) {
+    return LlmQuery(args.get<LlmQueryRequest>(), cancellation);
+  };
   dispatch_map_["git_branch_staging"] = [this](const nlohmann::json& args, auto) {
     return GitBranchStaging(args.get<GitBranchStagingRequest>());
   };
@@ -348,6 +351,18 @@ absl::StatusOr<std::string> ToolExecutor::SearchCode(const SearchCodeRequest& re
   grep_req.path = ".";
   grep_req.context = 0;
   return Grep(grep_req, cancellation);
+}
+
+absl::StatusOr<std::string> ToolExecutor::LlmQuery(const LlmQueryRequest& req,
+                                                   std::shared_ptr<CancellationRequest> cancellation) {
+  std::string command = absl::StrCat("std_slop --prompt ", EscapeShellArg(req.query));
+  auto res_or = RunCommand(command, cancellation);
+  if (!res_or.ok()) return res_or.status();
+  if (res_or->exit_code != 0) {
+    return absl::InternalError(absl::StrCat("llm_query failed with exit code ",
+                                            res_or->exit_code, ": ", res_or->stderr_out));
+  }
+  return res_or->stdout_out;
 }
 
 absl::StatusOr<std::string> ToolExecutor::GitGrep(const GitGrepRequest& req,
