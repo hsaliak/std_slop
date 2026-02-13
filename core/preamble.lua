@@ -159,6 +159,60 @@ function tools.git_commit_patch(args)
   return "Committed patch: " .. summary .. git.get_patch_series_summary(base)
 end
 
+function tools.git_reroll_patch(args)
+  slop_guard()
+
+  local index = tonumber(args.index)
+  if not index or index <= 0 then
+    error("git_reroll_patch requires a 1-based 'index'.")
+  end
+
+  local base = git.get_base_branch(args.base_branch)
+
+  -- 1. Get list of commits
+  local log_cmd = "git rev-list --reverse " .. shell_escape(base) .. "..HEAD"
+  local success, log_res = tools.execute_bash({command = log_cmd})
+  if not success then
+    error("Failed to get commit list: " .. log_res)
+  end
+
+  local commits = {}
+  for hash in log_res:gmatch("%S+") do
+    table.insert(commits, hash)
+  end
+
+  if index > #commits then
+    error("Patch index " .. index .. " exceeds series length (" .. #commits .. ").")
+  end
+
+  local target_hash = commits[index]
+
+  -- 2. Stage changes
+  tools.execute_bash({command = "git add ."})
+
+  -- Check if there are changes
+  local diff_success, _ = tools.execute_bash({command = "git diff --cached --quiet"})
+  if diff_success then
+    return "No changes found to reroll into patch " .. index
+  end
+
+  -- 3. Create fixup commit
+  local fixup_cmd = "git commit --fixup " .. shell_escape(target_hash)
+  local fixup_success, fixup_res = tools.execute_bash({command = fixup_cmd})
+  if not fixup_success then
+    error("Failed to create fixup commit: " .. fixup_res)
+  end
+
+  -- 4. Autosquash rebase
+  local rebase_cmd = "GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash " .. shell_escape(base)
+  local rebase_success, rebase_res = tools.execute_bash({command = rebase_cmd})
+  if not rebase_success then
+    error("Autosquash rebase failed: " .. rebase_res)
+  end
+
+  return "Successfully rerolled changes into patch " .. index .. git.get_patch_series_summary(base)
+end
+
 -- Also available in the tools table for consistency with C++ tools
 tools.llm_query = function(args)
   return llm_query(args.query)
