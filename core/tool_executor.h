@@ -79,8 +79,6 @@ class ToolExecutor {
       const RunLuaRequest& req,
       std::shared_ptr<CancellationRequest> cancellation);
 
-  using ToolHandler = std::function<absl::StatusOr<std::string>(
-      const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   std::unique_ptr<ToolDispatcher> dispatcher_;
 

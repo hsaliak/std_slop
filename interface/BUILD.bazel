@@ -103,6 +103,7 @@ cc_library(
         srcs = [test_name + ".cpp"],
         deps = [
             ":interface",
+            ":interaction_engine",
             "//core",
             "@googletest//:gtest_main",
         ],
@@ -113,5 +114,6 @@ cc_library(
         "input_parsing_test",
         "completer_test",
         "context_management_test",
+        "interaction_engine_test",
     ]
 ]
