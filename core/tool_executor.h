@@ -85,22 +85,12 @@ class ToolExecutor {
   absl::StatusOr<std::string> SaveMemo(const SaveMemoRequest& req);
   absl::StatusOr<std::string> RetrieveMemos(const RetrieveMemosRequest& req);
 
-  absl::StatusOr<std::string> GitBranchStaging(const GitBranchStagingRequest& req);
-  absl::StatusOr<std::string> GitCommitPatch(const GitCommitPatchRequest& req);
-  absl::StatusOr<std::string> GitFormatPatchSeries(const GitFormatPatchSeriesRequest& req);
-  absl::StatusOr<std::string> GitFinalizeSeries(const GitFinalizeSeriesRequest& req);
-  absl::StatusOr<std::string> GitVerifySeries(const GitVerifySeriesRequest& req,
-                                              std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> GitRerollPatch(const GitRerollPatchRequest& req);
   absl::StatusOr<std::string> RunLua(const RunLuaRequest& req,
                                      std::shared_ptr<CancellationRequest> cancellation,
                                      bool raw = false);
 
   absl::StatusOr<std::string> RunLuaTool(const std::string& name, const nlohmann::json& args,
                                          std::shared_ptr<CancellationRequest> cancellation);
-
-  // Returns a concise summary of the current patch series.
-  absl::StatusOr<std::string> GetPatchSeriesSummary(const std::string& requested_base);
 
   using ToolHandler = std::function<absl::StatusOr<std::string>(
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
