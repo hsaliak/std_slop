@@ -197,6 +197,101 @@ function tools.search_code(args)
   return tools.grep_tool({pattern = args.query, path = "."})
 end
 
+function tools.save_memo(args)
+  local content = args.content
+  local tags = args.tags
+  if not content or content == "" then
+    error("save_memo requires 'content'.")
+  end
+  if not tags or type(tags) ~= "table" then
+    error("save_memo requires 'tags' (array of strings).")
+  end
+
+  local tags_json = JSON.encode(tags)
+  local sql = string.format("INSERT INTO llm_memos (content, semantic_tags) VALUES (%s, %s)",
+    shell_escape(content), shell_escape(tags_json))
+  
+  tools.query_db({sql = sql})
+  
+  return "Memo saved."
+end
+
+function tools.retrieve_memos(args)
+  local tags = args.tags
+  if not tags or type(tags) ~= "table" or #tags == 0 then
+    error("retrieve_memos requires 'tags' (array of strings).")
+  end
+
+  local conditions = {}
+  for _, tag in ipairs(tags) do
+    local escaped_tag = tag:gsub("'", "''")
+    table.insert(conditions, string.format("j.value = '%s' OR j.value LIKE '%%%s%%'", escaped_tag, escaped_tag))
+  end
+  
+  local sql = "SELECT DISTINCT m.id, m.content, m.semantic_tags, m.created_at " ..
+              "FROM llm_memos m, json_each(m.semantic_tags) j " ..
+              "WHERE " .. table.concat(conditions, " OR ")
+  
+  local res = tools.query_db({sql = sql})
+  local data = JSON.decode(res)
+  if not data then return "[]" end
+
+  local formatted = {}
+  for _, m in ipairs(data) do
+    local memo_tags = {}
+    if m.semantic_tags then
+      memo_tags = JSON.decode(m.semantic_tags) or {}
+    end
+    table.insert(formatted, {
+      id = m.id,
+      content = m.content,
+      tags = memo_tags,
+      created_at = m.created_at
+    })
+  end
+  
+  return JSON.encode(formatted)
+end
+
+function tools.manage_scratchpad(args)
+  if not session_id or session_id == "" then
+    error("FAILED_PRECONDITION: No active session")
+  end
+
+  local action = args.action
+  if action == "read" then
+    local sql = string.format("SELECT scratchpad FROM sessions WHERE id = %s", shell_escape(session_id))
+    local res = tools.query_db({sql = sql})
+    
+    local data = JSON.decode(res)
+    if not data or #data == 0 or not data[1].scratchpad or data[1].scratchpad == "" then
+      return "Scratchpad is empty."
+    end
+    return data[1].scratchpad
+  elseif action == "update" or action == "append" then
+    local content = args.content
+    if not content then error("Missing 'content' for " .. action) end
+    
+    local final_content = content
+    if action == "append" then
+      local current = tools.manage_scratchpad({action = "read"})
+      if current == "Scratchpad is empty." then
+        final_content = content
+      else
+        final_content = current .. content
+      end
+    end
+    
+    local sql = string.format("INSERT OR REPLACE INTO sessions (id, scratchpad) VALUES (%s, %s)",
+      shell_escape(session_id), shell_escape(final_content))
+    tools.query_db({sql = sql})
+    
+    return action == "update" and "Scratchpad updated." or "Content appended to scratchpad."
+  else
+    error("Unknown action: " .. (action or "nil"))
+  end
+end
+
 function tools.git_branch_staging(args)
   local name = args.name
   if not name or name == "" then
