@@ -331,9 +331,9 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type": "object", "properties": {"index": {"type": "integer", "description": "The 1-based index of the patch to update."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["index"]})",
        true},
       {"run_lua",
-       "Execute a Lua 5.4 script with access to the full standard library, a 'tools' table for calling other C++ "
-       "tools, and global variables 'history', 'state', and 'scratchpad' for session context. Output and return "
-       "values are captured.",
+       "Execute a Lua 5.4 script with access to the full standard library, a 'tools' table (including _async "
+       "variants like execute_bash_async), and global variables 'history', 'state', and 'scratchpad' for session "
+       "context.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
        true}};
 
