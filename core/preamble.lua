@@ -6,6 +6,15 @@ function shell_escape(s)
   return "'" .. string.gsub(s, "'", "'\\''") .. "'"
 end
 
+-- Helper to call tools safely and handle the (pcall_ok, tool_ok, result) return pattern
+function call_tool(tool_func, args)
+  local ok, success, res = pcall(tool_func, args)
+  if not ok then
+    return false, "Lua error: " .. tostring(success)
+  end
+  return success, res
+end
+
 -- Git Helpers
 git = git or {}
 
@@ -13,7 +22,7 @@ function git.get_current_branch()
   local forced = os.getenv("SLOP_FORCE_BRANCH_NAME")
   if forced and forced ~= "" then return forced end
   
-  local success, branch = pcall(tools.execute_bash, {command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"})
+  local success, branch = call_tool(tools.execute_bash, {command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"})
   if not success then return nil end
   return branch:gsub("%s+", "")
 end
@@ -24,14 +33,14 @@ function git.get_base_branch(requested_base)
   end
 
   -- 1. Try git config
-  local success, base = pcall(tools.execute_bash, {command = "git config slop.basebranch"})
+  local success, base = call_tool(tools.execute_bash, {command = "git config slop.basebranch"})
   if success then
     base = base:gsub("%s+", "")
     if base ~= "" then return base end
   end
 
   -- 2. Try upstream
-  success, base = pcall(tools.execute_bash, {command = "git rev-parse --abbrev-ref @{u} 2>/dev/null"})
+  success, base = call_tool(tools.execute_bash, {command = "git rev-parse --abbrev-ref @{u} 2>/dev/null"})
   if success then
     base = base:gsub("%s+", "")
     if base ~= "" then return base end
@@ -42,7 +51,7 @@ end
 
 function git.get_patch_series_summary(base)
   local cmd = "git log --oneline --reverse " .. shell_escape(base) .. "..HEAD"
-  local success, log = pcall(tools.execute_bash, {command = cmd})
+  local success, log = call_tool(tools.execute_bash, {command = cmd})
   
   if not success or log:gsub("%s+", "") == "" then
     return "\n\nNo patches in series (base: " .. base .. ")"
@@ -541,33 +550,30 @@ function tools.git_finalize_series(args)
   local target_branch = args.target_branch or "main"
   
   -- 1. Verify approval
-  local success, hash = pcall(tools.execute_bash, {command = "git rev-parse HEAD"})
-  if not success then error("Failed to get current hash: " .. hash) end
+  local ok, success, hash = pcall(tools.execute_bash, {command = "git rev-parse HEAD"})
+  if not ok or not success then error("Failed to get current hash: " .. tostring(hash)) end
   hash = hash:gsub("%s+", "")
 
   local approval_query = string.format("SELECT approved_hash FROM patch_approvals WHERE branch_name = %s", shell_escape(current_branch))
-  local approval_res = pcall(tools.query_db, {sql = approval_query})
+  local ok2, success2, approval_res = pcall(tools.query_db, {sql = approval_query})
+  if not ok2 or not success2 then error("Failed to query approvals: " .. tostring(approval_res)) end
   
   -- query_db returns a JSON string (list of objects)
-  -- We need to parse it or check if it contains the hash.
-  -- In this environment, we can check if the result string contains the hash.
   if not approval_res:find(hash) then
     error("Patch series not approved or hash mismatch. Please obtain approval for hash " .. hash .. " before finalizing.")
   end
 
   -- 2. Merge into target
   local checkout_cmd = "git checkout " .. shell_escape(target_branch)
-  local checkout_success, checkout_res = pcall(tools.execute_bash, {command = checkout_cmd})
-  if not checkout_success then
-    error("Failed to checkout target branch '" .. target_branch .. "': " .. checkout_res)
+  local ok3, success3, checkout_res = pcall(tools.execute_bash, {command = checkout_cmd})
+  if not ok3 or not success3 then
+    error("Failed to checkout target branch '" .. target_branch .. "': " .. tostring(checkout_res))
   end
 
   local merge_cmd = "git merge --ff-only " .. shell_escape(current_branch)
-  local merge_success, merge_res = pcall(tools.execute_bash, {command = merge_cmd})
-  if not merge_success then
-    -- Attempt a regular merge if ff-only fails? C++ used --ff-only for safety usually.
-    -- Let's stick to ff-only or simple merge.
-    error("Merge failed: " .. merge_res)
+  local ok4, success4, merge_res = pcall(tools.execute_bash, {command = merge_cmd})
+  if not ok4 or not success4 then
+    error("Merge failed: " .. tostring(merge_res))
   end
 
   -- 3. Cleanup
