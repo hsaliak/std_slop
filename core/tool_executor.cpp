@@ -273,6 +273,22 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
     stdout_buffer << ss.str() << "\n";
   });
 
+  lua.set_function("__os_run", [cancellation](const std::string& command, sol::this_state s) -> sol::table {
+    auto res_or = RunCommand(command, cancellation);
+    sol::state_view lua(s);
+    sol::table t = lua.create_table();
+    if (!res_or.ok()) {
+      t["stdout"] = "";
+      t["stderr"] = res_or.status().ToString();
+      t["exit_code"] = -1;
+      return t;
+    }
+    t["stdout"] = res_or->stdout_out;
+    t["stderr"] = res_or->stderr_out;
+    t["exit_code"] = res_or->exit_code;
+    return t;
+  });
+
   lua["session_id"] = session_id_;
   lua["scratchpad"] = "";
   lua["state"] = "";
