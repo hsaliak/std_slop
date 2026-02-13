@@ -51,7 +51,7 @@ class ToolExecutor {
 
   absl::StatusOr<std::string> ListDirectory(const ListDirectoryRequest& req,
                                             std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> ManageScratchpad(const ManageScratchpadRequest& req);
+
   absl::StatusOr<std::string> DescribeDb();
   absl::StatusOr<std::string> UseSkill(const UseSkillRequest& req);
 
@@ -81,8 +81,7 @@ class ToolExecutor {
 
 
 
-  absl::StatusOr<std::string> SaveMemo(const SaveMemoRequest& req);
-  absl::StatusOr<std::string> RetrieveMemos(const RetrieveMemosRequest& req);
+
 
   absl::StatusOr<std::string> RunLua(const RunLuaRequest& req,
                                      std::shared_ptr<CancellationRequest> cancellation,

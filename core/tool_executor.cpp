@@ -296,29 +296,7 @@ absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const ExecuteBashRequest& 
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::SaveMemo(const SaveMemoRequest& req) {
-  nlohmann::json tags_json = req.tags;
-  auto status = db_->AddMemo(req.content, tags_json.dump());
-  if (!status.ok()) return status;
-  return "Memo saved successfully.";
-}
 
-absl::StatusOr<std::string> ToolExecutor::RetrieveMemos(const RetrieveMemosRequest& req) {
-  auto memos_or = db_->GetMemosByTags(req.tags);
-  if (!memos_or.ok()) return memos_or.status();
-
-  nlohmann::json result = nlohmann::json::array();
-  for (const auto& m : *memos_or) {
-    auto tags = nlohmann::json::parse(m.semantic_tags, nullptr, false);
-    result.push_back({
-        {"id", m.id},
-        {"content", m.content},
-        {"tags", tags.is_discarded() ? nlohmann::json::array() : tags},
-        {"created_at", m.created_at},
-    });
-  }
-  return result.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
-}
 
 absl::StatusOr<std::string> ToolExecutor::ListDirectory(const ListDirectoryRequest& req,
                                                         std::shared_ptr<CancellationRequest> cancellation) {
@@ -359,34 +337,7 @@ absl::StatusOr<std::string> ToolExecutor::ListDirectory(const ListDirectoryReque
   return ss.str();
 }
 
-absl::StatusOr<std::string> ToolExecutor::ManageScratchpad(const ManageScratchpadRequest& req) {
-  if (session_id_.empty()) return absl::FailedPreconditionError("No active session");
 
-  if (req.action == "read") {
-    auto res = db_->GetScratchpad(session_id_);
-    if (!res.ok()) {
-      if (absl::IsNotFound(res.status())) return "Scratchpad is empty.";
-      return res.status();
-    }
-    if (res->empty()) return "Scratchpad is empty.";
-    return *res;
-  }
-  if (req.action == "update") {
-    if (!req.content) return absl::InvalidArgumentError("Missing 'content' for update");
-    auto status = db_->UpdateScratchpad(session_id_, *req.content);
-    if (!status.ok()) return status;
-    return "Scratchpad updated.";
-  }
-  if (req.action == "append") {
-    if (!req.content) return absl::InvalidArgumentError("Missing 'content' for append");
-    auto current = db_->GetScratchpad(session_id_);
-    std::string new_content = (current.ok() ? *current : "") + *req.content;
-    auto status = db_->UpdateScratchpad(session_id_, new_content);
-    if (!status.ok()) return status;
-    return "Content appended to scratchpad.";
-  }
-  return absl::InvalidArgumentError("Unknown action: " + req.action);
-}
 
 absl::StatusOr<std::string> ToolExecutor::DescribeDb() {
   return db_->Query("SELECT name, sql FROM sqlite_master WHERE type='table'");
