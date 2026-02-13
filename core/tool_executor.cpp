@@ -1,6 +1,7 @@
 #include "core/tool_executor.h"
 #include "lua-bridge/interpreter.h"
 #include "core/lua_bridge_util.h"
+#include "core/preamble_data.h"
 
 #include <array>
 #include <cstring>
@@ -667,25 +668,8 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
     });
   }
 
-  // Define preamble
-  const char* preamble = R"(
--- Slop Lua Preamble
-function llm_query(query)
-  if not query or query == "" then error("llm_query requires a query string") end
-  local escaped = query:gsub("'", "'\\''")
-  local success, result = tools.execute_bash({command = "std_slop --prompt '" .. escaped .. "'"})
-  if not success then error("llm_query failed: " .. result) end
-  return result
-end
-
-manifest = { tools = {} }
-for name, _ in pairs(tools) do
-  table.insert(manifest.tools, name)
-end
-)";
-
   // Execute preamble
-  auto preamble_result = lua.safe_script(preamble, sol::script_pass_on_error);
+  auto preamble_result = lua.safe_script(slop::kLuaPreamble, sol::script_pass_on_error);
   if (!preamble_result.valid()) {
     sol::error err = preamble_result;
     return absl::InternalError(absl::StrCat("Lua Preamble Error: ", err.what()));
