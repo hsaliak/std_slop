@@ -447,6 +447,31 @@ std::string FlattenJsonArgs(const std::string& json_str) {
 
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix, int tokens) {
   absl::MutexLock lock(&g_ui_mu);
+
+  if (name == "run_lua") {
+    auto j = nlohmann::json::parse(args, nullptr, false);
+    if (!j.is_discarded() && j.is_object() && j.contains("script")) {
+      std::string script = j["script"];
+      std::vector<std::string> lines = absl::StrSplit(script, '\n');
+      int count = std::min((int)lines.size(), 10);
+
+      std::string summary = absl::StrCat(icons::Tool, " ", name, " (control plane)");
+      std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
+      if (tokens > 0) {
+        std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
+      }
+      std::cout << std::endl;
+
+      for (int i = 0; i < count; ++i) {
+        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << lines[i] << std::endl;
+      }
+      if (lines.size() > 10) {
+        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
+      }
+      return;
+    }
+  }
+
   std::string display_args = FlattenJsonArgs(args);
 
   if (display_args.length() > 60) {
@@ -461,7 +486,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   std::cout << std::endl;
 }
 
-void PrintToolResultMessage(const std::string& /*name*/, const std::string& result, const std::string& status,
+void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status,
                             const std::string& prefix) {
   absl::MutexLock lock(&g_ui_mu);
   // Split into stdout and stderr
@@ -487,7 +512,7 @@ void PrintToolResultMessage(const std::string& /*name*/, const std::string& resu
   std::cout << prefix << "    " << Colorize(icons::ResultConnector, "", ansi::Metadata) << " "
             << Colorize(summary, "", color) << std::endl;
 
-  if (is_error && IsNetworkError(result)) {
+  if ((name == "run_lua") || (is_error && IsNetworkError(result))) {
     for (const auto& line : out_lines) {
       std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
     }

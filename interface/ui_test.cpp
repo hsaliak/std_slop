@@ -273,4 +273,52 @@ TEST(UiTest, PrintToolResultMessageQuotaError) {
   EXPECT_TRUE(absl::StrContains(output, "RESOURCE_EXHAUSTED"));
 }
 
+TEST(UiTest, PrintToolCallMessageRunLua) {
+  std::string name = "run_lua";
+  std::string args = R"raw({"script": "print('hello')\nprint('world')" })raw";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolCallMessage(name, args);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "run_lua (control plane)"));
+  EXPECT_TRUE(absl::StrContains(output, "print('hello')"));
+  EXPECT_TRUE(absl::StrContains(output, "print('world')"));
+}
+
+TEST(UiTest, PrintToolCallMessageRunLuaLong) {
+  std::string name = "run_lua";
+  std::string args = R"raw({"script": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11" })raw";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolCallMessage(name, args);
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "10"));
+  EXPECT_TRUE(absl::StrContains(output, "..."));
+  EXPECT_FALSE(absl::StrContains(output, "11"));
+}
+
+TEST(UiTest, PrintToolResultMessageRunLua) {
+  std::string name = "run_lua";
+  std::string result = "hello\nworld";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(name, result, "completed");
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "completed (2 lines)"));
+  EXPECT_TRUE(absl::StrContains(output, "hello"));
+  EXPECT_TRUE(absl::StrContains(output, "world"));
+}
+
 }  // namespace slop
