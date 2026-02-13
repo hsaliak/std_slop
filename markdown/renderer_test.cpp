@@ -252,4 +252,22 @@ TEST(MarkdownRendererTest, RustHighlighting) {
   EXPECT_NE(rendered.find("10"), std::string::npos);
 }
 
+TEST(MarkdownRendererTest, LuaHighlighting) {
+  MarkdownParser parser;
+  auto p_res = parser.Parse("```lua\nlocal function foo()\n    return \"bar\"\nend\n```\n");
+  ASSERT_TRUE(p_res.ok());
+
+  MarkdownRenderer renderer;
+  std::string rendered = renderer.Render(*p_res.value());
+
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Keyword), std::string::npos);
+  EXPECT_NE(rendered.find("local"), std::string::npos);
+  EXPECT_NE(rendered.find("function"), std::string::npos);
+  EXPECT_NE(rendered.find("end"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Function), std::string::npos);
+  EXPECT_NE(rendered.find("foo"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::String), std::string::npos);
+  EXPECT_NE(rendered.find("bar"), std::string::npos);
+}
+
 }  // namespace slop::markdown

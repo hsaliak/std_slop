@@ -12,6 +12,7 @@ const TSLanguage* tree_sitter_go(void);
 const TSLanguage* tree_sitter_javascript(void);
 const TSLanguage* tree_sitter_bash(void);
 const TSLanguage* tree_sitter_rust(void);
+const TSLanguage* tree_sitter_lua(void);
 }
 
 namespace slop::markdown {
@@ -27,6 +28,7 @@ std::optional<const TSLanguage*> GetLanguageForName(std::string_view name) {
       {"js", tree_sitter_javascript}, {"cpp", tree_sitter_cpp},   {"c++", tree_sitter_cpp},
       {"c", tree_sitter_cpp},         {"go", tree_sitter_go},     {"bash", tree_sitter_bash},
       {"sh", tree_sitter_bash},       {"rust", tree_sitter_rust}, {"rs", tree_sitter_rust},
+      {"lua", tree_sitter_lua},
   };
 
   for (const auto& entry : kLanguages) {
