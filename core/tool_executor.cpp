@@ -32,7 +32,7 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
                                      std::shared_ptr<CancellationRequest>) -> absl::StatusOr<std::string> {
     if (!db_) return absl::InternalError("No database");
     std::vector<std::string> params;
-    if (args.contains("params")) {
+    if (args.contains("params") && args["params"].is_array()) {
       for (const auto& p : args["params"]) {
         if (p.is_string()) {
           params.push_back(p.get<std::string>());
@@ -41,7 +41,9 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
         }
       }
     }
-    return db_->Query(args.at("sql").get<std::string>(), params);
+    std::string sql = args.value("sql", "");
+    if (sql.empty()) return absl::InvalidArgumentError("Missing SQL statement");
+    return db_->Query(sql, params);
   };
   dispatch_map_["run_lua"] = [this](const nlohmann::json& args,
                                     std::shared_ptr<CancellationRequest> cancellation) {

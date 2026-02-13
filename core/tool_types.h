@@ -163,29 +163,31 @@ namespace slop {
 
 // Define from_json for each request struct to avoid using the macro which might have issues with optional
 inline void from_json(const nlohmann::json& j, ReadFileRequest& r) {
-  r.path = j.at("path").get<std::string>();
+  r.path = j.value("path", "");
   if (j.contains("start_line")) r.start_line = j.at("start_line").get<std::optional<int>>();
   if (j.contains("end_line")) r.end_line = j.at("end_line").get<std::optional<int>>();
   r.add_line_numbers = j.value("add_line_numbers", true);
 }
 
 inline void from_json(const nlohmann::json& j, WriteFileRequest& r) {
-  r.path = j.at("path").get<std::string>();
-  r.content = j.at("content").get<std::string>();
+  r.path = j.value("path", "");
+  r.content = j.value("content", "");
 }
 
 inline void from_json(const nlohmann::json& j, ApplyPatchRequest::Patch& p) {
-  p.find = j.at("find").get<std::string>();
-  p.replace = j.at("replace").get<std::string>();
+  p.find = j.value("find", "");
+  p.replace = j.value("replace", "");
 }
 
 inline void from_json(const nlohmann::json& j, ApplyPatchRequest& r) {
-  r.path = j.at("path").get<std::string>();
-  r.patches = j.at("patches").get<std::vector<ApplyPatchRequest::Patch>>();
+  r.path = j.value("path", "");
+  if (j.contains("patches") && j.at("patches").is_array()) {
+    r.patches = j.at("patches").get<std::vector<ApplyPatchRequest::Patch>>();
+  }
 }
 
 inline void from_json(const nlohmann::json& j, GrepRequest& r) {
-  r.pattern = j.at("pattern").get<std::string>();
+  r.pattern = j.value("pattern", "");
   r.path = j.value("path", ".");
   r.context = j.value("context", 0);
 }
@@ -224,19 +226,23 @@ inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, ExecuteBashRequest& r) {
-  r.command = j.at("command").get<std::string>();
+  r.command = j.value("command", "");
   r.input = j.value("input", "");
 }
 
-inline void from_json(const nlohmann::json& j, QueryDbRequest& r) { r.sql = j.at("sql").get<std::string>(); }
+inline void from_json(const nlohmann::json& j, QueryDbRequest& r) { r.sql = j.value("sql", ""); }
 
 inline void from_json(const nlohmann::json& j, SaveMemoRequest& r) {
-  r.content = j.at("content").get<std::string>();
-  r.tags = j.at("tags").get<std::vector<std::string>>();
+  r.content = j.value("content", "");
+  if (j.contains("tags") && j.at("tags").is_array()) {
+    r.tags = j.at("tags").get<std::vector<std::string>>();
+  }
 }
 
 inline void from_json(const nlohmann::json& j, RetrieveMemosRequest& r) {
-  r.tags = j.at("tags").get<std::vector<std::string>>();
+  if (j.contains("tags") && j.at("tags").is_array()) {
+    r.tags = j.at("tags").get<std::vector<std::string>>();
+  }
 }
 
 inline void from_json(const nlohmann::json& j, ListDirectoryRequest& r) {
@@ -251,20 +257,20 @@ inline void from_json(const nlohmann::json& j, ManageScratchpadRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, UseSkillRequest& r) {
-  r.name = j.at("name").get<std::string>();
+  r.name = j.value("name", "");
   r.action = j.value("action", "activate");
 }
 
-inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) { r.query = j.at("query").get<std::string>(); }
+inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) { r.query = j.value("query", ""); }
 
 inline void from_json(const nlohmann::json& j, GitBranchStagingRequest& r) {
-  r.name = j.at("name").get<std::string>();
+  r.name = j.value("name", "");
   r.base_branch = j.value("base_branch", "");
 }
 
 inline void from_json(const nlohmann::json& j, GitCommitPatchRequest& r) {
-  r.summary = j.at("summary").get<std::string>();
-  r.rationale = j.at("rationale").get<std::string>();
+  r.summary = j.value("summary", "");
+  r.rationale = j.value("rationale", "");
 }
 
 inline void from_json(const nlohmann::json& j, GitFormatPatchSeriesRequest& r) {
@@ -276,17 +282,17 @@ inline void from_json(const nlohmann::json& j, GitFinalizeSeriesRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, GitVerifySeriesRequest& r) {
-  r.command = j.at("command").get<std::string>();
+  r.command = j.value("command", "");
   r.base_branch = j.value("base_branch", "");
 }
 
 inline void from_json(const nlohmann::json& j, GitRerollPatchRequest& r) {
-  r.index = j.at("index").get<int>();
+  r.index = j.value("index", 0);
   r.base_branch = j.value("base_branch", "");
 }
 
 inline void from_json(const nlohmann::json& j, RunLuaRequest& r) {
-  r.script = j.at("script").get<std::string>();
+  r.script = j.value("script", "");
 }
 
 }  // namespace slop
