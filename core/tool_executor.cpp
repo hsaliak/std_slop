@@ -809,4 +809,13 @@ absl::StatusOr<std::string> ToolExecutor::CheckStagingBranch() {
   return current_branch;
 }
 
+absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& requested_base) {
+  // Primarily used for testing (mail_model_test.cpp).
+  // Wraps the Lua implementation to maintain a single source of truth.
+  RunLuaRequest req;
+  req.script = "return git.get_base_branch(args.requested_base)";
+  req.args["requested_base"] = requested_base;
+  return RunLua(req, nullptr, /*raw=*/true);
+}
+
 } // namespace slop
