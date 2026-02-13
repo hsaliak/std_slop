@@ -32,8 +32,8 @@ class ToolExecutor {
   void SetMailMode(bool enabled) { mail_mode_ = enabled; }
   const std::string& session_id() const { return session_id_; }
 
-  bool IsSkillActive(const std::string& name) const;
-  std::vector<std::string> GetActiveSkills() const;
+  bool IsSkillActive(const std::string& name);
+  std::vector<std::string> GetActiveSkills();
 
   absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args,
                                       std::shared_ptr<CancellationRequest> cancellation = nullptr);
@@ -49,11 +49,9 @@ class ToolExecutor {
   std::string session_id_;
   bool mail_mode_ = false;
 
-  absl::StatusOr<std::string> ListDirectory(const ListDirectoryRequest& req,
-                                            std::shared_ptr<CancellationRequest> cancellation);
 
-  absl::StatusOr<std::string> DescribeDb();
-  absl::StatusOr<std::string> UseSkill(const UseSkillRequest& req);
+
+
 
   // Verifies current branch is a staging branch.
   absl::StatusOr<std::string> CheckStagingBranch();
@@ -90,10 +88,11 @@ class ToolExecutor {
   absl::StatusOr<std::string> RunLuaTool(const std::string& name, const nlohmann::json& args,
                                          std::shared_ptr<CancellationRequest> cancellation);
 
+  std::string wrap_result(const std::string& name, const std::string& result);
+
   using ToolHandler = std::function<absl::StatusOr<std::string>(
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
-  absl::flat_hash_set<std::string> active_skills_;
   absl::flat_hash_set<std::string> lua_tools_;
 
 
