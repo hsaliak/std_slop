@@ -115,6 +115,7 @@ cc_library(
     defines = ["HAVE_SYSTEM_PROMPT_H"],
     deps = [
         ":cancellation",
+        ":dispatcher",
         ":shell_lib",
         "//ini:ini_parser",
         "@sqlite3//:sqlite3",

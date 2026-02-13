@@ -165,14 +165,10 @@ function core.dispatch_tool(name, args)
   core.maybe_persist_state()
   
   -- 5. Wrap and return
-  local res
   if not status then
-    res = core.wrap_result(name, "Error: " .. tostring(result))
-  else
-    res = core.wrap_result(name, result)
+    return core.wrap_result(name, "Error: " .. tostring(result))
   end
-  print("[LUA] dispatch_tool returning: " .. res)
-  return res
+  return core.wrap_result(name, result)
 end
 
 -- Git Helpers
@@ -285,6 +281,13 @@ function tools.execute_bash(args)
   end
 
   return output
+end
+
+function tools.execute_bash_async(args)
+  if not args.command then
+    error("Usage: execute_bash_async({command = '...'})", 0)
+  end
+  return tools.dispatch_async("execute_bash", args)
 end
 
 -- Knowledge Management Tools
@@ -743,9 +746,18 @@ function llm_query(query)
   return result
 end
 
+function llm_query_async(query)
+  if not query or query == "" then error("llm_query_async requires a query string") end
+  return tools.dispatch_async("llm_query", {query = query})
+end
+
 -- Also available in the tools table for consistency with C++ tools
 tools.llm_query = function(args)
   return llm_query(args.query)
+end
+
+tools.llm_query_async = function(args)
+  return llm_query_async(args.query)
 end
 
 function get_tool_manifest()

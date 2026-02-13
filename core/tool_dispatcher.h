@@ -19,6 +19,43 @@
 namespace slop {
 
 /**
+ * @brief A handle to a background tool execution.
+ */
+class ToolJob {
+ public:
+  ToolJob(const std::string& id, const std::string& name)
+      : id_(id), name_(name) {}
+
+  bool IsReady() {
+    absl::MutexLock lock(&mu_);
+    return ready_;
+  }
+
+  absl::StatusOr<std::string> Wait() {
+    mu_.LockWhen(absl::Condition(&ready_));
+    auto res = result_;
+    mu_.Unlock();
+    return res;
+  }
+
+  void SetResult(absl::StatusOr<std::string> res) {
+    absl::MutexLock lock(&mu_);
+    result_ = std::move(res);
+    ready_ = true;
+  }
+
+  const std::string& id() const { return id_; }
+  const std::string& name() const { return name_; }
+
+ private:
+  const std::string id_;
+  const std::string name_;
+  absl::Mutex mu_;
+  bool ready_ ABSL_GUARDED_BY(mu_) = false;
+  absl::StatusOr<std::string> result_ ABSL_GUARDED_BY(mu_);
+};
+
+/**
  * @brief Dispatches tool calls in parallel using a fixed thread pool.
  */
 class ToolDispatcher {
@@ -46,12 +83,23 @@ class ToolDispatcher {
   ~ToolDispatcher();
 
   /**
+   * @brief Submits a single tool call for background execution.
+   * @param call The tool call to execute.
+   * @param cancellation Optional cancellation request.
+   * @return A ToolJob handle to monitor and wait for the result.
+   */
+  std::shared_ptr<ToolJob> Submit(
+      const Call& call,
+      std::shared_ptr<CancellationRequest> cancellation = nullptr);
+
+  /**
    * @brief Executes a batch of tool calls in parallel.
    * Blocks until all calls are complete or cancelled.
    * @param calls The list of tool calls to execute.
    * @param cancellation The cancellation request to monitor.
    */
-  std::vector<Result> Dispatch(const std::vector<Call>& calls, std::shared_ptr<CancellationRequest> cancellation);
+  std::vector<Result> Dispatch(const std::vector<Call>& calls,
+                               std::shared_ptr<CancellationRequest> cancellation);
 
  private:
   void WorkerLoop();

@@ -1,6 +1,7 @@
 #include "core/tool_executor.h"
 
 #include <cstdlib>
+#include "core/tool_dispatcher.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -683,6 +684,68 @@ TEST(ToolExecutorTest, RunLuaPreamble) {
   auto res = executor.Execute("run_lua", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_TRUE(res->find("Return Value: preamble_ok") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, AsyncJobExecution) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto dispatcher = std::make_unique<ToolDispatcher>(
+      [&executor](const std::string& name, const nlohmann::json& args,
+                  std::shared_ptr<CancellationRequest> cancellation) {
+        return executor.Execute(name, args, cancellation);
+      });
+  executor.SetDispatcher(std::move(dispatcher));
+
+  std::string script = R"(
+    local job = tools.execute_bash_async({command = "echo 'hello async'"})
+    if type(job) ~= "userdata" then error("job is not userdata, got " .. type(job)) end
+    local result = job:wait()
+    return result
+  )";
+
+  auto res = executor.Execute("run_lua", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "hello async"));
+}
+
+TEST(ToolExecutorTest, AsyncJobParallelism) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto dispatcher = std::make_unique<ToolDispatcher>(
+      [&executor](const std::string& name, const nlohmann::json& args,
+                  std::shared_ptr<CancellationRequest> cancellation) {
+        return executor.Execute(name, args, cancellation);
+      });
+  executor.SetDispatcher(std::move(dispatcher));
+
+  std::string script = R"(
+    local j1 = tools.execute_bash_async({command = "sleep 0.2 && echo 'job1'"})
+    local j2 = tools.execute_bash_async({command = "sleep 0.2 && echo 'job2'"})
+    
+    local r1 = j1:wait()
+    local r2 = j2:wait()
+    return r1 .. " " .. r2
+  )";
+
+  // This should take ~0.2s total if parallel, ~0.4s if serial.
+  auto start = std::chrono::steady_clock::now();
+  auto res = executor.Execute("run_lua", {{"script", script}});
+  auto end = std::chrono::steady_clock::now();
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "job1"));
+  EXPECT_TRUE(absl::StrContains(*res, "job2"));
+  EXPECT_LT(duration, 350);  // Allowing some overhead, but definitely less than 400ms
 }
 
 }  // namespace slop

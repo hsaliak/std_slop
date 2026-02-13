@@ -12,11 +12,18 @@
 #include "core/lua_bridge_util.h"
 #include "core/lua_tool.h"
 #include "core/preamble_data.h"
+#include "core/tool_dispatcher.h"
 #include "lua-bridge/interpreter.h"
 
 namespace slop {
 
 ToolExecutor::ToolExecutor(Database* db) : db_(db) { RegisterTools(); }
+
+ToolExecutor::~ToolExecutor() = default;
+
+void ToolExecutor::SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher) {
+  dispatcher_ = std::move(dispatcher);
+}
 
 void ToolExecutor::RegisterTools() {
   dispatch_map_["query_db"] =
@@ -116,8 +123,8 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(
   sol::state& lua = interpreter.state();
 
   std::stringstream stdout_buffer;
-  lua_tool::InitializeEnvironment(lua, db_, cancellation, dispatch_map_,
-                                  stdout_buffer);
+  lua_tool::InitializeEnvironment(lua, db_, dispatcher_.get(),
+                                  cancellation, dispatch_map_, stdout_buffer);
 
   lua["session_id"] = session_id_;
   if (!req.args.is_null()) {

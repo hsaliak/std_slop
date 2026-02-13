@@ -14,6 +14,7 @@
 namespace slop {
 class Database;
 class CancellationRequest;
+class ToolDispatcher;
 }  // namespace slop
 
 namespace slop::lua_tool {
@@ -31,7 +32,7 @@ using ToolDispatchMap =
 // - __os_run: shell execution
 // - tools: table containing C++ tool wrappers from the dispatch map
 void InitializeEnvironment(
-    sol::state& lua, Database* db,
+    sol::state& lua, Database* db, ToolDispatcher* dispatcher,
     std::shared_ptr<CancellationRequest> cancellation,
     const ToolDispatchMap& dispatch_map, std::stringstream& stdout_buffer);
 

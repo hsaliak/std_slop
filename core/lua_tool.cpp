@@ -1,15 +1,16 @@
 #include "core/lua_tool.h"
 
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "core/database.h"
 #include "core/lua_bridge_util.h"
 #include "core/shell_util.h"
-#include "absl/log/log.h"
+#include "core/tool_dispatcher.h"
 
 namespace slop::lua_tool {
 
 void InitializeEnvironment(
-    sol::state& lua, [[maybe_unused]] Database* db,
+    sol::state& lua, [[maybe_unused]] Database* db, ToolDispatcher* dispatcher,
     std::shared_ptr<CancellationRequest> cancellation,
     const ToolDispatchMap& dispatch_map, std::stringstream& stdout_buffer) {
   
@@ -57,8 +58,32 @@ void InitializeEnvironment(
   };
   lua["JSON"] = json_lib;
 
+  // Register ToolJob class
+  lua.new_usertype<ToolJob>("ToolJob", "is_ready", &ToolJob::IsReady, "wait",
+                            [](ToolJob& self, sol::this_state s) {
+                              auto result = self.Wait();
+                              if (!result.ok()) {
+                                luaL_error(s, "Job failed: %s",
+                                           result.status().ToString().c_str());
+                              }
+                              return *result;
+                            });
+
   // Tool dispatcher
   sol::table tools = lua.create_named_table("tools");
+
+  // tools.dispatch_async
+  if (dispatcher) {
+    tools.set_function("dispatch_async", [dispatcher, cancellation](
+                                             const std::string& name,
+                                             sol::table args_table) {
+      ToolDispatcher::Call call;
+      call.id = "async-" + name;  // Simple ID
+      call.name = name;
+      call.args = LuaToJSON(args_table);
+      return dispatcher->Submit(call, cancellation);
+    });
+  }
   for (auto const& pair : dispatch_map) {
     const std::string& name = pair.first;
     const auto& handler = pair.second;

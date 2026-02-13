@@ -19,6 +19,8 @@
 
 namespace slop {
 
+class ToolDispatcher;
+
 class ToolExecutor {
  public:
   static absl::StatusOr<std::unique_ptr<ToolExecutor>> Create(Database* db) {
@@ -41,6 +43,11 @@ class ToolExecutor {
   // Resolves the base branch for git operations.
   // Checks git config slop.basebranch, then defaults to main/master.
   absl::StatusOr<std::string> GetBaseBranch(const std::string& requested_base);
+
+  void SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher);
+  ToolDispatcher* dispatcher() const { return dispatcher_.get(); }
+
+  ~ToolExecutor();
 
  private:
   explicit ToolExecutor(Database* db);
@@ -71,7 +78,7 @@ class ToolExecutor {
   using ToolHandler = std::function<absl::StatusOr<std::string>(
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
-
+  std::unique_ptr<ToolDispatcher> dispatcher_;
 
 };
 

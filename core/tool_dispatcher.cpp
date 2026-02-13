@@ -25,53 +25,44 @@ ToolDispatcher::~ToolDispatcher() {
   }
 }
 
-std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(const std::vector<Call>& calls,
-                                                             std::shared_ptr<CancellationRequest> cancellation) {
-  if (calls.empty()) return {};
-
-  struct SharedState {
-    absl::Mutex mu;
-    int remaining ABSL_GUARDED_BY(mu);
-    std::vector<Result> results ABSL_GUARDED_BY(mu);
+std::shared_ptr<ToolJob> ToolDispatcher::Submit(
+    const Call& call, std::shared_ptr<CancellationRequest> cancellation) {
+  auto job = std::make_shared<ToolJob>(call.id, call.name);
+  auto task = [this, call, job, cancellation]() {
+    if (cancellation && cancellation->IsCancelled()) {
+      job->SetResult(absl::CancelledError("Cancelled"));
+      return;
+    }
+    job->SetResult(executor_func_(call.name, call.args, cancellation));
   };
-  auto state = std::make_shared<SharedState>();
   {
-    absl::MutexLock lock(&state->mu);
-    state->remaining = calls.size();
-    state->results.resize(calls.size());
-  }
-
-  for (size_t i = 0; i < calls.size(); ++i) {
-    const auto& call = calls[i];
-    auto task = [this, i, call, state, cancellation]() {
-      Result res;
-      res.id = call.id;
-      res.name = call.name;
-
-      if (cancellation && cancellation->IsCancelled()) {
-        res.output = absl::CancelledError("Cancelled");
-      } else {
-        res.output = executor_func_(call.name, call.args, cancellation);
-      }
-
-      absl::MutexLock lock(&state->mu);
-      state->results[i] = std::move(res);
-      state->remaining--;
-    };
-
     absl::MutexLock lock(&mu_);
     tasks_.emplace(std::move(task));
   }
+  return job;
+}
 
-  // Wait for all tasks to complete
-  {
-    absl::MutexLock lock(&state->mu);
-    auto all_done = [state]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(state->mu) { return state->remaining == 0; };
-    state->mu.Await(absl::Condition(&all_done));
+std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(
+    const std::vector<Call>& calls,
+    std::shared_ptr<CancellationRequest> cancellation) {
+  if (calls.empty()) return {};
+
+  std::vector<std::shared_ptr<ToolJob>> jobs;
+  jobs.reserve(calls.size());
+  for (const auto& call : calls) {
+    jobs.push_back(Submit(call, cancellation));
   }
 
-  absl::MutexLock lock(&state->mu);
-  return std::move(state->results);
+  std::vector<Result> results;
+  results.reserve(calls.size());
+  for (auto& job : jobs) {
+    Result res;
+    res.id = job->id();
+    res.name = job->name();
+    res.output = job->Wait();
+    results.push_back(std::move(res));
+  }
+  return results;
 }
 
 void ToolDispatcher::WorkerLoop() {
