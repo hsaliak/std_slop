@@ -70,11 +70,7 @@ class ToolExecutor {
   bool ShouldSkipStagingCheck();
 
 
-  absl::StatusOr<std::string> ReadFile(const ReadFileRequest& req);
-  absl::StatusOr<std::string> WriteFile(const WriteFileRequest& req);
   absl::StatusOr<std::string> ApplyPatch(const ApplyPatchRequest& req);
-  absl::StatusOr<std::string> ExecuteBash(const ExecuteBashRequest& req,
-                                          std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> QueryDb(const QueryDbRequest& req);
 
 

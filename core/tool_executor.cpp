@@ -24,17 +24,8 @@
 namespace slop {
 
 ToolExecutor::ToolExecutor(Database* db) : db_(db) {
-  dispatch_map_["read_file"] = [this](const nlohmann::json& args, auto) {
-    return ReadFile(args.get<ReadFileRequest>());
-  };
-  dispatch_map_["write_file"] = [this](const nlohmann::json& args, auto) {
-    return WriteFile(args.get<WriteFileRequest>());
-  };
   dispatch_map_["apply_patch"] = [this](const nlohmann::json& args, auto) {
     return ApplyPatch(args.get<ApplyPatchRequest>());
-  };
-  dispatch_map_["execute_bash"] = [this](const nlohmann::json& args, auto cancellation) {
-    return ExecuteBash(args.get<ExecuteBashRequest>(), cancellation);
   };
   dispatch_map_["query_db"] = [this](const nlohmann::json& args, auto) {
     return QueryDb(args.get<QueryDbRequest>());
@@ -45,6 +36,9 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
 
   // Lua-implemented tools
   lua_tools_ = {
+      "execute_bash",
+      "read_file",
+      "write_file",
       "list_directory",
       "grep_tool",
       "git_grep_tool",
@@ -139,75 +133,6 @@ std::vector<std::string> ToolExecutor::GetActiveSkills() {
   return {};
 }
 
-absl::StatusOr<std::string> ToolExecutor::ReadFile(const ReadFileRequest& req) {
-  if (req.start_line && req.end_line && *req.start_line > *req.end_line) {
-    return absl::InvalidArgumentError("start_line must be less than or equal to end_line");
-  }
-
-  std::ifstream file(req.path);
-  if (!file.is_open()) return absl::NotFoundError("Could not open file: " + req.path);
-
-  std::stringstream ss;
-  std::string line;
-  int current_line = 1;
-  int total_lines = 0;
-  {
-    std::string dummy;
-    while (std::getline(file, dummy)) total_lines++;
-    file.clear();
-    file.seekg(0, std::ios::beg);
-  }
-
-  while (std::getline(file, line)) {
-    if ((!req.start_line || current_line >= *req.start_line) && (!req.end_line || current_line <= *req.end_line)) {
-      if (req.add_line_numbers) {
-        ss << current_line << ": " << line << "\n";
-      } else {
-        ss << line << "\n";
-      }
-    }
-    current_line++;
-    if (req.end_line && current_line > *req.end_line) {
-      break;
-    }
-  }
-  std::string result = ss.str();
-
-  int s = req.start_line.value_or(1);
-  int e = req.end_line.value_or(total_lines);
-  std::string header = absl::Substitute("### FILE: $0 | TOTAL_LINES: $1 | RANGE: $2-$3\n", req.path, total_lines, s, e);
-
-  if (e < total_lines) {
-    absl::StrAppend(&result, "\n... [Truncated. Use 'read_file' with start_line=", e + 1, " to see more] ...");
-  }
-
-  return header + result;
-}
-
-absl::StatusOr<std::string> ToolExecutor::WriteFile(const WriteFileRequest& req) {
-  std::ofstream file(req.path);
-  if (!file.is_open()) return absl::InternalError("Could not open file for writing: " + req.path);
-  file << req.content;
-  file.close();
-
-  size_t bytes_written = req.content.size();
-  std::stringstream preview;
-  std::stringstream content_stream(req.content);
-  std::string line;
-  int line_count = 0;
-  while (std::getline(content_stream, line) && line_count < 3) {
-    preview << line << "\n";
-    line_count++;
-  }
-
-  std::string result = "File written successfully:\n";
-  result += "Path: " + req.path + "\n";
-  result += "Bytes written: " + std::to_string(bytes_written) + "\n";
-  result += "Preview:\n" + preview.str();
-  if (line_count >= 3) result += "...\n";
-
-  return result;
-}
 
 absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const ApplyPatchRequest& req) {
   std::string content;
@@ -236,20 +161,6 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const ApplyPatchRequest& re
   return "File written successfully: " + req.path;
 }
 
-absl::StatusOr<std::string> ToolExecutor::ExecuteBash(const ExecuteBashRequest& req,
-                                                     std::shared_ptr<CancellationRequest> cancellation) {
-  auto res = RunCommand(req.command, cancellation, req.input);
-  if (!res.ok()) return res.status();
-  std::string output = res->stdout_out;
-  if (!res->stderr_out.empty()) {
-    if (!output.empty() && output.back() != '\n') output += "\n";
-    output += "### STDERR\n" + res->stderr_out;
-  }
-  if (res->exit_code != 0) {
-    return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", output));
-  }
-  return output;
-}
 
 absl::StatusOr<std::string> ToolExecutor::QueryDb(const QueryDbRequest& req) {
   return db_->Query(req.sql);
