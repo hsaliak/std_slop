@@ -132,6 +132,33 @@ function tools.git_branch_staging(args)
   return "Created and checked out staging branch: " .. branch_name .. " (base: " .. base .. ")"
 end
 
+function tools.git_commit_patch(args)
+  slop_guard()
+
+  local summary = args.summary
+  local rationale = args.rationale
+
+  if not summary or summary == "" then
+    error("git_commit_patch requires a 'summary'.")
+  end
+  if not rationale or rationale == "" then
+    error("git_commit_patch requires a 'rationale'.")
+  end
+
+  -- Stage all changes
+  tools.execute_bash({command = "git add -A"})
+
+  -- Commit
+  local cmd = "git commit -m " .. shell_escape(summary) .. " -m " .. shell_escape("Rationale: " .. rationale)
+  local success, res = tools.execute_bash({command = cmd})
+  if not success then
+    error("Failed to commit patch: " .. res)
+  end
+
+  local base = git.get_base_branch()
+  return "Committed patch: " .. summary .. git.get_patch_series_summary(base)
+end
+
 -- Also available in the tools table for consistency with C++ tools
 tools.llm_query = function(args)
   return llm_query(args.query)
