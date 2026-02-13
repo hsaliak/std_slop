@@ -149,7 +149,6 @@ function core.dispatch_tool(name, args)
   if is_mail_model_tool(name) or is_base_modification_tool(name) then
     local ok, err = pcall(slop_guard)
     if not ok then
-      -- Re-throw as hard error to bypass result wrapping and return raw status
       error("FAILED_PRECONDITION: Mail Model Violation: " .. tostring(err), 0)
     end
   end
@@ -167,11 +166,7 @@ function core.dispatch_tool(name, args)
   
   -- 5. Wrap and return
   if not status then
-    local err = tostring(result)
-    if err:find("NOT_FOUND:") or err:find("FAILED_PRECONDITION:") or err:find("INVALID_ARGUMENT:") then
-      error(err, 0)
-    end
-    return core.wrap_result(name, "Error: " .. err)
+    return core.wrap_result(name, "Error: " .. tostring(result))
   end
   return core.wrap_result(name, result)
 end
