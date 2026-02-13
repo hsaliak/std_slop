@@ -62,7 +62,6 @@ class ToolExecutor {
   using ToolHandler = std::function<absl::StatusOr<std::string>(
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
-  absl::flat_hash_set<std::string> lua_tools_;
 
 
 };

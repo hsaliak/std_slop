@@ -77,8 +77,9 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     if (absl::StrContains(msg, "INVALID_ARGUMENT:")) {
       return absl::InvalidArgumentError(msg);
     }
-    return res.status();
+    return res;
   }
+
   if (db_) {
     (void)db_->IncrementToolCallCount(name);
   }
@@ -183,13 +184,15 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
   lua["JSON"] = json_lib;
 
   lua["session_id"] = session_id_;
+  if (!req.args.is_null()) {
+    lua["args"] = JSONToLua(lua, req.args);
+  }
 
   sol::table tools = lua.create_named_table("tools");
 
   for (auto const& pair : dispatch_map_) {
     const std::string& name = pair.first;
     if (name == "run_lua") continue;
-    if (lua_tools_.contains(name)) continue;
     tools.set_function(name, [this, name, cancellation](sol::table args_table, sol::this_state s) {
       LOG(INFO) << "[LUA->C++] Call: " << name;
       nlohmann::json json_args = LuaToJSON(args_table);
@@ -198,16 +201,13 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
 
       if (!result.ok()) {
         LOG(INFO) << "[LUA->C++] " << name << " FAILED: " << result.status().ToString();
-        luaL_error(s, "Error: %s", std::string{result.status().message()}.c_str());
+        std::string err_msg = absl::StrCat(absl::StatusCodeToString(result.status().code()), ": ", result.status().message());
+        luaL_error(s, "Error: %s", err_msg.c_str());
         return std::string("");
       }
       LOG(INFO) << "[LUA->C++] " << name << " SUCCESS";
       return *result;
     });
-  }
-
-  if (!req.args.is_null()) {
-    lua["args"] = JSONToLua(lua, req.args);
   }
 
   auto lib_result = lua.safe_script(slop::kLuaPreambleLib, sol::script_pass_on_error);
@@ -227,11 +227,7 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
 
   if (!result.valid()) {
     sol::error err = result;
-    std::string msg = err.what();
-    if (absl::StrContains(msg, "FAILED_PRECONDITION:")) {
-      return absl::FailedPreconditionError("No active session");
-    }
-    return absl::InternalError(absl::StrCat("Lua Error: ", msg, "\nOutput:\n", stdout_buffer.str()));
+    return absl::InternalError(absl::StrCat("Lua Error: ", err.what(), "\nOutput:\n", stdout_buffer.str()));
   }
 
   if (raw) {
