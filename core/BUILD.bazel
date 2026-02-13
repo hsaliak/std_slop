@@ -85,6 +85,7 @@ cc_library(
         "orchestrator_gemini.cpp",
         "orchestrator_openai.cpp",
         "tool_executor.cpp",
+        "lua_tool.cpp",
     ],
     hdrs = [
         "config.h",
@@ -98,6 +99,7 @@ cc_library(
         "orchestrator_strategy.h",
         "tool_executor.h",
         "tool_types.h",
+        "lua_tool.h",
         "lua_bridge_util.h",
         "constants.h",
         "status_macros.h",

@@ -165,10 +165,14 @@ function core.dispatch_tool(name, args)
   core.maybe_persist_state()
   
   -- 5. Wrap and return
+  local res
   if not status then
-    return core.wrap_result(name, "Error: " .. tostring(result))
+    res = core.wrap_result(name, "Error: " .. tostring(result))
+  else
+    res = core.wrap_result(name, result)
   end
-  return core.wrap_result(name, result)
+  print("[LUA] dispatch_tool returning: " .. res)
+  return res
 end
 
 -- Git Helpers
@@ -750,4 +754,45 @@ function get_tool_manifest()
     table.insert(m.tools, name)
   end
   return m
+end
+
+function tools.apply_patch(args)
+  if not args.path or not args.patches or #args.patches == 0 then
+    error("Usage: apply_patch({path='...', patches={{find='...', replace='...'}, ...}})", 0)
+  end
+
+  local f = io.open(args.path, "r")
+  if not f then
+    error("NOT_FOUND: Could not open file: " .. args.path, 0)
+  end
+  local content = f:read("*all")
+  f:close()
+
+  for i, patch in ipairs(args.patches) do
+    local find = patch.find
+    local replace = patch.replace
+
+    local start_idx, end_idx = string.find(content, find, 1, true)
+    if not start_idx then
+      error("NOT_FOUND: Could not find exact match for: " .. find, 0)
+    end
+
+    local second_start = string.find(content, find, end_idx + 1, true)
+    if second_start then
+      error("FAILED_PRECONDITION: Multiple matches found for: " .. find ..
+                ". Please use a more specific 'find' block.", 0)
+    end
+
+    content = string.sub(content, 1, start_idx - 1) .. replace ..
+                  string.sub(content, end_idx + 1)
+  end
+
+  local f = io.open(args.path, "w")
+  if not f then
+    error("Could not open file for writing: " .. args.path, 0)
+  end
+  f:write(content)
+  f:close()
+
+  return "File written successfully: " .. args.path
 end

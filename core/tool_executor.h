@@ -53,11 +53,20 @@ class ToolExecutor {
 
 
 
-  absl::StatusOr<std::string> ApplyPatch(const ApplyPatchRequest& req);
+  void RegisterTools();
 
-  absl::StatusOr<std::string> RunLua(const RunLuaRequest& req,
-                                     std::shared_ptr<CancellationRequest> cancellation,
-                                     bool raw = false);
+  struct LuaResult {
+    std::string stdout_out;
+    std::string return_value;
+
+    std::string FullOutput() const {
+      return stdout_out + "\nReturn Value: " + return_value;
+    }
+  };
+
+  absl::StatusOr<LuaResult> RunLua(
+      const RunLuaRequest& req,
+      std::shared_ptr<CancellationRequest> cancellation);
 
   using ToolHandler = std::function<absl::StatusOr<std::string>(
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;

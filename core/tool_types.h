@@ -22,14 +22,6 @@ struct WriteFileRequest {
   std::string content;
 };
 
-struct ApplyPatchRequest {
-  struct Patch {
-    std::string find;
-    std::string replace;
-  };
-  std::string path;
-  std::vector<Patch> patches;
-};
 
 struct GrepRequest {
   std::string pattern;
@@ -174,17 +166,6 @@ inline void from_json(const nlohmann::json& j, WriteFileRequest& r) {
   r.content = j.value("content", "");
 }
 
-inline void from_json(const nlohmann::json& j, ApplyPatchRequest::Patch& p) {
-  p.find = j.value("find", "");
-  p.replace = j.value("replace", "");
-}
-
-inline void from_json(const nlohmann::json& j, ApplyPatchRequest& r) {
-  r.path = j.value("path", "");
-  if (j.contains("patches") && j.at("patches").is_array()) {
-    r.patches = j.at("patches").get<std::vector<ApplyPatchRequest::Patch>>();
-  }
-}
 
 inline void from_json(const nlohmann::json& j, GrepRequest& r) {
   r.pattern = j.value("pattern", "");
