@@ -24,6 +24,158 @@ function call_tool(tool_func, args)
   return results[2], results[3]
 end
 
+tools = tools or {}
+core = core or {}
+
+-- Internal state tracking
+local _loaded_session = nil
+local _initial_scratchpad = nil
+local _initial_state = nil
+
+function core.load_session_state()
+  if not session_id or session_id == "" then return end
+  if _loaded_session == session_id then return end
+
+  -- Use query_db to fetch session data
+  local rows_json = tools.query_db({
+    sql = "SELECT scratchpad, context_size FROM sessions WHERE id = ?",
+    params = {session_id}
+  })
+  local rows = JSON.parse(rows_json)
+  local window_size = 0
+  if rows and rows[1] then
+    scratchpad = rows[1].scratchpad or ""
+    _initial_scratchpad = scratchpad
+    window_size = rows[1].context_size or 0
+  else
+    scratchpad = ""
+    _initial_scratchpad = ""
+  end
+
+  -- Load session state
+  local state_json = tools.query_db({
+    sql = "SELECT state_blob FROM session_state WHERE session_id = ?",
+    params = {session_id}
+  })
+  local s_rows = JSON.parse(state_json)
+  if s_rows and s_rows[1] then
+    state = s_rows[1].state_blob or ""
+  else
+    state = ""
+  end
+  _initial_state = state
+
+  -- Load history
+  local hist_sql = "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id DESC"
+  if window_size > 0 then
+    hist_sql = hist_sql .. " LIMIT " .. window_size
+  end
+  local hist_json = tools.query_db({
+    sql = hist_sql,
+    params = {session_id}
+  })
+  local h_rows = JSON.parse(hist_json)
+  history = {}
+  if h_rows then
+    -- Reverse DESC order to get chronological history
+    for i = #h_rows, 1, -1 do
+      table.insert(history, {role = h_rows[i].role, content = h_rows[i].content})
+    end
+  end
+
+  _loaded_session = session_id
+end
+
+function core.maybe_persist_state()
+  if not session_id or session_id == "" then return end
+  
+  if scratchpad ~= _initial_scratchpad then
+    tools.query_db({
+      sql = "INSERT INTO sessions (id, scratchpad) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET scratchpad = excluded.scratchpad",
+      params = {session_id, scratchpad}
+    })
+    _initial_scratchpad = scratchpad
+  end
+  
+  if state ~= _initial_state then
+    tools.query_db({
+      sql = "INSERT INTO session_state (session_id, state_blob) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET state_blob = excluded.state_blob",
+      params = {session_id, state}
+    })
+    _initial_state = state
+  end
+end
+
+function core.wrap_result(name, result)
+  return string.format("### TOOL_RESULT: %s\n%s\n---", name, tostring(result))
+end
+
+local function is_mail_model_tool(name)
+  local MM_TOOLS = {
+    git_commit_patch = true,
+    git_reroll_patch = true,
+    git_verify_series = true,
+    git_format_patch_series = true,
+    git_finalize_series = true
+  }
+  return MM_TOOLS[name] == true
+end
+
+local function is_base_modification_tool(name)
+  local MOD_TOOLS = {
+    write_file = true,
+    apply_patch = true,
+    execute_bash = true
+  }
+  return MOD_TOOLS[name] == true
+end
+
+local function slop_guard()
+  if os.getenv("SLOP_SKIP_STAGING_CHECK") == "1" then return end
+
+  local branch = git.get_current_branch()
+  if not branch then return end -- Allow if not in a git repo (e.g. during unit tests)
+
+  if not branch:find("^slop/staging/") then
+    error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " .. branch)
+  end
+end
+
+function core.dispatch_tool(name, args)
+  -- 1. Lazy load state
+  core.load_session_state()
+  
+  -- 2. Staging branch check for destructive tools
+  if is_mail_model_tool(name) or is_base_modification_tool(name) then
+    local ok, err = pcall(slop_guard)
+    if not ok then
+      -- Re-throw as hard error to bypass result wrapping and return raw status
+      error("FAILED_PRECONDITION: Mail Model Violation: " .. tostring(err), 0)
+    end
+  end
+  
+  -- 3. Execute tool
+  local tool_func = tools[name]
+  if not tool_func then
+    error("NOT_FOUND: Tool not found: " .. name, 0)
+  end
+  
+  local status, result = pcall(tool_func, args)
+  
+  -- 4. Persist state if changed
+  core.maybe_persist_state()
+  
+  -- 5. Wrap and return
+  if not status then
+    local err = tostring(result)
+    if err:find("NOT_FOUND:") or err:find("FAILED_PRECONDITION:") or err:find("INVALID_ARGUMENT:") then
+      error(err, 0)
+    end
+    return core.wrap_result(name, "Error: " .. err)
+  end
+  return core.wrap_result(name, result)
+end
+
 -- Git Helpers
 git = git or {}
 
@@ -41,16 +193,6 @@ function git.is_staging_branch()
   return branch and branch:find("^slop/staging/") ~= nil
 end
 
-local function slop_guard()
-  if os.getenv("SLOP_SKIP_STAGING_CHECK") == "1" then return end
-
-  local branch = git.get_current_branch()
-  if not branch then return end -- Allow if not in a git repo (e.g. during unit tests)
-
-  if not branch:find("^slop/staging/") then
-    error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " .. branch)
-  end
-end
 
 -- Foundation Tools (Migrated from C++)
 

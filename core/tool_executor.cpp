@@ -24,94 +24,65 @@
 namespace slop {
 
 ToolExecutor::ToolExecutor(Database* db) : db_(db) {
-  dispatch_map_["apply_patch"] = [this](const nlohmann::json& args, auto) {
+  dispatch_map_["apply_patch"] = [this](const nlohmann::json& args,
+                                         std::shared_ptr<CancellationRequest>) {
     return ApplyPatch(args.get<ApplyPatchRequest>());
   };
-  dispatch_map_["query_db"] = [this](const nlohmann::json& args, auto) {
-    return QueryDb(args.get<QueryDbRequest>());
+  dispatch_map_["query_db"] = [this](const nlohmann::json& args,
+                                     std::shared_ptr<CancellationRequest>) -> absl::StatusOr<std::string> {
+    if (!db_) return absl::InternalError("No database");
+    std::vector<std::string> params;
+    if (args.contains("params")) {
+      for (const auto& p : args["params"]) {
+        if (p.is_string()) {
+          params.push_back(p.get<std::string>());
+        } else {
+          params.push_back(p.dump());
+        }
+      }
+    }
+    return db_->Query(args.at("sql").get<std::string>(), params);
   };
-  dispatch_map_["run_lua"] = [this](const nlohmann::json& args, auto cancellation) {
+  dispatch_map_["run_lua"] = [this](const nlohmann::json& args,
+                                    std::shared_ptr<CancellationRequest> cancellation) {
     return RunLua(args.get<RunLuaRequest>(), cancellation);
   };
 
-  // Lua-implemented tools
-  lua_tools_ = {
-      "execute_bash",
-      "read_file",
-      "write_file",
-      "list_directory",
-      "grep_tool",
-      "git_grep_tool",
-      "search_code",
-      "save_memo",
-      "retrieve_memos",
-      "manage_scratchpad",
-      "describe_db",
-      "use_skill",
-      "git_branch_staging",
-      "git_commit_patch",
-      "git_reroll_patch",
-      "git_verify_series",
-      "git_format_patch_series",
-      "git_finalize_series",
-  };
-
-  for (const auto& name : lua_tools_) {
-    dispatch_map_[name] =
-        [this, name](const nlohmann::json& args,
-                     std::shared_ptr<CancellationRequest> cancellation) {
-          return RunLuaTool(name, args, cancellation);
-        };
-  }
 }
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
                                                   std::shared_ptr<CancellationRequest> cancellation) {
-  LOG(INFO) << "Executing tool: " << name
-            << " with args: " << args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-
-  bool restricted = false;
-  if (mail_mode_) {
-    restricted = IsMailModelWorkflowTool(name) || IsBaseModificationTool(name);
-  } else {
-    // Standard mode: Only Mail Model workflow tools are restricted.
-    restricted = IsMailModelWorkflowTool(name);
+  if (name == "run_lua") {
+    RunLuaRequest req;
+    req.script = args.at("script").get<std::string>();
+    if (args.contains("args")) req.args = args["args"];
+    return RunLua(req, cancellation);
   }
 
-  if (restricted) {
-    auto branch_status = CheckStagingBranch();
-    if (!branch_status.ok()) {
-      return branch_status.status();
+  // Use Lua orchestrator for all other tools
+  RunLuaRequest req;
+  req.script = "return core.dispatch_tool(args.name, args.tool_args)";
+  req.args["name"] = name;
+  req.args["tool_args"] = nlohmann::json(args);
+
+  auto res = RunLua(req, cancellation, /*raw=*/true);
+  if (!res.ok()) {
+    std::string msg = std::string(res.status().message());
+    if (absl::StrContains(msg, "NOT_FOUND:")) {
+      return absl::NotFoundError(msg);
     }
-  }
-
-  auto it = dispatch_map_.find(name);
-  if (it == dispatch_map_.end()) {
-    return absl::NotFoundError("Tool not found: " + name);
-  }
-
-  absl::StatusOr<std::string> result = it->second(args, cancellation);
-
-  if (!result.ok()) {
-    std::string error_msg = absl::StrCat(absl::StatusCodeToString(result.status().code()), ": ", result.status().message());
-    // Truncate long error messages for logging
-    std::string log_msg = error_msg;
-    if (size_t first_nl = log_msg.find('\n'); first_nl != std::string::npos) {
-      log_msg = log_msg.substr(0, first_nl) + " (multi-line)...";
+    if (absl::StrContains(msg, "FAILED_PRECONDITION:")) {
+      return absl::FailedPreconditionError(msg);
     }
-    if (log_msg.length() > 100) {
-      log_msg = log_msg.substr(0, 97) + "...";
+    if (absl::StrContains(msg, "INVALID_ARGUMENT:")) {
+      return absl::InvalidArgumentError(msg);
     }
-    LOG(WARNING) << "Tool " << name << " failed: " << log_msg;
-    return wrap_result(name, "Error: " + result.status().ToString());
+    return res.status();
   }
-  LOG(INFO) << "Tool " << name << " succeeded (" << result->size() << " bytes).";
-  if (db_) (void)db_->IncrementToolCallCount(name);
-  return wrap_result(name, *result);
-}
-
-std::string ToolExecutor::wrap_result(const std::string& name, const std::string& result) {
-  return "### TOOL_RESULT: " + name + "\n" + result + "\n---";
+  if (db_) {
+    (void)db_->IncrementToolCallCount(name);
+  }
+  return res;
 }
 
 void ToolExecutor::SetSessionId(const std::string& session_id) {
@@ -162,9 +133,6 @@ absl::StatusOr<std::string> ToolExecutor::ApplyPatch(const ApplyPatchRequest& re
 }
 
 
-absl::StatusOr<std::string> ToolExecutor::QueryDb(const QueryDbRequest& req) {
-  return db_->Query(req.sql);
-}
 
 absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
                                                  std::shared_ptr<CancellationRequest> cancellation,
@@ -200,45 +168,21 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
     return t;
   });
 
-  lua["session_id"] = session_id_;
-  lua["scratchpad"] = "";
-  lua["state"] = "";
-
-  if (!session_id_.empty() && db_) {
-    auto scratchpad_or = db_->GetScratchpad(session_id_);
-    if (scratchpad_or.ok()) lua["scratchpad"] = *scratchpad_or;
-
-    auto state_or = db_->GetSessionState(session_id_);
-    if (state_or.ok()) lua["state"] = *state_or;
-
-    auto settings_or = db_->GetContextSettings(session_id_);
-    int window_size = settings_or.ok() ? settings_or->size : 0;
-
-    auto history_or = db_->GetConversationHistory(session_id_, false, window_size);
-    if (history_or.ok()) {
-      sol::table history = lua.create_table();
-      for (size_t i = 0; i < history_or->size(); ++i) {
-        const auto& msg = (*history_or)[i];
-        sol::table msg_table = lua.create_table();
-        msg_table["role"] = msg.role;
-        msg_table["content"] = msg.content;
-        history[i + 1] = msg_table;
-      }
-      lua["history"] = history;
+  sol::table json_lib = lua.create_table();
+  json_lib["parse"] = [](const std::string& s, sol::this_state st) {
+    sol::state_view lua(st);
+    auto j = nlohmann::json::parse(s, nullptr, false);
+    if (j.is_discarded()) {
+      return sol::make_object(lua, sol::lua_nil);
     }
-  }
+    return JSONToLua(lua, j);
+  };
+  json_lib["stringify"] = [](sol::object obj) {
+    return LuaToJSON(obj).dump();
+  };
+  lua["JSON"] = json_lib;
 
-  {
-    sol::table json_lib = lua.create_named_table("JSON");
-    json_lib.set_function("encode", [](sol::object obj) { return LuaToJSON(obj).dump(); });
-    json_lib.set_function("decode", [&lua](const std::string& str) {
-      return JSONToLua(lua, nlohmann::json::parse(str));
-    });
-    json_lib.set_function("stringify", [](sol::object obj) { return LuaToJSON(obj).dump(); });
-    json_lib.set_function("parse", [&lua](const std::string& str) {
-      return JSONToLua(lua, nlohmann::json::parse(str));
-    });
-  }
+  lua["session_id"] = session_id_;
 
   sol::table tools = lua.create_named_table("tools");
 
@@ -280,18 +224,6 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
 
   auto result = lua.safe_script(req.script, sol::script_pass_on_error);
 
-  if (!session_id_.empty() && db_) {
-    std::string final_scratchpad = lua["scratchpad"];
-    auto old_scratchpad = db_->GetScratchpad(session_id_);
-    if (final_scratchpad != (old_scratchpad.ok() ? *old_scratchpad : "")) {
-      (void)db_->UpdateScratchpad(session_id_, final_scratchpad);
-    }
-    std::string final_state = lua["state"];
-    auto old_state = db_->GetSessionState(session_id_);
-    if (final_state != (old_state.ok() ? *old_state : "")) {
-      (void)db_->SetSessionState(session_id_, final_state);
-    }
-  }
 
   if (!result.valid()) {
     sol::error err = result;
@@ -322,72 +254,8 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
   return output;
 }
 
-absl::StatusOr<std::string> ToolExecutor::RunLuaTool(const std::string& name, const nlohmann::json& args,
-                                                    std::shared_ptr<CancellationRequest> cancellation) {
-  RunLuaRequest req;
-  req.script = "return tools." + name + "(args)";
-  req.args = args;
-  return RunLua(req, cancellation, /*raw=*/true);
-}
 
-bool ToolExecutor::IsMailModelWorkflowTool(const std::string& name) {
-  static const std::unordered_set<std::string> tools = {"git_commit_patch", "git_reroll_patch", "git_verify_series",
-                                                        "git_format_patch_series", "git_finalize_series"};
-  return tools.count(name) > 0;
-}
 
-bool ToolExecutor::IsBaseModificationTool(const std::string& name) {
-  static const std::unordered_set<std::string> tools = {"write_file", "apply_patch", "execute_bash"};
-  return tools.count(name) > 0;
-}
-
-std::optional<std::string> ToolExecutor::GetForcedBranch() {
-  const char* forced_branch = std::getenv("SLOP_FORCE_BRANCH_NAME");
-  if (forced_branch && strlen(forced_branch) > 0) {
-    return std::string(forced_branch);
-  }
-  return std::nullopt;
-}
-
-bool ToolExecutor::ShouldSkipStagingCheck() {
-  const char* skip_check = std::getenv("SLOP_SKIP_STAGING_CHECK");
-  return skip_check && std::string(skip_check) == "1";
-}
-
-absl::StatusOr<std::string> ToolExecutor::GetCurrentBranch() {
-  if (auto forced = GetForcedBranch()) {
-    return *forced;
-  }
-
-  auto branch_res = RunCommand("git rev-parse --abbrev-ref HEAD");
-  if (!branch_res.ok()) return branch_res.status();
-  if (branch_res->exit_code != 0) {
-    return absl::InternalError("Failed to get current branch: " + branch_res->stderr_out);
-  }
-  std::string current_branch = branch_res->stdout_out;
-  if (!current_branch.empty() && current_branch.back() == '\n') current_branch.pop_back();
-  return current_branch;
-}
-
-absl::StatusOr<std::string> ToolExecutor::CheckStagingBranch() {
-  if (ShouldSkipStagingCheck()) {
-    return std::string("skipped");
-  }
-
-  auto branch_res = GetCurrentBranch();
-  if (!branch_res.ok()) {
-    return std::string("not-a-git-repo");
-  }
-
-  std::string current_branch = *branch_res;
-  if (!absl::StartsWith(current_branch, "slop/staging/")) {
-    return absl::FailedPreconditionError(
-        "Mail Model Violation: This tool is restricted to staging branches (slop/staging/*). "
-        "You are currently on '" +
-        current_branch + "'. Please use git_branch_staging to start a new series.");
-  }
-  return current_branch;
-}
 
 absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& requested_base) {
   RunLuaRequest req;

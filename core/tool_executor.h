@@ -53,38 +53,11 @@ class ToolExecutor {
 
 
 
-  // Verifies current branch is a staging branch.
-  absl::StatusOr<std::string> CheckStagingBranch();
-
-  // Gets the current branch name.
-  absl::StatusOr<std::string> GetCurrentBranch();
-
-  // Returns true if the tool is restricted to staging branches.
-  bool IsMailModelWorkflowTool(const std::string& name);
-  bool IsBaseModificationTool(const std::string& name);
-
-  // Helpers for environment variable overrides.
-  // SLOP_FORCE_BRANCH_NAME: Overrides the detected git branch.
-  // SLOP_SKIP_STAGING_CHECK: If "1", skips the staging branch enforcement.
-  std::optional<std::string> GetForcedBranch();
-  bool ShouldSkipStagingCheck();
-
-
   absl::StatusOr<std::string> ApplyPatch(const ApplyPatchRequest& req);
-  absl::StatusOr<std::string> QueryDb(const QueryDbRequest& req);
-
-
-
-
 
   absl::StatusOr<std::string> RunLua(const RunLuaRequest& req,
                                      std::shared_ptr<CancellationRequest> cancellation,
                                      bool raw = false);
-
-  absl::StatusOr<std::string> RunLuaTool(const std::string& name, const nlohmann::json& args,
-                                         std::shared_ptr<CancellationRequest> cancellation);
-
-  std::string wrap_result(const std::string& name, const std::string& result);
 
   using ToolHandler = std::function<absl::StatusOr<std::string>(
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
