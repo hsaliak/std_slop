@@ -14,6 +14,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 
@@ -42,17 +43,17 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
   dispatch_map_["query_db"] = [this](const nlohmann::json& args, auto) {
     return QueryDb(args.get<QueryDbRequest>());
   };
-  dispatch_map_["save_memo"] = [this](const nlohmann::json& args, auto) {
-    return SaveMemo(args.get<SaveMemoRequest>());
+  dispatch_map_["save_memo"] = [this](const nlohmann::json& args, auto cancellation) {
+    return RunLuaTool("save_memo", args, cancellation);
   };
-  dispatch_map_["retrieve_memos"] = [this](const nlohmann::json& args, auto) {
-    return RetrieveMemos(args.get<RetrieveMemosRequest>());
+  dispatch_map_["retrieve_memos"] = [this](const nlohmann::json& args, auto cancellation) {
+    return RunLuaTool("retrieve_memos", args, cancellation);
   };
   dispatch_map_["list_directory"] = [this](const nlohmann::json& args, auto cancellation) {
     return ListDirectory(args.get<ListDirectoryRequest>(), cancellation);
   };
-  dispatch_map_["manage_scratchpad"] = [this](const nlohmann::json& args, auto) {
-    return ManageScratchpad(args.get<ManageScratchpadRequest>());
+  dispatch_map_["manage_scratchpad"] = [this](const nlohmann::json& args, auto cancellation) {
+    return RunLuaTool("manage_scratchpad", args, cancellation);
   };
   dispatch_map_["describe_db"] = [this](const nlohmann::json&, auto) { return DescribeDb(); };
   dispatch_map_["use_skill"] = [this](const nlohmann::json& args, auto) {
@@ -65,6 +66,9 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
   lua_tools_ = {"grep_tool",
                 "git_grep_tool",
                 "search_code",
+                "save_memo",
+                "retrieve_memos",
+                "manage_scratchpad",
                 "git_branch_staging",
                 "git_commit_patch",
                 "git_reroll_patch",
@@ -479,6 +483,14 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
 
     auto scratchpad_or = db_->GetScratchpad(session_id_);
     lua["scratchpad"] = scratchpad_or.ok() ? *scratchpad_or : "";
+
+    lua["session_id"] = session_id_;
+
+    sol::table json_lib = lua.create_named_table("JSON");
+    json_lib.set_function("encode", [](sol::object obj) { return LuaToJSON(obj).dump(); });
+    json_lib.set_function("decode", [&lua](const std::string& str) {
+      return JSONToLua(lua, nlohmann::json::parse(str));
+    });
   }
 
   // Create 'tools' table
@@ -527,7 +539,11 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
 
   if (!result.valid()) {
     sol::error err = result;
-    return absl::InternalError(absl::StrCat("Lua Error: ", err.what(), "\nOutput:\n", stdout_buffer.str()));
+    std::string msg = err.what();
+    if (absl::StrContains(msg, "FAILED_PRECONDITION:")) {
+      return absl::FailedPreconditionError("No active session");
+    }
+    return absl::InternalError(absl::StrCat("Lua Error: ", msg, "\nOutput:\n", stdout_buffer.str()));
   }
 
   // Combine output and return value if any
