@@ -93,7 +93,11 @@ class ToolExecutor {
                                               std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> GitRerollPatch(const GitRerollPatchRequest& req);
   absl::StatusOr<std::string> RunLua(const RunLuaRequest& req,
-                                     std::shared_ptr<CancellationRequest> cancellation);
+                                     std::shared_ptr<CancellationRequest> cancellation,
+                                     bool raw = false);
+
+  absl::StatusOr<std::string> RunLuaTool(const std::string& name, const nlohmann::json& args,
+                                         std::shared_ptr<CancellationRequest> cancellation);
 
   // Returns a concise summary of the current patch series.
   absl::StatusOr<std::string> GetPatchSeriesSummary(const std::string& requested_base);
@@ -102,6 +106,7 @@ class ToolExecutor {
       const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   absl::flat_hash_set<std::string> active_skills_;
+  absl::flat_hash_set<std::string> lua_tools_;
 
   absl::StatusOr<std::string> DispatchGrep(const nlohmann::json& args,
                                           std::shared_ptr<CancellationRequest> cancellation);

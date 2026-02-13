@@ -130,6 +130,7 @@ struct GitRerollPatchRequest {
 
 struct RunLuaRequest {
   std::string script;
+  nlohmann::json args;
 };
 
 }  // namespace slop

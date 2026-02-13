@@ -31,7 +31,7 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
     return ApplyPatch(args.get<ApplyPatchRequest>());
   };
   dispatch_map_["grep_tool"] = [this](const nlohmann::json& args, auto cancellation) {
-    return DispatchGrep(args, cancellation);
+    return RunLuaTool("grep_tool", args, cancellation);
   };
   dispatch_map_["git_grep_tool"] = [this](const nlohmann::json& args, auto cancellation) {
     return GitGrep(args.get<GitGrepRequest>(), cancellation);
@@ -59,8 +59,10 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) {
     return UseSkill(args.get<UseSkillRequest>());
   };
   dispatch_map_["search_code"] = [this](const nlohmann::json& args, auto cancellation) {
-    return SearchCode(args.get<SearchCodeRequest>(), cancellation);
+    return RunLuaTool("search_code", args, cancellation);
   };
+
+  lua_tools_ = {"grep_tool", "search_code"};
 
   dispatch_map_["git_branch_staging"] = [this](const nlohmann::json& args, auto) {
     return GitBranchStaging(args.get<GitBranchStagingRequest>());
@@ -606,7 +608,8 @@ absl::StatusOr<std::string> ToolExecutor::UseSkill(const UseSkillRequest& req) {
 }
 
 absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
-                                                 std::shared_ptr<CancellationRequest> cancellation) {
+                                                 std::shared_ptr<CancellationRequest> cancellation,
+                                                 bool raw) {
   slop::Interpreter interpreter;
   sol::state& lua = interpreter.state();
 
@@ -657,9 +660,18 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
     // Avoid infinite recursion
     if (name == "run_lua") continue;
 
+    // Skip tools that are implemented in Lua to avoid recursion and allow Lua definitions to take precedence.
+    if (lua_tools_.contains(name)) continue;
+
     tools.set_function(name, [this, name, cancellation](sol::table args_table) {
       nlohmann::json json_args = LuaToJSON(args_table);
-      auto result = this->Execute(name, json_args, cancellation);
+      
+      auto it = dispatch_map_.find(name);
+      if (it == dispatch_map_.end()) {
+        return std::make_pair(false, std::string("Tool not found: " + name));
+      }
+
+      auto result = it->second(json_args, cancellation);
       
       if (!result.ok()) {
         return std::make_pair(false, std::string(result.status().message()));
@@ -676,6 +688,10 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
   }
 
   // Execute the script
+  if (req.args.is_object() || req.args.is_array()) {
+    lua["args"] = JSONToLua(lua, req.args);
+  }
+
   auto result = lua.safe_script(req.script, sol::script_pass_on_error);
 
   if (!result.valid()) {
@@ -684,6 +700,15 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
   }
 
   // Combine output and return value if any
+  if (raw) {
+    if (result.return_count() > 0) {
+      sol::object rv = result[0];
+      sol::function tostring = lua["tostring"];
+      return std::string(tostring(rv));
+    }
+    return stdout_buffer.str();
+  }
+
   std::string output = stdout_buffer.str();
   if (result.return_count() > 0) {
     sol::object rv = result[0];
@@ -693,6 +718,15 @@ absl::StatusOr<std::string> ToolExecutor::RunLua(const RunLuaRequest& req,
   }
 
   return output;
+}
+
+absl::StatusOr<std::string> ToolExecutor::RunLuaTool(
+    const std::string& name, const nlohmann::json& args,
+    std::shared_ptr<CancellationRequest> cancellation) {
+  RunLuaRequest req;
+  req.script = "return tools." + name + "(args)";
+  req.args = args;
+  return RunLua(req, cancellation, /*raw=*/true);
 }
 
 bool ToolExecutor::IsMailModelWorkflowTool(const std::string& name) {
