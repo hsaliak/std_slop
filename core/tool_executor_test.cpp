@@ -652,4 +652,41 @@ TEST(ToolExecutorTest, RunLuaFullSpectrum) {
   EXPECT_TRUE(res->find("Total tools: ") != std::string::npos);
 }
 
+TEST(ToolExecutorTest, RunLuaPreamble) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // Test manifest and llm_query (mocked via execute_bash)
+  std::string script = R"(
+    -- Test manifest
+    assert(manifest ~= nil)
+    assert(#manifest.tools > 0)
+    local found_bash = false
+    for _, name in ipairs(manifest.tools) do
+      if name == "execute_bash" then found_bash = true end
+    end
+    assert(found_bash)
+
+    -- Test llm_query (which calls execute_bash)
+    -- Since we can't easily mock std_slop here without complex setup, 
+    -- we just check it exists and is a function.
+    assert(type(llm_query) == "function")
+    assert(type(tools.llm_query) == "function")
+
+    -- Test error handling for empty query
+    local ok, err = pcall(llm_query, "")
+    assert(not ok)
+    assert(err:find("requires a query string") ~= nil)
+    
+    return "preamble_ok"
+  )";
+
+  auto res = executor.Execute("run_lua", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(res->find("Return Value: preamble_ok") != std::string::npos);
+}
+
 }  // namespace slop
