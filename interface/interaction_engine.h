@@ -23,6 +23,7 @@ class InteractionEngine {
     std::string openai_api_key;
     std::string openai_base_url;
     bool google_oauth = false;
+    bool silent = false;
   };
 
   InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler, ToolDispatcher& dispatcher,
@@ -32,6 +33,9 @@ class InteractionEngine {
   // or false if it should terminate (e.g. exit command).
   bool Process(std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
                const Config& config);
+
+  absl::StatusOr<std::string> Query(const std::string& prompt, const Config& config,
+                                   const std::vector<std::string>& active_skills = {});
 
   CommandHandler& GetCommandHandler() { return cmd_handler_; }
 

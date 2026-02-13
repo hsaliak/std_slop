@@ -128,7 +128,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     bool has_tool_calls = false;
     for (size_t i = start_idx; i < history_after_or->size(); ++i) {
       const auto& msg = (*history_after_or)[i];
-      slop::PrintMessage(msg);
+      if (!config.silent) {
+        slop::PrintMessage(msg);
+      }
 
       if (msg.role == "assistant") {
         auto calls_or = orchestrator_.ParseToolCalls(msg);
@@ -152,9 +154,12 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           });
 
           {
-            slop::ScopedRawMode raw;
+            std::unique_ptr<slop::ScopedRawMode> raw;
+            if (!config.silent) {
+              raw = std::make_unique<slop::ScopedRawMode>();
+            }
             while (!done) {
-              if (slop::IsEscPressed()) {
+              if (!config.silent && slop::IsEscPressed()) {
                 cancellation->Cancel();
                 std::cerr << "\n"
                           << "  "
@@ -170,7 +175,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           for (const auto& res : results) {
             std::string result_content =
                 res.output.ok() ? *res.output : absl::StrCat("Error: ", res.output.status().message());
-            slop::PrintToolResultMessage(res.name, result_content, res.output.ok() ? "completed" : "error", "  ");
+            if (!config.silent) {
+              slop::PrintToolResultMessage(res.name, result_content, res.output.ok() ? "completed" : "error", "  ");
+            }
             (void)db_.AppendMessage(session_id, "tool", result_content, res.id, res.output.ok() ? "completed" : "error",
                                     group_id, msg.parsing_strategy);
           }
@@ -189,6 +196,35 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   }
 
   return true;
+}
+
+absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
+                                              const std::vector<std::string>& active_skills) {
+  Database transient_db;
+  auto status = transient_db.Init(":memory:");
+  if (!status.ok()) return status;
+
+  auto sub_orch_or = orchestrator_.Update().WithDatabase(&transient_db).Build();
+  if (!sub_orch_or.ok()) return sub_orch_or.status();
+
+  InteractionEngine sub_engine(transient_db, **sub_orch_or, cmd_handler_, dispatcher_, tool_executor_, http_client_,
+                               oauth_handler_);
+
+  Config sub_config = config;
+  sub_config.silent = true;
+
+  std::string input = prompt;
+  std::string session_id = "query";
+  std::vector<std::string> skills = active_skills;
+
+  (void)sub_engine.Process(input, session_id, skills, sub_config);
+
+  // Get the last assistant message
+  auto history_or = transient_db.GetConversationHistory(session_id, false, 1);
+  if (history_or.ok() && !history_or->empty() && history_or->back().role == "assistant") {
+    return history_or->back().content;
+  }
+  return absl::NotFoundError("No assistant response found");
 }
 
 }  // namespace slop
