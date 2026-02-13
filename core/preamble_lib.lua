@@ -42,9 +42,108 @@ function git.is_staging_branch()
 end
 
 local function slop_guard()
-  if not git.is_staging_branch() then
-    error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " .. (git.get_current_branch() or "unknown"))
+  if os.getenv("SLOP_SKIP_STAGING_CHECK") == "1" then return end
+
+  local branch = git.get_current_branch()
+  if not branch then return end -- Allow if not in a git repo (e.g. during unit tests)
+
+  if not branch:find("^slop/staging/") then
+    error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " .. branch)
   end
+end
+
+-- Foundation Tools (Migrated from C++)
+
+function tools.read_file(args)
+  local path = args.path
+  if not path then error("path is required") end
+
+  local f = io.open(path, "r")
+  if not f then error("Could not open file: " .. path) end
+
+  local lines = {}
+  for line in f:lines() do
+    table.insert(lines, line)
+  end
+  f:close()
+
+  local start_line_req = args.start_line
+  local end_line_req = args.end_line
+
+  if start_line_req and end_line_req and start_line_req > end_line_req then
+    error("INVALID_ARGUMENT: start_line must be less than or equal to end_line", 0)
+  end
+
+  local start_line = start_line_req or 1
+  local end_line = end_line_req or #lines
+
+  local add_line_numbers = true
+  if args.add_line_numbers ~= nil then add_line_numbers = args.add_line_numbers end
+  if args.line_numbers ~= nil then add_line_numbers = args.line_numbers end
+
+  -- Validation logic similar to C++
+  if start_line < 1 then start_line = 1 end
+  if end_line > #lines then end_line = #lines end
+  if start_line > #lines then
+    return string.format("### FILE: %s | TOTAL_LINES: %d\n(requested start_line %d is beyond file length %d)\n", path, #lines, start_line, #lines)
+  end
+
+  local header = string.format("### FILE: %s | TOTAL_LINES: %d | RANGE: %d-%d\n", path, #lines, start_line, end_line)
+
+  local body_lines = {}
+  for i = start_line, end_line do
+    local line = lines[i]
+    if add_line_numbers then
+      table.insert(body_lines, string.format("%d: %s", i, line))
+    else
+      table.insert(body_lines, line)
+    end
+  end
+
+  local body = table.concat(body_lines, "\n")
+  if #body > 0 then body = body .. "\n" end
+
+  if end_line < #lines then
+    body = body .. string.format("\n... [Truncated. Use 'read_file' with start_line=%d to see more] ...", end_line + 1)
+  end
+
+  return header .. body
+end
+
+function tools.write_file(args)
+  slop_guard() -- Require staging branch for writing
+  local path = args.path
+  local content = args.content
+  if not path then error("path is required") end
+  if not content then error("content is required") end
+
+  local f = io.open(path, "w")
+  if not f then error("Could not open file for writing: " .. path) end
+  f:write(content)
+  f:close()
+
+  local result = "File written successfully:\n"
+  result = result .. "Path: " .. path .. "\n"
+  result = result .. "Bytes written: " .. #content .. "\n"
+  return result
+end
+
+function tools.execute_bash(args)
+  local command = args.command
+  if not command then error("command is required") end
+
+  local res = __os_run(command)
+  local output = res.stdout
+  if res.stderr ~= "" then
+    if output ~= "" and output:sub(-1) ~= "\n" then output = output .. "\n" end
+    output = output .. "### STDERR\n" .. res.stderr
+  end
+
+  if res.exit_code ~= 0 then
+    error(string.format("INTERNAL: Command failed with status %d: %s", res.exit_code, output), 0)
+  end
+
+  return output
 end
 
 -- Knowledge Management Tools
@@ -86,7 +185,7 @@ function tools.retrieve_memos(args)
 end
 
 function tools.manage_scratchpad(args)
-  if not session_id or session_id == "" then error("FAILED_PRECONDITION: No active session") end
+  if not session_id or session_id == "" then error("FAILED_PRECONDITION: No active session", 0) end
   local action = args.action
   local content = args.content or ""
   

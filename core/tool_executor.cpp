@@ -109,7 +109,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
       log_msg = log_msg.substr(0, 97) + "...";
     }
     LOG(WARNING) << "Tool " << name << " failed: " << log_msg;
-    return wrap_result(name, "Error: " + error_msg);
+    return wrap_result(name, "Error: " + result.status().ToString());
   }
   LOG(INFO) << "Tool " << name << " succeeded (" << result->size() << " bytes).";
   if (db_) (void)db_->IncrementToolCallCount(name);
