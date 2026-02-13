@@ -213,6 +213,83 @@ function tools.git_reroll_patch(args)
   return "Successfully rerolled changes into patch " .. index .. git.get_patch_series_summary(base)
 end
 
+function tools.git_verify_series(args)
+  slop_guard()
+
+  local command = args.command
+  if not command or command == "" then
+    error("git_verify_series requires a 'command' to run for each patch.")
+  end
+
+  local base = git.get_base_branch(args.base_branch)
+  local original_branch = git.get_current_branch()
+
+  -- 1. Get list of commits
+  local log_cmd = "git rev-list --reverse " .. shell_escape(base) .. "..HEAD"
+  local success, log_res = tools.execute_bash({command = log_cmd})
+  if not success then
+    error("Failed to get commit list: " .. log_res)
+  end
+
+  local commits = {}
+  for hash in log_res:gmatch("%S+") do
+    table.insert(commits, hash)
+  end
+
+  local report = {}
+  local all_passed = true
+
+  for i, hash in ipairs(commits) do
+    -- Checkout commit
+    local checkout_success, checkout_res = tools.execute_bash({command = "git checkout " .. shell_escape(hash)})
+    if not checkout_success then
+      all_passed = false
+      table.insert(report, {
+        patch_index = i,
+        hash = hash,
+        status = "failed",
+        error = "Checkout failed: " .. checkout_res
+      })
+    else
+      -- Run verification command
+      local verify_success, verify_res = tools.execute_bash({command = command})
+      local item = {
+        patch_index = i,
+        hash = hash,
+        status = verify_success and "passed" or "failed"
+      }
+      if not verify_success then
+        all_passed = false
+        item.stderr = verify_res
+      end
+      table.insert(report, item)
+    end
+  end
+
+  -- Return to original branch
+  tools.execute_bash({command = "git checkout " .. shell_escape(original_branch)})
+
+  -- We return a JSON string to match the expected tool output format
+  -- In Lua, we can use a helper or just build it.
+  -- Since the tool result is eventually converted back to string, we can just return a formatted string.
+  
+  local res_str = "Verification Results:\n"
+  for _, item in ipairs(report) do
+    res_str = res_str .. string.format("[%d] %s: %s\n", item.patch_index, item.hash:sub(1,7), item.status)
+    if item.status == "failed" then
+      res_str = res_str .. "    Error: " .. (item.error or item.stderr or "unknown") .. "\n"
+    end
+  end
+  
+  if all_passed then
+    res_str = res_str .. "\nALL PATCHES PASSED."
+  else
+    res_str = res_str .. "\nSOME PATCHES FAILED."
+  end
+
+  return res_str
+end
+
 -- Also available in the tools table for consistency with C++ tools
 tools.llm_query = function(args)
   return llm_query(args.query)
