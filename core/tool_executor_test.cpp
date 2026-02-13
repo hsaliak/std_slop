@@ -656,7 +656,12 @@ TEST(ToolExecutorTest, RunLuaPreamble) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  // Test manifest and llm_query (mocked via execute_bash)
+  executor.RegisterTool("llm_query", []([[maybe_unused]] const nlohmann::json& args,
+                                        std::shared_ptr<CancellationRequest>) {
+    return absl::StatusOr<std::string>("mock_llm_result");
+  });
+
+  // Test manifest and llm_query
   std::string script = R"(
     -- Test manifest
     assert(manifest ~= nil)

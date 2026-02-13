@@ -740,8 +740,7 @@ end
 
 function llm_query(query)
   if not query or query == "" then error("llm_query requires a query string") end
-  local escaped = query:gsub("'", "'\\''")
-  local success, result = call_tool(tools.execute_bash, {command = "std_slop --prompt '" .. escaped .. "'"})
+  local success, result = call_tool(tools.llm_query, {query = query})
   if not success then error("llm_query failed: " .. result) end
   return result
 end
@@ -751,12 +750,7 @@ function llm_query_async(query)
   return tools.dispatch_async("llm_query", {query = query})
 end
 
--- Also available in the tools table for consistency with C++ tools
-tools.llm_query = function(args)
-  return llm_query(args.query)
-end
-
-tools.llm_query_async = function(args)
+function tools.llm_query_async(args)
   return llm_query_async(args.query)
 end
 
