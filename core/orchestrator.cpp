@@ -65,6 +65,11 @@ Orchestrator::Builder& Orchestrator::Builder::WithStripReasoning(bool enabled) {
   return *this;
 }
 
+Orchestrator::Builder& Orchestrator::Builder::WithDatabase(Database* db) {
+  db_ = db;
+  return *this;
+}
+
 absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
   if (db_ == nullptr) {
     return absl::InvalidArgumentError("Database cannot be null");

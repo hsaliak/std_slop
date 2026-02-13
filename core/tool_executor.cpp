@@ -25,10 +25,14 @@ void ToolExecutor::SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher) {
   dispatcher_ = std::move(dispatcher);
 }
 
+void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
+  dispatch_map_[name] = std::move(handler);
+}
+
 void ToolExecutor::RegisterTools() {
-  dispatch_map_["query_db"] =
-      [this](const nlohmann::json& args,
-             std::shared_ptr<CancellationRequest>) -> absl::StatusOr<std::string> {
+  RegisterTool("query_db", [this](const nlohmann::json& args,
+                                  std::shared_ptr<CancellationRequest>)
+                               -> absl::StatusOr<std::string> {
     if (!db_) return absl::InternalError("No database");
     std::vector<std::string> params;
     if (args.contains("params") && args["params"].is_array()) {
@@ -43,16 +47,15 @@ void ToolExecutor::RegisterTools() {
     std::string sql = args.value("sql", "");
     if (sql.empty()) return absl::InvalidArgumentError("Missing SQL statement");
     return db_->Query(sql, params);
-  };
+  });
 
-  dispatch_map_["run_lua"] =
-      [this](const nlohmann::json& args,
-             std::shared_ptr<CancellationRequest> cancellation)
-      -> absl::StatusOr<std::string> {
+  RegisterTool("run_lua", [this](const nlohmann::json& args,
+                                 std::shared_ptr<CancellationRequest> cancellation)
+                              -> absl::StatusOr<std::string> {
     auto res = RunLua(args.get<RunLuaRequest>(), cancellation);
     if (!res.ok()) return res.status();
     return res->FullOutput();
-  };
+  });
 }
 
 absl::StatusOr<std::string> ToolExecutor::Execute(

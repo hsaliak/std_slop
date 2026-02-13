@@ -52,6 +52,7 @@ class Orchestrator {
     Builder& WithBaseUrl(const std::string& url);
     Builder& WithThrottle(int seconds);
     Builder& WithStripReasoning(bool enabled);
+    Builder& WithDatabase(Database* db);
 
     absl::StatusOr<std::unique_ptr<Orchestrator>> Build();
     void BuildInto(Orchestrator* orchestrator);

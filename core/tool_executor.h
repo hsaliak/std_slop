@@ -47,6 +47,10 @@ class ToolExecutor {
   void SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher);
   ToolDispatcher* dispatcher() const { return dispatcher_.get(); }
 
+  using ToolHandler = std::function<absl::StatusOr<std::string>(
+      const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
+  void RegisterTool(const std::string& name, ToolHandler handler);
+
   ~ToolExecutor();
 
  private:
