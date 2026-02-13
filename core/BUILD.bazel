@@ -12,6 +12,17 @@ genrule(
           "echo '}' >> $@ ",
 )
 
+genrule(
+    name = "generate_lua_preamble",
+    srcs = ["preamble.lua"],
+    outs = ["preamble_data.h"],
+    cmd = "echo 'namespace slop {' > $@ && " +
+          "echo 'static const char* kLuaPreamble = R\"LUA(' >> $@ && " +
+          "cat $< >> $@ && " +
+          "echo ')LUA\";' >> $@ && " +
+          "echo '}' >> $@ ",
+)
+
 filegroup(
     name = "core_srcs",
     srcs = glob([
@@ -88,6 +99,7 @@ cc_library(
         "constants.h",
         "status_macros.h",
         ":generate_system_prompt",
+        ":generate_lua_preamble",
     ],
     visibility = ["//visibility:public"],
 
