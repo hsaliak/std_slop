@@ -293,7 +293,9 @@ absl::Status Database::RegisterDefaultTools() {
       {"apply_patch", "Applies partial changes to a file by matching a specific block of text and replacing it.",
        R"({"type":"object","properties":{"path":{"type":"string"},"patches":{"type":"array","items":{"type":"object","properties":{"find":{"type":"string"},"replace":{"type":"string"}},"required":["find","replace"]}}},"required":["path","patches"]})",
        true},
-      {"llm_query", "Query the LLM for information or sub-task processing.",
+      {"llm_query",
+       "Query the LLM for isolated sub-task processing. Runs in an independent session with its own memory "
+       "database to prevent primary history pollution.",
        R"({"type":"object","properties":{"query":{"type":"string","description":"The query to send to the LLM."}},"required":["query"]})",
        true},
       {"save_memo", "Save a memo with semantic tags for later retrieval.",
@@ -334,9 +336,9 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type": "object", "properties": {"index": {"type": "integer", "description": "The 1-based index of the patch to update."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["index"]})",
        true},
       {"run_lua",
-       "Execute a Lua 5.4 script with access to the full standard library, a 'tools' table (including _async "
-       "variants like execute_bash_async), and global variables 'history', 'state', and 'scratchpad' for session "
-       "context.",
+       "Execute a Lua 5.4 script acting as a high-level 'control plane' with access to the full standard library, a "
+       "'tools' table (supporting async variants like llm_query_async), and global variables 'history', 'state', and "
+       "'scratchpad'. Output and return values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
        true}};
 
@@ -388,9 +390,23 @@ absl::Status Database::RegisterDefaultSkills() {
        "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
 
   default_skills.push_back(
+      {0, "lua_control_plane",
+       "Constrains the agent to only use the 'run_lua' control plane and 'query_db' for all operations.",
+       "### Skill: lua_control_plane\n"
+       "DANGER: You are in **LUA CONTROL PLANE** mode.\n"
+       "- You MUST NOT use any tools directly EXCEPT for `run_lua` and `query_db`.\n"
+       "- All other operations (file manipulation, searching, bash execution, etc.) MUST be performed by writing and "
+       "executing a Lua script via `run_lua`.\n"
+       "- Use `query_db` only for reading schema or metadata when necessary to construct your Lua scripts.\n"
+       "- This mode ensures all actions are documented, reproducible, and orchestrated via the control plane.\n"
+       "- If you need to search, read files, or apply patches, write a Lua script that calls the appropriate `tools` "
+       "functions."});
+
+  default_skills.push_back(
       {0, "run_lua", "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
-       "You are a Lua scripting expert. You use the 'run_lua' tool to automate repetitive tasks, orchestrate multiple "
-       "tool calls, and perform complex data processing. The 'tools' table provides access to your standard tools. "
+       "You are a Lua scripting expert acting as a high-level **control plane**. You use the 'run_lua' tool to "
+       "orchestrate complex tasks, leveraging asynchronous tool variants (like 'llm_query_async' and "
+       "'execute_bash_async') for parallel processing. The 'tools' table provides access to your standard tools. "
        "Additionally, 'history' (array of messages), 'state' (current session state), and 'scratchpad' (current plan) "
        "are provided as global variables for context. A built-in 'llm_query(query)' function is available for "
        "sub-task processing. Always return descriptive values from your scripts and use 'print()' for debugging or "
