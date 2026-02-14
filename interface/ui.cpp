@@ -515,12 +515,12 @@ void PrintToolResultMessage(const std::string& name, const std::string& result, 
   if ((name == "run_lua") || (is_error && IsNetworkError(result))) {
     int printed = 0;
     for (const auto& line : out_lines) {
-      if (printed >= 10) break;
+      if (printed >= 3) break;
       std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
       printed++;
     }
     for (const auto& line : err_lines) {
-      if (printed >= 10) break;
+      if (printed >= 6) break;
       std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
                 << Colorize(std::string(line), "", ansi::Red) << std::endl;
       printed++;
