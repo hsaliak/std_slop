@@ -409,19 +409,23 @@ absl::Status Database::RegisterDefaultSkills() {
        "- If you need to search, read files, or apply patches, write a Lua script that calls the appropriate `tools` "
        "functions."});
 
-        default_skills.push_back(
-      {0, "run_lua", "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
-       "You are a Lua scripting expert. You use 'run_lua' to orchestrate complex tasks.\n"
-       "### ENVIRONMENT\n"
-       "- **'tools'**: Table of all tool functions. Every tool takes a SINGLE table argument (e.g., `tools.read_file({path='foo.txt'})`).\n"
-       "- **'tools.help()'**: Call this to see the full API manifest and tool signatures.\n"
-       "- **'history'**: Array of messages providing session context. It is appended to after each turn and can be used to programmatically extract information from prior turns.\n"
-       "- **'state', 'scratchpad'**: Global context strings.\n"
-       "- **'llm_query(prompt)'**: Global synchronous helper for isolated sub-tasks.\n"
-       "### PARALLELISM\n"
-       "Use `tools.execute_bash_async` and `llm_query_async` to launch parallel jobs, then `job:wait()` to block and collect results.\n"
-       "### OUTPUT\n"
-       "Use `print()` for debugging/logging. The script's final expression or explicit `return` value is captured and returned to you."});
+  default_skills.push_back({0, "run_lua",
+                            "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
+                            "You are a Lua scripting expert. You use 'run_lua' to orchestrate complex tasks.\n"
+                            "### ENVIRONMENT\n"
+                            "- **'tools'**: Table of all tool functions. Every tool takes a SINGLE table argument "
+                            "(e.g., `tools.read_file({path='foo.txt'})`).\n"
+                            "- **'tools.help()'**: Call this to see the full API manifest and tool signatures.\n"
+                            "- **'history'**: Array of messages providing session context. It is appended to after "
+                            "each turn and can be used to programmatically extract information from prior turns.\n"
+                            "- **'state', 'scratchpad'**: Global context strings.\n"
+                            "- **'llm_query(prompt)'**: Global synchronous helper for isolated sub-tasks.\n"
+                            "### PARALLELISM\n"
+                            "Use `tools.execute_bash_async` and `llm_query_async` to launch parallel jobs, then "
+                            "`job:wait()` to block and collect results.\n"
+                            "### OUTPUT\n"
+                            "Use `print()` for debugging/logging. The script's final expression or explicit `return` "
+                            "value is captured and returned to you."});
 
   default_skills.push_back(
       {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",

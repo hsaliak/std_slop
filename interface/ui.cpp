@@ -412,7 +412,7 @@ void RenderMarkdown(const std::string& markdown, const std::string& prefix, std:
 }
 void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
   std::string rendered;
-  RenderMarkdown(markdown,prefix, &rendered);
+  RenderMarkdown(markdown, prefix, &rendered);
   std::cout << rendered;
 }
 
@@ -491,8 +491,8 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   std::cout << std::endl;
 }
 
-void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result, const std::string& status,
-                            const std::string& prefix) {
+void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result,
+                            const std::string& status, const std::string& prefix) {
   absl::MutexLock lock(&g_ui_mu);
   // Split into stdout and stderr
   std::string stdout_part = result;
