@@ -394,7 +394,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
 void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatAssembledContext(json_str)); }
 
-void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
+void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
   auto& parser = GetMarkdownParser();
   auto& renderer = GetMarkdownRenderer();
 
@@ -408,9 +408,12 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
   size_t prefix_len = VisibleLength(prefix);
   renderer.SetMaxWidth(width > prefix_len + 5 ? width - prefix_len : 0);
 
+  return renderer.Render(**parsed_or, rendered);
+}
+void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
   std::string rendered;
-  renderer.Render(**parsed_or, &rendered);
-  std::cout << WrapText(rendered, width, prefix) << std::endl;
+  RenderMarkdown(markdown,prefix, &rendered);
+  std::cout << rendered;
 }
 
 void PrintAssistantMessage(const std::string& content, const std::string& prefix, int tokens) {
@@ -461,9 +464,11 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
         std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
       }
       std::cout << std::endl;
-
+      std::string line;
       for (int i = 0; i < count; ++i) {
-        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize(lines[i],"", ansi::Metadata) << std::endl;
+        RenderMarkdown(Colorize(lines[i], "", ansi::Metadata), "", &line);
+        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << line << std::endl;
+        line.clear();
       }
       if (lines.size() > 10) {
         std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;

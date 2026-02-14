@@ -1,14 +1,14 @@
 ### FILE: docs/lua_integration.md | TOTAL_LINES: 69 | RANGE: 1-69
 1: # Lua Integration & Control Plane
 2: 
-3: `std::slop` uses Lua as a high-level orchestration layer and a "control plane" for complex task execution. This bridge allows the agent to write and execute scripts that combine multiple tools, handle logic, and perform parallel operations safely.
+3: `std::slop` uses Lua as a high-level orchestration layer and a "control plane" for multi-step task execution. This bridge allows the agent to write and execute scripts that combine multiple tools, handle logic, and perform parallel operations safely.
 4: 
 5: ## 1. The `lua_control_plane` Persona
 6: 
 7: When the `lua_control_plane` skill is active, the agent enters a restricted execution mode:
 8: - **Direct Tooling Disabled**: The agent is prohibited from calling tools like `read_file`, `write_file`, or `execute_bash` directly from the chat interface.
 9: - **Orchestration-Only**: All operations must be performed by writing and executing a Lua script via the `run_lua` tool.
-10: - **Reproducibility**: This ensures that complex sequences of operations are captured as a single, reproducible script in the session history.
+10: - **Reproducibility**: This ensures that multi-tool sequences of operations are captured as a single, reproducible script in the session history.
 11: 
 12: ## 2. The `run_lua` Tool
 

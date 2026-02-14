@@ -103,5 +103,5 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 - A system prompt that:
     1.  Prohibits `write_file` on protected branches.
     2.  Forces the use of the `git_commit_patch` -> `git_format_patch_series` loop.
-    3.  Instructions on how to generate high-quality Cover Letters and Changelogs.
+    3.  Instructions on how to generate detailed Cover Letters and Changelogs.
     4.  Provides logic for mapping `R:` comments from specific patch buffers back to the correct Git commit for rerolling.

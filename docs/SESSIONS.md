@@ -10,7 +10,7 @@ Sessions provide isolation of history.
 - **Result**: The LLM has no visibility into other sessions.
 
 ## Cross-Model Persistence
-Sessions are designed to be resilient across model switches. However, because different providers (like Google and OpenAI) use incompatible tool-calling schemas, `std::slop` implements **tool call isolation**.
+Sessions are designed to be stable across model switches. However, because different providers (like Google and OpenAI) use incompatible tool-calling schemas, `std::slop` implements **tool call isolation**.
 
 - **Conversational Text**: Regular user and assistant messages are preserved and automatically re-parsed when you switch models.
 - **Tool Isolation**: Tool calls and their results are scoped to the provider strategy that created them. If you switch from Gemini to an OpenAI model, the OpenAI model will see the previous conversation text but will *not* see the Gemini-specific tool calls or results. This prevents parsing errors and "hallucinations" caused by cross-provider format mismatches.
@@ -58,7 +58,7 @@ The `/session remove <name>` command permanently deletes a session and all its a
 The `/session clone <name>` command creates a complete "branch" of the current session.
 - **What is copied**: All message history, scratchpad content, persistent state, and token usage history.
 - **Uniqueness**: The target name must not already exist.
-- **Use Case**: This is ideal for exploring different "branches" of a task or saving a stable state before a risky operation. After cloning, you are automatically switched to the new session.
+- **Use Case**: This is suitable for exploring different "branches" of a task or saving a stable state before a complex change. After cloning, you are automatically switched to the new session.
 
 ### Clearing current Session
 The `/session clear` command deletes all data (history, token usage stats, persistent state) for the current session and rebuilds the context (making it empty). This is useful if you want to restart a task without changing the session name.

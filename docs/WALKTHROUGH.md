@@ -18,7 +18,7 @@ Copy the `std_slop` executable to your path (e.g., `~/bin/`). Ensure `~/bin` is 
 cp bazel-bin/std_slop $HOME/bin/std_slop
 ```
 
-Create and save an OAuth token with Gemini (it comes with generous limits):
+Create and save an OAuth token with Gemini (it comes with high quotas):
 
 ```bash
 ./slop_auth.sh
@@ -30,7 +30,7 @@ Create an example folder:
 mkdir -p ~/Source/christmas-tree
 ```
 
-Run `std_slop`. I recommend starting with Gemini and using your own OAuth. You can also get a key from Google AI Studio or use a model from OpenRouter. I recommend `gemini-3-flash-preview`. It's a cost-effective model that gets things done.
+Run `std_slop`. I recommend starting with Gemini and using your own OAuth. You can also get a key from Google AI Studio or use a model from OpenRouter. I recommend `gemini-3-flash-preview`. It's a low-cost model that is capable.
 
 ```bash
 std_slop --google_oauth
@@ -141,7 +141,7 @@ Ok, implement it.
          ###
 ```
 
-**Note:** You don't need to activate the `expert_rust_developer` skill as the system prompt should be good enough to implement this program, but it feels good to be cool. This is especially useful to ensure that the generated code adheres to any specific coding standards relevant to the project.
+**Note:** You don't need to activate the `expert_rust_developer` skill as the system prompt should be good enough to implement this program, but it helps maintain consistency. This is especially useful to ensure that the generated code adheres to any specific coding standards relevant to the project.
 **Note 2:** You can have multiple skills active (e.g., `planner` AND `expert_rust_developer`), but instructions might conflict as they all go into the system prompt.
 **Note 3:** If you get rate limit errors, the `/throttle` command allows you to add wait times between requests. This is useful for free tier plans.
 
@@ -204,4 +204,4 @@ For non-trivial features, it's recommended to use the **Mail Model**.
 This workflow ensures bisect-safe history and high-quality rationale for every change. See [mail_model.md](mail_model.md) for a full example.
 
 ### Finishing Up
-Once you are done, you can exit the session with `/exit` or `/quit`. Happy slopping!
+Once you are done, you can exit the session with `/exit` or `/quit`. Happy development!

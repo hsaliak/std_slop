@@ -109,7 +109,7 @@ Defining the persona and intent detection.
 ---
 
 ## Phase 7: Dynamic Base Branch & Persistence
-Ensuring the workflow is robust across different repository structures and session restarts.
+Ensuring the workflow is consistent across different repository structures and session restarts.
 
 ### 7.1 Metadata Persistence (`slop.basebranch`)
 - **Mechanism**: Use `git config slop.basebranch <name>` to store the target branch for a staging series.

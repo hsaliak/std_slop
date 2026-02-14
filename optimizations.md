@@ -48,7 +48,7 @@ This report outlines algorithmic and data structure optimization opportunities d
 
 ### 4.1. Inefficient Terminal Polling
 - **Location**: `core/shell_util.cpp`, `IsEscPressed`
-- **Issue**: To check for the Escape key, the code toggles terminal modes (`tcgetattr`/`tcsetattr`) and sets non-blocking I/O on `STDIN` every 100ms. These are relatively expensive system calls.
+- **Issue**: To check for the Escape key, the code toggles terminal modes (`tcgetattr`/`tcsetattr`) and sets non-blocking I/O on `STDIN` every 100ms. These are high-latency system calls.
 - **Optimization**: Use a dedicated input thread or enter raw mode once during the interaction loop and use `poll()` or `select()` to check for available bytes without repeated mode switching.
 
 ### 4.2. Completion Filtering
@@ -61,8 +61,8 @@ This report outlines algorithmic and data structure optimization opportunities d
 ## Summary of Recommendations
 | Priority | Task | Potential Impact |
 | :--- | :--- | :--- |
-| **High** | Prepared Statement Caching | Significant reduction in DB overhead. |
+| **High** | Prepared Statement Caching | Reduction in DB overhead. |
 | **High** | Pre-parse Tool Schemas | Faster request assembly for LLM calls. |
-| **Medium** | Map-based Tool Lookup | Cleaner code and $O(1)$ tool dispatching. |
+| **Medium** | Map-based Tool Lookup | Refactored code and $O(1)$ tool dispatching. |
 | **Medium** | string_view for Tagging | Lower memory pressure during memoization. |
-| **Low** | Input Polling Optimization | Smoother UI performance and less CPU jitter. |
+| **Low** | Input Polling Optimization | Improved UI performance and less CPU jitter. |

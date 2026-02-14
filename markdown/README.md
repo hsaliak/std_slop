@@ -48,8 +48,8 @@ The renderer uses Tree-sitter grammars to provide syntax highlighting within fen
 - **Rust** (`rust`, `rs`)
 - **Bash / Shell** (`bash`, `sh`)
 
-### Intelligent Table Wrapping
-The renderer includes advanced table layout logic:
+### Dynamic Table Wrapping
+The renderer includes algorithmic table layout logic:
 - **Greedy Column Shrinking**: If a table exceeds `max_width`, the renderer iteratively shrinks the widest columns until the table fits or a minimum column width is reached.
 - **Multi-line Cells**: Content within table cells is word-wrapped to the column's assigned width, creating multi-line rows that preserve the table grid structure.
 - **UTF-8 Awareness**: Width calculations and word-breaking logic are multi-byte aware, ensuring correct rendering of international characters and ANSI-styled content.
@@ -97,7 +97,7 @@ Styles are centralized in `color.h`. You can customize the look of headers, code
 - **Parser Input**: `MarkdownParser::Parse` takes `std::string` by value. This is a deliberate design choice:
     - It allows the caller to `std::move` an existing buffer, avoiding any copies.
     - It guarantees that the `ParsedMarkdown` object owns its source buffer. This is critical because the underlying `tree-sitter` syntax tree maintains raw pointers into this buffer.
-- **Renderer "Sink" Model**: The `Render(parsed, &output)` method is the primary way to generate output. By passing a pointer to an existing string, callers can reuse buffers or pre-allocate memory (via `reserve()`), which is significantly faster than returning large strings from deep recursion.
+- **Renderer "Sink" Model**: The `Render(parsed, &output)` method is the primary way to generate output. By passing a pointer to an existing string, callers can reuse buffers or pre-allocate memory (via `reserve()`), which is faster than returning large strings from deep recursion.
 
 ### Efficiency
 - **Tree-sitter Forest**: The library manages multiple `TSTree` objects (main tree + injections) efficiently via `shared_ptr` and custom destructors.

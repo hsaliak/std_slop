@@ -65,7 +65,7 @@ To maximize context efficiency, the system applies differential truncation limit
 - **Inactive Groups (Compression)**: Once a conversation group becomes inactive (the turn has finished and a new user prompt has started), all tool results in that group are truncated to **300 characters**.
 - **Retrieval Hints**: All truncated results are appended with a hint: `... [TRUNCATED. Use query_db(sql="SELECT content FROM messages WHERE id=<ID>") to see full output]`. This allows the model to retrieve full technical detail on-demand via SQL.del to surgically retrieve full technical detail from its own history if a previous task needs re-investigation.
 
-**Rationale**: The specific details of a tool's output are critically important *while* the task is being performed. However, once the task is complete, the *essence* of the result is usually sufficient. Reducing the limit to 300 characters while providing an explicit recovery path (via `query_db`) offers the best balance of context efficiency and technical depth.
+**Rationale**: The specific details of a tool's output are essential *while* the task is being performed. However, once the task is complete, the *essence* of the result is usually sufficient. Reducing the limit to 300 characters while providing an explicit recovery path (via `query_db`) offers the optimal trade-off of context efficiency and technical depth.
 
 ## 3. Self-Managed State Tracking (Long-term RAM)
 
@@ -150,7 +150,7 @@ Beyond session-specific state and rolling history, `std::slop` provides a **Sema
 
 ### Purpose
 Memos are designed for information that is:
-- **High-Value**: Architectural decisions, non-obvious "gotchas," or complex API designs.
+- **Significant**: Architectural decisions, non-obvious "gotchas," or complex API designs.
 - **Persistent**: Information that should remain available even if the original conversation is deleted or archived.
 - **Discoverable**: Tagged semantically for easy retrieval by the LLM during future tasks.
 
@@ -175,7 +175,7 @@ Since the `### STATE` block is derived from the *last* assistant message, removi
 
 ## Evolution: Why we removed FTS-Ranked Mode
 
-Earlier versions of `std::slop` included a `FTS_RANKED` mode that used hybrid retrieval (BM25 + Recency) via SQLite FTS5. While theoretically powerful for long sessions, it was removed for the following reasons:
+Earlier versions of `std::slop` included a `FTS_RANKED` mode that used hybrid retrieval (BM25 + Recency) via SQLite FTS5. While theoretically robust for long sessions, it was removed for the following reasons:
 
 1.  **Stop-Word Pollution**: Common conversational phrases like "continue," "next," or "go on" acted as high-relevance search terms. This caused the system to pull in random historical fragments where those words appeared, filling the context window with irrelevant noise.
 2.  **Narrative Fragmentation**: Non-sequential retrieval often confused the LLM. If the "middle" of a technical implementation was missing because it didn't match the current keyword, the LLM would hallucinate missing details or repeat work.

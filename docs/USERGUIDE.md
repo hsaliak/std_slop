@@ -1,7 +1,7 @@
 # std::slop User Guide
 
 ## Overview
-`std::slop` is a high-performance LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
+`std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
 
 ## Installation
 Build using Bazel:
@@ -111,8 +111,8 @@ The agent provides powerful search tools designed for large codebases.
 - **Boolean Queries**: Supports `--and`, `--or`, `--not`, and grouping with `(`, `)`.
   - Example patterns: `["(", "pattern1", "--and", "pattern2", ")", "--or", "pattern3"]`
 - **Multiple Pathspecs**: Search across multiple directories or file patterns at once.
-- **Rich Context**: Use `function_context: true` to see the full body of matching functions.
-- **Smart Truncation**: Results are capped at 500 lines to balance detail with context usage.
+- **Extended Context**: Use `function_context: true` to see the full body of matching functions.
+- **Automated Truncation**: Results are capped at 500 lines to balance detail with context usage.
 
 ### `list_directory`
 - Provides recursive directory listings with optional depth control.
@@ -120,7 +120,7 @@ The agent provides powerful search tools designed for large codebases.
 
 ## User Interface
 
-`std::slop` features an enhanced CLI UI designed for readability:
+`std::slop` features an structured CLI UI designed for readability:
 - **Iconography**: Every message is prefixed with a semantic icon:
   - 🧠 **Thought**: AI reasoning or planning.
   - 🛠️ **Tool**: Tool execution initiation.
@@ -142,12 +142,12 @@ The agent provides powerful search tools designed for large codebases.
   - Go
   - Rust
   - Bash / Shell
-- **Markdown Tables**: Long tables are intelligently handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
-- **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter. Note that for the LLM's context, tool results are preserved at high fidelity (5000 chars) for the active turn but aggressively compressed (500 chars) for historical turns to save tokens.
+- **Markdown Tables**: Long tables are automatically handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
+- **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter. Note that for the LLM's context, tool results are preserved at original detail (5000 chars) for the active turn but significantly compressed (500 chars) for historical turns to save tokens.
 
 ## Orchestration & Lua Integration
 
-`std::slop` provides a powerful Lua 5.4 bridge for complex task orchestration. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
+`std::slop` provides a flexible Lua 5.4 bridge for complex task orchestration. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
 
 ### The `run_lua` Tool
 
@@ -227,7 +227,7 @@ If a task is expected to span many turns, the agent may recommend that you perma
 #### Example Skills (these are provided as defaults)
 
 **planner**
-- **Description**: Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.
+- **Description**: Technical Lead specialized in architectural decomposition and iterative feature delivery.
 - **System Prompt Patch**:
 ```text
 You only plan. You _do_ _not_ implement anything, and do not write or modify any files. You give me ideas to plan ONLY!
@@ -237,7 +237,7 @@ You only plan. You _do_ _not_ implement anything, and do not write or modify any
 - **Description**: Database Administrator specializing in SQLite schema design, optimization, and data integrity.
 - **System Prompt Patch**:
 ```text
-As a DBA, you are the steward of the project's data. You focus on efficient schema design, precise query construction, and maintaining data integrity. When interacting with the database: 1. Always verify schema before operations. 2. Use transactions for complex updates. 3. Provide clear explanations for schema changes. 4. Optimize for performance while ensuring clarity.
+As a DBA, you are the manager of the project's data. You focus on efficient schema design, precise query construction, and maintaining data integrity. When interacting with the database: 1. Always verify schema before operations. 2. Use transactions for complex updates. 3. Provide clear explanations for schema changes. 4. Optimize for performance while ensuring clarity.
 ```
 
 **c++_expert**

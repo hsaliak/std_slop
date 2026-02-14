@@ -2,7 +2,7 @@
   
 ![std::slop](docs/slop.png)
 
-`std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through a per-project ledger, providing long-term recall, structured state management, and first-class Git integration. It's goal is to make the context and it's use fully transparent and configurable.
+`std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through a per-project ledger, providing long-term recall, structured state management, and Built-in Git integration. It's goal is to make the context and it's use fully transparent and configurable.
 
 ## ✨ Key Features
 
@@ -10,8 +10,8 @@
 - **🎛️ Context Control**: Fine-grained control over the conversation history via SQL-backed retrieval and rolling windows.
 - **🛠️ Self-Managed State**: Autonomous updates to a task-specific `### STATE` and a markdown `Scratchpad` for complex planning.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long term memory.
-- **📜 Lua Control Plane**: Expert orchestration via a Lua 5.4 bridge, allowing complex scripts, safe staging, and parallel execution.
-- **🔍 Advanced Search**: `git_grep_tool` with boolean operators, multiple pathspecs, and smart truncation.
+- **📜 Lua Control Plane**: Programmatic orchestration via a Lua 5.4 bridge, allowing complex scripts, safe staging, and parallel execution.
+- **🔍 Boolean Search**: `git_grep_tool` with boolean operators, multiple pathspecs, and smart truncation.
 - **⚡ Parallel Execution**: Executes multiple tool calls in parallel with result ordering and UI-thread safety.
 - **📬 [Mail Mode](docs/mail_model.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval. 
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
@@ -113,6 +113,6 @@ The core logic is divided into specialized modules:
 - **`preamble_lib.lua`**: The embedded standard library for the agent's Lua environment. Implements high-level helpers and the `slop_guard` safety mechanism.
 
 ### Interface & Display
-- **`interface/`**: Implements the terminal UI. The UI is minimal but pleasing, uses readline for user input, color codes and ASCII Codes.
+- **`interface/`**: Implements the terminal UI. The UI is minimal but clean, uses readline for user input, color codes and ASCII Codes.
 - **`markdown/`**: Uses `tree-sitter-markdown` to provide syntax highlighting (C++, Python, Go, JS, Rust, Bash) and structured rendering for agent responses. This is a stand alone Markdown  parser / renderer library in C++.
 - **`main.cpp`**: The primary event loop. Coordinates between the Orchestrator, ToolDispatcher, and UI.
