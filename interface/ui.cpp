@@ -466,7 +466,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
       std::cout << std::endl;
       std::string line;
       for (int i = 0; i < count; ++i) {
-        RenderMarkdown(Colorize(lines[i], prefix, ansi::Metadata), "", &line);
+        RenderMarkdown(Colorize(lines[i], "", ansi::Metadata), prefix, &line);
         std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << line << std::endl;
         line.clear();
       }
