@@ -182,9 +182,9 @@ function git.get_current_branch()
   local forced = os.getenv("SLOP_FORCE_BRANCH_NAME")
   if forced and forced ~= "" then return forced end
   
-  local success, branch = call_tool(tools.execute_bash, {command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"})
-  if not success then return nil end
-  return branch:gsub("%s+", "")
+  local res = __os_run("git rev-parse --abbrev-ref HEAD 2>/dev/null")
+  if res.exit_code ~= 0 then return nil end
+  return res.output:gsub("%s+", "")
 end
 
 function git.is_staging_branch()
