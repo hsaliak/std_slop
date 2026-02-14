@@ -1,3 +1,18 @@
+--[[
+Slop Preamble Library
+--------------------
+This library defines the Lua environment for the 'run_lua' tool.
+It wraps native C++ tools to provide a more idiomatic Lua interface
+and implements the 'Mail Model' workflow helpers.
+
+Key Globals:
+- tools: Table containing all tool functions (e.g., tools.read_file).
+- llm_query: Global helper for isolated LLM sub-tasks.
+- state, scratchpad, history: Injected session context.
+
+For a full API reference, call 'tools.help()'.
+]]
+
 -- Slop Lua Preamble Library
 -- This file contains the implementation of Lua-based tools and helpers.
 
@@ -733,6 +748,37 @@ function tools.git_finalize_series(args)
 
   -- 2. Merge into target
   local checkout_cmd = "git checkout " .. shell_escape(target_branch)
+  local res1 = __os_run(checkout_cmd)
+  if res1.exit_code ~= 0 then
+    error("Failed to checkout target branch '" .. target_branch .. "': " .. res1.stderr)
+  end
+
+  local merge_cmd = "git merge --ff-only " .. shell_escape(current_branch)
+  local res2 = __os_run(merge_cmd)
+  if res2.exit_code ~= 0 then
+    -- Try to switch back before erroring
+    __os_run("git checkout " .. shell_escape(current_branch))
+    error("Merge failed: " .. res2.stderr)
+  end
+
+  -- 3. Cleanup
+  __os_run("git branch -D " .. shell_escape(current_branch))
+
+  return "Successfully finalized series. Merged " .. current_branch .. " into " .. target_branch .. " and deleted staging branch."
+end
+
+  hash = hash:gsub("%s+", "")
+
+  local approval_query = string.format("SELECT approved_hash FROM patch_approvals WHERE branch_name = %s", shell_escape(current_branch))
+  local success2, approval_res = call_tool(tools.query_db, {sql = approval_query})
+  if not success2 then error("Failed to query approvals: " .. tostring(approval_res)) end
+  
+  if not approval_res:find(hash) then
+    error("Patch series not approved or hash mismatch. Please obtain approval for hash " .. hash .. " before finalizing.")
+  end
+
+  -- 2. Merge into target
+  local checkout_cmd = "git checkout " .. shell_escape(target_branch)
   local success3, checkout_res = call_tool(tools.execute_bash, {command = checkout_cmd})
   if not success3 then
     error("Failed to checkout target branch '" .. target_branch .. "': " .. tostring(checkout_res))
@@ -818,4 +864,42 @@ function tools.apply_patch(args)
   f:close()
 
   return "File written successfully: " .. args.path
+end
+
+function tools.help()
+  return [[
+### Slop Lua API Documentation
+
+Globals:
+- tools: Table of all available tools.
+- state: (String) Current technical state.
+- scratchpad: (String) Current plan/notes.
+- history: (Table) Array of {role, content} messages.
+- llm_query(query): (String) Synchronous sub-task LLM query.
+- llm_query_async(query): (Job) Asynchronous sub-task LLM query.
+
+Tool Signature: All tools in 'tools' take a SINGLE table argument.
+
+Common Tools:
+- read_file({path, start_line, end_line}): Returns file content.
+- write_file({path, content}): Writes file content.
+- execute_bash({command}): Runs bash, returns {stdout, stderr, exit_code}.
+- execute_bash_async({command}): Returns a Job object.
+- query_db({sql, params}): Runs SQL on local DB, returns JSON string.
+- apply_patch({path, patches = {{find, replace}, ...}}): Surgical edits.
+- list_directory({path, depth, git_only}): Lists files.
+- git_grep_tool({pattern, path, context}): Greps repository.
+- manage_scratchpad({action="read"|"update"|"append", content}): Plan management.
+
+Mail Model Tools:
+- git_branch_staging({name, base_branch})
+- git_commit_patch({summary, rationale})
+- git_format_patch_series({base_branch})
+- git_verify_series({command, base_branch})
+- git_finalize_series({target_branch})
+
+Asynchronous Programming:
+- Use 'job:wait()' to block and get results from async tools.
+- Example: local j = tools.execute_bash_async({command="ls"}); local res = j:wait()
+]]
 end
