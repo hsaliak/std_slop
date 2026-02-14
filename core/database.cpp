@@ -409,7 +409,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "- If you need to search, read files, or apply patches, write a Lua script that calls the appropriate `tools` "
        "functions."});
 
-    default_skills.push_back(
+      default_skills.push_back(
       {0, "run_lua", "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
        "You are a Lua scripting expert. You use 'run_lua' to orchestrate complex tasks.\n"
        "### ENVIRONMENT\n"

@@ -767,34 +767,6 @@ function tools.git_finalize_series(args)
   return "Successfully finalized series. Merged " .. current_branch .. " into " .. target_branch .. " and deleted staging branch."
 end
 
-  hash = hash:gsub("%s+", "")
-
-  local approval_query = string.format("SELECT approved_hash FROM patch_approvals WHERE branch_name = %s", shell_escape(current_branch))
-  local success2, approval_res = call_tool(tools.query_db, {sql = approval_query})
-  if not success2 then error("Failed to query approvals: " .. tostring(approval_res)) end
-  
-  if not approval_res:find(hash) then
-    error("Patch series not approved or hash mismatch. Please obtain approval for hash " .. hash .. " before finalizing.")
-  end
-
-  -- 2. Merge into target
-  local checkout_cmd = "git checkout " .. shell_escape(target_branch)
-  local success3, checkout_res = call_tool(tools.execute_bash, {command = checkout_cmd})
-  if not success3 then
-    error("Failed to checkout target branch '" .. target_branch .. "': " .. tostring(checkout_res))
-  end
-
-  local merge_cmd = "git merge --ff-only " .. shell_escape(current_branch)
-  local success4, merge_res = call_tool(tools.execute_bash, {command = merge_cmd})
-  if not success4 then
-    error("Merge failed: " .. tostring(merge_res))
-  end
-
-  -- 3. Cleanup
-  pcall(tools.execute_bash, {command = "git branch -D " .. shell_escape(current_branch)})
-
-  return "Successfully finalized series. Merged " .. current_branch .. " into " .. target_branch .. " and deleted staging branch."
-end
 
 function llm_query(query)
   if not query or query == "" then error("llm_query requires a query string") end
