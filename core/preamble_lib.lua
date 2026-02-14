@@ -161,7 +161,7 @@ local function slop_guard()
   local branch = git.get_current_branch()
   if not branch then return end -- Allow if not in a git repo (e.g. during unit tests)
 
-  if not branch:find("^slop/staging/") then
+  if not branch:find("^slop/staging/") and branch ~= "HEAD" then
     error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " .. branch)
   end
 end
