@@ -874,19 +874,29 @@ Common Tools:
 - execute_bash({command}): Runs bash, returns {stdout, stderr, exit_code}.
 - execute_bash_async({command}): Returns a Job object.
 - query_db({sql, params}): Runs SQL on local DB, returns JSON string.
+- describe_db({}): Returns the schema of all tables in the local DB.
 - apply_patch({path, patches = {{find, replace}, ...}}): Surgical edits.
 - list_directory({path, depth, git_only}): Lists files.
-- git_grep_tool({pattern, path, context}): Greps repository.
+- git_grep_tool({pattern, path, context}): Greps repository using git.
+- grep_tool({pattern, path, context}): Generic grep (uses git if possible).
+- search_code({query}): Shortcut for searching code across the project.
 - manage_scratchpad({action="read"|"update"|"append", content}): Plan management.
+
+Knowledge & Skills:
+- save_memo({content, tags}): Save a technical insight with semantic tags.
+- retrieve_memos({tags}): Retrieve memos matching all provided tags.
+- use_skill({name, action="activate"|"deactivate"}): Toggle specialized agent personas.
 
 Mail Model Tools:
 - git_branch_staging({name, base_branch})
 - git_commit_patch({summary, rationale})
+- git_reroll_patch({index, summary, rationale})
 - git_format_patch_series({base_branch})
 - git_verify_series({command, base_branch})
 - git_finalize_series({target_branch})
 
 Asynchronous Programming:
+- dispatch_async(tool_name, args): Runs any tool asynchronously. Returns a Job.
 - Use 'job:wait()' to block and get results from async tools.
 - Example: local j = tools.execute_bash_async({command="ls"}); local res = j:wait()
 ]]
