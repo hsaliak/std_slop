@@ -773,6 +773,7 @@ function get_tool_manifest()
 end
 
 function tools.apply_patch(args)
+  slop_guard()
   if not args.path or not args.patches or #args.patches == 0 then
     error("Usage: apply_patch({path='...', patches={{find='...', replace='...'}, ...}})", 0)
   end
