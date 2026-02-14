@@ -463,7 +463,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
       std::cout << std::endl;
 
       for (int i = 0; i < count; ++i) {
-        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << lines[i] << std::endl;
+        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << Colorize(lines[i],"", ansi::Metadata) << std::endl;
       }
       if (lines.size() > 10) {
         std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
@@ -486,7 +486,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   std::cout << std::endl;
 }
 
-void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status,
+void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result, const std::string& status,
                             const std::string& prefix) {
   absl::MutexLock lock(&g_ui_mu);
   // Split into stdout and stderr
@@ -512,7 +512,7 @@ void PrintToolResultMessage(const std::string& name, const std::string& result, 
   std::cout << prefix << "    " << Colorize(icons::ResultConnector, "", ansi::Metadata) << " "
             << Colorize(summary, "", color) << std::endl;
 
-  if ((name == "run_lua") || (is_error && IsNetworkError(result))) {
+  if (is_error && IsNetworkError(result)) {
     int printed = 0;
     for (const auto& line : out_lines) {
       if (printed >= 3) break;
