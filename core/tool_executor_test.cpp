@@ -750,4 +750,39 @@ TEST(ToolExecutorTest, AsyncJobParallelism) {
   EXPECT_LT(duration, 350);  // Allowing some overhead, but definitely less than 400ms
 }
 
+
+TEST(ToolExecutorTest, ToolOrchestrationScenario) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto dispatcher = std::make_unique<ToolDispatcher>([&executor](const std::string& name, const nlohmann::json& args,
+                                                                 std::shared_ptr<CancellationRequest> cancellation) {
+    return executor.Execute(name, args, cancellation);
+  });
+  executor.SetDispatcher(std::move(dispatcher));
+
+  // Scenario: Write a file, grep for it, then query the database to verify counts.
+  std::string script = R"(
+    tools.write_file({path = "orchestra.txt", content = "find me"})
+    local grep_res = tools.execute_bash({command = "grep 'find me' orchestra.txt"})
+    if not grep_res:find("find me") then error("Grep failed") end
+    
+    local db_res = tools.query_db({sql = "SELECT name FROM tools WHERE name = 'query_db'"})
+    if type(db_res) == "string" then
+      return "Result: " .. db_res
+    else
+      return "Result: " .. db_res[1].name
+    end
+  )";
+
+  auto res = executor.Execute("run_lua", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "query_db"));
+  
+  std::filesystem::remove("orchestra.txt");
+}
+
 }  // namespace slop

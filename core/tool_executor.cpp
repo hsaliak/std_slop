@@ -28,50 +28,58 @@ void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
   dispatch_map_[name] = std::move(handler);
 }
 
-void ToolExecutor::RegisterTools() {
-  RegisterTool("query_db",
-               [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest>) -> absl::StatusOr<std::string> {
-                 if (!db_) return absl::InternalError("No database");
-                 std::vector<std::string> params;
-                 if (args.contains("params") && args["params"].is_array()) {
-                   for (const auto& p : args["params"]) {
-                     if (p.is_string()) {
-                       params.push_back(p.get<std::string>());
-                     } else {
-                       params.push_back(p.dump());
-                     }
-                   }
-                 }
-                 std::string sql = args.value("sql", "");
-                 if (sql.empty()) return absl::InvalidArgumentError("Missing SQL statement");
-                 return db_->Query(sql, params);
-               });
-
-  RegisterTool("run_lua",
-               [this](const nlohmann::json& args,
-                      std::shared_ptr<CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
-                 auto res = RunLua(args.get<RunLuaRequest>(), cancellation);
-                 if (!res.ok()) return res.status();
-                 return res->FullOutput();
-               });
+absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& args) {
+  if (!args.contains("sql")) {
+    return absl::InvalidArgumentError("Missing 'sql' argument");
+  }
+  std::string sql = args["sql"];
+  std::vector<std::string> params;
+  if (args.contains("params") && args["params"].is_array()) {
+    for (const auto& p : args["params"]) {
+      params.push_back(p.get<std::string>());
+    }
+  }
+  return db_->Query(sql, params);
 }
 
-absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
-                                                  std::shared_ptr<CancellationRequest> cancellation) {
-  if (name == "run_lua") {
-    RunLuaRequest req;
-    req.script = args.value("script", "");
-    if (args.contains("args")) req.args = args["args"];
-    auto res = RunLua(req, cancellation);
-    if (!res.ok()) return res.status();
-    return res->FullOutput();
+absl::StatusOr<std::string> ToolExecutor::HandleRunLua(
+    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+  RunLuaRequest req;
+  req.script = args.value("script", "");
+  if (args.contains("args")) req.args = args["args"];
+  auto res = RunLua(req, cancellation);
+  if (!res.ok()) return res.status();
+  return res->FullOutput();
+}
+
+void ToolExecutor::RegisterTools() {
+  RegisterTool("query_db",
+               [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
+
+  RegisterTool("run_lua", [this](const nlohmann::json& args,
+                                 std::shared_ptr<CancellationRequest> cancellation) {
+    return HandleRunLua(args, cancellation);
+  });
+}
+
+
+absl::StatusOr<std::string> ToolExecutor::Execute(
+    const std::string& name, const nlohmann::json& args,
+    std::shared_ptr<CancellationRequest> cancellation) {
+  auto it = dispatch_map_.find(name);
+  if (it != dispatch_map_.end()) {
+    auto res = it->second(args, cancellation);
+    if (res.ok() && db_) {
+      (void)db_->IncrementToolCallCount(name);
+    }
+    return res;
   }
 
-  // Use Lua orchestrator for all other tools
+  // Use Lua orchestrator for all other tools.
   RunLuaRequest req;
   req.script = "return core.dispatch_tool(args.name, args.tool_args)";
   req.args["name"] = name;
-  req.args["tool_args"] = nlohmann::json(args);
+  req.args["tool_args"] = args;
 
   auto res = RunLua(req, cancellation);
   if (!res.ok()) {
@@ -93,6 +101,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   }
   return res->return_value;
 }
+
 
 void ToolExecutor::SetSessionId(const std::string& session_id) { session_id_ = session_id; }
 

@@ -69,6 +69,10 @@ class ToolExecutor {
     std::string FullOutput() const { return stdout_out + "\nReturn Value: " + return_value; }
   };
 
+  absl::StatusOr<std::string> HandleQueryDb(const nlohmann::json& args);
+  absl::StatusOr<std::string> HandleRunLua(const nlohmann::json& args,
+                                           std::shared_ptr<CancellationRequest> cancellation);
+
   absl::StatusOr<LuaResult> RunLua(const RunLuaRequest& req, std::shared_ptr<CancellationRequest> cancellation);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
