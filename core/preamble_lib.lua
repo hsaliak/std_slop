@@ -600,8 +600,8 @@ function tools.git_branch_staging(args)
   local staging_name = "slop/staging/" .. name
   
   local cmd = string.format("git checkout -b %s %s", shell_escape(staging_name), shell_escape(base_branch))
-  local success, res = call_tool(tools.execute_bash, {command = cmd})
-  if not success then error("Failed to create staging branch: " .. tostring(res)) end
+  local res = __os_run(cmd)
+  if res.exit_code ~= 0 then error("Failed to create staging branch: " .. res.stdout .. res.stderr) end
   
   return "Created and checked out staging branch: " .. staging_name .. " (base: " .. base_branch .. ")"
 end
