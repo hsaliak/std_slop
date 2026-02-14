@@ -145,6 +145,24 @@ The agent provides powerful search tools designed for large codebases.
 - **Markdown Tables**: Long tables are intelligently handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
 - **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter. Note that for the LLM's context, tool results are preserved at high fidelity (5000 chars) for the active turn but aggressively compressed (500 chars) for historical turns to save tokens.
 
+## Orchestration & Lua Integration
+
+`std::slop` provides a powerful Lua 5.4 bridge for complex task orchestration. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
+
+### The `run_lua` Tool
+
+The `run_lua` tool allows the agent to execute orchestrated scripts. It has access to:
+- **`tools`**: A table containing all standard tools.
+- **`history`**: Session message history for programmatic context extraction.
+- **`llm_query`**: Synchronous and asynchronous helpers for isolated LLM sub-tasks.
+- **Async Execution**: `tools.execute_bash_async` and `llm_query_async` allow for parallel execution (e.g., running multiple tests at once).
+
+### Lua Control Plane
+
+By activating the `lua_control_plane` skill, the agent enters a mode where it can **only** use `run_lua` for operations. This ensures that all work is performed via a unified, reproducible orchestration script.
+
+For more details, see the **[Lua Integration Documentation](lua_integration.md)**.
+
 ## Slash Commands
 
 ### Session Management

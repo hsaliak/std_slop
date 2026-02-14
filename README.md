@@ -10,6 +10,7 @@
 - **🎛️ Context Control**: Fine-grained control over the conversation history via SQL-backed retrieval and rolling windows.
 - **🛠️ Self-Managed State**: Autonomous updates to a task-specific `### STATE` and a markdown `Scratchpad` for complex planning.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long term memory.
+- **📜 Lua Control Plane**: Expert orchestration via a Lua 5.4 bridge, allowing complex scripts, safe staging, and parallel execution.
 - **🔍 Advanced Search**: `git_grep_tool` with boolean operators, multiple pathspecs, and smart truncation.
 - **⚡ Parallel Execution**: Executes multiple tool calls in parallel with result ordering and UI-thread safety.
 - **📬 [Mail Mode](docs/mail_model.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval. 
@@ -92,6 +93,7 @@ You can also use Google OAuth login if no keys are provided.
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The evolutionary history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
+- **[Lua Integration](docs/lua_integration.md)**: High-level orchestration and task safety via the Lua bridge.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
 ## 🏗️ Architecture & Codebase Layout
@@ -105,6 +107,10 @@ The core logic is divided into specialized modules:
 - **`orchestrator.h`**: High-level interface for model interaction. Implementations for Gemini and OpenAI manage history windowing and response parsing.
 - **`shell_util.h`**: Executes shell commands in a separate process group, with support for real-time output polling and clean termination on cancellation.
 - **`http_client.h`**: A minimalist, cancellation-aware HTTP client used for all model API calls.
+
+### `lua-bridge/` - Orchestration Layer
+- **`lua_bridge.h`**: Implements the Lua 5.4 environment. Provides the `run_lua` tool and manages the injection of global context (`tools`, `history`, `state`).
+- **`preamble_lib.lua`**: The embedded standard library for the agent's Lua environment. Implements high-level helpers and the `slop_guard` safety mechanism.
 
 ### Interface & Display
 - **`interface/`**: Implements the terminal UI. The UI is minimal but pleasing, uses readline for user input, color codes and ASCII Codes.

@@ -84,6 +84,23 @@ Long-term knowledge persistence through tag-based memos.
 | semantic_tags | TEXT | JSON-formatted array of tags for search and retrieval. |
 | created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
 
+### 8. patch_approvals
+Tracks user approvals for specific commit hashes on branches. This is part of the Mail Model workflow.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| branch_name | TEXT | The name of the staging branch (Primary Key). |
+| approved_hash | TEXT | The git commit hash that was approved. |
+| approved_at | DATETIME | Timestamp of approval. |
+
+### 9. settings
+Global application settings persisted across sessions.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| id | INTEGER | Primary Key (fixed at 1). |
+| mode | TEXT | Current operational mode (`standard` or `mail`). |
+
 ## Default Tools
 
 The following tools are registered by default during database initialization:
@@ -104,6 +121,8 @@ The following tools are registered by default during database initialization:
 - `retrieve_memos`: Retrieve memos based on semantic tags.
 - `use_skill`: Activate or deactivate a specialized skill/persona.
 - `search_code`: Search for code snippets in the codebase using grep.
+- `run_lua`: Execute an orchestrated Lua 5.4 script with access to all tools and async capabilities.
+- `llm_query`: Perform an isolated sub-task query to the LLM (synchronous).
 
 ## Default Skills
 
@@ -113,6 +132,8 @@ The following skills are registered by default:
 - `dba`: Database Administrator specializing in SQLite schema design and data integrity.
 - `c++_expert`: Enforces strict adherence to project C++17 constraints and Google style.
 - `code_reviewer`: Multilingual code reviewer enforcing language-specific standards (Google C++, PEP8, etc.).
+- `lua_control_plane`: Restricts the agent to using only `run_lua` for all operations, ensuring reproducibility.
+- `patcher`: Expert in the Mail Model workflow for atomic, bisect-safe commits.
 
 ## SQL Initialization
 
@@ -173,5 +194,16 @@ CREATE TABLE IF NOT EXISTS llm_memos (
     content TEXT NOT NULL,
     semantic_tags TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS patch_approvals (
+    branch_name TEXT PRIMARY KEY,
+    approved_hash TEXT NOT NULL,
+    approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    mode TEXT NOT NULL DEFAULT 'standard'
 );
 ```
