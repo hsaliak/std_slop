@@ -131,7 +131,11 @@ local function is_base_modification_tool(name)
 end
 
 local function slop_guard()
-  if os.getenv("SLOP_SKIP_STAGING_CHECK") == "1" then return end
+  -- Check database for mode. If 'standard', we bypass the guard.
+  local ok, res = pcall(tools.query_db, {sql = "SELECT mode FROM settings WHERE id = 1"})
+  if ok and res and string.find(res, '"standard"') then
+    return
+  end
 
   local branch = git.get_current_branch()
   if not branch then return end -- Allow if not in a git repo (e.g. during unit tests)
@@ -266,6 +270,7 @@ function tools.write_file(args)
 end
 
 function tools.execute_bash(args)
+  slop_guard()
   local command = args.command
   if not command then error("command is required") end
 
@@ -284,6 +289,7 @@ function tools.execute_bash(args)
 end
 
 function tools.execute_bash_async(args)
+  slop_guard()
   if not args.command then
     error("Usage: execute_bash_async({command = '...'})", 0)
   end
@@ -569,7 +575,7 @@ end
 
 function tools.git_branch_staging(args)
   local name = args.name
-  local base_branch = args.base_branch or "main"
+  local base_branch = args.base_branch or git.get_current_branch()
   local staging_name = "slop/staging/" .. name
   
   local cmd = string.format("git checkout -b %s %s", shell_escape(staging_name), shell_escape(base_branch))
@@ -748,6 +754,10 @@ end
 function llm_query_async(query)
   if not query or query == "" then error("llm_query_async requires a query string") end
   return tools.dispatch_async("llm_query", {query = query})
+end
+
+function tools.llm_query(args)
+  return llm_query(args.query)
 end
 
 function tools.llm_query_async(args)
