@@ -26,7 +26,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
 
   auto skills = db.GetSkills();
   ASSERT_TRUE(skills.ok());
-  // We expect at only the 4 default skills we added
+  // We expect at least the 4 default skills we added
   EXPECT_GE(skills->size(), 4);
 
   bool found_planner = false;
@@ -40,17 +40,20 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
 
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());
-  // We expect at least the 4 default tools we added
-  EXPECT_GE(tools->size(), 4);
+  // Only query_db and run_lua should be registered and enabled
+  EXPECT_EQ(tools->size(), 2);
 
-  bool found_read_file = false;
+  bool found_run_lua = false;
   bool found_query_db = false;
+  bool found_read_file = false;
   for (const auto& t : *tools) {
-    if (t.name == "read_file") found_read_file = true;
+    if (t.name == "run_lua") found_run_lua = true;
     if (t.name == "query_db") found_query_db = true;
+    if (t.name == "read_file") found_read_file = true;
   }
-  EXPECT_FALSE(found_read_file);
+  EXPECT_TRUE(found_run_lua);
   EXPECT_TRUE(found_query_db);
+  EXPECT_FALSE(found_read_file);
 }
 
 TEST(DatabaseTest, MessagePersistence) {
