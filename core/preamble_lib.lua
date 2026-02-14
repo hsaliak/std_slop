@@ -27,6 +27,12 @@ end
 tools = tools or {}
 core = core or {}
 
+-- Capture native tools to avoid recursion when wrapping
+local native = {}
+for k, v in pairs(tools) do
+    native[k] = v
+end
+
 -- Internal state tracking
 local _loaded_session = nil
 local _initial_scratchpad = nil
@@ -184,7 +190,7 @@ function git.get_current_branch()
   
   local res = __os_run("git rev-parse --abbrev-ref HEAD 2>/dev/null")
   if res.exit_code ~= 0 then return nil end
-  return res.output:gsub("%s+", "")
+  return res.stdout:gsub("%s+", "")
 end
 
 function git.is_staging_branch()
@@ -746,7 +752,7 @@ end
 
 function llm_query(query)
   if not query or query == "" then error("llm_query requires a query string") end
-  local success, result = call_tool(tools.llm_query, {query = query})
+  local success, result = call_tool(native.llm_query, {query = query})
   if not success then error("llm_query failed: " .. result) end
   return result
 end
