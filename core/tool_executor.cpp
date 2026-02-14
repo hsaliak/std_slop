@@ -8,6 +8,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+
 #include "core/database.h"
 #include "core/lua_bridge_util.h"
 #include "core/lua_tool.h"
@@ -21,46 +22,42 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) { RegisterTools(); }
 
 ToolExecutor::~ToolExecutor() = default;
 
-void ToolExecutor::SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher) {
-  dispatcher_ = std::move(dispatcher);
-}
+void ToolExecutor::SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher) { dispatcher_ = std::move(dispatcher); }
 
 void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
   dispatch_map_[name] = std::move(handler);
 }
 
 void ToolExecutor::RegisterTools() {
-  RegisterTool("query_db", [this](const nlohmann::json& args,
-                                  std::shared_ptr<CancellationRequest>)
-                               -> absl::StatusOr<std::string> {
-    if (!db_) return absl::InternalError("No database");
-    std::vector<std::string> params;
-    if (args.contains("params") && args["params"].is_array()) {
-      for (const auto& p : args["params"]) {
-        if (p.is_string()) {
-          params.push_back(p.get<std::string>());
-        } else {
-          params.push_back(p.dump());
-        }
-      }
-    }
-    std::string sql = args.value("sql", "");
-    if (sql.empty()) return absl::InvalidArgumentError("Missing SQL statement");
-    return db_->Query(sql, params);
-  });
+  RegisterTool("query_db",
+               [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest>) -> absl::StatusOr<std::string> {
+                 if (!db_) return absl::InternalError("No database");
+                 std::vector<std::string> params;
+                 if (args.contains("params") && args["params"].is_array()) {
+                   for (const auto& p : args["params"]) {
+                     if (p.is_string()) {
+                       params.push_back(p.get<std::string>());
+                     } else {
+                       params.push_back(p.dump());
+                     }
+                   }
+                 }
+                 std::string sql = args.value("sql", "");
+                 if (sql.empty()) return absl::InvalidArgumentError("Missing SQL statement");
+                 return db_->Query(sql, params);
+               });
 
-  RegisterTool("run_lua", [this](const nlohmann::json& args,
-                                 std::shared_ptr<CancellationRequest> cancellation)
-                              -> absl::StatusOr<std::string> {
-    auto res = RunLua(args.get<RunLuaRequest>(), cancellation);
-    if (!res.ok()) return res.status();
-    return res->FullOutput();
-  });
+  RegisterTool("run_lua",
+               [this](const nlohmann::json& args,
+                      std::shared_ptr<CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
+                 auto res = RunLua(args.get<RunLuaRequest>(), cancellation);
+                 if (!res.ok()) return res.status();
+                 return res->FullOutput();
+               });
 }
 
-absl::StatusOr<std::string> ToolExecutor::Execute(
-    const std::string& name, const nlohmann::json& args,
-    std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
+                                                  std::shared_ptr<CancellationRequest> cancellation) {
   if (name == "run_lua") {
     RunLuaRequest req;
     req.script = args.value("script", "");
@@ -97,22 +94,19 @@ absl::StatusOr<std::string> ToolExecutor::Execute(
   return res->return_value;
 }
 
-void ToolExecutor::SetSessionId(const std::string& session_id) {
-  session_id_ = session_id;
-}
+void ToolExecutor::SetSessionId(const std::string& session_id) { session_id_ = session_id; }
 
 void ToolExecutor::SetMailMode(bool enabled) {
   mail_mode_ = enabled;
   if (db_) {
-    (void)db_->Query(enabled ? "UPDATE settings SET mode = 'mail' WHERE id = 1" 
+    (void)db_->Query(enabled ? "UPDATE settings SET mode = 'mail' WHERE id = 1"
                              : "UPDATE settings SET mode = 'standard' WHERE id = 1");
   }
 }
 
 bool ToolExecutor::IsSkillActive(const std::string& name) {
   auto active = GetActiveSkills();
-  return std::any_of(active.begin(), active.end(),
-                     [&name](const std::string& s) { return s == name; });
+  return std::any_of(active.begin(), active.end(), [&name](const std::string& s) { return s == name; });
 }
 
 std::vector<std::string> ToolExecutor::GetActiveSkills() {
@@ -124,34 +118,26 @@ std::vector<std::string> ToolExecutor::GetActiveSkills() {
   return {};
 }
 
-
-
-
-
-absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(
-    const RunLuaRequest& req, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(const RunLuaRequest& req,
+                                                             std::shared_ptr<CancellationRequest> cancellation) {
   slop::Interpreter interpreter;
   sol::state& lua = interpreter.state();
 
   std::stringstream stdout_buffer;
-  lua_tool::InitializeEnvironment(lua, db_, dispatcher_.get(),
-                                  cancellation, dispatch_map_, stdout_buffer);
+  lua_tool::InitializeEnvironment(lua, db_, dispatcher_.get(), cancellation, dispatch_map_, stdout_buffer);
 
   lua["session_id"] = session_id_;
   if (!req.args.is_null()) {
     lua["args"] = JSONToLua(lua, req.args);
   }
 
-  auto lib_result =
-      lua.safe_script(slop::kLuaPreambleLib, sol::script_pass_on_error);
+  auto lib_result = lua.safe_script(slop::kLuaPreambleLib, sol::script_pass_on_error);
   if (!lib_result.valid()) {
     sol::error err = lib_result;
-    return absl::InternalError(
-        absl::StrCat("Lua Preamble Lib Error: ", err.what()));
+    return absl::InternalError(absl::StrCat("Lua Preamble Lib Error: ", err.what()));
   }
 
-  auto preamble_result =
-      lua.safe_script(slop::kLuaPreamble, sol::script_pass_on_error);
+  auto preamble_result = lua.safe_script(slop::kLuaPreamble, sol::script_pass_on_error);
   if (!preamble_result.valid()) {
     sol::error err = preamble_result;
     return absl::InternalError(absl::StrCat("Lua Preamble Error: ", err.what()));
@@ -160,8 +146,7 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(
   auto result = lua.safe_script(req.script, sol::script_pass_on_error);
   if (!result.valid()) {
     sol::error err = result;
-    return absl::InternalError(absl::StrCat(
-        "Lua Error: ", err.what(), "\nOutput:\n", stdout_buffer.str()));
+    return absl::InternalError(absl::StrCat("Lua Error: ", err.what(), "\nOutput:\n", stdout_buffer.str()));
   }
 
   LuaResult res;
@@ -173,11 +158,7 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(
   return res;
 }
 
-
-
-
-absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(
-    const std::string& requested_base) {
+absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& requested_base) {
   RunLuaRequest req;
   req.script = "return git.get_base_branch(args.requested_base)";
   req.args["requested_base"] = requested_base;

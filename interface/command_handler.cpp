@@ -1160,8 +1160,7 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
     return Result::HANDLED;
   }
 
-  std::string assistant_text =
-      MessageParser::ExtractAssistantText(MessageContext(*last_assistant));
+  std::string assistant_text = MessageParser::ExtractAssistantText(MessageContext(*last_assistant));
   if (assistant_text.empty()) {
     std::cout << "The last assistant message has no text content to provide feedback on." << std::endl;
     return Result::HANDLED;

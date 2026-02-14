@@ -35,7 +35,7 @@ class InteractionEngine {
                const Config& config);
 
   absl::StatusOr<std::string> Query(const std::string& prompt, const Config& config,
-                                   const std::vector<std::string>& active_skills = {});
+                                    const std::vector<std::string>& active_skills = {});
 
   CommandHandler& GetCommandHandler() { return cmd_handler_; }
 

@@ -453,7 +453,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
     if (!j.is_discarded() && j.is_object() && j.contains("script")) {
       std::string script = j["script"];
       std::vector<std::string> lines = absl::StrSplit(script, '\n');
-      int count = std::min((int)lines.size(), 10);
+      int count = std::min(static_cast<int>(lines.size()), 10);
 
       std::string summary = absl::StrCat(icons::Tool, " ", name, " (control plane)");
       std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
@@ -525,7 +525,7 @@ void PrintToolResultMessage(const std::string& name, const std::string& result, 
                 << Colorize(std::string(line), "", ansi::Red) << std::endl;
       printed++;
     }
-    if (out_lines.size() + err_lines.size() > (size_t)printed) {
+    if (out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
       std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
     }
   } else {
@@ -554,16 +554,12 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
       auto calls_or = MessageParser::ExtractToolCalls(ctx);
       if (calls_or.ok() && !calls_or->empty()) {
         for (const auto& call : *calls_or) {
-          PrintToolCallMessage(
-              call.name,
-              call.args.dump(-1, ' ', false,
-                             nlohmann::json::error_handler_t::replace),
-              prefix + "  ", msg.tokens);
+          PrintToolCallMessage(call.name, call.args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
+                               prefix + "  ", msg.tokens);
         }
       } else if (!calls_or.ok() || calls_or->empty()) {
         // Fallback for unidentified tool calls
-        PrintToolCallMessage("tool_call", msg.content, prefix + "  ",
-                             msg.tokens);
+        PrintToolCallMessage("tool_call", msg.content, prefix + "  ", msg.tokens);
       }
     } else {
       PrintAssistantMessage(msg.content, prefix + "  ", msg.tokens);

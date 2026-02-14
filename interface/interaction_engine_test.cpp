@@ -1,21 +1,22 @@
 #include "interface/interaction_engine.h"
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
-#include <nlohmann/json.hpp>
+
 #include "absl/status/statusor.h"
+
 #include "core/database.h"
 #include "core/orchestrator.h"
 #include "core/tool_executor.h"
 #include "interface/command_handler.h"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 
 namespace slop {
 
 class MockHttpClient : public HttpClient {
  public:
   MOCK_METHOD(absl::StatusOr<std::string>, Post,
-              (const std::string& url, const std::string& body,
-               const std::vector<std::string>& headers),
-              (override));
+              (const std::string& url, const std::string& body, const std::vector<std::string>& headers), (override));
 };
 
 class InteractionEngineTest : public ::testing::Test {
@@ -28,7 +29,7 @@ class InteractionEngineTest : public ::testing::Test {
 
   void SetUp() override {
     ASSERT_TRUE(db.Init(":memory:").ok());
-    
+
     auto orch_or = Orchestrator::Builder(&db, &mock_http).Build();
     ASSERT_TRUE(orch_or.ok());
     orchestrator = std::move(*orch_or);
@@ -38,8 +39,7 @@ class InteractionEngineTest : public ::testing::Test {
     tool_executor = std::move(*exec_or);
 
     auto dispatcher = std::make_unique<ToolDispatcher>(
-        [this](const std::string& name, const nlohmann::json& args,
-               std::shared_ptr<CancellationRequest> cancellation) {
+        [this](const std::string& name, const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
           return tool_executor->Execute(name, args, cancellation);
         },
         1);
@@ -71,9 +71,9 @@ class InteractionEngineTest : public ::testing::Test {
 };
 
 TEST_F(InteractionEngineTest, QueryIsolationTest) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(),
-                           *tool_executor, mock_http, nullptr);
-  
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
   InteractionEngine::Config config;
   config.silent = true;
 
@@ -90,9 +90,9 @@ TEST_F(InteractionEngineTest, QueryIsolationTest) {
 }
 
 TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(),
-                           *tool_executor, mock_http, nullptr);
-  
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
   InteractionEngine::Config config;
   config.silent = true;
 
@@ -106,9 +106,9 @@ TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
 }
 
 TEST_F(InteractionEngineTest, ErrorHandlingTest) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(),
-                           *tool_executor, mock_http, nullptr);
-  
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
   InteractionEngine::Config config;
   config.silent = true;
 
@@ -119,4 +119,4 @@ TEST_F(InteractionEngineTest, ErrorHandlingTest) {
   EXPECT_FALSE(result.ok());
 }
 
-} // namespace slop
+}  // namespace slop

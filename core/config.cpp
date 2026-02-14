@@ -1,13 +1,16 @@
 #include "core/config.h"
-#include "core/shell_util.h"
-#include "ini/ini_parser.h"
+
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+
 #include "absl/flags/flag.h"
 #include "absl/flags/marshalling.h"
 #include "absl/flags/reflection.h"
 #include "absl/strings/str_cat.h"
-#include <filesystem>
-#include <fstream>
-#include <iostream>
+
+#include "core/shell_util.h"
+#include "ini/ini_parser.h"
 
 namespace slop {
 
@@ -34,9 +37,9 @@ void LoadConfigAndApply(const std::string& override_path) {
 
   auto it = config.find("slop");
   if (it == config.end()) {
-    it = config.find(""); // Also support global section
+    it = config.find("");  // Also support global section
   }
-  
+
   if (it != config.end()) {
     for (const auto& [key, value] : it->second) {
       absl::CommandLineFlag* flag = absl::FindCommandLineFlag(key);

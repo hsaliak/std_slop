@@ -112,8 +112,7 @@ TEST_F(MailModelTest, VerifySeries) {
   auto verify_fail_res =
       executor_->Execute("git_verify_series", {{"command", "ls next.txt"}, {"base_branch", "HEAD~2"}});
   ASSERT_TRUE(verify_fail_res.ok());
-  nlohmann::json report_fail =
-      nlohmann::json::parse(*verify_fail_res, nullptr, false);
+  nlohmann::json report_fail = nlohmann::json::parse(*verify_fail_res, nullptr, false);
   ASSERT_FALSE(report_fail.is_discarded());
   EXPECT_FALSE(report_fail["all_passed"].get<bool>());
   EXPECT_EQ(report_fail["report"][0]["status"], "failed");  // next.txt doesn't exist in first patch

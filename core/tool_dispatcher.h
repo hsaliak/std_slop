@@ -23,8 +23,7 @@ namespace slop {
  */
 class ToolJob {
  public:
-  ToolJob(const std::string& id, const std::string& name)
-      : id_(id), name_(name) {}
+  ToolJob(const std::string& id, const std::string& name) : id_(id), name_(name) {}
 
   bool IsReady() {
     absl::MutexLock lock(&mu_);
@@ -88,9 +87,7 @@ class ToolDispatcher {
    * @param cancellation Optional cancellation request.
    * @return A ToolJob handle to monitor and wait for the result.
    */
-  std::shared_ptr<ToolJob> Submit(
-      const Call& call,
-      std::shared_ptr<CancellationRequest> cancellation = nullptr);
+  std::shared_ptr<ToolJob> Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
   /**
    * @brief Executes a batch of tool calls in parallel.
@@ -98,8 +95,7 @@ class ToolDispatcher {
    * @param calls The list of tool calls to execute.
    * @param cancellation The cancellation request to monitor.
    */
-  std::vector<Result> Dispatch(const std::vector<Call>& calls,
-                               std::shared_ptr<CancellationRequest> cancellation);
+  std::vector<Result> Dispatch(const std::vector<Call>& calls, std::shared_ptr<CancellationRequest> cancellation);
 
  private:
   void WorkerLoop();

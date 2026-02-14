@@ -5,10 +5,10 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "nlohmann/json.hpp"
 
 #include "core/database.h"
 #include "core/orchestrator_strategy.h"
-#include "nlohmann/json.hpp"
 
 namespace slop {
 
@@ -40,8 +40,7 @@ class MessageContext {
 class MessageParser {
  public:
   // Extracts ToolCall objects from a message based on its parsing_strategy.
-  static absl::StatusOr<std::vector<ToolCall>> ExtractToolCalls(
-      const MessageContext& ctx);
+  static absl::StatusOr<std::vector<ToolCall>> ExtractToolCalls(const MessageContext& ctx);
 
   // Extracts any assistant text content from a JSON-encoded tool_call message.
   static std::string ExtractAssistantText(const MessageContext& ctx);

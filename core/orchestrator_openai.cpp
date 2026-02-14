@@ -156,8 +156,7 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
   return total_tokens;
 }
 
-absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(
-    const Database::Message& msg) {
+absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const Database::Message& msg) {
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 

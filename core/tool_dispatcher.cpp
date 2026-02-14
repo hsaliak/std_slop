@@ -25,8 +25,7 @@ ToolDispatcher::~ToolDispatcher() {
   }
 }
 
-std::shared_ptr<ToolJob> ToolDispatcher::Submit(
-    const Call& call, std::shared_ptr<CancellationRequest> cancellation) {
+std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation) {
   auto job = std::make_shared<ToolJob>(call.id, call.name);
   auto task = [this, call, job, cancellation]() {
     if (cancellation && cancellation->IsCancelled()) {
@@ -42,9 +41,8 @@ std::shared_ptr<ToolJob> ToolDispatcher::Submit(
   return job;
 }
 
-std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(
-    const std::vector<Call>& calls,
-    std::shared_ptr<CancellationRequest> cancellation) {
+std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(const std::vector<Call>& calls,
+                                                             std::shared_ptr<CancellationRequest> cancellation) {
   if (calls.empty()) return {};
 
   std::vector<std::shared_ptr<ToolJob>> jobs;

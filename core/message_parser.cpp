@@ -25,8 +25,7 @@ bool MessageContext::is_valid() const {
   return valid_;
 }
 
-absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
-    const MessageContext& ctx) {
+absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const MessageContext& ctx) {
   const auto& msg = ctx.message();
   if (msg.status != "tool_call") return std::vector<ToolCall>();
 
@@ -50,8 +49,7 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
         calls.push_back(tc);
       }
     }
-  } else if (msg.parsing_strategy == "gemini" ||
-             msg.parsing_strategy == "gemini_gca") {
+  } else if (msg.parsing_strategy == "gemini" || msg.parsing_strategy == "gemini_gca") {
     ToolCall tc;
     tc.id = msg.tool_call_id;
     tc.name = msg.tool_call_id;  // Default to ID if name not in JSON
@@ -71,8 +69,7 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(
       for (const auto& call : j["functionCalls"]) {
         ToolCall tc;
         tc.name = call.value("name", "unknown");
-        tc.args =
-            call.contains("args") ? call["args"] : nlohmann::json::object();
+        tc.args = call.contains("args") ? call["args"] : nlohmann::json::object();
         calls.push_back(tc);
       }
     }

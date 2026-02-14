@@ -1,4 +1,5 @@
 #include "ini/ini_parser.h"
+
 #include <gtest/gtest.h>
 
 namespace slop {
@@ -14,9 +15,9 @@ strip_reasoning = true
 [other]
 key = value
 )";
-  
+
   IniConfig config = ParseIni(content);
-  
+
   EXPECT_EQ(config["slop"]["model"], "gemini-pro");
   EXPECT_EQ(config["slop"]["db"], "slop.db");
   EXPECT_EQ(config["slop"]["strip_reasoning"], "true");
@@ -31,9 +32,9 @@ TEST(IniParserTest, CommentsAndSpacing) {
 ; another comment
   db = slop.db
 )";
-  
+
   IniConfig config = ParseIni(content);
-  
+
   EXPECT_EQ(config["slop"]["model"], "gemini-pro");
   EXPECT_EQ(config["slop"]["db"], "slop.db");
 }
@@ -41,7 +42,7 @@ TEST(IniParserTest, CommentsAndSpacing) {
 TEST(IniParserTest, EmptyAndGlobal) {
   std::string_view content = "key=value\n[section]\nfoo=bar";
   IniConfig config = ParseIni(content);
-  
+
   EXPECT_EQ(config[""]["key"], "value");
   EXPECT_EQ(config["section"]["foo"], "bar");
 }

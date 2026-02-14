@@ -22,7 +22,6 @@ struct WriteFileRequest {
   std::string content;
 };
 
-
 struct GrepRequest {
   std::string pattern;
   std::string path = ".";
@@ -166,7 +165,6 @@ inline void from_json(const nlohmann::json& j, WriteFileRequest& r) {
   r.content = j.value("content", "");
 }
 
-
 inline void from_json(const nlohmann::json& j, GrepRequest& r) {
   r.pattern = j.value("pattern", "");
   r.path = j.value("path", ".");
@@ -272,9 +270,7 @@ inline void from_json(const nlohmann::json& j, GitRerollPatchRequest& r) {
   r.base_branch = j.value("base_branch", "");
 }
 
-inline void from_json(const nlohmann::json& j, RunLuaRequest& r) {
-  r.script = j.value("script", "");
-}
+inline void from_json(const nlohmann::json& j, RunLuaRequest& r) { r.script = j.value("script", ""); }
 
 }  // namespace slop
 

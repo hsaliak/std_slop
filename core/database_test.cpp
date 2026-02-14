@@ -403,8 +403,7 @@ TEST(DatabaseTest, ApplyPatchToolSchema) {
   for (const auto& t : *tools) {
     if (t.name == "apply_patch") {
       found = true;
-      nlohmann::json schema =
-          nlohmann::json::parse(t.json_schema, nullptr, false);
+      nlohmann::json schema = nlohmann::json::parse(t.json_schema, nullptr, false);
       ASSERT_FALSE(schema.is_discarded());
       EXPECT_EQ(schema["type"], "object");
       EXPECT_TRUE(schema["properties"].contains("path"));

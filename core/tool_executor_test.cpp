@@ -1,12 +1,13 @@
 #include "core/tool_executor.h"
 
 #include <cstdlib>
-#include "core/tool_dispatcher.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 
 #include "absl/strings/match.h"
+
+#include "core/tool_dispatcher.h"
 
 #include <gtest/gtest.h>
 
@@ -124,8 +125,7 @@ TEST(ToolExecutorTest, MailModelEnforcement) {
   // 3. Test that read_file (non-protected) works on any branch
   // Using success_test.txt which we just wrote, so we know it exists in the sandbox.
   setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
-  auto read_res =
-      executor.Execute("read_file", {{"path", "success_test.txt"}, {"start_line", 1}, {"end_line", 1}});
+  auto read_res = executor.Execute("read_file", {{"path", "success_test.txt"}, {"start_line", 1}, {"end_line", 1}});
   EXPECT_TRUE(read_res.ok());
 
   std::filesystem::remove("success_test.txt");
@@ -656,10 +656,10 @@ TEST(ToolExecutorTest, RunLuaPreamble) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  executor.RegisterTool("llm_query", []([[maybe_unused]] const nlohmann::json& args,
-                                        std::shared_ptr<CancellationRequest>) {
-    return absl::StatusOr<std::string>("mock_llm_result");
-  });
+  executor.RegisterTool("llm_query",
+                        []([[maybe_unused]] const nlohmann::json& args, std::shared_ptr<CancellationRequest>) {
+                          return absl::StatusOr<std::string>("mock_llm_result");
+                        });
 
   // Test manifest and llm_query
   std::string script = R"(
@@ -698,11 +698,10 @@ TEST(ToolExecutorTest, AsyncJobExecution) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  auto dispatcher = std::make_unique<ToolDispatcher>(
-      [&executor](const std::string& name, const nlohmann::json& args,
-                  std::shared_ptr<CancellationRequest> cancellation) {
-        return executor.Execute(name, args, cancellation);
-      });
+  auto dispatcher = std::make_unique<ToolDispatcher>([&executor](const std::string& name, const nlohmann::json& args,
+                                                                 std::shared_ptr<CancellationRequest> cancellation) {
+    return executor.Execute(name, args, cancellation);
+  });
   executor.SetDispatcher(std::move(dispatcher));
 
   std::string script = R"(
@@ -724,11 +723,10 @@ TEST(ToolExecutorTest, AsyncJobParallelism) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  auto dispatcher = std::make_unique<ToolDispatcher>(
-      [&executor](const std::string& name, const nlohmann::json& args,
-                  std::shared_ptr<CancellationRequest> cancellation) {
-        return executor.Execute(name, args, cancellation);
-      });
+  auto dispatcher = std::make_unique<ToolDispatcher>([&executor](const std::string& name, const nlohmann::json& args,
+                                                                 std::shared_ptr<CancellationRequest> cancellation) {
+    return executor.Execute(name, args, cancellation);
+  });
   executor.SetDispatcher(std::move(dispatcher));
 
   std::string script = R"(
@@ -744,8 +742,7 @@ TEST(ToolExecutorTest, AsyncJobParallelism) {
   auto start = std::chrono::steady_clock::now();
   auto res = executor.Execute("run_lua", {{"script", script}});
   auto end = std::chrono::steady_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_TRUE(absl::StrContains(*res, "job1"));

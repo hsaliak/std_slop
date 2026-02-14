@@ -1,11 +1,12 @@
 #ifndef SLOP_SQL_ORCHESTRATOR_GEMINI_H_
 #define SLOP_SQL_ORCHESTRATOR_GEMINI_H_
 
+#include "absl/container/flat_hash_map.h"
+#include "nlohmann/json.hpp"
+
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/orchestrator_strategy.h"
-#include "absl/container/flat_hash_map.h"
-#include "nlohmann/json.hpp"
 
 namespace slop {
 

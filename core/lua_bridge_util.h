@@ -17,7 +17,7 @@ inline nlohmann::json LuaToJSON(sol::object obj) {
   if (obj.is<std::string>()) return obj.as<std::string>();
   if (obj.is<sol::table>()) {
     sol::table t = obj.as<sol::table>();
-    
+
     // Check if it's an array (heuristic: keys are all positive integers)
     bool is_array = true;
     size_t count = 0;
@@ -90,6 +90,6 @@ inline sol::object JSONToLua(sol::state_view& lua, const nlohmann::json& j) {
   return sol::lua_nil;
 }
 
-} // namespace slop
+}  // namespace slop
 
-#endif // SLOP_CORE_LUA_BRIDGE_UTIL_H_
+#endif  // SLOP_CORE_LUA_BRIDGE_UTIL_H_

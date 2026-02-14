@@ -892,7 +892,7 @@ TEST_F(CommandHandlerTest, ReviewDashboard) {
   std::string input = "/review";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
-  
+
   testing::internal::CaptureStdout();
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   std::string output = testing::internal::GetCapturedStdout();
@@ -910,7 +910,7 @@ TEST_F(CommandHandlerTest, ModeMailResolvesCorrectBaseBranch) {
   std::vector<std::string> active_skills;
 
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
-  
+
   // Case 1: On 'develop' (non-staging)
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "develop";
   {

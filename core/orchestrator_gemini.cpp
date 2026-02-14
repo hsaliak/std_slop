@@ -107,9 +107,7 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
         }
       }
       if (it != tool_schema_cache_.end()) {
-        f_decls.push_back({{"name", t.name},
-                           {"description", t.description},
-                           {"parameters", it->second}});
+        f_decls.push_back({{"name", t.name}, {"description", t.description}, {"parameters", it->second}});
       }
     }
   }
@@ -166,8 +164,7 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
   return total_tokens;
 }
 
-absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(
-    const Database::Message& msg) {
+absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const Database::Message& msg) {
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 

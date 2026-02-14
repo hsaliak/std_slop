@@ -2,16 +2,16 @@
 
 #include <fcntl.h>
 #include <poll.h>
+#include <pwd.h>
 #include <termios.h>
 #include <unistd.h>
-#include <pwd.h>
 
 #include <array>
-#include <cstdlib>
 #include <cerrno>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -37,8 +37,7 @@ GlobalTerminalState g_terminal_state;
 
 ScopedRawMode::ScopedRawMode() {
   if (g_terminal_state.refcount++ == 0) {
-    if (isatty(STDIN_FILENO) &&
-        tcgetattr(STDIN_FILENO, &g_terminal_state.oldt) == 0) {
+    if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &g_terminal_state.oldt) == 0) {
       struct termios newt = g_terminal_state.oldt;
       newt.c_lflag &= ~(ICANON | ECHO);
       if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) == 0) {
@@ -245,8 +244,7 @@ std::string EscapeShellArg(std::string_view arg) {
 bool IsEscPressed() {
   static auto last_check = std::chrono::steady_clock::now();
   auto now = std::chrono::steady_clock::now();
-  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check)
-          .count() < 100) {
+  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check).count() < 100) {
     return false;
   }
   last_check = now;
@@ -286,11 +284,11 @@ bool IsEscPressed() {
 std::string GetHomeDir() {
   const char* home = std::getenv("HOME");
   if (home) {
-    return std::string(home);
+    return {home};
   }
   struct passwd* pw = getpwuid(getuid());
   if (pw) {
-    return std::string(pw->pw_dir);
+    return {pw->pw_dir};
   }
   return "";
 }

@@ -47,8 +47,8 @@ class ToolExecutor {
   void SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher);
   ToolDispatcher* dispatcher() const { return dispatcher_.get(); }
 
-  using ToolHandler = std::function<absl::StatusOr<std::string>(
-      const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
+  using ToolHandler =
+      std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   void RegisterTool(const std::string& name, ToolHandler handler);
 
   ~ToolExecutor();
@@ -60,28 +60,19 @@ class ToolExecutor {
   std::string session_id_;
   bool mail_mode_ = false;
 
-
-
-
-
   void RegisterTools();
 
   struct LuaResult {
     std::string stdout_out;
     std::string return_value;
 
-    std::string FullOutput() const {
-      return stdout_out + "\nReturn Value: " + return_value;
-    }
+    std::string FullOutput() const { return stdout_out + "\nReturn Value: " + return_value; }
   };
 
-  absl::StatusOr<LuaResult> RunLua(
-      const RunLuaRequest& req,
-      std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<LuaResult> RunLua(const RunLuaRequest& req, std::shared_ptr<CancellationRequest> cancellation);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   std::unique_ptr<ToolDispatcher> dispatcher_;
-
 };
 
 }  // namespace slop

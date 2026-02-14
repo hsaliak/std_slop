@@ -80,8 +80,6 @@ class FileLogSink : public absl::LogSink {
   std::ofstream file_;
 };
 
-
-
 void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slop::Orchestrator& orchestrator,
                         slop::ToolExecutor& tool_executor, std::string& session_id,
                         const slop::InteractionEngine::Config& engine_config) {
@@ -261,10 +259,8 @@ int main(int argc, char* argv[]) {
   auto tool_executor = std::move(*tool_executor_or);
 
   auto dispatcher = std::make_unique<slop::ToolDispatcher>(
-      [&tool_executor](
-          const std::string& name, const nlohmann::json& args,
-          std::shared_ptr<slop::CancellationRequest> cancellation)
-          -> absl::StatusOr<std::string> {
+      [&tool_executor](const std::string& name, const nlohmann::json& args,
+                       std::shared_ptr<slop::CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
         return tool_executor->Execute(name, args, cancellation);
       },
       absl::GetFlag(FLAGS_max_parallel_tools));
@@ -288,8 +284,7 @@ int main(int argc, char* argv[]) {
 
   std::vector<std::string> active_skills = tool_executor->GetActiveSkills();
 
-  slop::InteractionEngine engine(db, *orchestrator, cmd_handler,
-                                 *tool_executor->dispatcher(), *tool_executor,
+  slop::InteractionEngine engine(db, *orchestrator, cmd_handler, *tool_executor->dispatcher(), *tool_executor,
                                  http_client, oauth_handler);
   slop::InteractionEngine::Config engine_config;
   engine_config.google_api_key = google_key;
@@ -299,9 +294,8 @@ int main(int argc, char* argv[]) {
 
   tool_executor->RegisterTool(
       "llm_query",
-      [&engine, engine_config, active_skills](const nlohmann::json& args,
-                                              std::shared_ptr<slop::CancellationRequest>)
-          -> absl::StatusOr<std::string> {
+      [&engine, engine_config, active_skills](
+          const nlohmann::json& args, std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
         if (!args.contains("query")) {
           return absl::InvalidArgumentError("Missing 'query' argument");
         }

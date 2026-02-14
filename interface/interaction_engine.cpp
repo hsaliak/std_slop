@@ -162,10 +162,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
               if (!config.silent && slop::IsEscPressed()) {
                 cancellation->Cancel();
                 std::cerr << "\n"
-                          << "  "
-                          << slop::Colorize("[Esc] Cancellation requested...", "",
-                                           "\033[31m")
-                          << std::endl;
+                          << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m") << std::endl;
               }
               std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
@@ -199,7 +196,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 }
 
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
-                                              const std::vector<std::string>& active_skills) {
+                                                     const std::vector<std::string>& active_skills) {
   Database transient_db;
   auto status = transient_db.Init(":memory:");
   if (!status.ok()) return status;

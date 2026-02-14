@@ -116,8 +116,7 @@ std::vector<std::string> Database::ExtractTags(const std::string& text) {
   return tags;
 }
 
-absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(
-    const std::string& sql) {
+absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std::string& sql) {
   absl::MutexLock lock(&mu_);
   sqlite3_stmt* raw_stmt = nullptr;
   auto it = stmt_cache_.find(sql);
@@ -258,7 +257,8 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr, nullptr, nullptr);
 
   // Initialize settings
-  (void)sqlite3_exec(raw_db, "INSERT OR IGNORE INTO settings (id, mode) VALUES (1, 'standard');", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "INSERT OR IGNORE INTO settings (id, mode) VALUES (1, 'standard');", nullptr, nullptr,
+                     nullptr);
 
   {
     absl::MutexLock lock(&mu_);
@@ -501,7 +501,8 @@ absl::Status Database::RegisterDefaultSkills() {
        "- ALWAYS provide all necessary code or context within the `--prompt` string. The sub-agent is fresh and has "
        "NO knowledge of this conversation.\n"
        "- Use single quotes or properly escape double quotes in the shell command.\n"
-       "- If the task is too large for a single prompt, consider if it's actually suitable for this delegation model."});
+       "- If the task is too large for a single prompt, consider if it's actually suitable for this delegation "
+       "model."});
 
   for (const auto& s : default_skills) {
     absl::Status status = RegisterSkill(s);
