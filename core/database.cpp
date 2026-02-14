@@ -278,28 +278,28 @@ absl::Status Database::RegisterDefaultTools() {
   std::vector<Tool> default_tools = {
       {"read_file", "Read the content of a file from the local filesystem.",
        R"({"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"}},"required":["path"]})",
-       true},
+       false},
       {"write_file", "Write content to a file in the local filesystem.",
        R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",
-       true},
+       false},
       {"execute_bash", "Execute a bash command on the local system.",
-       R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", true},
+       R"({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})", false},
       {"grep_tool",
        "Search for a pattern in the codebase using grep. Delegates to git_grep_tool if available in a git repository. "
        "If not in a git repository, it is highly recommended to initialize one with 'git init' for better performance "
        "and feature support.",
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":"integer"}},"required":["pattern"]})",
-       true},
+       false},
       {"git_grep_tool",
        "Comprehensive search using git grep. Optimized for git repositories, honors .gitignore, and can search "
        "history.",
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"case_insensitive":{"type":"boolean"},"word_regexp":{"type":"boolean"},"line_number":{"type":"boolean","default":true},"count":{"type":"boolean"},"before":{"type":"integer"},"after":{"type":"integer"},"context":{"type":"integer"},"files_with_matches":{"type":"boolean"},"all_match":{"type":"boolean"},"pcre":{"type":"boolean"},"show_function":{"type":"boolean"},"function_context":{"type":"boolean"},"cached":{"type":"boolean"},"branch":{"type":"string"}},"required":["pattern"]})",
-       true},
+       false},
       {"query_db", "Query the local SQLite database using SQL.",
        R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true},
       {"apply_patch", "Applies partial changes to a file by matching a specific block of text and replacing it.",
        R"({"type":"object","properties":{"path":{"type":"string"},"patches":{"type":"array","items":{"type":"object","properties":{"find":{"type":"string"},"replace":{"type":"string"}},"required":["find","replace"]}}},"required":["path","patches"]})",
-       true},
+       false},
       {"llm_query",
        "Query the LLM for isolated sub-task processing. Runs in an independent session with its own memory "
        "database to prevent primary history pollution.",
@@ -307,41 +307,41 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"save_memo", "Save a memo with semantic tags for later retrieval.",
        R"({"type":"object","properties":{"content":{"type":"string"},"tags":{"type":"array","items":{"type":"string"}}},"required":["content","tags"]})",
-       true},
+       false},
       {"retrieve_memos", "Retrieve memos based on semantic tags.",
        R"({"type":"object","properties":{"tags":{"type":"array","items":{"type":"string"}}},"required":["tags"]})",
-       true},
+       false},
       {"list_directory", "List files and directories with optional depth and git awareness.",
        R"({"type":"object","properties":{"path":{"type":"string"},"depth":{"type":"integer"},"git_only":{"type":"boolean"}},"required":[]})",
-       true},
+       false},
       {"manage_scratchpad", "Manage a persistent markdown scratchpad for the current session.",
        R"({"type":"object","properties":{"action":{"type":"string","enum":["read","update","append"]},"content":{"type":"string"}},"required":["action"]})",
-       true},
-      {"describe_db", "Describe the database schema and tables.", R"({"type":"object","properties":{}})", true},
+       false},
+      {"describe_db", "Describe the database schema and tables.", R"({"type":"object","properties":{}})", false},
       {"use_skill", "Activate or deactivate a specialized skill/persona.",
        R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"],"default":"activate"}},"required":["name"]})",
-       true},
+       false},
       {"git_branch_staging", "Initializes a staging branch for the Mail Model.",
        R"({"type": "object", "properties": {"name": {"type": "string", "description": "Short identifier for the staging branch."}, "base_branch": {"type": "string", "description": "The base branch to branch from (default: main)."}}, "required": ["name"]})",
-       true},
+       false},
       {"git_commit_patch", "Commits a logical change with mandatory metadata (summary and rationale).",
        R"({"type": "object", "properties": {"summary": {"type": "string", "description": "One-line summary of the change."}, "rationale": {"type": "string", "description": "Detailed explanation of why the change was made."}}, "required": ["summary", "rationale"]})",
-       true},
+       false},
       {"git_format_patch_series",
        "Returns the formatted cover letter, changelog, and a list of unified diffs for the series.",
        R"({"type": "object", "properties": {"base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}})",
-       true},
+       false},
       {"git_finalize_series", "Merges the staging branch into the target branch and cleans up.",
        R"({"type": "object", "properties": {"target_branch": {"type": "string", "description": "The branch to merge the series into (default: main)."}}})",
-       true},
+       false},
       {"git_verify_series",
        "Automates the \"Series Walk.\" It checks out each commit in the current series sequentially and runs the "
        "provided build/test command.",
        R"({"type": "object", "properties": {"command": {"type": "string", "description": "The build/test command to run for each patch."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["command"]})",
-       true},
+       false},
       {"git_reroll_patch", "Automates the fixup and autosquash rebase to update a specific patch in the series.",
        R"({"type": "object", "properties": {"index": {"type": "integer", "description": "The 1-based index of the patch to update."}, "base_branch": {"type": "string", "description": "The base branch to compare against (default: main)."}}, "required": ["index"]})",
-       true},
+       false},
       {"run_lua",
        "Execute a Lua 5.4 script acting as a high-level 'control plane' with access to the full standard library, a "
        "'tools' table (supporting async variants like llm_query_async), and global variables 'history', 'state', and "
@@ -398,10 +398,10 @@ absl::Status Database::RegisterDefaultSkills() {
 
   default_skills.push_back(
       {0, "lua_control_plane",
-       "Constrains the agent to only use the 'run_lua' control plane and 'query_db' for all operations.",
+       "Constrains the agent to only use the 'run_lua' control plane, 'query_db', and 'llm_query' for all operations.",
        "### Skill: lua_control_plane\n"
        "DANGER: You are in **LUA CONTROL PLANE** mode.\n"
-       "- You MUST NOT use any tools directly EXCEPT for `run_lua` and `query_db`.\n"
+       "- You MUST NOT use any tools directly EXCEPT for `run_lua`, `query_db`, and `llm_query`.\n"
        "- All other operations (file manipulation, searching, bash execution, etc.) MUST be performed by writing and "
        "executing a Lua script via `run_lua`.\n"
        "- Use `query_db` only for reading schema or metadata when necessary to construct your Lua scripts.\n"
