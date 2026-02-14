@@ -1022,25 +1022,27 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::
   if (unique_tags.empty()) return std::vector<Memo>();
   std::vector<std::string> tags(unique_tags.begin(), unique_tags.end());
 
+  nlohmann::json tags_json = nlohmann::json::array();
+  for (const auto& tag : tags) {
+    tags_json.push_back(tag);
+  }
+
   std::string sql =
+      "WITH input_tags(tag) AS (SELECT value FROM json_each(?)) "
       "SELECT DISTINCT m.id, m.content, m.semantic_tags, m.created_at "
       "FROM llm_memos m, json_each(m.semantic_tags) j "
-      "WHERE ";
-  for (size_t i = 0; i < tags.size(); ++i) {
-    sql += "(j.value = ? OR j.value LIKE ? OR j.value LIKE ? OR j.value LIKE ?)";
-    if (i < tags.size() - 1) sql += " OR ";
-  }
+      "JOIN input_tags it ON ("
+      "  j.value = it.tag OR "
+      "  j.value LIKE it.tag || '-%' OR "
+      "  j.value LIKE '%-' || it.tag OR "
+      "  j.value LIKE '%-' || it.tag || '-%'"
+      ")";
 
   auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
   auto& stmt = *stmt_or;
-  for (size_t i = 0; i < tags.size(); ++i) {
-    int base = i * 4 + 1;
-    (void)stmt->BindText(base, tags[i]);                    // Exact
-    (void)stmt->BindText(base + 1, tags[i] + "-%");         // Prefix: arch-
-    (void)stmt->BindText(base + 2, "%-" + tags[i]);         // Suffix: -arch
-    (void)stmt->BindText(base + 3, "%-" + tags[i] + "-%");  // Middle: -arch-
-  }
+
+  (void)stmt->BindText(1, tags_json.dump());
 
   std::vector<Memo> results;
   while (true) {
@@ -1057,6 +1059,7 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::
   }
   return results;
 }
+
 
 absl::StatusOr<std::vector<Database::Memo>> Database::GetAllMemos() {
   auto stmt_or = Prepare("SELECT id, content, semantic_tags, created_at FROM llm_memos");
