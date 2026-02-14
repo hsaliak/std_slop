@@ -213,6 +213,29 @@ function git.is_staging_branch()
   return branch and branch:find("^slop/staging/") ~= nil
 end
 
+function git.resolve_base_branch(provided_base)
+  if provided_base then return provided_base end
+  
+  local current = git.get_current_branch()
+  if not current then error("Not in a git repository") end
+  
+  local res_json = tools.query_db({
+    sql = "SELECT parent_branch FROM staging_branches WHERE branch_name = ?",
+    params = {current}
+  })
+  
+  if res_json then
+    local parent = res_json:match('"parent_branch":"(.-)"')
+    if parent then return parent end
+  end
+  
+  if current:find("^slop/staging/") then
+    error("Could not determine base branch for staging branch '" .. current .. "'. Please provide base_branch explicitly.")
+  end
+  
+  return "main"
+end
+
 
 -- Foundation Tools (Migrated from C++)
 
@@ -602,6 +625,12 @@ function tools.git_branch_staging(args)
   local cmd = string.format("git checkout -b %s %s", shell_escape(staging_name), shell_escape(base_branch))
   local res = __os_run(cmd)
   if res.exit_code ~= 0 then error("Failed to create staging branch: " .. res.stdout .. res.stderr) end
+
+  -- Record the parent branch for stickiness
+  tools.query_db({
+    sql = "INSERT OR REPLACE INTO staging_branches (branch_name, parent_branch) VALUES (?, ?)",
+    params = {staging_name, base_branch}
+  })
   
   return "Created and checked out staging branch: " .. staging_name .. " (base: " .. base_branch .. ")"
 end
@@ -611,136 +640,118 @@ function tools.git_commit_patch(args)
   local summary = args.summary
   local rationale = args.rationale
   
-  local full_message = summary .. "\n\nRationale: " .. rationale
-  local cmd = string.format("git commit -m %s", shell_escape(full_message))
-  local success, res = call_tool(tools.execute_bash, {command = cmd})
-  if not success then error("Commit failed: " .. tostring(res)) end
+  if #summary > 50 then error("Summary must be <= 50 characters") end
+  
+  local full_msg = summary .. "\n\n" .. rationale
+  local cmd = string.format("git commit -m %s", shell_escape(full_msg))
+  local res = __os_run(cmd)
+  if res.exit_code ~= 0 then error("Commit failed: " .. res.stdout .. res.stderr) end
   
   return tools.git_format_patch_series({})
 end
 
 function tools.git_reroll_patch(args)
   slop_guard()
-  local index = args.index
-  local base_branch = args.base_branch or "main"
+  local index = tonumber(args.index)
+  local base_branch = git.resolve_base_branch(args.base_branch)
   
-  -- Find the commit hash for the patch at index
-  local log_cmd = string.format("git log %s..HEAD --oneline --reverse", shell_escape(base_branch))
-  local success, log_res = call_tool(tools.execute_bash, {command = log_cmd})
-  if not success then error("Failed to get log: " .. tostring(log_res)) end
+  -- 1. Get the list of commits
+  local log_cmd = string.format("git log --reverse --format=%%H %s..HEAD", shell_escape(base_branch))
+  local log_success, log_res = pcall(tools.execute_bash, {command = log_cmd})
+  if not log_success then error("Failed to get commit list: " .. tostring(log_res)) end
   
   local commits = {}
-  for hash in log_res:gmatch("(%w+) ") do table.insert(commits, hash) end
+  for hash in log_res:gmatch("%S+") do table.insert(commits, hash) end
   
   if index < 1 or index > #commits then
-    error(string.format("Invalid patch index %d. Series has %d patches.", index, #commits))
+    error(string.format("Invalid patch index %d (total patches: %d)", index, #commits))
   end
   
+  -- 2. Perform the rebase
   local target_hash = commits[index]
   
-  -- Fixup: stage changes, commit as fixup, then rebase
-  local fixup_cmd = string.format("git add -A && git commit --fixup=%s && GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash %s~1", target_hash, target_hash)
-  local success2, rebase_res = call_tool(tools.execute_bash, {command = fixup_cmd})
-  if not success2 then
-    error("Reroll failed: " .. tostring(rebase_res))
+  local commit_res = __os_run("git commit --fixup " .. target_hash)
+  if commit_res.exit_code ~= 0 then error("Failed to create fixup commit. Are there any changes staged?") end
+  
+  -- Use non-interactive rebase
+  local env_cmd = "GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash " .. shell_escape(base_branch)
+  local rebase_res = __os_run(env_cmd)
+  if rebase_res.exit_code ~= 0 then
+    __os_run("git rebase --abort")
+    error("Rebase failed. You may have conflicts. Manual intervention required.\n" .. rebase_res.stderr)
   end
   
-  return tools.git_format_patch_series({})
+  return tools.git_format_patch_series({base_branch = base_branch})
 end
 
 function tools.git_verify_series(args)
+  slop_guard()
   local command = args.command
-  local base_branch = args.base_branch or "main"
+  local base_branch = git.resolve_base_branch(args.base_branch)
   
-  local log_cmd = string.format("git log %s..HEAD --oneline --reverse", shell_escape(base_branch))
-  local success, log_res = call_tool(tools.execute_bash, {command = log_cmd})
-  if not success then error("Failed to get log: " .. tostring(log_res)) end
+  local log_cmd = string.format("git log --reverse --format=%%H %s..HEAD", shell_escape(base_branch))
+  local log_success, log_res = pcall(tools.execute_bash, {command = log_cmd})
+  if not log_success then error("Failed to get commit list: " .. tostring(log_res)) end
   
   local commits = {}
-  for hash in log_res:gmatch("(%w+) ") do table.insert(commits, hash) end
+  for hash in log_res:gmatch("%S+") do table.insert(commits, hash) end
   
   local current_branch = git.get_current_branch()
   local results = {}
+  local all_passed = true
   
   for i, hash in ipairs(commits) do
-    call_tool(tools.execute_bash, {command = "git checkout " .. hash})
-    local success_test, test_res = call_tool(tools.execute_bash, {command = command})
-    table.insert(results, string.format("Patch [%d/%d] (%s): %s", i, #commits, hash, success_test and "PASSED" or "FAILED"))
-    if not success_test then
-      call_tool(tools.execute_bash, {command = "git checkout " .. current_branch})
-      return table.concat(results, "\n") .. "\n\nVerification failed at patch " .. i .. ":\n" .. test_res
+    __os_run("git checkout " .. hash)
+    local test_res = __os_run(command)
+    local status = (test_res.exit_code == 0) and "PASSED" or "FAILED"
+    table.insert(results, string.format("Patch [%d/%d] (%s...): %s", i, #commits, hash:sub(1,7), status))
+    if not (test_res.exit_code == 0) then 
+      all_passed = false 
+      break
     end
   end
   
-  call_tool(tools.execute_bash, {command = "git checkout " .. current_branch})
-  return table.concat(results, "\n") .. "\n\nAll patches verified successfully."
+  -- Restore state
+  __os_run("git checkout " .. shell_escape(current_branch))
+  
+  local report = table.concat(results, "\n")
+  if all_passed then
+    return "Verification Successful!\n\n" .. report
+  else
+    return "Verification FAILED!\n\n" .. report
+  end
 end
 
 function tools.git_format_patch_series(args)
-  local base_branch = args.base_branch or "main"
+  slop_guard()
+  local base_branch = git.resolve_base_branch(args.base_branch)
   
-  -- Use a custom format to extract subject and rationale
-  local log_format = "---COMMIT_START---%n%H%n%an%n%ae%n%ad%n%s%n%b"
-  local log_cmd = string.format("git log %s..HEAD --format=%s", shell_escape(base_branch), shell_escape(log_format))
-  
-  local success, log_res = call_tool(tools.execute_bash, {command = log_cmd})
-  if not success then error("Failed to get series log: " .. tostring(log_res)) end
+  local log_cmd = string.format("git log --reverse --format='### Patch [%%n/%%N] ###%%ncommit %%H%%nAuthor: %%an <%%ae>%%nDate:   %%ad%%n%%n    %%s%%n%%n%%b' %s..HEAD", shell_escape(base_branch))
+  local log_success, log_res = pcall(tools.execute_bash, {command = log_cmd})
+  if not log_success then error("Failed to get patch logs: " .. tostring(log_res)) end
   
   local diff_cmd = string.format("git diff %s..HEAD", shell_escape(base_branch))
   local diff_success, diff_res = pcall(tools.execute_bash, {command = diff_cmd})
-  if not diff_success then
-    error("Failed to get diff: " .. diff_res)
-  end
-
-  -- Parse commits and format them
-  local patches = {}
-  for commit_data in log_res:gmatch("---COMMIT_START---%s*(.-)%s*---COMMIT_START---") do
-    table.insert(patches, commit_data)
-  end
-  -- Catch the last one
-  local last_commit = log_res:match("---COMMIT_START---%s*([^-]+)$")
-  if last_commit then table.insert(patches, last_commit) end
-
-  local formatted_patches = {}
-  for i, patch in ipairs(patches) do
-    local lines = {}
-    for line in patch:gmatch("([^\n]*)\n?") do table.insert(lines, line) end
-    
-    local hash = lines[1]
-    local author = lines[2]
-    local email = lines[3]
-    local date = lines[4]
-    local subject = lines[5]
-    local body = ""
-    for j=6,#lines do body = body .. lines[j] .. "\n" end
-
-    -- Extract rationale if present in body
-    local rationale = body:match("Rationale: (.-)\n") or "No rationale provided."
-    
-    local formatted = string.format("### Patch [%d/%d]: %s\nRationale: %s\n ###\ncommit %s\nAuthor: %s <%s>\nDate:   %s\n\n    %s\n\n%s",
-      i, #patches, subject, rationale, hash, author, email, date, subject, body)
-    table.insert(formatted_patches, formatted)
-  end
-
-  local output = table.concat(formatted_patches, "\n")
-  output = output .. "\n\n" .. diff_res
-  return output
+  if not diff_success then error("Failed to get diff: " .. tostring(diff_res)) end
+  
+  return "--- MAIL SERIES ---\nBase: " .. base_branch .. "\n\n" .. log_res .. "\n\n--- FULL DIFF ---\n" .. diff_res
 end
 
 function tools.git_finalize_series(args)
   slop_guard()
 
   local current_branch = git.get_current_branch()
-  local target_branch = args.target_branch or "main"
-  
+  local target_branch = git.resolve_base_branch(args.target_branch)
+
   -- 1. Verify approval
   local success, hash = call_tool(tools.execute_bash, {command = "git rev-parse HEAD"})
   if not success then error("Failed to get current hash: " .. tostring(hash)) end
   hash = hash:gsub("%s+", "")
 
-  local approval_query = string.format("SELECT approved_hash FROM patch_approvals WHERE branch_name = %s", shell_escape(current_branch))
-  local success2, approval_res = call_tool(tools.query_db, {sql = approval_query})
-  if not success2 then error("Failed to query approvals: " .. tostring(approval_res)) end
+  local approval_res = tools.query_db({
+    sql = "SELECT approved_hash FROM patch_approvals WHERE branch_name = ?",
+    params = {current_branch}
+  })
   
   if not approval_res:find(hash) then
     error("Patch series not approved or hash mismatch. Please obtain approval for hash " .. hash .. " before finalizing.")
@@ -763,10 +774,15 @@ function tools.git_finalize_series(args)
 
   -- 3. Cleanup
   __os_run("git branch -D " .. shell_escape(current_branch))
+  
+  -- Remove sticky parent info
+  tools.query_db({
+    sql = "DELETE FROM staging_branches WHERE branch_name = ?",
+    params = {current_branch}
+  })
 
-  return "Successfully finalized series. Merged " .. current_branch .. " into " .. target_branch .. " and deleted staging branch."
+  return "Successfully finalized series and merged into " .. target_branch
 end
-
 
 function llm_query(query)
   if not query or query == "" then error("llm_query requires a query string") end

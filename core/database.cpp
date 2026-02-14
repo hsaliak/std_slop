@@ -244,10 +244,15 @@ absl::Status Database::Init(const std::string& db_path) {
 
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
-    CREATE TABLE IF NOT EXISTS patch_approvals (
+        CREATE TABLE IF NOT EXISTS patch_approvals (
         branch_name TEXT PRIMARY KEY,
         approved_hash TEXT NOT NULL,
         approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS staging_branches (
+        branch_name TEXT PRIMARY KEY,
+        parent_branch TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
