@@ -515,12 +515,12 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   if (is_error && IsNetworkError(result)) {
     int printed = 0;
     for (const auto& line : out_lines) {
-      if (printed >= 3) break;
+      if (printed >= 10) break;
       std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
       printed++;
     }
     for (const auto& line : err_lines) {
-      if (printed >= 6) break;
+      if (printed >= 10) break;
       std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
                 << Colorize(std::string(line), "", ansi::Red) << std::endl;
       printed++;
