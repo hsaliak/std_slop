@@ -1231,6 +1231,7 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
     }
 
     mail_mode_ = true;
+    (void)db_->Query("UPDATE settings SET mode = 'mail' WHERE id = 1");
     auto current_branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
     std::string current_branch = current_branch_res.ok() ? *current_branch_res : "";
     absl::StripAsciiWhitespace(&current_branch);
@@ -1261,6 +1262,7 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
     }
   } else if (mode == "standard" || mode == "default") {
     mail_mode_ = false;
+    (void)db_->Query("UPDATE settings SET mode = 'standard' WHERE id = 1");
     std::cout << "Switched to STANDARD mode." << std::endl;
     // Deactivate patcher skill
     auto it = std::remove(args.active_skills.begin(), args.active_skills.end(), "patcher");

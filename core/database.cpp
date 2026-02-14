@@ -243,12 +243,19 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
 
+  // Initialize settings
+  (void)sqlite3_exec(raw_db, "INSERT OR IGNORE INTO settings (id, mode) VALUES (1, 'standard');", nullptr, nullptr, nullptr);
+
   // Patch Approval Table
   (void)sqlite3_exec(raw_db, R"(
     CREATE TABLE IF NOT EXISTS patch_approvals (
         branch_name TEXT PRIMARY KEY,
         approved_hash TEXT NOT NULL,
         approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        mode TEXT NOT NULL DEFAULT 'standard'
     );
   )",
                      nullptr, nullptr, nullptr);
