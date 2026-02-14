@@ -101,6 +101,14 @@ void ToolExecutor::SetSessionId(const std::string& session_id) {
   session_id_ = session_id;
 }
 
+void ToolExecutor::SetMailMode(bool enabled) {
+  mail_mode_ = enabled;
+  if (db_) {
+    (void)db_->Query(enabled ? "UPDATE settings SET mode = 'mail' WHERE id = 1" 
+                             : "UPDATE settings SET mode = 'standard' WHERE id = 1");
+  }
+}
+
 bool ToolExecutor::IsSkillActive(const std::string& name) {
   auto active = GetActiveSkills();
   return std::any_of(active.begin(), active.end(),

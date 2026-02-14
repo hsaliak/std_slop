@@ -31,7 +31,7 @@ class ToolExecutor {
   }
 
   void SetSessionId(const std::string& session_id);
-  void SetMailMode(bool enabled) { mail_mode_ = enabled; }
+  void SetMailMode(bool enabled);
   const std::string& session_id() const { return session_id_; }
 
   bool IsSkillActive(const std::string& name);
