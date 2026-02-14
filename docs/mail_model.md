@@ -92,12 +92,12 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 - **Non-Stickiness**: If the agent modifies the patchset (e.g., via `git_reroll_patch`) after approval, the approval is invalidated, and the user must re-run `/review mail approve` on the latest version.
 
 ### Agent Tools (The Engine)
-- **`git_branch_staging(name, base_branch)`**: Initializes the staging environment.
+- **`git_branch_staging(name, base_branch)`**: Initializes the staging environment. The `base_branch` (e.g., `main`, `lua-integration`) is recorded in the database to enable "sticky" parent resolution for all subsequent tools.
 - **`git_commit_patch(summary, rationale)`**: Commits a logical change with mandatory metadata. Returns a concise summary of the current patch series for immediate feedback.
-- **`git_format_patch_series(base_branch)`**: Returns the formatted cover letter, changelog, and a list of unified diffs for the LLM to present.
-- **`git_reroll_patch(index, base_branch)`**: A high-level tool that handles the `fixup` + `rebase` logic. It incorporates current workspace changes into a specific patch in the series. Returns the updated patch series summary.
-- **`git_verify_series(command, base_branch)`**: Automates the "Series Walk." It checks out each commit in the current series sequentially and runs the provided build/test command. It returns a report of which patches passed or failed.
-- **`git_finalize_series(target_branch)`**: Merges the staging branch into the target branch and cleans up. This tool automatically verifies against the `patch_approvals` table before proceeding.
+- **`git_format_patch_series(base_branch)`**: Returns the formatted cover letter and full diff of the current staging branch. `base_branch` is optional; if omitted, it defaults to the sticky parent recorded during branch creation.
+- **`git_reroll_patch(index, base_branch)`**: A high-level tool that handles the `fixup` + `rebase` logic for a specific patch index. `base_branch` is optional and defaults to the sticky parent.
+- **`git_verify_series(command, base_branch)`**: Automates the "Series Walk" (testing every commit in isolation). `base_branch` is optional and defaults to the sticky parent.
+- **`git_finalize_series(target_branch)`**: Merges the staging branch into the target branch and cleans up. `target_branch` is optional and defaults to the sticky parent.
 
 ### The `patcher` Skill
 - A system prompt that:
@@ -105,3 +105,11 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
     2.  Forces the use of the `git_commit_patch` -> `git_format_patch_series` loop.
     3.  Instructions on how to generate detailed Cover Letters and Changelogs.
     4.  Provides logic for mapping `R:` comments from specific patch buffers back to the correct Git commit for rerolling.
+
+## 5. Persistence and Sticky Context
+
+To streamline the development flow, the Mail Model maintains a "sticky" relationship between a staging branch and its parent.
+
+- **Storage**: When `git_branch_staging` is called, the mapping is stored in the `staging_branches` table in the database.
+- **Resolution**: All Mail Model tools (`git_reroll_patch`, `git_verify_series`, etc.) automatically query this table if a base/target branch is not explicitly provided.
+- **Workflow Benefit**: This ensures that even if an agent session restarts or context is lost, the tool suite "remembers" where the patches should be applied and verified against.

@@ -80,6 +80,14 @@ Global application settings persisted across sessions.
 | :--- | :--- | :--- |
 | id | INTEGER | Primary Key (fixed at 1). |
 | mode | TEXT | Current operational mode (`standard` or `mail`). |
+### 11. staging_branches
+Stores the mapping between staging branches and their parent/base branches to enable "sticky" context.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| branch_name | TEXT | Primary Key. Name of the slop staging branch. |
+| base_branch | TEXT | The branch from which this staging branch was created (e.g., `main`, `lua-integration`). |
+
 ## Tool Manifest
 The following tools are registered by default:
 ### Enabled by Default
@@ -164,6 +172,10 @@ CREATE TABLE IF NOT EXISTS patch_approvals (
     branch_name TEXT PRIMARY KEY,
     approved_hash TEXT NOT NULL,
     approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS staging_branches (
+    branch_name TEXT PRIMARY KEY,
+    base_branch TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
