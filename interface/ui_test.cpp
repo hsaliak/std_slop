@@ -321,4 +321,21 @@ TEST(UiTest, PrintToolResultMessageRunLua) {
   EXPECT_TRUE(absl::StrContains(output, "world"));
 }
 
+TEST(UiTest, PrintToolResultMessageRunLuaLong) {
+  std::string name = "run_lua";
+  std::string result = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+
+  PrintToolResultMessage(name, result, "completed");
+
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "completed (11 lines)"));
+  EXPECT_TRUE(absl::StrContains(output, "10"));
+  EXPECT_TRUE(absl::StrContains(output, "..."));
+  EXPECT_FALSE(absl::StrContains(output, " 11\n"));
+}
+
 }  // namespace slop
