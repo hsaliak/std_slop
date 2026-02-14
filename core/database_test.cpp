@@ -522,3 +522,22 @@ TEST(DatabaseTest, ToolUsageCounters) {
   EXPECT_EQ(it->call_count, 2);
   EXPECT_EQ(it->description, "updated desc");
 }
+
+TEST(DatabaseTest, LargeNumberOfTags) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  ASSERT_TRUE(db.AddMemo("Target Memo", "[\"important-tag\"]").ok());
+
+  std::vector<std::string> tags;
+  for (int i = 0; i < 1100; ++i) {
+    tags.push_back(absl::StrCat("tag-", i));
+  }
+  tags.push_back("important-tag");
+
+  // This would fail without the CTE JOIN optimization
+  auto results = db.GetMemosByTags(tags);
+  ASSERT_TRUE(results.ok()) << results.status().message();
+  EXPECT_EQ(results->size(), 1);
+  EXPECT_EQ((*results)[0].content, "Target Memo");
+}
