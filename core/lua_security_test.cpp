@@ -10,9 +10,12 @@ namespace slop {
 class LuaSecurityTest : public ::testing::Test {
  protected:
   void SetUp() override {
+
+    unsetenv("SLOP_FORCE_BRANCH_NAME");
+    unsetenv("SLOP_SKIP_STAGING_CHECK");
+
+
     ASSERT_TRUE(db_.Init(":memory:").ok());
-    db_.Execute("CREATE TABLE settings (id INTEGER PRIMARY KEY, mode TEXT, scratchpad TEXT)");
-    db_.Execute("INSERT INTO settings (id, mode) VALUES (1, 'standard')");
     
     auto executor_or = ToolExecutor::Create(&db_);
     ASSERT_TRUE(executor_or.ok());
@@ -20,7 +23,7 @@ class LuaSecurityTest : public ::testing::Test {
   }
 
   void SetMode(const std::string& mode) {
-    db_.Execute("UPDATE settings SET mode = ? WHERE id = 1", {mode});
+    ASSERT_TRUE(db_.Execute("UPDATE settings SET mode = ? WHERE id = 1", {mode}).ok());
   }
 
   Database db_;
@@ -35,10 +38,13 @@ TEST_F(LuaSecurityTest, StandardModeAllowsDestructiveOps) {
   ASSERT_TRUE(res.ok()) << res.status().ToString();
   
   // io.open for writing
-  res = executor_->Execute("run_lua", {{"script", "local f = io.open('test_security_std.txt', 'w'); if f then f:write('test'); f:close(); return true else return false end"}});
+  res = executor_->Execute("run_lua", {{"script", "local f, err = io.open('test_security_std.txt', 'w'); if f then f:write('test'); f:close(); return 'true' else return 'err: ' .. tostring(err) end"}});
   ASSERT_TRUE(res.ok()) << res.status().ToString();
-  EXPECT_TRUE(res->find("Return Value: true") != std::string::npos);
-  std::filesystem::remove("test_security_std.txt");
+  EXPECT_TRUE(res->find("Return Value: true") != std::string::npos) << "Result: " << *res;
+  
+  if (std::filesystem::exists("test_security_std.txt")) {
+    std::filesystem::remove("test_security_std.txt");
+  }
 }
 
 TEST_F(LuaSecurityTest, MailModeAllowsReadOpen) {
@@ -58,28 +64,23 @@ TEST_F(LuaSecurityTest, MailModeAllowsReadOpen) {
 }
 
 TEST_F(LuaSecurityTest, MailModeBlocksWriteOpenWhenEnvSet) {
-  // We need to unset SLOP_SKIP_STAGING_CHECK to test the guard
-#ifdef _WIN32
-  _putenv("SLOP_SKIP_STAGING_CHECK=");
-#else
-  unsetenv("SLOP_SKIP_STAGING_CHECK");
-#endif
-
   SetMode("mail");
   
-  // This will only block if we are NOT on a staging branch.
-  // In Bazel sandbox, there is no .git, so 'git branch' fails, branch is empty.
-  // Empty branch does NOT start with 'slop/staging/', so it should block.
-  
+
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+
+
   auto res = executor_->Execute("run_lua", {{"script", "local f = io.open('test_blocked.txt', 'w')"}});
   
-  // The result should contain the error message from slop_guard
-  EXPECT_TRUE(res->find("Mail Model Violation") != std::string::npos || !res.ok());
+  // The executor should return an error status because the Lua script failed
+  EXPECT_FALSE(res.ok());
+  EXPECT_TRUE(res.status().message().find("Mail Model Violation") != std::string::npos 
+              || res.status().message().find("Destructive operations are only allowed") != std::string::npos) 
+              << "Status: " << res.status().ToString();
   
   if (std::filesystem::exists("test_blocked.txt")) {
     std::filesystem::remove("test_blocked.txt");
-    // If it exists, the guard failed to block it.
-    // EXPECT_FALSE(true) << "Guard failed to block write access";
+    FAIL() << "File was created despite security guard";
   }
 }
 
