@@ -205,3 +205,32 @@ This workflow ensures bisect-safe history and high-quality rationale for every c
 
 ### Finishing Up
 Once you are done, you can exit the session with `/exit` or `/quit`. Happy development!
+
+### Example: Complex Orchestration via Lua
+
+In this example, the agent needs to find all instances of a deprecated function and replace them, but only after verifying the changes don't break the build.
+
+**Agent Command:**
+```lua
+run_lua({
+  script = [[
+    -- 1. Find occurrences
+    local grep_res = tools.execute_bash({command = "grep -r 'old_func' core/"})
+    print("Found: " .. grep_res)
+
+    -- 2. Apply replacements (parallel)
+    local j1 = tools.execute_bash_async({command = "sed -i 's/old_func/new_func/g' core/file1.cpp"})
+    local j2 = tools.execute_bash_async({command = "sed -i 's/old_func/new_func/g' core/file2.cpp"})
+    j1:wait(); j2:wait()
+
+    -- 3. Verify build
+    local build_res = tools.execute_bash({command = "bazel build //..."})
+    if build_res:find("FAILED") then
+        print("Build failed! Rolling back.")
+        tools.execute_bash({command = "git checkout core/"})
+    else
+        print("Build successful.")
+    end
+  ]]
+})
+```

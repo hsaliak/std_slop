@@ -83,7 +83,7 @@ You can also use Google OAuth login if no keys are provided.
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
-- Concurrency: Parallel tool execution uses `std::thread` and `absl` synchronization primitives (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
+- Concurrency: Parallel tool execution is managed through the Lua control plane using `_async` variants and a job-based wait system. This allows for fine-grained control over concurrent operations. (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
 - Asan and Tsan clean at all times.
 
 ## 📚 Documentation

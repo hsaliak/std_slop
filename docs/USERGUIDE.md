@@ -1,6 +1,31 @@
 # std::slop User Guide
 
 ## Overview
+## The Lua Control Plane
+
+`std::slop` uses Lua 5.4 to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
+
+### `run_lua`
+The primary tool used by the agent. It takes a `script` string.
+
+### The `tools` Table
+Inside the Lua environment, all system tools are available via the `tools` table.
+- `tools.execute_bash({command = "..."})`
+- `tools.read_file({path = "..."})`
+- `tools.query_db({sql = "..."})`
+
+### Parallelism
+Tools have asynchronous variants with an `_async` suffix.
+```lua
+local j1 = tools.execute_bash_async({command = "make -j8"})
+local j2 = tools.execute_bash_async({command = "scripts/test.sh"})
+local res1 = j1:wait()
+local res2 = j2:wait()
+```
+
+### Safety Guards
+The `slop_guard` (part of the Lua preamble) ensures that the agent checks its work. It prevents committing changes that haven't been verified or that deviate from the target branch state.
+
 `std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
 
 ## Installation
