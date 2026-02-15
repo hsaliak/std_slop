@@ -1,14 +1,11 @@
 #include "interface/ui.h"
-
 #include <unistd.h>
-
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-
 #include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
@@ -22,7 +19,6 @@
 #include "absl/strings/substitute.h"
 #include "absl/synchronization/mutex.h"
 #include "nlohmann/json.hpp"
-
 #include "core/message_parser.h"
 #include "interface/color.h"
 #include "interface/command_definitions.h"
@@ -31,17 +27,12 @@
 #include "markdown/renderer.h"
 #include "readline/history.h"
 #include "readline/readline.h"
-
 #include <sys/ioctl.h>
-
 namespace slop {
-
 namespace {
 ABSL_CONST_INIT absl::Mutex g_ui_mu(absl::kConstInit);
 }  // namespace
-
 namespace {
-
 bool IsNetworkError(const std::string& result) {
   std::string lower = absl::AsciiStrToLower(result);
   return absl::StrContains(result, "400") || absl::StrContains(result, "429") || absl::StrContains(result, "503") ||
@@ -50,7 +41,6 @@ bool IsNetworkError(const std::string& result) {
          absl::StrContains(lower, "resource exhausted") || absl::StrContains(lower, "resource_exhausted") ||
          absl::StrContains(lower, "quota");
 }
-
 /**
  * @brief Prints a horizontal separator line to the terminal.
  *
@@ -63,7 +53,6 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Metadata, co
   if (width == 0) width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
   std::string bold_fg = std::string(ansi::Bold) + color_fg;
-
   std::cout << prefix;
   if (header.empty()) {
     size_t line_width = (width > prefix_len) ? width - prefix_len : 0;
@@ -74,7 +63,6 @@ void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Metadata, co
     std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
   }
 }
-
 /**
  * @brief Renders text within a stylized section with a header.
  *
@@ -93,10 +81,8 @@ void PrintStyledBlock(const std::string& body, const std::string& prefix, const 
   // Actually WrapText already handles the prefix.
   std::string wrapped = WrapText(body, width, prefix);
   std::vector<std::string> lines = absl::StrSplit(wrapped, '\n');
-
   for (size_t i = 0; i < lines.size(); ++i) {
     if (lines[i].empty() && i + 1 == lines.size()) continue;
-
     // If fg_color is Assistant (White), we wrap each line in it, but we MUST
     // respect internal color codes. Colorize usually wraps everything.
     // If body already has ANSI codes, we should be careful.
@@ -105,13 +91,11 @@ void PrintStyledBlock(const std::string& body, const std::string& prefix, const 
     } else {
       std::cout << lines[i];
     }
-
     if (i + 1 < lines.size()) std::cout << "\n";
   }
   std::cout << std::endl;
 }
 }  // namespace
-
 size_t GetTerminalWidth() {
   struct winsize w;
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
@@ -119,38 +103,30 @@ size_t GetTerminalWidth() {
   }
   return 80;
 }
-
 namespace {
 std::vector<std::string> g_completion_commands;
-
 markdown::MarkdownParser& GetMarkdownParser() {
   static absl::NoDestructor<markdown::MarkdownParser> parser;
   return *parser;
 }
-
 markdown::MarkdownRenderer& GetMarkdownRenderer() {
   static absl::NoDestructor<markdown::MarkdownRenderer> renderer;
   return *renderer;
 }
 absl::flat_hash_map<std::string, std::vector<std::string>> g_sub_commands;
 std::vector<std::string> g_active_completion_list;
-
 char* CommandGenerator(const char* text, int state) {
   static size_t list_index;
   static std::vector<std::string> matches;
-
   if (!state) {
     list_index = 0;
     matches = FilterCommands(text, g_active_completion_list);
   }
-
   if (list_index < matches.size()) {
     return strdup(matches[list_index++].c_str());
   }
-
   return nullptr;
 }
-
 char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] int end) {
   if (start == 0 && text[0] == '/') {
     g_active_completion_list = g_completion_commands;
@@ -169,7 +145,6 @@ char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] i
   }
   return nullptr;
 }
-
 std::string ExtractToolName(const std::string& tool_call_id) {
   size_t pipe = tool_call_id.find('|');
   if (pipe != std::string::npos) {
@@ -178,7 +153,6 @@ std::string ExtractToolName(const std::string& tool_call_id) {
   return tool_call_id;
 }
 }  // namespace
-
 void SetupTerminal() {
   // Ensure the terminal is not in "Application Cursor Keys" mode or "Keypad" mode.
   // These modes often cause terminals to send arrow key sequences (like \033OA)
@@ -188,7 +162,6 @@ void SetupTerminal() {
   // \033>: Disable Keypad Mode (DECPNM)
   std::cout << "\033[?1l\033>" << std::flush;
 }
-
 void SetCompletionCommands(const std::vector<std::string>& commands,
                            const absl::flat_hash_map<std::string, std::vector<std::string>>& sub_commands) {
   g_completion_commands = commands;
@@ -197,7 +170,6 @@ void SetCompletionCommands(const std::vector<std::string>& commands,
   // Ensure '/' is not a word break character so we can complete /commands
   rl_basic_word_break_characters = const_cast<char*>(" \t\n\"\\'`@$><=;|&{(");
 }
-
 void ShowBanner() {
   std::string banner = R"(
 ███████╗████████╗██████╗       ███████╗██╗      ██████╗ ██████╗
@@ -216,7 +188,6 @@ void ShowBanner() {
   std::cout << " Type /help for a list of commands." << std::endl;
   std::cout << std::endl;
 }
-
 std::string ReadLine(const std::string& modeline) {
   SetupTerminal();
   PrintHorizontalLine(0, ansi::Grey, modeline);
@@ -229,18 +200,15 @@ std::string ReadLine(const std::string& modeline) {
   }
   return line;
 }
-
 std::string WrapText(const std::string& text, size_t width, const std::string& prefix,
                      const std::string& first_line_prefix) {
   if (width == 0) width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
   size_t first_prefix_len = first_line_prefix.empty() ? prefix_len : VisibleLength(first_line_prefix);
-
   std::string result;
   std::string current_line;
   size_t current_line_visible_len = 0;
   bool is_first_line = true;
-
   auto finalize_line = [&]() {
     if (!result.empty()) result += "\n";
     if (is_first_line) {
@@ -252,10 +220,8 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
     current_line.clear();
     current_line_visible_len = 0;
   };
-
   size_t effective_width =
       (width > std::max(prefix_len, first_prefix_len) + 5) ? width - std::max(prefix_len, first_prefix_len) : width;
-
   std::stringstream ss(text);
   std::string line;
   while (std::getline(ss, line)) {
@@ -264,7 +230,6 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
       finalize_line();
       continue;
     }
-
     std::stringstream word_ss(line);
     std::string word;
     bool first_word = true;
@@ -284,43 +249,34 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
     }
     finalize_line();
   }
-
   return result;
 }
-
 std::string OpenInEditor(const std::string& initial_content, const std::string& extension) {
   const char* editor = std::getenv("EDITOR");
   if (!editor || std::string(editor).empty()) editor = "vi";
-
   std::string filename = absl::StrCat("slop_edit_", getpid(), "_", std::time(nullptr), extension);
   std::string tmp_path = (std::filesystem::temp_directory_path() / filename).string();
   {
     std::ofstream out(tmp_path);
     if (!initial_content.empty()) out << initial_content;
   }
-
   std::string cmd = absl::StrCat(editor, " ", tmp_path);
   int res = std::system(cmd.c_str());
-
   std::string content;
   std::ifstream in(tmp_path);
   if (in) {
     content.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
   }
-
   if (std::filesystem::exists(tmp_path)) {
     std::filesystem::remove(tmp_path);
   }
-
   if (res != 0) {
     LOG(INFO) << "Editor exited with non-zero status: " << res;
     std::cerr << "Editor exited with non-zero status: " << res << std::endl;
     return "";
   }
-
   return content;
 }
-
 void SmartDisplay(const std::string& content) {
   const char* editor = std::getenv("EDITOR");
   if (!editor || std::string(editor).empty()) {
@@ -329,22 +285,18 @@ void SmartDisplay(const std::string& content) {
   }
   OpenInEditor(content);
 }
-
 std::string FormatAssembledContext(const std::string& json_str) {
   auto j_top = nlohmann::json::parse(json_str, nullptr, false);
   if (j_top.is_discarded()) {
     return "Error parsing context JSON: " + json_str;
   }
-
   const nlohmann::json* j_ptr = &j_top;
   if (j_top.contains("request")) {
     j_ptr = &j_top["request"];
   }
   const nlohmann::json& j = *j_ptr;
-
   std::stringstream ss;
   ss << "=== Assembled Context ===\n\n";
-
   if (j.contains("system_instruction")) {
     ss << "SYSTEM INSTRUCTION:\n";
     if (j["system_instruction"].contains("parts")) {
@@ -354,7 +306,6 @@ std::string FormatAssembledContext(const std::string& json_str) {
     }
     ss << "\n";
   }
-
   if (j.contains("contents") && j["contents"].is_array()) {
     for (const auto& entry : j["contents"]) {
       std::string role = entry.value("role", "unknown");
@@ -391,23 +342,18 @@ std::string FormatAssembledContext(const std::string& json_str) {
   }
   return ss.str();
 }
-
 void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatAssembledContext(json_str)); }
-
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
   auto& parser = GetMarkdownParser();
   auto& renderer = GetMarkdownRenderer();
-
   auto parsed_or = parser.Parse(markdown);
   if (!parsed_or.ok()) {
     std::cout << prefix << markdown << std::endl;
     return;
   }
-
   size_t width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
   renderer.SetMaxWidth(width > prefix_len + 5 ? width - prefix_len : 0);
-
   return renderer.Render(**parsed_or, rendered);
 }
 void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
@@ -415,11 +361,9 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
   RenderMarkdown(markdown, prefix, &rendered);
   std::cout << rendered;
 }
-
 void PrintAssistantMessage(const std::string& content, const std::string& prefix, int tokens) {
   if (content.empty()) return;
   absl::MutexLock lock(&g_ui_mu);
-
   auto parsed_or = GetMarkdownParser().Parse(content);
   if (parsed_or.ok()) {
     std::string rendered;
@@ -432,7 +376,6 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
     std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
   }
 }
-
 std::string FlattenJsonArgs(const std::string& json_str) {
   auto j = nlohmann::json::parse(json_str, nullptr, false);
   if (j.is_discarded()) {
@@ -447,42 +390,57 @@ std::string FlattenJsonArgs(const std::string& json_str) {
   }
   return absl::StrJoin(parts, " | ");
 }
-
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix, int tokens) {
   absl::MutexLock lock(&g_ui_mu);
-
   if (name == "run_lua") {
     auto j = nlohmann::json::parse(args, nullptr, false);
     if (!j.is_discarded() && j.is_object() && j.contains("script")) {
       std::string script = j["script"];
-      std::vector<std::string> lines = absl::StrSplit(script, '\n');
-      int count = std::min(static_cast<int>(lines.size()), 10);
-
+      // Escape any existing backticks to avoid breaking our markdown code fence
+      std::string escaped_script;
+      escaped_script.reserve(script.size() + 64);
+      size_t backtick_run = 0;
+      for (char c : script) {
+        if (c == '`') {
+          backtick_run++;
+          if (backtick_run == 3) {
+            // We've hit 3 backticks, escape by inserting zero-width space
+            escaped_script += "\xE2\x80\x8B";  // Zero-width space
+            backtick_run = 1;
+          }
+          // Don't add the backtick yet
+        } else {
+          // Add any pending backticks
+          for (size_t i = 0; i < backtick_run; i++) escaped_script += '`';
+          backtick_run = 0;
+          escaped_script += c;
+        }
+      }
+      // Handle trailing backticks
+      for (size_t i = 0; i < backtick_run; i++) escaped_script += '`';
+      // Wrap in markdown code fence with lua syntax highlighting
+      std::string markdown = absl::StrCat("```lua\n", escaped_script, "\n```");
       std::string summary = absl::StrCat(icons::Tool, " ", name, " (control plane)");
       std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
       if (tokens > 0) {
         std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
       }
       std::cout << std::endl;
-      std::string line;
-      for (int i = 0; i < count; ++i) {
-        RenderMarkdown(Colorize(lines[i], "", ansi::Metadata), prefix, &line);
+      // Render the markdown (which includes syntax-highlighted Lua code)
+      std::string rendered;
+      RenderMarkdown(markdown, prefix, &rendered);
+      // Split rendered output and print with prefix
+      std::vector<std::string> rendered_lines = absl::StrSplit(rendered, '\n');
+      for (const auto& line : rendered_lines) {
         std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << line << std::endl;
-        line.clear();
-      }
-      if (lines.size() > 10) {
-        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
       }
       return;
     }
   }
-
   std::string display_args = FlattenJsonArgs(args);
-
   if (display_args.length() > 60) {
     display_args = display_args.substr(0, 57) + "...";
   }
-
   std::string summary = absl::StrCat(icons::Tool, " ", name, " ", icons::CallArrow, " ", display_args);
   std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
   if (tokens > 0) {
@@ -490,7 +448,6 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   }
   std::cout << std::endl;
 }
-
 void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result,
                             const std::string& status, const std::string& prefix) {
   absl::MutexLock lock(&g_ui_mu);
@@ -502,21 +459,17 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
     stdout_part = result.substr(0, stderr_pos);
     stderr_part = result.substr(stderr_pos + 11);
   }
-
   std::vector<absl::string_view> out_lines =
       absl::StrSplit(absl::StripAsciiWhitespace(stdout_part), '\n', absl::SkipEmpty());
   std::vector<absl::string_view> err_lines =
       absl::StrSplit(absl::StripAsciiWhitespace(stderr_part), '\n', absl::SkipEmpty());
-
   bool is_error = (status == "error" || absl::StartsWith(result, "Error:"));
   const char* color = is_error ? ansi::Red : ansi::Metadata;
-
   // Print Summary
   std::string summary =
       absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success, status, out_lines.size());
   std::cout << prefix << "    " << Colorize(icons::ResultConnector, "", ansi::Metadata) << " "
             << Colorize(summary, "", color) << std::endl;
-
   if (is_error && IsNetworkError(result)) {
     int printed = 0;
     for (const auto& line : out_lines) {
@@ -542,7 +495,6 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
     }
   }
 }
-
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {
   if (msg.role == "user") {
     std::string label = absl::StrCat("User (GID: ", msg.group_id, ")> ");
@@ -555,7 +507,6 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
       if (!text.empty()) {
         PrintAssistantMessage(text, prefix + "  ", msg.tokens);
       }
-
       auto calls_or = MessageParser::ExtractToolCalls(ctx);
       if (calls_or.ok() && !calls_or->empty()) {
         for (const auto& call : *calls_or) {
@@ -576,21 +527,17 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
     std::cout << WrapText(msg.content, GetTerminalWidth(), prefix) << std::endl;
   }
 }
-
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit) {
   auto history_or = db.GetConversationHistory(session_id);
   if (!history_or.ok()) return history_or.status();
-
   size_t start = history_or->size() > static_cast<size_t>(limit) ? history_or->size() - limit : 0;
   for (size_t i = start; i < history_or->size(); ++i) {
     PrintMessage((*history_or)[i]);
   }
   return absl::OkStatus();
 }
-
 void HandleStatus(const absl::Status& status, const std::string& context) {
   if (status.ok()) return;
-
   std::string msg(status.message());
   std::string log_msg = msg;
   if (size_t first_nl = log_msg.find('\n'); first_nl != std::string::npos) {
@@ -599,7 +546,6 @@ void HandleStatus(const absl::Status& status, const std::string& context) {
   if (log_msg.length() > 100) {
     log_msg = log_msg.substr(0, 97) + "...";
   }
-
   if (!context.empty()) {
     std::cerr << icons::Error << " " << context << ": " << log_msg << std::endl;
     LOG(WARNING) << context << ": " << log_msg;
@@ -608,7 +554,6 @@ void HandleStatus(const absl::Status& status, const std::string& context) {
     LOG(WARNING) << log_msg;
   }
 }
-
 std::string GetHelpText() {
   std::string help =
       "# std::slop - The SQL-backed LLM CLI\n\n"
@@ -622,10 +567,8 @@ std::string GetHelpText() {
       "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
       "- `--helpfull`: See all available command-line flags.\n\n"
       "## Slash Commands\n\n";
-
   std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;
   std::vector<std::string> categories;
-
   for (const auto& def : slop::GetCommandDefinitions()) {
     if (std::find(categories.begin(), categories.end(), def.category) == categories.end()) {
       categories.push_back(def.category);
@@ -649,12 +592,10 @@ std::string GetHelpText() {
       }
     }
   }
-
   for (const auto& cat : categories) {
     help += "### " + cat + "\n\n";
     help += "| Command | Description |\n";
     help += "| :--- | :--- |\n";
-
     for (const auto& row : category_rows[cat]) {
       // Escape pipes in markdown
       std::string cmd = absl::StrReplaceAll(row.first, {{"|", "\\|"}});
@@ -663,10 +604,7 @@ std::string GetHelpText() {
     }
     help += "\n";
   }
-
   return help;
 }
-
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
-
 }  // namespace slop
