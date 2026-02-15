@@ -1,11 +1,14 @@
 #include "interface/ui.h"
+
 #include <unistd.h>
+
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+
 #include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
@@ -19,6 +22,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/synchronization/mutex.h"
 #include "nlohmann/json.hpp"
+
 #include "core/message_parser.h"
 #include "interface/color.h"
 #include "interface/command_definitions.h"
@@ -27,6 +31,7 @@
 #include "markdown/renderer.h"
 #include "readline/history.h"
 #include "readline/readline.h"
+
 #include <sys/ioctl.h>
 namespace slop {
 namespace {

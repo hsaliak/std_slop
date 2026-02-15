@@ -1,9 +1,12 @@
 #include "interface/ui.h"
+
 #include <iostream>
 #include <sstream>
 #include <string>
+
 #include "absl/strings/match.h"
 #include "gtest/gtest.h"
+
 #include "interface/color.h"
 namespace slop {
 TEST(UiTest, GetTerminalWidth) {
@@ -260,9 +263,9 @@ TEST(UiTest, RenderMarkdownWithLuaCodeBlock) {
   // Test the markdown rendering directly
   std::string markdown = "```lua\nlocal x = 1\nprint(x)\n```";
   std::string rendered;
-  
+
   RenderMarkdown(markdown, "", &rendered);
-  
+
   // The rendered output should contain the lua code
   EXPECT_TRUE(absl::StrContains(rendered, "local"));
   EXPECT_TRUE(absl::StrContains(rendered, "x"));

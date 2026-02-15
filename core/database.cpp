@@ -1002,7 +1002,6 @@ absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::
   return results;
 }
 
-
 absl::StatusOr<std::vector<Database::Memo>> Database::GetAllMemos() {
   auto stmt_or = Prepare("SELECT id, content, semantic_tags, created_at FROM llm_memos");
   if (!stmt_or.ok()) return stmt_or.status();

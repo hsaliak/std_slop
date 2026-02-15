@@ -42,8 +42,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   return db_->Query(sql, params);
 }
 
-absl::StatusOr<std::string> ToolExecutor::HandleRunLua(
-    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& args,
+                                                       std::shared_ptr<CancellationRequest> cancellation) {
   RunLuaRequest req;
   req.script = args.value("script", "");
   if (args.contains("args")) req.args = args["args"];
@@ -53,19 +53,15 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunLua(
 }
 
 void ToolExecutor::RegisterTools() {
-  RegisterTool("query_db",
-               [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
+  RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
 
-  RegisterTool("run_lua", [this](const nlohmann::json& args,
-                                 std::shared_ptr<CancellationRequest> cancellation) {
+  RegisterTool("run_lua", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
     return HandleRunLua(args, cancellation);
   });
 }
 
-
-absl::StatusOr<std::string> ToolExecutor::Execute(
-    const std::string& name, const nlohmann::json& args,
-    std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
+                                                  std::shared_ptr<CancellationRequest> cancellation) {
   auto it = dispatch_map_.find(name);
   if (it != dispatch_map_.end()) {
     auto res = it->second(args, cancellation);
@@ -101,7 +97,6 @@ absl::StatusOr<std::string> ToolExecutor::Execute(
   }
   return res->return_value;
 }
-
 
 void ToolExecutor::SetSessionId(const std::string& session_id) { session_id_ = session_id; }
 

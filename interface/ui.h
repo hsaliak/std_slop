@@ -74,7 +74,6 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix = "");
 std::string GetHelpText();
 void ShowHelp();
 
-
 /**
  * @brief Render markdown text to ANSI-encoded string.
  *
@@ -83,7 +82,6 @@ void ShowHelp();
  * @param rendered Output string that will contain the ANSI-rendered text.
  */
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered);
-
 
 }  // namespace slop
 #endif  // SLOP_SQL_UI_H_

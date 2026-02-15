@@ -750,7 +750,6 @@ TEST(ToolExecutorTest, AsyncJobParallelism) {
   EXPECT_LT(duration, 350);  // Allowing some overhead, but definitely less than 400ms
 }
 
-
 TEST(ToolExecutorTest, ToolOrchestrationScenario) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -781,7 +780,7 @@ TEST(ToolExecutorTest, ToolOrchestrationScenario) {
   auto res = executor.Execute("run_lua", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_TRUE(absl::StrContains(*res, "query_db"));
-  
+
   std::filesystem::remove("orchestra.txt");
 }
 

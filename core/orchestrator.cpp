@@ -273,7 +273,6 @@ Technical Anchors: [Ports, IPs, constant values]
     absl::StrAppend(&system_instruction, "## Global State (Anchor)\n", *state_or, "\n");
   }
 
-
   return system_instruction;
 }
 
