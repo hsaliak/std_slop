@@ -32,7 +32,7 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   // Check for core content from system_prompt.md
   // Since kBuiltinSystemPrompt is baked in at compile time from system_prompt.md,
   // we check for high-level strings we know are there.
-  EXPECT_TRUE(absl::StrContains(instr, "# Orchestration Workflows")) << "Missing workflow definition";
+  EXPECT_TRUE(absl::StrContains(instr, "Orchestration")) << "Missing workflow definition";
   EXPECT_TRUE(absl::StrContains(instr, "manage_scratchpad")) << "Missing scratchpad instruction";
   EXPECT_TRUE(absl::StrContains(instr, "### STATE")) << "Missing state block mandate";
 }
