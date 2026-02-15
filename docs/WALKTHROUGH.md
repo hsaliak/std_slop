@@ -47,7 +47,7 @@ Let's add some skills.
 
 **Prompt:**
 ```text
-Add a skill to the database for an expert_rust_developer who follows best practices, minimizes dependencies, and keeps things simple.
+Add a skill to the database for an expert_rust_developer who follows best practices, minimizes dependencies, and keeps things straightforward.
 ```
 
 Now let's add a `Planner` skill to help elaborate and break down vague requests into precise step-by-step plans.

@@ -6,7 +6,7 @@ This document outlines the implementation plan for adding INI configuration supp
 - Allow users to persist settings in an INI file.
 - Support a default config location at `~/.config/slop/config.ini`.
 - Ensure a clear precedence order: CLI arguments > INI file > Environment variables > Defaults.
-- Implement a clean-room INI parser in a dedicated `ini/` library.
+- Implement a INI parser in a dedicated `ini/` library.
 
 ## Architectural Changes
 
@@ -16,7 +16,7 @@ This document outlines the implementation plan for adding INI configuration supp
 
 ### 2. Clean Room INI Library (`ini/`)
 - **`ini/ini_parser.h`**: Define `IniConfig` class and `ParseIni` function.
-- **`ini/ini_parser.cpp`**: Implementation of a simple parser for `[section]` and `key=value` pairs.
+- **`ini/ini_parser.cpp`**: Implementation of a parser for `[section]` and `key=value` pairs.
 - **`ini/BUILD.bazel`**: Define `cc_library`.
 
 ### 3. Configuration Module (`core/config.h/cpp`)

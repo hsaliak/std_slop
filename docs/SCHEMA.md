@@ -1,8 +1,13 @@
 # std::slop Database Schema
+
 This document describes the SQLite schema used by std::slop to persist history, tools, skills, and usage statistics.
+
 ## Tables
+
 ### 1. messages
+
 Stores user prompts, assistant responses, and tool executions.
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | id | INTEGER | Primary Key (Autoincrement). |
@@ -14,108 +19,132 @@ Stores user prompts, assistant responses, and tool executions.
 | created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
 | group_id | TEXT | Turn identifier for atomic operations (Unix nanoseconds). |
 | parsing_strategy | TEXT | Metadata on how the response was parsed. |
+| tokens | INTEGER | Token count for the message. Default: 0. |
+
 ### 2. tools
-Registers available tools and their schemas.
+
+Registers available tools and their JSON schemas.
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
-| name | TEXT | Primary Key. |
-| description | TEXT | Tool documentation for the LLM. |
-| json_schema | TEXT | Arguments schema. |
-| is_enabled | INTEGER | 1 if the tool can be called directly, 0 otherwise. |
-| call_count | INTEGER | Usage statistic. |
-> **Note**: By default, only `query_db`, `run_lua`, and `llm_query` are enabled (`is_enabled=1`). All other tools must be accessed via the `run_lua` orchestration layer.
+| name | TEXT | Primary Key. Tool identifier. |
+| description | TEXT | Human-readable tool description. |
+| json_schema | TEXT | JSON schema for tool parameters. |
+| is_enabled | INTEGER | Whether the tool is active. Default: 1. |
+| call_count | INTEGER | Number of times the tool has been invoked. Default: 0. |
+
 ### 3. skills
-Persistent system prompt fragments and personas.
+
+Stores LLM-generated skill definitions that modify system behavior.
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | id | INTEGER | Primary Key (Autoincrement). |
-| name | TEXT | Unique identifier for the skill. |
-| description | TEXT | High-level summary of the skill's purpose. |
-| system_prompt_patch | TEXT | The Markdown fragment to inject into the system prompt. |
-| activation_count | INTEGER | Usage statistic. |
+| name | TEXT | Unique skill name. |
+| description | TEXT | Skill purpose. |
+| system_prompt_patch | TEXT | Partial system prompt to inject. |
+| activation_count | INTEGER | Number of times the skill has been activated. Default: 0. |
+
 ### 4. sessions
-Stores conversation-specific configuration and ephemeral state.
+
+Tracks active conversation sessions.
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
-| id | TEXT | Primary Key (Session UUID). |
-| context_size | INTEGER | Number of messages to include in context. |
-| scratchpad | TEXT | Persistent Markdown notes for the agent. |
-| active_skills | TEXT | JSON array of skill names currently active. |
+| id | TEXT | Primary Key. Session identifier. |
+| context_size | INTEGER | Number of messages to include in context. Default: 5. |
+| scratchpad | TEXT | Scratchpad content for the session. |
+| active_skills | TEXT | Comma-separated list of active skill names. |
+| parent_session_id | TEXT | Parent session for branching conversations. |
+| depth | INTEGER | Nesting depth of the session. Default: 0. |
+| is_ephemeral | INTEGER | Whether the session is ephemeral. Default: 0. |
+
 ### 5. usage
-Token usage statistics per model and session.
+
+Logs LLM API usage statistics.
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | id | INTEGER | Primary Key (Autoincrement). |
 | session_id | TEXT | Associated session. |
-| model | TEXT | Model name (e.g., `gpt-4o`). |
-| prompt_tokens | INTEGER | |
-| completion_tokens | INTEGER | |
-| total_tokens | INTEGER | |
-| created_at | DATETIME | Entry timestamp. |
+| model | TEXT | Model identifier (e.g., `claude-3-opus`). |
+| prompt_tokens | INTEGER | Tokens in the prompt. |
+| completion_tokens | INTEGER | Tokens in the completion. |
+| total_tokens | INTEGER | Sum of prompt and completion tokens. |
+| created_at | DATETIME | Timestamp. Default: `CURRENT_TIMESTAMP`. |
+
 ### 6. session_state
-Generic key-value store for session-specific binary or JSON state.
+
+Persists arbitrary session state as a blob.
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | session_id | TEXT | Primary Key. |
-| state_blob | TEXT | Encoded state data. |
-| last_updated | TIMESTAMP | |
+| state_blob | TEXT | Serialized state data. |
+| last_updated | TIMESTAMP | Last modification time. Default: `CURRENT_TIMESTAMP`. |
+
 ### 7. llm_memos
-Long-term knowledge persistence through tag-based memos.
+
+Stores semantic memories created by the LLM.
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | id | INTEGER | Primary Key (Autoincrement). |
-| content | TEXT | Memo text content. |
-| semantic_tags | TEXT | JSON-formatted array of tags for search and retrieval. |
-| created_at | DATETIME | Entry timestamp. Default: `CURRENT_TIMESTAMP`. |
+| content | TEXT | Memo content. |
+| semantic_tags | TEXT | Comma-separated tags for categorization. |
+| created_at | DATETIME | Timestamp. Default: `CURRENT_TIMESTAMP`. |
+
 ### 8. patch_approvals
-Tracks user approvals for specific commit hashes on branches. This is part of the Mail Model workflow.
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| branch_name | TEXT | The name of the staging branch (Primary Key). |
-| approved_hash | TEXT | The git commit hash that was approved. |
-| approved_at | DATETIME | Timestamp of approval. |
-### 9. settings
-Global application settings persisted across sessions.
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| id | INTEGER | Primary Key (fixed at 1). |
-| mode | TEXT | Current operational mode (`standard` or `mail`). |
-### 11. staging_branches
-Stores the mapping between staging branches and their parent/base branches to enable "sticky" context.
+
+Tracks approved git patches for automated application.
 
 | Column | Type | Description |
 | :--- | :--- | :--- |
-| branch_name | TEXT | Primary Key. Name of the slop staging branch. |
-| base_branch | TEXT | The branch from which this staging branch was created (e.g., `main`, `lua-integration`). |
+| branch_name | TEXT | Primary Key. Branch name. |
+| approved_hash | TEXT | Git hash that has been approved. |
+| approved_at | DATETIME | Approval timestamp. Default: `CURRENT_TIMESTAMP`. |
 
-## Tool Manifest
-The following tools are registered by default:
-### Enabled by Default
-- `query_db`: Query the local SQLite database using SQL.
-- `run_lua`: Execute an orchestrated Lua 5.4 script with access to all tools and async capabilities.
-- `llm_query`: Perform an isolated sub-task query to the LLM (synchronous).
-### Disabled by Default (Access via `run_lua`)
-- `read_file`: Read the content of a file from the local filesystem.
-- `write_file`: Write content to a file in the local filesystem.
-- `apply_patch`: Applies partial changes to a file by matching a specific block of text and replacing it.
-- `execute_bash`: Execute a bash command on the local system.
-- `list_directory`: List files and directories with optional depth and git awareness.
-- `describe_db`: Describe the database schema and tables.
-- `manage_scratchpad`: Read or update the persistent session-specific scratchpad.
-- `save_memo`: Save a memo with semantic tags for later retrieval.
-- `retrieve_memos`: Retrieve memos based on semantic tags.
-- `use_skill`: Activate or deactivate a specialized skill/persona.
-- `grep_tool` / `git_grep_tool`: Codebase searching tools.
-> **Note**: `search_code` is a high-level wrapper defined in `preamble_lib.lua` that uses `grep_tool`.
-## Default Skills
-The following skills are registered by default:
-- `planner`: Tech Lead specialized in architectural decomposition and iterative feature delivery.
-- `dba`: Database Administrator specializing in SQLite schema design and data integrity.
-- `c++_expert`: Enforces strict adherence to project C++17 constraints and Google style.
-- `code_reviewer`: Multilingual code reviewer enforcing language-specific standards (Google C++, PEP8, etc.).
-- `lua_control_plane`: Restricts the agent to using only `run_lua` for all operations, ensuring reproducibility.
-- `patcher`: Specialist in the Mail Model workflow for atomic, bisect-safe commits.
-## SQL Initialization
+### 9. staging_branches
+
+Manages git branches for staged changes.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| branch_name | TEXT | Primary Key. Branch name. |
+| parent_branch | TEXT | Base branch from which this branch was created. |
+| created_at | DATETIME | Creation timestamp. Default: `CURRENT_TIMESTAMP`. |
+
+### 10. settings
+
+Global application settings.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| id | INTEGER | Primary Key. Constrained to 1 (singleton). |
+| mode | TEXT | Application mode (e.g., `standard`). Default: `standard`. |
+
+### 11. todos
+
+Task tracking within groups.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| id | INTEGER | Part of Primary Key. Task ID. |
+| group_name | TEXT | Part of Primary Key. Group name. |
+| description | TEXT | Task description. |
+| status | TEXT | Task status (`Open` or `Complete`). Default: `Open`. |
+
+### 12. test_memos
+
+Test table for memo functionality.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| content | TEXT | Memo content. |
+| tags | TEXT | Associated tags. |
+
+## Raw SQL Schema
+
 ```sql
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,8 +155,10 @@ CREATE TABLE IF NOT EXISTS messages (
     status TEXT DEFAULT 'completed',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     group_id TEXT,
-    parsing_strategy TEXT
+    parsing_strategy TEXT,
+    tokens INTEGER DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS tools (
     name TEXT PRIMARY KEY,
     description TEXT,
@@ -135,6 +166,7 @@ CREATE TABLE IF NOT EXISTS tools (
     is_enabled INTEGER DEFAULT 1,
     call_count INTEGER DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS skills (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE,
@@ -142,12 +174,17 @@ CREATE TABLE IF NOT EXISTS skills (
     system_prompt_patch TEXT,
     activation_count INTEGER DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
-    context_size INTEGER DEFAULT 3,
+    context_size INTEGER DEFAULT 5,
     scratchpad TEXT,
-    active_skills TEXT
+    active_skills TEXT,
+    parent_session_id TEXT,
+    depth INTEGER DEFAULT 0,
+    is_ephemeral INTEGER DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT,
@@ -157,28 +194,47 @@ CREATE TABLE IF NOT EXISTS usage (
     total_tokens INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE TABLE IF NOT EXISTS session_state (
     session_id TEXT PRIMARY KEY,
     state_blob TEXT,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE TABLE IF NOT EXISTS llm_memos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     content TEXT NOT NULL,
     semantic_tags TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE TABLE IF NOT EXISTS patch_approvals (
     branch_name TEXT PRIMARY KEY,
     approved_hash TEXT NOT NULL,
     approved_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE TABLE IF NOT EXISTS staging_branches (
     branch_name TEXT PRIMARY KEY,
-    base_branch TEXT NOT NULL
+    parent_branch TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     mode TEXT NOT NULL DEFAULT 'standard'
+);
+
+CREATE TABLE IF NOT EXISTS todos (
+    id INTEGER NOT NULL,
+    group_name TEXT,
+    description TEXT,
+    status TEXT CHECK(status IN ('Open', 'Complete')) DEFAULT 'Open',
+    PRIMARY KEY (id, group_name)
+);
+
+CREATE TABLE IF NOT EXISTS test_memos (
+    content TEXT,
+    tags TEXT
 );
 ```

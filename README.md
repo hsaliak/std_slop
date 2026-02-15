@@ -2,17 +2,14 @@
   
 ![std::slop](docs/slop.png)
 
-`std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through a per-project ledger, providing long-term recall, structured state management, and Built-in Git integration. It's goal is to make the context and it's use fully transparent and configurable.
+`std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through a per-project ledger, providing long-term recall, structured state management, and Built-in Git integration. It's goal is to make the context and its use fully transparent and configurable.
 
 ## ✨ Key Features
 
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability.
-- **🎛️ Context Control**: Fine-grained control over the conversation history via SQL-backed retrieval and rolling windows.
-- **🛠️ Self-Managed State**: Autonomous updates to a task-specific `### STATE` and a markdown `Scratchpad` for complex planning.
+- **🎛️ Context Control**: granular control over the conversation history via SQL-backed retrieval and rolling windows.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long term memory.
-- **📜 Lua Control Plane**: Programmatic orchestration via a Lua 5.4 bridge, allowing complex scripts, safe staging, and parallel execution.
-- **🔍 Boolean Search**: `git_grep_tool` with boolean operators, multiple pathspecs, and smart truncation.
-- **⚡ Parallel Execution**: Executes multiple tool calls in parallel with result ordering and UI-thread safety.
+- **📜 Lua Control Plane**: Programmatic orchestration via a Lua 5.4 bridge, allowing scripts, staging, and execution.
 - **📬 [Mail Mode](docs/mail_model.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval. 
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
 
@@ -44,10 +41,9 @@ For quick one-off tasks, you can use **Batch Mode**:
 ```bash
 std_slop --prompt "Refactor main.cpp to remove all unused includes" 
 ```
-Batch mode also takes in `--model` which is useful to specify the model to use and `--session` which is useful to indicate the session the prompt should be executed under.
+Batch mode also takes in `--model` which is useful to specify the model to use and `--session` which is useful to indicate the session the prompt should be executed under. Batch mode works off an in memory sqlite db. If you want the db persisted you can point it to a DB with the `--prompt-db` argument.
 `/commands` are also supported. 
 
-This is a good way to make `std::slop` act as a sub agent.
 
 Read the [User Guide](docs/USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](docs/WALKTHROUGH.md) to start with something simple.
 
@@ -83,7 +79,7 @@ You can also use Google OAuth login if no keys are provided.
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
-- Concurrency: Parallel tool execution is managed through the Lua control plane using `_async` variants and a job-based wait system. This allows for fine-grained control over concurrent operations. (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
+- Concurrency: Parallel tool execution is managed through the Lua control plane using `_async` variants and a job-based wait system. This allows for granular control over concurrent operations. (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
 - Asan and Tsan clean at all times.
 
 ## 📚 Documentation
@@ -91,21 +87,21 @@ You can also use Google OAuth login if no keys are provided.
 - **[User Guide](docs/USERGUIDE.md)**: Detailed commands and workflow tips.
 - **[Architecture & Schema](docs/SCHEMA.md)**: Understanding the database-driven engine.
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
-- **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The evolutionary history and strategy for managing model memory.
+- **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
-- **[Lua Integration](docs/lua_integration.md)**: High-level orchestration and task safety via the Lua bridge.
+- **[Lua Integration](docs/lua_integration.md)**: high-level orchestration and task safety via the Lua bridge.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
 ## 🏗️ Architecture & Codebase Layout
 
 ### `core/` - The Engine
-The core logic is divided into specialized modules:
+The core logic is divided into modules:
 
 - **`database.h`**: Manages the SQLite-backed ledger. Handles persistence for messages, memos, tools, and skills.
-- **`tool_dispatcher.h`**: Implements a thread-safe parallel execution engine. It dispatches multiple tool calls concurrently while ensuring results are returned in the correct order for the LLM.
-- **`cancellation.h`**: Provides a unified mechanism for interrupting tasks. It supports registering callbacks to kill shell processes or abort HTTP requests.
-- **`orchestrator.h`**: High-level interface for model interaction. Implementations for Gemini and OpenAI manage history windowing and response parsing.
-- **`shell_util.h`**: Executes shell commands in a separate process group, with support for real-time output polling and clean termination on cancellation.
+- **`tool_dispatcher.h`**: Implements a thread-safe execution engine. It dispatches multiple tool calls concurrently while ensuring results are returned in the proper order for the LLM.
+- **`cancellation.h`**: Provides a mechanism for interrupting tasks. It supports registering callbacks to kill shell processes or abort HTTP requests.
+- **`orchestrator.h`**: high-level interface for model interaction. Implementations for Gemini and OpenAI manage history windowing and response parsing.
+- **`shell_util.h`**: Executes shell commands in a separate process group, with support for live output polling and termination on cancellation.
 - **`http_client.h`**: A minimalist, cancellation-aware HTTP client used for all model API calls.
 
 ### `lua-bridge/` - Orchestration Layer

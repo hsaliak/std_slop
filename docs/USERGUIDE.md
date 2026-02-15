@@ -1,32 +1,15 @@
 # std::slop User Guide
 
 ## Overview
+`std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
+
 ## The Lua Control Plane
 
-`std::slop` uses Lua 5.4 to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
+`std::slop` uses Lua 5.5 to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
 
 ### `run_lua`
-The primary tool used by the agent. It takes a `script` string.
+The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing Lua scripts.
 
-### The `tools` Table
-Inside the Lua environment, all system tools are available via the `tools` table.
-- `tools.execute_bash({command = "..."})`
-- `tools.read_file({path = "..."})`
-- `tools.query_db({sql = "..."})`
-
-### Parallelism
-Tools have asynchronous variants with an `_async` suffix.
-```lua
-local j1 = tools.execute_bash_async({command = "make -j8"})
-local j2 = tools.execute_bash_async({command = "scripts/test.sh"})
-local res1 = j1:wait()
-local res2 = j2:wait()
-```
-
-### Safety Guards
-The `slop_guard` (part of the Lua preamble) ensures that the agent checks its work. It prevents committing changes that haven't been verified or that deviate from the target branch state.
-
-`std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
 
 ## Installation
 Build using Bazel:
@@ -123,14 +106,14 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. While conversational text is preserved across models, tool calls and results are isolated by provider (e.g., Gemini vs. OpenAI) to ensure reliable parsing and execution. Switching providers will hide previous tool interactions from the new model's immediate context.
 - **State**: The persistent "Long-term RAM" for each session.
-- **Scratchpad**: A flexible, persistent markdown workspace for evolving plans and task tracking. It is the agent's primary source of truth for task progress.
+- **Scratchpad**: A persistent markdown workspace for evolving plans and task tracking. It is the agent's primary source of truth for task progress.
 - **Skills**: Persona patches that inject specific instructions into the system prompt. These can be manually activated or automatically orchestrated by the agent.
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 
 ## Search & Discovery
 
-The agent provides powerful search tools designed for large codebases.
+The agent provides search tools designed for large codebases.
 
 ### `git_grep_tool`
 - **Boolean Queries**: Supports `--and`, `--or`, `--not`, and grouping with `(`, `)`.
@@ -172,7 +155,7 @@ The agent provides powerful search tools designed for large codebases.
 
 ## Orchestration & Lua Integration
 
-`std::slop` provides a flexible Lua 5.4 bridge for complex task orchestration. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
+`std::slop` provides Lua 5.4 bridge for complex task orchestration. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
 
 ### The `run_lua` Tool
 
@@ -262,7 +245,7 @@ You only plan. You _do_ _not_ implement anything, and do not write or modify any
 - **Description**: Database Administrator specializing in SQLite schema design, optimization, and data integrity.
 - **System Prompt Patch**:
 ```text
-As a DBA, you are the manager of the project's data. You focus on efficient schema design, precise query construction, and maintaining data integrity. When interacting with the database: 1. Always verify schema before operations. 2. Use transactions for complex updates. 3. Provide clear explanations for schema changes. 4. Optimize for performance while ensuring clarity.
+As a DBA, you are the manager of the project's data. You focus on schema design, precise query construction, and maintaining data integrity. When interacting with the database: 1. Always verify schema before operations. 2. Use transactions for complex updates. 3. Provide clear explanations for schema changes. 4. Optimize for performance while ensuring clarity.
 ```
 
 **c++_expert**
@@ -277,7 +260,7 @@ You MUST adhere to these constraints in every code change:
 - Memory: Use RAII and std::unique_ptr exclusively. Avoid raw new/delete. Use stack allocation where possible.
 - Error Handling: Use absl::Status and absl::StatusOr for all fallible operations.
 - Threading: Avoid threading and async primitives. If necessary, use absl based primitives with std::thread and provide tsan tests.
-- Design: Prefer simple, readable code over complex template metaprogramming or deep inheritance.
+- Design: Prefer readable code over complex template metaprogramming or deep inheritance.
 You ALWAYS run all the tests and ensure the affected targets compiles correctly.
 ```
 
@@ -369,7 +352,7 @@ bazel run //:std_slop -- --max_parallel_tools=8
 ```
 
 ### Mail Mode (Patch-Based Workflow)
-For complex features that require multiple iterations and clean commit history, use **Mail Mode**.
+For complex features that require multiple iterations and commit history, use **Mail Mode**.
 
 1. **Activate**: `/mode mail` (Requires a Git repository).
 2. **Indicator**: The modeline will show `std::slop <📬 MAIL_MODEL | ...>` (in green) and the `patcher` skill will be active. In standard mode, it shows `std::slop <🤖 STANDARD | ...>` (in cyan).

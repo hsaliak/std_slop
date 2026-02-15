@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-The **lua-integration** branch represents a significant architectural evolution that shifts the system from direct tool execution to a Lua-based orchestration model. This document details the differences between the `lua-integration` branch and the `main` branch.
+The **lua-integration** branch represents a architectural shift that shifts the system from direct tool execution to a Lua-based orchestration model. This document details the differences between the `lua-integration` branch and the `main` branch.
 
 ## 2. Git History Comparison
 
