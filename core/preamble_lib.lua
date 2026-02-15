@@ -15,7 +15,6 @@ For a full API reference, call 'tools.help()'.
 
 -- Slop Lua Preamble Library
 -- This file contains the implementation of Lua-based tools and helpers.
-
 -- Helper to escape shell arguments
 function shell_escape(s)
   if type(s) ~= "string" then s = tostring(s) end
