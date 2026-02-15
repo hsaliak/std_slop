@@ -29,8 +29,8 @@ void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
 }
 
 absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& args) {
-  if (!args.contains("sql")) {
-    return absl::InvalidArgumentError("Missing 'sql' argument");
+  if (!args.contains("sql") || !args["sql"].is_string()) {
+    return absl::InvalidArgumentError("'sql' must be a string");
   }
   std::string sql = args["sql"];
   std::vector<std::string> params;
@@ -45,7 +45,10 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
 absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& args,
                                                        std::shared_ptr<CancellationRequest> cancellation) {
   RunLuaRequest req;
-  req.script = args.value("script", "");
+  if (!args.contains("script") || !args["script"].is_string()) {
+    return absl::InvalidArgumentError("'script' must be a string");
+  }
+  req.script = args["script"];
   if (args.contains("args")) req.args = args["args"];
   auto res = RunLua(req, cancellation);
   if (!res.ok()) return res.status();
