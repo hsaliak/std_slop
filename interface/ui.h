@@ -27,7 +27,6 @@ std::string FormatAssembledContext(const std::string& json_str);
 void SmartDisplay(const std::string& content);
 
 // Convenience wrapper for FormatAssembledContext + SmartDisplay.
-void DisplayAssembledContext(const std::string& json_str);
 
 /**
  * @brief Renders markdown content to the terminal.

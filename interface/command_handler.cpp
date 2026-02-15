@@ -282,7 +282,7 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     if (orchestrator_) {
       auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
       if (prompt_or.ok()) {
-        DisplayAssembledContext(prompt_or->dump());
+        SmartDisplay(FormatAssembledContext(prompt_or->dump()));
       }
     }
     return Result::HANDLED;

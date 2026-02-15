@@ -1,5 +1,14 @@
 #include "interface/ui.h"
 
+// Role constants for message handling
+namespace role_constants {
+  inline constexpr std::string_view kSystem = "system";
+  inline constexpr std::string_view kUser = "user";
+  inline constexpr std::string_view kAssistant = "assistant";
+  inline constexpr std::string_view kTool = "tool";
+}
+
+
 #include <unistd.h>
 
 #include <algorithm>
@@ -501,11 +510,11 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   }
 }
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {
-  if (msg.role == "user") {
+  if (msg.role == std::string(role_constants::kUser)) {
     std::string label = absl::StrCat("User (GID: ", msg.group_id, ")> ");
     std::cout << "\n" << prefix << icons::Input << " " << Colorize(label, "", ansi::UserLabel) << std::endl;
     PrintStyledBlock(absl::StrCat(" > ", msg.content, " "), prefix, ansi::EchoFg, ansi::EchoBg);
-  } else if (msg.role == "assistant") {
+  } else if (msg.role == std::string(role_constants::kAssistant)) {
     if (msg.status == "tool_call") {
       MessageContext ctx(msg);
       std::string text = MessageParser::ExtractAssistantText(ctx);
@@ -525,9 +534,9 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
     } else {
       PrintAssistantMessage(msg.content, prefix + "  ", msg.tokens);
     }
-  } else if (msg.role == "tool") {
+  } else if (msg.role == std::string(role_constants::kTool)) {
     PrintToolResultMessage(ExtractToolName(msg.tool_call_id), msg.content, msg.status, prefix + "  ");
-  } else if (msg.role == "system") {
+  } else if (msg.role == std::string(role_constants::kSystem)) {
     std::cout << prefix << icons::Info << " " << Colorize("System> ", "", ansi::SystemLabel) << std::endl;
     std::cout << WrapText(msg.content, GetTerminalWidth(), prefix) << std::endl;
   }
