@@ -134,7 +134,7 @@ TEST(UiTest, PrintToolResultMessage) {
   PrintToolResultMessage(name, result);
   std::cout.rdbuf(old);
   std::string output = buffer.str();
-  EXPECT_TRUE(absl::StrContains(output, "┗━"));
+  EXPECT_TRUE(absl::StrContains(output, "│"));
   EXPECT_TRUE(absl::StrContains(output, "completed"));
 }
 TEST(UiTest, PrintToolResultMessageNoPreview) {
@@ -145,7 +145,7 @@ TEST(UiTest, PrintToolResultMessageNoPreview) {
   PrintToolResultMessage(name, result, "completed");
   std::cout.rdbuf(old);
   std::string output = buffer.str();
-  EXPECT_TRUE(absl::StrContains(output, "┗━"));
+  EXPECT_TRUE(absl::StrContains(output, "│"));
   EXPECT_TRUE(absl::StrContains(output, "completed (4 lines)"));
   EXPECT_TRUE(!absl::StrContains(output, "line 1"));
   EXPECT_TRUE(!absl::StrContains(output, "..."));
@@ -263,9 +263,7 @@ TEST(UiTest, RenderMarkdownWithLuaCodeBlock) {
   // Test the markdown rendering directly
   std::string markdown = "```lua\nlocal x = 1\nprint(x)\n```";
   std::string rendered;
-
   RenderMarkdown(markdown, "", &rendered);
-
   // The rendered output should contain the lua code
   EXPECT_TRUE(absl::StrContains(rendered, "local"));
   EXPECT_TRUE(absl::StrContains(rendered, "x"));

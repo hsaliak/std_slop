@@ -473,8 +473,8 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   // Print Summary
   std::string summary =
       absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success, status, out_lines.size());
-  std::cout << prefix << "    " << Colorize(icons::ResultConnector, "", ansi::Metadata) << " "
-            << Colorize(summary, "", color) << std::endl;
+  std::cout << prefix << "    " << Colorize("│", "", ansi::Metadata) << " " << Colorize(summary, "", color)
+            << std::endl;
   if (is_error && IsNetworkError(result)) {
     int printed = 0;
     for (const auto& line : out_lines) {
