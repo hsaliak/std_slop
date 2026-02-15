@@ -111,51 +111,9 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 
-## Search & Discovery
-
-The agent provides search tools designed for large codebases.
-
-### `git_grep_tool`
-- **Boolean Queries**: Supports `--and`, `--or`, `--not`, and grouping with `(`, `)`.
-  - Example patterns: `["(", "pattern1", "--and", "pattern2", ")", "--or", "pattern3"]`
-- **Multiple Pathspecs**: Search across multiple directories or file patterns at once.
-- **Extended Context**: Use `function_context: true` to see the full body of matching functions.
-- **Automated Truncation**: Results are capped at 500 lines to balance detail with context usage.
-
-### `list_directory`
-- Provides recursive directory listings with optional depth control.
-- Defaults to git-tracked files for faster exploration in large repositories.
-
-## User Interface
-
-`std::slop` features an structured CLI UI designed for readability:
-- **Iconography**: Every message is prefixed with a semantic icon:
-  - 🧠 **Thought**: AI reasoning or planning.
-  - 🛠️ **Tool**: Tool execution initiation.
-  - ✅ **Success**: Successful completion of a tool or command.
-  - ❌ **Error**: Failure or invalid operation.
-  - ⚠️ **Warning**: Cautionary notices.
-  - ℹ️ **Info**: Neutral system messages.
-  - 📥 **Input**: Data being received or read.
-  - 📤 **Output**: Data being written or sent.
-  - 📝 **Memo**: Interaction with the long-term knowledge base.
-  - 🎓 **Skill**: Activation or deactivation of specialized personas.
-  - 🕒 **Session**: Timeline and state management.
-- **Colors**: Tool headers are displayed in grey. Assistant messages are white. Indentation is used for hierarchy.
-- **Dynamic Modeline**: The prompt updates in real-time to reflect the current state: `std::slop<W:window_size, M:model, P:persona, S:session_id, T:throttle>`.
-- **Syntax Highlighting**: Fenced code blocks in assistant responses are automatically highlighted using Tree-sitter. Currently supported languages include:
-  - C / C++
-  - Python
-  - JavaScript
-  - Go
-  - Rust
-  - Bash / Shell
-- **Markdown Tables**: Long tables are automatically handled. If a table is wider than the terminal, `std::slop` will shrink the widest columns and wrap the text within them into multiple lines. This ensures the table remains readable and fits within your terminal window without losing information.
-- **Truncation**: Tool calls and their results are automatically truncated to 60 columns to prevent terminal clutter. Note that for the LLM's context, tool results are preserved at original detail (5000 chars) for the active turn but significantly compressed (500 chars) for historical turns to save tokens.
-
 ## Orchestration & Lua Integration
 
-`std::slop` provides Lua 5.4 bridge for complex task orchestration. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
+`std::slop` makes the LLM do everything with Lua.This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
 
 ### The `run_lua` Tool
 
@@ -164,10 +122,6 @@ The `run_lua` tool allows the agent to execute orchestrated scripts. It has acce
 - **`history`**: Session message history for programmatic context extraction.
 - **`llm_query`**: Synchronous and asynchronous helpers for isolated LLM sub-tasks.
 - **Async Execution**: `tools.execute_bash_async` and `llm_query_async` allow for parallel execution (e.g., running multiple tests at once).
-
-### Lua Control Plane
-
-By activating the `lua_control_plane` skill, the agent enters a mode where it can **only** use `run_lua` for operations. This ensures that all work is performed via a unified, reproducible orchestration script.
 
 For more details, see the **[Lua Integration Documentation](lua_integration.md)**.
 
@@ -276,15 +230,8 @@ Standards to follow:
 You do NOT implement changes. You ONLY provide an annotated set of required changes or comments. Only after explicit user approval can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary.
 ```
 
-### Automation Workflow
-The Planner can be used to break a large feature into small, atomic tasks which can then be implemented iteratively. These plans are stored and evolved in the **Scratchpad**, which is **automatically injected** into every turn, allowing the LLM to track its progress even when history is truncated.
-
-1.  **Decompose**: Use the `planner` skill to break a large feature into steps.
-2.  **Initialize Scratchpad**: The `planner` will automatically use the `manage_scratchpad` tool to save the initial roadmap.
-3.  **Execute & Iterate**: As the agent works, it will autonomously update the scratchpad checklist as steps are completed. You no longer need to explicitly ask the model to "read the scratchpad"—it is always visible.
-
 ### Reviewing Changes
-`std::slop` provides two primary ways to review code changes before they are finalized.
+`std::slop` provides two primary ways to review code changes before they are finalized. See also the [mail model](mail_model.md). The Mail Model is the recommended  way to use std::slop to code your project without losing your mind.
 
 #### 1. Automated Review (via `code_reviewer` skill)
 This flow uses the LLM's knowledge of industry standards (like the Google C++ Style Guide) to automatically identify issues.
