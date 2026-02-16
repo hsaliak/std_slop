@@ -14,11 +14,19 @@ genrule(
 
 genrule(
     name = "generate_lua_preamble",
-    srcs = ["preamble_lib.lua", "preamble.lua"],
+    srcs = [
+        "preamble.lua",
+        "preamble/base.lua",
+        "preamble/fs.lua",
+        "preamble/knowledge.lua",
+        "preamble/git.lua",
+        "preamble/llm.lua",
+        "preamble/security.lua",
+    ],
     outs = ["preamble_data.h"],
     cmd = "echo 'namespace slop {' > $@ && " +
           "echo 'static const char* kLuaPreambleLib = R\"LUA(' >> $@ && " +
-          "cat $(location preamble_lib.lua) >> $@ && " +
+          "cat $(location preamble/base.lua) $(location preamble/fs.lua) $(location preamble/knowledge.lua) $(location preamble/git.lua) $(location preamble/llm.lua) $(location preamble/security.lua) >> $@ && " +
           "echo ')LUA\";' >> $@ && " +
           "echo 'static const char* kLuaPreamble = R\"LUA(' >> $@ && " +
           "cat $(location preamble.lua) >> $@ && " +
