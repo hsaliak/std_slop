@@ -858,53 +858,52 @@ end
 
 function tools.help()
   return [[
-### Slop Lua API Documentation
+### Slop Orchestrator Help ###
 
-Globals:
-- tools: Table of all available tools.
-- state: (String) Current technical state.
-- scratchpad: (Table) Structured persistent storage.
-- history: (Table) Array of {role, content} messages.
-- llm_query(query): (String) Synchronous sub-task LLM query.
-- llm_query_async(query): (Job) Asynchronous sub-task LLM query.
+#### Globals ####
+- tools: Table containing all available tools.
+- state: (string) Current technical state/progress.
+- scratchpad: (table) Structured persistent storage across turns.
+- history: (table) Array of conversation messages: {role, content}.
 
-Tool Signature: All tools in 'tools' take a SINGLE table argument.
+#### Core Tools ####
+- llm_query({query}): (string) Runs a sub-task LLM query synchronously.
+- llm_query_async({query}): (job) Runs a sub-task LLM query asynchronously. Returns a Job object.
+- help(): (string) Shows this help message.
 
-Common Tools:
-- read_file({path, start_line, end_line}): Returns file content.
-- write_file({path, content}): Writes file content.
-- execute_bash({command}): Runs bash, returns {stdout, stderr, exit_code}.
-- execute_bash_async({command}): Returns a Job object.
-- query_db({sql, params}): Runs SQL on local DB, returns JSON string.
-- describe_db({}): Returns the schema of all tables in the local DB.
-- apply_patch({path, patches = {{find, replace}, ...}}): Surgical edits.
-- list_directory({path, depth, git_only}): Lists files.
-- git_grep_tool({pattern, path, context}): Greps repository using git.
-- grep_tool({pattern, path, context}): Generic grep (uses git if possible).
+#### File System ####
+- read_file({path, start_line, end_line, add_line_numbers=true}): Reads a file (optional range).
+- write_file({path, content}): Overwrites a file with new content.
+- list_directory({path=".", depth=1, git_only=false}): Lists directory contents.
+- apply_patch({path, patches}): Multi-replacement in a file. patches = {{find="...", replace="..."}}.
+
+#### Shell & Execution ####
+- execute_bash({command, input}): Executes a bash command synchronously.
+- execute_bash_async({command, input}): Returns a Job object.
+- dispatch_async(tool_name, args): Runs any tool asynchronously. Returns a Job object.
+
+#### Knowledge Management ####
+- save_memo({content, tags}): Saves a project invariant or learned convention.
+- retrieve_memos({tags}): Searches for memos matching tags.
+- manage_scratchpad({action="read"|"update", key, value, content}): Persistent memory.
+
+#### Search ####
+- query_db({sql, params}): Executes a SQLite query on the project database.
+- describe_db({}): Returns the schema of all tables in the local database.
+- git_grep_tool({pattern, patterns, path, context, case_insensitive, word_regexp, ...}): Advanced git-grep.
+- grep_tool({pattern, path, context}): Simple regex search.
 - search_code({query}): Shortcut for searching code across the project.
-- manage_scratchpad({action="read"|"update", key, value, content}): Manages persistent state (JSON-backed). Use 'key'/'value' for structured data or 'content' for notes.
 
-Knowledge & Skills:
-- save_memo({content, tags}): Save a technical insight with semantic tags.
-- retrieve_memos({tags}): Retrieve memos matching all provided tags.
-- use_skill({name, action="activate"|"deactivate"}): Toggle specialized agent personas.
-
-Mail Model Tools:
-- git_branch_staging({name, base_branch})
-- git_commit_patch({summary, rationale})
-- git_reroll_patch({index, summary, rationale})
-- git_format_patch_series({base_branch})
-- git_verify_series({command, base_branch})
-- git_finalize_series({target_branch})
-
-Asynchronous Programming:
-- dispatch_async(tool_name, args): Runs any tool asynchronously. Returns a Job.
-- Use 'job:wait()' to block and get results from async tools.
-- Example: local j = tools.execute_bash_async({command="ls"}); local res = j:wait()
+#### Patch Workflow (Mail Model) ####
+- git_branch_staging({name}): Creates a slop/staging/ branch.
+- git_commit_patch({summary, rationale}): Commits current changes as an atomic patch.
+- git_reroll_patch({index, summary, rationale}): Updates an existing patch in the series.
+- git_format_patch_series({base_branch}): Summarizes the current patchset.
+- git_verify_series({command, base_branch}): Verifies the entire series passes tests.
+- git_finalize_series({target_branch}): Merges the series and cleans up.
 ]]
 end
 
--- ============================================================================
 -- Security Wrappers for Standard Library (Mail Mode Protection)
 -- ============================================================================
 -- These wrappers invoke slop_guard() to ensure that destructive operations 
