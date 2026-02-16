@@ -113,5 +113,3 @@ The core logic is divided into modules:
 - **`markdown/`**: Uses `tree-sitter-markdown` to provide syntax highlighting (C++, Python, Go, JS, Rust, Bash) and structured rendering for agent responses. This is a stand alone Markdown  parser / renderer library in C++.
 - **`main.cpp`**: The primary event loop. Coordinates between the Orchestrator, ToolDispatcher, and UI.
 
-<!-- Patcher workflow regression check 2026-02-16 -->
-<!-- v2 -->
