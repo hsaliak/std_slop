@@ -40,7 +40,9 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   std::vector<std::string> params;
   if (args.contains("params") && args["params"].is_array()) {
     for (const auto& p : args["params"]) {
-      params.push_back(p.get<std::string>());
+        if (p.is_string()) {
+            params.push_back(p.get<std::string>());
+        }
     }
   }
   return db_->Query(sql, params);
