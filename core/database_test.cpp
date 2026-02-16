@@ -544,3 +544,42 @@ TEST(DatabaseTest, LargeNumberOfTags) {
   EXPECT_EQ(results->size(), 1);
   EXPECT_EQ((*results)[0].content, "Target Memo");
 }
+
+#include <thread>
+#include <vector>
+#include <atomic>
+
+TEST(DatabaseTest, ConcurrentAccess) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  const int num_threads = 10;
+  const int iterations = 100;
+  std::atomic<int> success_count{0};
+  std::vector<std::thread> threads;
+
+  for (int i = 0; i < num_threads; ++i) {
+    threads.emplace_back([&db, &success_count, i]() {
+      for (int j = 0; j < iterations; ++j) {
+        std::string session = absl::StrCat("session_", i);
+        std::string content = absl::StrCat("content_", j);
+        auto status = db.AppendMessage(session, "user", content);
+        if (status.ok()) {
+          success_count++;
+        }
+        
+        // Use an existing method that is thread-safe (locks mu_)
+        auto history = db.GetSkills();
+        if (history.ok()) {
+          success_count++;
+        }
+      }
+    });
+  }
+
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  EXPECT_EQ(success_count, num_threads * iterations * 2);
+}
