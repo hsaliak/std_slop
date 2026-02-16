@@ -6,38 +6,53 @@
 
 namespace slop {
 
-ToolDispatcher::ToolDispatcher(ToolFunc executor_func, int num_threads)
-    : executor_func_(std::move(executor_func)), num_threads_(num_threads) {
-  for (int i = 0; i < num_threads_; ++i) {
-    workers_.emplace_back(&ToolDispatcher::WorkerLoop, this);
+ToolDispatcher::ToolDispatcher(ToolFunc executor_func)
+    : executor_func_(std::move(executor_func)) {}
+
+ToolDispatcher::~ToolDispatcher() {
+  absl::MutexLock lock(&mu_);
+  for (auto& jt : threads_) {
+    if (jt.thread.joinable()) {
+      jt.thread.join();
+    }
   }
 }
 
-ToolDispatcher::~ToolDispatcher() {
-  {
-    absl::MutexLock lock(&mu_);
-    stop_ = true;
-  }
-  for (auto& worker : workers_) {
-    if (worker.joinable()) {
-      worker.join();
+// PruneThreads is called on every new submission to clean up resources from
+// finished jobs. We join threads here rather than having them join themselves
+// because a thread cannot join itself, and this approach avoids the complexity
+// of a detached thread while ensuring that we don't leak thread handles.
+// This also ensures that any resources held by the ToolJob are released
+// promptly after completion.
+void ToolDispatcher::PruneThreads() {
+  for (auto it = threads_.begin(); it != threads_.end();) {
+    if (it->job->IsReady()) {
+      if (it->thread.joinable()) {
+        it->thread.join();
+      }
+      it = threads_.erase(it);
+    } else {
+      ++it;
     }
   }
 }
 
 std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation) {
   auto job = std::make_shared<ToolJob>(call.id, call.name);
-  auto task = [this, call, job, cancellation]() {
+  auto task = [job, cancellation, this, call]() {
+    // The cancellation request is shared between the caller and this thread.
+    // If the caller (or any other holder) triggers cancellation, this job will
+    // see it either here or inside the executor_func_.
     if (cancellation && cancellation->IsCancelled()) {
       job->SetResult(absl::CancelledError("Cancelled"));
       return;
     }
     job->SetResult(executor_func_(call.name, call.args, cancellation));
   };
-  {
-    absl::MutexLock lock(&mu_);
-    tasks_.emplace(std::move(task));
-  }
+
+  absl::MutexLock lock(&mu_);
+  PruneThreads();
+  threads_.push_back({std::thread(std::move(task)), job});
   return job;
 }
 
@@ -63,21 +78,6 @@ std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(const std::vector<C
   return results;
 }
 
-void ToolDispatcher::WorkerLoop() {
-  while (true) {
-    std::function<void()> task;
-    {
-      absl::MutexLock lock(&mu_);
-      auto condition = [this]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return stop_ || !tasks_.empty(); };
-      mu_.Await(absl::Condition(&condition));
 
-      if (stop_ && tasks_.empty()) return;
-
-      task = std::move(tasks_.front());
-      tasks_.pop();
-    }
-    task();
-  }
-}
 
 }  // namespace slop

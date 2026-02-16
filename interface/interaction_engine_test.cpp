@@ -41,8 +41,7 @@ class InteractionEngineTest : public ::testing::Test {
     auto dispatcher = std::make_unique<ToolDispatcher>(
         [this](const std::string& name, const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
           return tool_executor->Execute(name, args, cancellation);
-        },
-        1);
+        });
     tool_executor->SetDispatcher(std::move(dispatcher));
 
     auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "", "");

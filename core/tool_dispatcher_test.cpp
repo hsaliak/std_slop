@@ -22,7 +22,7 @@ TEST(ToolDispatcherTest, ParallelExecution) {
     return absl::StatusOr<std::string>("Success: " + name);
   };
 
-  ToolDispatcher dispatcher(executor_func, 4);
+  ToolDispatcher dispatcher(executor_func);
 
   std::vector<ToolDispatcher::Call> calls = {
       {"1", "tool1", {}}, {"2", "tool2", {}}, {"3", "tool3", {}}, {"4", "tool4", {}}};
@@ -56,7 +56,7 @@ TEST(ToolDispatcherTest, Cancellation) {
     return absl::StatusOr<std::string>("Success");
   };
 
-  ToolDispatcher dispatcher(executor_func, 4);
+  ToolDispatcher dispatcher(executor_func);
   auto cancellation = std::make_shared<CancellationRequest>();
 
   std::vector<ToolDispatcher::Call> calls = {{"1", "tool1", {}}};
@@ -83,7 +83,7 @@ TEST(ToolDispatcherTest, StressTest) {
     return absl::StatusOr<std::string>("ok");
   };
 
-  ToolDispatcher dispatcher(executor_func, 8);
+  ToolDispatcher dispatcher(executor_func);
 
   for (int i = 0; i < 100; ++i) {
     std::vector<ToolDispatcher::Call> calls;
@@ -107,7 +107,7 @@ TEST(ToolDispatcherTest, RapidChurnCancellation) {
     return absl::StatusOr<std::string>(absl::CancelledError("cancelled"));
   };
 
-  ToolDispatcher dispatcher(executor_func, 4);
+  ToolDispatcher dispatcher(executor_func);
 
   for (int i = 0; i < 50; ++i) {
     auto cancellation = std::make_shared<CancellationRequest>();
@@ -124,6 +124,128 @@ TEST(ToolDispatcherTest, RapidChurnCancellation) {
     EXPECT_FALSE(results[0].output.ok());
   }
 }
+
+TEST(ToolDispatcherTest, NestedCancellation) {
+  ToolDispatcher* dispatcher_ptr = nullptr;
+  
+  auto executor_func = [&](const std::string& name, const nlohmann::json& /*args*/,
+                           std::shared_ptr<CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
+    if (name == "parent") {
+      // Parent spawns a child
+      ToolDispatcher::Call child_call = {"child_id", "child", {}};
+      auto job = dispatcher_ptr->Submit(child_call, cancellation);
+      auto res = job->Wait();
+      return res;
+    } else if (name == "child") {
+      // Child waits for cancellation
+      for (int i = 0; i < 100; ++i) {
+        if (cancellation && cancellation->IsCancelled()) {
+          return absl::StatusOr<std::string>(absl::CancelledError("Child Cancelled"));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+      return absl::StatusOr<std::string>("Child finished without cancellation");
+    }
+    return absl::StatusOr<std::string>("unknown");
+  };
+
+  ToolDispatcher dispatcher(executor_func);
+  dispatcher_ptr = &dispatcher;
+
+  auto cancellation = std::make_shared<CancellationRequest>();
+  ToolDispatcher::Call parent_call = {"parent_id", "parent", {}};
+  
+  std::thread cancel_thread([&] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    cancellation->Cancel();
+  });
+
+  auto job = dispatcher.Submit(parent_call, cancellation);
+  auto result = job->Wait();
+  cancel_thread.join();
+
+  EXPECT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kCancelled);
+}
+
+TEST(ToolDispatcherTest, ImmediateCancellation) {
+  auto executor_func = [&](const std::string& /*name*/, const nlohmann::json& /*args*/,
+                           std::shared_ptr<CancellationRequest> /*cancellation*/) -> absl::StatusOr<std::string> {
+    return absl::StatusOr<std::string>("should not run");
+  };
+
+  ToolDispatcher dispatcher(executor_func);
+  auto cancellation = std::make_shared<CancellationRequest>();
+  cancellation->Cancel();
+
+  ToolDispatcher::Call call = {"id", "test", {}};
+  auto job = dispatcher.Submit(call, cancellation);
+  auto result = job->Wait();
+
+  EXPECT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kCancelled);
+}
+
+TEST(ToolDispatcherTest, ManyJobsCancellation) {
+  std::atomic<int> run_count{0};
+  auto executor_func = [&](const std::string& /*name*/, const nlohmann::json& /*args*/,
+                           std::shared_ptr<CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
+    run_count++;
+    while (!cancellation->IsCancelled()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return absl::StatusOr<std::string>(absl::CancelledError("Cancelled"));
+  };
+
+  ToolDispatcher dispatcher(executor_func);
+  auto cancellation = std::make_shared<CancellationRequest>();
+  
+  std::vector<std::shared_ptr<ToolJob>> jobs;
+  for (int i = 0; i < 50; ++i) {
+    jobs.push_back(dispatcher.Submit({"id" + std::to_string(i), "test", {}}, cancellation));
+  }
+
+  cancellation->Cancel();
+
+  for (auto& job : jobs) {
+    auto result = job->Wait();
+    EXPECT_FALSE(result.ok());
+  }
+}
+
+TEST(ToolDispatcherTest, DeeplyNestedCancellation) {
+  ToolDispatcher* dispatcher_ptr = nullptr;
+  
+  std::function<absl::StatusOr<std::string>(const std::string&, const nlohmann::json&, std::shared_ptr<CancellationRequest>)> 
+    executor_func = [&](const std::string& /*name*/, const nlohmann::json& args,
+                         std::shared_ptr<CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
+    int depth = args.value("depth", 0);
+    if (depth > 0) {
+      nlohmann::json child_args = {{"depth", depth - 1}};
+      auto job = dispatcher_ptr->Submit({"child_" + std::to_string(depth), "nested", child_args}, cancellation);
+      return job->Wait();
+    } else {
+      while (!cancellation->IsCancelled()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      return absl::StatusOr<std::string>(absl::CancelledError("Leaf Cancelled"));
+    }
+  };
+
+  ToolDispatcher dispatcher(executor_func);
+  dispatcher_ptr = &dispatcher;
+
+  auto cancellation = std::make_shared<CancellationRequest>();
+  auto job = dispatcher.Submit({"root", "nested", {{"depth", 3}}}, cancellation);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  cancellation->Cancel();
+
+  auto result = job->Wait();
+  EXPECT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kCancelled);
+}
+
 
 }  // namespace
 }  // namespace slop

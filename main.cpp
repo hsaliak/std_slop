@@ -55,7 +55,7 @@ ABSL_FLAG(bool, strip_reasoning, false,
           "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to "
           "improve response speed and focus)");
 
-ABSL_FLAG(int, max_parallel_tools, 4, "Maximum number of tools to execute in parallel");
+
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
 ABSL_FLAG(std::string, prompt_db, "",
@@ -262,8 +262,7 @@ int main(int argc, char* argv[]) {
       [&tool_executor](const std::string& name, const nlohmann::json& args,
                        std::shared_ptr<slop::CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
         return tool_executor->Execute(name, args, cancellation);
-      },
-      absl::GetFlag(FLAGS_max_parallel_tools));
+      });
   tool_executor->SetDispatcher(std::move(dispatcher));
 
   auto cmd_handler_or =
