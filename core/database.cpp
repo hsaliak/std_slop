@@ -153,7 +153,7 @@ Database::~Database() {
 absl::Status Database::Init(const std::string& db_path) {
   LOG(INFO) << "Initializing database at " << db_path;
   sqlite3* raw_db = nullptr;
-  int rc = sqlite3_open(db_path.c_str(), &raw_db);
+  int rc = sqlite3_open_v2(db_path.c_str(), &raw_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
   if (rc != SQLITE_OK) {
     std::string err = sqlite3_errmsg(raw_db);
     sqlite3_close(raw_db);

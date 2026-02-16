@@ -29,6 +29,10 @@ void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
 }
 
 absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& args) {
+  if (!args.is_object()) {
+    return absl::InvalidArgumentError("Arguments must be a JSON object");
+  }
+
   if (!args.contains("sql") || !args["sql"].is_string()) {
     return absl::InvalidArgumentError("'sql' must be a string");
   }
