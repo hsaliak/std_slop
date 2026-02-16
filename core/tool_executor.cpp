@@ -29,6 +29,9 @@ void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
 }
 
 absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& args) {
+  if (!db_) {
+    return absl::FailedPreconditionError("Database not initialized");
+  }
   if (!args.is_object()) {
     return absl::InvalidArgumentError("Arguments must be a JSON object");
   }
@@ -40,13 +43,19 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   std::vector<std::string> params;
   if (args.contains("params") && args["params"].is_array()) {
     for (const auto& p : args["params"]) {
-        if (p.is_string()) {
-            params.push_back(p.get<std::string>());
-        }
+      if (p.is_string()) {
+        params.push_back(p.get<std::string>());
+      } else if (p.is_null()) {
+        params.emplace_back("NULL");
+      } else {
+        // For numbers, booleans, objects, and arrays, stringify them.
+        params.push_back(p.dump());
+      }
     }
   }
   return db_->Query(sql, params);
 }
+
 
 absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& args,
                                                        std::shared_ptr<CancellationRequest> cancellation) {

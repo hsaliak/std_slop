@@ -49,7 +49,7 @@ end
 
 -- Internal state tracking
 local _loaded_session = nil
-local _initial_scratchpad = nil
+local _initial_scratchpad_json = "{}"
 local _initial_state = nil
 
 function core.load_session_state()
@@ -68,12 +68,17 @@ function core.load_session_state()
   local rows = JSON.parse(rows_json)
   local window_size = 0
   if rows and rows[1] then
-    scratchpad = rows[1].scratchpad or ""
-    _initial_scratchpad = scratchpad
+    local raw_sp = rows[1].scratchpad or "{}"
+    local ok, parsed = pcall(JSON.parse, raw_sp)
+    
+    -- Guarantee scratchpad is a table for the duration of the session
+    scratchpad = (ok and type(parsed) == "table") and parsed or {}
+    -- Anchor the initial state for change detection
+    _initial_scratchpad_json = JSON.stringify(scratchpad)
     window_size = rows[1].context_size or 0
   else
-    scratchpad = ""
-    _initial_scratchpad = ""
+    scratchpad = {}
+    _initial_scratchpad_json = "{}"
   end
 
   -- Load session state
@@ -113,12 +118,15 @@ end
 function core.maybe_persist_state()
   if not session_id or session_id == "" then return end
   
-  if scratchpad ~= _initial_scratchpad then
+  -- Use serialization for deep-comparison to detect any changes in the table
+  local current_json = JSON.stringify(scratchpad)
+  if current_json ~= _initial_scratchpad_json then
     tools.query_db({
-      sql = "INSERT INTO sessions (id, scratchpad) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET scratchpad = excluded.scratchpad",
-      params = {session_id, scratchpad}
+      sql = "INSERT INTO sessions (id, scratchpad) VALUES (?, ?) " ..
+            "ON CONFLICT(id) DO UPDATE SET scratchpad = excluded.scratchpad",
+      params = {session_id, current_json}
     })
-    _initial_scratchpad = scratchpad
+    _initial_scratchpad_json = current_json
   end
   
   if state ~= _initial_state then
@@ -131,6 +139,22 @@ function core.maybe_persist_state()
 end
 
 function core.wrap_result(name, result)
+  if name == "manage_scratchpad" then
+    if result == nil or result == "" or (type(result) == "table" and next(result) == nil) then
+      return string.format("### TOOL_RESULT: %s\nScratchpad is empty\n---", name)
+    end
+  end
+  if type(result) == "table" then
+    local ok, res_str = pcall(JSON.stringify, result)
+    if ok then
+      return string.format("### TOOL_RESULT: %s\n%s\n---", name, res_str)
+    end
+    local items = {}
+    for k, v in pairs(result) do
+      table.insert(items, tostring(k) .. ": " .. tostring(v))
+    end
+    return string.format("### TOOL_RESULT: %s\n%s\n---", name, table.concat(items, "\n"))
+  end
   return string.format("### TOOL_RESULT: %s\n%s\n---", name, tostring(result))
 end
 
@@ -403,6 +427,16 @@ function tools.manage_scratchpad(args)
       params = {json_str, session_id}
     })
     return "Scratchpad updated and persisted."
+  elseif action == "append" then
+    local current = scratchpad.notes or ""
+    scratchpad.notes = current .. (args.content or "")
+    
+    local json_str = JSON.stringify(scratchpad)
+    tools.query_db({
+      sql = "UPDATE sessions SET scratchpad = ? WHERE id = ?",
+      params = {json_str, session_id}
+    })
+    return "Scratchpad appended and persisted."
   else
     error("Unknown action: " .. tostring(action))
   end
@@ -986,3 +1020,6 @@ io.open = function(path, mode)
   end
   return _native_io_open(path, mode)
 end
+
+
+manifest = get_tool_manifest()
