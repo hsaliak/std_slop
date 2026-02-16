@@ -53,6 +53,10 @@ local _initial_scratchpad = nil
 local _initial_state = nil
 
 function core.load_session_state()
+  -- Skip if already loaded (e.g. via C++ injection)
+  if history and #history > 0 then
+    return
+  end
   if not session_id or session_id == "" then return end
   if _loaded_session == session_id then return end
 
