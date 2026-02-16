@@ -860,7 +860,7 @@ function tools.help()
 Globals:
 - tools: Table of all available tools.
 - state: (String) Current technical state.
-- scratchpad: (String) Current plan/notes.
+- scratchpad: (Table) Structured persistent storage.
 - history: (Table) Array of {role, content} messages.
 - llm_query(query): (String) Synchronous sub-task LLM query.
 - llm_query_async(query): (Job) Asynchronous sub-task LLM query.
