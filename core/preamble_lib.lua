@@ -380,30 +380,29 @@ end
 function tools.manage_scratchpad(args)
   if not session_id or session_id == "" then error("FAILED_PRECONDITION: No active session", 0) end
   local action = args.action
-  local content = args.content or ""
   
   if action == "read" then
-    if not scratchpad or scratchpad == "" then
-      return "Scratchpad is empty."
-    end
     return scratchpad
   elseif action == "update" then
-    scratchpad = content
-    return "Scratchpad updated."
-  elseif action == "append" then
-    if not scratchpad or scratchpad == "" then
-      scratchpad = content
-    else
-      scratchpad = scratchpad .. "\n" .. content
+    if args.key then
+      scratchpad[args.key] = args.value
+    elseif args.content then
+      scratchpad.notes = args.content
+    elseif type(args.value) == "table" then
+      for k, v in pairs(args.value) do scratchpad[k] = v end
     end
-    return "Content appended to scratchpad."
+    
+    -- Immediate Persistence
+    local json_str = JSON.stringify(scratchpad)
+    tools.query_db({
+      sql = "UPDATE sessions SET scratchpad = ? WHERE id = ?",
+      params = {json_str, session_id}
+    })
+    return "Scratchpad updated and persisted."
   else
     error("Unknown action: " .. tostring(action))
   end
 end
-
--- Meta & Discovery Tools
-
 function tools.list_directory(args)
   local path = args.path or "."
   local depth = args.depth or 1
@@ -879,7 +878,7 @@ Common Tools:
 - git_grep_tool({pattern, path, context}): Greps repository using git.
 - grep_tool({pattern, path, context}): Generic grep (uses git if possible).
 - search_code({query}): Shortcut for searching code across the project.
-- manage_scratchpad({action="read"|"update"|"append", content}): Plan management.
+- manage_scratchpad({action="read"|"update", key, value, content}): Manages persistent state (JSON-backed). Use 'key'/'value' for structured data or 'content' for notes.
 
 Knowledge & Skills:
 - save_memo({content, tags}): Save a technical insight with semantic tags.
