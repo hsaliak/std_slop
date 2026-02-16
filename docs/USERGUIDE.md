@@ -36,7 +36,6 @@ Example `config.ini`:
 [slop]
 model = gemini-2.0-flash-exp
 google_api_key = AIza...
-max_parallel_tools = 8
 ```
 
 See [example_config.ini](example_config.ini) for a template with all supported options.
@@ -291,12 +290,9 @@ When enabled, the final assembled prompt will be logged via `absl::LOG(INFO)`. T
 ## Concurrency & Control
 
 ### Parallel Tool Execution
-`std::slop` executes tool calls in parallel using a thread pool. By default, it uses up to 4 concurrent threads. This allows the agent to perform multiple searches or file reads simultaneously, significantly reducing turn-around time for complex tasks. 
+`std::slop` executes tool calls in parallel by spawning a new thread for each tool call. This allows the agent to perform multiple searches or file reads simultaneously, significantly reducing turn-around time for complex tasks. 
 
-You can configure the parallelism level using the `--max_parallel_tools` flag:
-```bash
-bazel run //:std_slop -- --max_parallel_tools=8
-```
+All concurrent tasks are managed via the Lua Control Plane and can be cancelled individually or as a group.
 
 ### Mail Mode (Patch-Based Workflow)
 For complex features that require multiple iterations and commit history, use **Mail Mode**.
