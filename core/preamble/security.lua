@@ -9,8 +9,9 @@ function tools.help()
 - history: (table) Array of conversation messages: {role, content}.
 
 #### Core Tools ####
-- llm_query({query}): (string) Runs a sub-task LLM query synchronously.
-- llm_query_async({query}): (job) Runs a sub-task LLM query asynchronously. Returns a Job object.
+- llm_query({query, context}): (string) Runs a sub-task LLM query. 
+    Accepts string or table: { query = "instruction", context = "data" | {"data1", "data2"} }
+- llm_query_async({query, context}): (job) Asynchronous version of llm_query.
 - help(): (string) Shows this help message.
 
 #### File System ####
