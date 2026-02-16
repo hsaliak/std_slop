@@ -4,7 +4,45 @@
 
 ## 1. Overview
 
-The **lua-integration** branch represents a architectural shift that shifts the system from direct tool execution to a Lua-based orchestration model. This document details the differences between the `lua-integration` branch and the `main` branch.
+The **lua-integration** branch represents an architectural shift from direct tool execution to a Lua-based orchestration model, implementing the **Recursive Language Model (RLM)** paradigm. This document details the differences between the `lua-integration` branch and the `main` branch, and provides guidelines for effective script orchestration.
+
+## 2. Recursive Language Model (RLM) Paradigm
+
+In the RLM paradigm, the agent processes arbitrarily long contexts by treating the codebase, history, and scratchpad as external variables in a persistent Lua environment. The Lua Control Plane (LCP) serves as the primary entry point for all reasoning and execution.
+
+### 2.1 Symbolic Handles
+
+The LCP provides several global symbolic handles that allow scripts to access and persist state across turns without inflating the primary context window.
+
+| Global | Contents | Read When | Write When |
+|--------|----------|-----------|------------|
+| `scratchpad` | Persistent working notes & roadmap | Every script start | After every atomic step |
+| `memos` | Project invariants & learned conventions | Before expensive queries | After first learning a convention |
+| `state` | Current context (branch, file, goal) | Turn start | After git ops, file switches |
+| `history` | Conversation metadata (lengths, previews) | Turn start | System-managed |
+
+### 2.2 Mandatory Turn Pattern
+
+To ensure state continuity, scripts must follow a specific "Read-Execute-Write" pattern:
+
+1.  **READ** the scratchpad first to orient the task.
+2.  **EXECUTE** the work (investigation, code changes, tool calls).
+3.  **WRITE** the scratchpad last to persist progress for the next turn.
+
+```lua
+-- 1. READ scratchpad first
+local notes = tools.manage_scratchpad({action = "read"})
+local ctx = notes and notes.content or "No notes found."
+
+-- 2. DO work...
+-- (Example: Investigation or tool execution)
+
+-- 3. WRITE scratchpad last
+tools.manage_scratchpad({
+    action = "update",
+    content = "Completed investigation; next step: apply patches."
+})
+```
 
 ## 2. Git History Comparison
 
@@ -182,6 +220,8 @@ This enables "sticky" parent branch logic, tracking which base branch each stagi
 
 ## 7. Idiomatic Usage
 
+### 7.1 Script Structure
+
 Scripts should return a summary of their actions or a specific data structure:
 
 ```lua
@@ -192,6 +232,54 @@ for _, file in ipairs(files) do
   if file:match("%.cpp$") then count = count + 1 end
 end
 return { cpp_file_count = count }
+```
+
+### 7.2 Parallelization and Sub-LLM Queries
+
+The LCP allows for offloading semantic sub-tasks to external LLM calls. This is particularly useful for analyzing large contexts or performing repetitive evaluations.
+
+*   `tools.llm_query`: Synchronous variant for investigative work.
+*   `tools.llm_query_async`: Asynchronous variant for large-scale parallel processing.
+
+**Pattern: Batch Read and Parallel Analysis**
+
+```lua
+-- BATCH READ: read multiple files concurrently
+local files = {"file1.cpp", "file2.cpp", "file3.cpp"}
+local jobs = {}
+
+for _, path in ipairs(files) do
+    local content = tools.read_file({path = path})
+    jobs[#jobs + 1] = tools.llm_query_async({
+        prompt = "Analyze this code for bugs",
+        context = content
+    })
+end
+
+-- AWAIT results
+local results = {}
+for i, job in ipairs(jobs) do
+    results[files[i]] = job:wait()
+end
+return results
+```
+
+### 7.3 Chaining Tasks
+
+Use the result of one LLM call as context for the next:
+
+```lua
+local summary_job = tools.llm_query_async({
+    prompt = "Summarize the changes in this module",
+    context = large_diff
+})
+local summary = summary_job:wait()
+
+local refined_job = tools.llm_query_async({
+    prompt = "Format this summary for a CHANGELOG",
+    context = summary
+})
+return refined_job:wait()
 ```
 
 ## 8. Migration Notes
