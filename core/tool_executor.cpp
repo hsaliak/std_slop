@@ -134,6 +134,32 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(const RunLuaRequest
   lua_tool::InitializeEnvironment(lua, db_, dispatcher_.get(), cancellation, dispatch_map_, stdout_buffer);
 
   lua["session_id"] = session_id_;
+
+  // Inject scratchpad
+  auto scratchpad_res = db_->GetScratchpad(session_id_);
+  if (scratchpad_res.ok() && !scratchpad_res->empty()) {
+    lua["scratchpad"] = *scratchpad_res;
+  }
+
+  // Inject state
+  auto state_res = db_->GetSessionState(session_id_);
+  if (state_res.ok() && !state_res->empty()) {
+    lua["state"] = *state_res;
+  }
+
+  // Inject history
+  auto history_res = db_->GetConversationHistory(session_id_);
+  if (history_res.ok() && !history_res->empty()) {
+    sol::table history_table = lua.create_table();
+    int i = 1;
+    for (const auto& msg : *history_res) {
+      sol::table msg_table = lua.create_table();
+      msg_table["role"] = msg.role;
+      msg_table["content"] = msg.content;
+      history_table[i++] = msg_table;
+    }
+    lua["history"] = history_table;
+  }
   if (!req.args.is_null()) {
     lua["args"] = JSONToLua(lua, req.args);
   }
