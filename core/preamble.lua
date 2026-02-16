@@ -24,6 +24,14 @@ elseif scratchpad == nil then
   scratchpad = {}
 end
 
+if state == nil then
+  state = ""
+end
+
+if history == nil then
+  history = {}
+end
+
 -- Load the library logic
 -- Note: ToolExecutor will ensure preamble_lib.lua is executed before this file
 if not tools then
