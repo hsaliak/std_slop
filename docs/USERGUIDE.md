@@ -8,7 +8,7 @@
 `std::slop` uses Lua 5.5 to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
 
 ### `run_lua`
-The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing Lua scripts.
+The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing Lua scripts. For detailed documentation on orchestration patterns, parallel execution, and the RLM paradigm, see [lua_integration.md](lua_integration.md).
 
 
 ## Installation
