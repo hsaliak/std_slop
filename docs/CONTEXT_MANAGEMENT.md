@@ -8,8 +8,8 @@ The system groups messages into "conversation groups" (identified by `group_id`)
 
 To prevent the model from "losing the thread" during long sessions, the orchestrator injects two persistent blocks at the top of every prompt, immediately after the system instructions:
 
-1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. This is rebuilt by the model at the end of every response or manually via `/context rebuild`.
-2.  **Active Scratchpad**: A persistent markdown checklist managed via the `manage_scratchpad` tool and stored in the `sessions` table. This provides a detailed, iterative roadmap that survives history truncation.
+1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. In the Lua Control Plane (RLM paradigm), this is accessible via the global `state` handle and is typically updated at the end of a response.
+2.  **Active Scratchpad**: A persistent markdown block stored in the `scratchpads` table. This serves as the agent's "Project Roadmap". In the Lua Control Plane, it is managed programmatically via the global `scratchpad` variable and the `tools.manage_scratchpad` tool.
 
 Both the **Global State** and **Active Scratchpad** are stored in the SQLite database and persist indefinitely across history pruning or session restarts. The scratchpad is intended to be the "source of truth" for the current task and can be manually edited by the user to redirect the agent or refine the plan.
 
