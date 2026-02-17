@@ -17,6 +17,7 @@
 #include <thread>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -43,23 +44,20 @@ ScopedRawMode::ScopedRawMode() {
       if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) == 0) {
         g_terminal_state.oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
         if (g_terminal_state.oldf != -1) {
-          fcntl(STDIN_FILENO, F_SETFL, g_terminal_state.oldf | O_NONBLOCK);
+          if (fcntl(STDIN_FILENO, F_SETFL, g_terminal_state.oldf | O_NONBLOCK) == 0) {
+            g_terminal_state.active = true;
+          }
         }
-        g_terminal_state.active = true;
       }
     }
   }
 }
 
 ScopedRawMode::~ScopedRawMode() {
-  if (--g_terminal_state.refcount == 0) {
-    if (g_terminal_state.active) {
-      tcsetattr(STDIN_FILENO, TCSANOW, &g_terminal_state.oldt);
-      if (g_terminal_state.oldf != -1) {
-        fcntl(STDIN_FILENO, F_SETFL, g_terminal_state.oldf);
-      }
-      g_terminal_state.active = false;
-    }
+  if (--g_terminal_state.refcount == 0 && g_terminal_state.active) {
+    tcsetattr(STDIN_FILENO, TCSANOW, &g_terminal_state.oldt);
+    fcntl(STDIN_FILENO, F_SETFL, g_terminal_state.oldf);
+    g_terminal_state.active = false;
   }
 }
 
@@ -69,9 +67,15 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
                                          std::string_view input, int timeout_seconds) {
   LOG(INFO) << "Running command: " << command;
 
-  int stdout_pipe[2];
-  int stderr_pipe[2];
-  int stdin_pipe[2];
+  int stdout_pipe[2] = {-1, -1};
+  int stderr_pipe[2] = {-1, -1};
+  int stdin_pipe[2] = {-1, -1};
+
+  auto pipe_cleanup = absl::MakeCleanup([&] {
+    for (int fd : {stdout_pipe[0], stdout_pipe[1], stderr_pipe[0], stderr_pipe[1], stdin_pipe[0], stdin_pipe[1]}) {
+      if (fd != -1) close(fd);
+    }
+  });
 
   if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1 || pipe(stdin_pipe) == -1) {
     return absl::InternalError("Failed to create pipes");
@@ -95,113 +99,105 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
     close(stdin_pipe[0]);
     close(stdin_pipe[1]);
 
-    execl("/bin/sh", "sh", "-c", std::string(command).c_str(), nullptr);
-    exit(1);
+    const char* shell = "/bin/sh";
+    std::string cmd_str(command);
+    const char* args[] = {shell, "-c", cmd_str.c_str(), nullptr};
+    execvp(shell, const_cast<char* const*>(args));
+    _exit(1);
   }
 
-  close(stdout_pipe[1]);
-  close(stderr_pipe[1]);
-  close(stdin_pipe[0]);
+  auto close_fd = [](int& fd) {
+    if (fd != -1) {
+      close(fd);
+      fd = -1;
+    }
+  };
+
+  close_fd(stdout_pipe[1]);
+  close_fd(stderr_pipe[1]);
+  close_fd(stdin_pipe[0]);
 
   auto set_nonblocking = [](int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
-    if (flags != -1) {
-      fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    }
+    if (flags != -1) fcntl(fd, F_SETFL, flags | O_NONBLOCK);
   };
   set_nonblocking(stdout_pipe[0]);
   set_nonblocking(stderr_pipe[0]);
   set_nonblocking(stdin_pipe[1]);
 
-  std::string stdout_str;
-  std::string stderr_str;
-  std::vector<char> buffer(4096);
+  int exit_sig = SIGKILL;
+  bool finished = false;
+  auto child_cleanup = absl::MakeCleanup([&] {
+    if (finished) return;
+    kill(-pid, exit_sig);
+    if (exit_sig == SIGTERM) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      int status;
+      if (waitpid(pid, &status, WNOHANG) == 0) {
+        kill(-pid, SIGKILL);
+      }
+    }
+    int status;
+    waitpid(pid, &status, 0);
+  });
 
+  std::string stdout_str, stderr_str;
+  std::vector<char> buffer(4096);
   size_t stdin_written = 0;
   bool stdin_open = !input.empty();
-  bool stdout_open = true;
-  bool stderr_open = true;
-
-  if (!stdin_open) close(stdin_pipe[1]);
+  if (!stdin_open) close_fd(stdin_pipe[1]);
 
   auto start_time = std::chrono::steady_clock::now();
-  std::vector<struct pollfd> fds = {
-      {stdout_pipe[0], POLLIN, 0},
-      {stderr_pipe[0], POLLIN, 0},
-      {stdin_open ? stdin_pipe[1] : -1, POLLOUT, 0},
-  };
-
-  auto cleanup_child = [&](int sig) {
-    kill(-pid, sig);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    int status;
-    if (waitpid(pid, &status, WNOHANG) == 0) {
-      kill(-pid, SIGKILL);
-      waitpid(pid, &status, 0);
-    }
-  };
-
-  while (stdout_open || stderr_open || stdin_open) {
+  while (stdout_pipe[0] != -1 || stderr_pipe[0] != -1 || stdin_open) {
     if (cancellation && cancellation->IsCancelled()) {
-      cleanup_child(SIGTERM);
-      if (stdout_open) close(stdout_pipe[0]);
-      if (stderr_open) close(stderr_pipe[0]);
-      if (stdin_open) close(stdin_pipe[1]);
+      exit_sig = SIGTERM;
       return absl::CancelledError("Command cancelled");
     }
 
     if (timeout_seconds > 0) {
       auto now = std::chrono::steady_clock::now();
       if (std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count() >= timeout_seconds) {
-        cleanup_child(SIGKILL);
-        if (stdout_open) close(stdout_pipe[0]);
-        if (stderr_open) close(stderr_pipe[0]);
-        if (stdin_open) close(stdin_pipe[1]);
         return absl::DeadlineExceededError("Command timed out");
       }
     }
 
-    int ret = poll(fds.data(), fds.size(), 50);
-    if (ret <= 0) {
-        if (ret == -1 && errno == EINTR) continue;
-        if (ret == 0) continue;
-        break;
-    }
+    std::vector<struct pollfd> p_fds = {
+        {stdout_pipe[0], POLLIN, 0},
+        {stderr_pipe[0], POLLIN, 0},
+        {stdin_open ? stdin_pipe[1] : -1, POLLOUT, 0},
+    };
+
+    int ret = poll(p_fds.data(), p_fds.size(), 50);
+    if (ret == -1 && errno == EINTR) continue;
+    if (ret <= 0) continue;
 
     for (int i = 0; i < 2; ++i) {
-      if (fds[i].fd != -1 && (fds[i].revents & (POLLIN | POLLHUP))) {
-        ssize_t bytes = read(fds[i].fd, buffer.data(), buffer.size());
+      if (p_fds[i].fd != -1 && (p_fds[i].revents & (POLLIN | POLLHUP))) {
+        ssize_t bytes = read(p_fds[i].fd, buffer.data(), buffer.size());
         if (bytes > 0) {
-          if (i == 0) stdout_str.append(buffer.data(), bytes);
-          else stderr_str.append(buffer.data(), bytes);
+          (i == 0 ? stdout_str : stderr_str).append(buffer.data(), bytes);
         } else if (bytes == 0 || (bytes == -1 && errno != EAGAIN)) {
-          if (i == 0) stdout_open = false; else stderr_open = false;
-          close(fds[i].fd); fds[i].fd = -1;
+          close_fd(i == 0 ? stdout_pipe[0] : stderr_pipe[0]);
         }
       }
     }
 
-    if (stdin_open && (fds[2].revents & POLLOUT)) {
+    if (stdin_open && (p_fds[2].revents & POLLOUT)) {
       ssize_t bytes = write(stdin_pipe[1], input.data() + stdin_written, input.size() - stdin_written);
       if (bytes > 0) {
         stdin_written += bytes;
         if (stdin_written == input.size()) {
           stdin_open = false;
-          close(stdin_pipe[1]);
-          fds[2].fd = -1;
+          close_fd(stdin_pipe[1]);
         }
       } else if (bytes == -1 && errno != EAGAIN) {
         stdin_open = false;
-        close(stdin_pipe[1]);
-        fds[2].fd = -1;
+        close_fd(stdin_pipe[1]);
       }
     }
   }
 
-  if (stdout_open) close(stdout_pipe[0]);
-  if (stderr_open) close(stderr_pipe[0]);
-  if (stdin_open) close(stdin_pipe[1]);
-
+  finished = true;
   int status;
   waitpid(pid, &status, 0);
   return CommandResult{stdout_str, stderr_str, WIFEXITED(status) ? WEXITSTATUS(status) : -1};
@@ -237,26 +233,27 @@ bool IsEscPressed() {
     return ch == 27;
   }
 
-  struct termios oldt, newt;
+  struct termios oldt;
   if (tcgetattr(STDIN_FILENO, &oldt) != 0) return false;
-  newt = oldt;
+  
+  auto cleanup = absl::MakeCleanup([&] {
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  });
+
+  struct termios newt = oldt;
   newt.c_lflag &= ~(ICANON | ECHO);
   if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) != 0) return false;
+
   int oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-  if (oldf == -1) {
-    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    return false;
-  }
-  if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) {
-    (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    return false;
-  }
+  if (oldf == -1) return false;
+
+  auto fcntl_cleanup = absl::MakeCleanup([&] {
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+  });
+
+  if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) return false;
 
   int ch = getchar();
-
-  (void)tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-  (void)fcntl(STDIN_FILENO, F_SETFL, oldf);
-
   return ch == 27;
 }
 
