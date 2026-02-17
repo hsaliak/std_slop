@@ -55,7 +55,6 @@ ABSL_FLAG(bool, strip_reasoning, false,
           "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to "
           "improve response speed and focus)");
 
-
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
 ABSL_FLAG(std::string, prompt_db, "",

@@ -1,4 +1,5 @@
 #include "core/lua_bridge_util.h"
+
 #include <gtest/gtest.h>
 #include <sol/sol.hpp>
 

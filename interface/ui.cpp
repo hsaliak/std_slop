@@ -2,12 +2,11 @@
 
 // Role constants for message handling
 namespace role_constants {
-  inline constexpr std::string_view kSystem = "system";
-  inline constexpr std::string_view kUser = "user";
-  inline constexpr std::string_view kAssistant = "assistant";
-  inline constexpr std::string_view kTool = "tool";
-}
-
+inline constexpr std::string_view kSystem = "system";
+inline constexpr std::string_view kUser = "user";
+inline constexpr std::string_view kAssistant = "assistant";
+inline constexpr std::string_view kTool = "tool";
+}  // namespace role_constants
 
 #include <unistd.h>
 

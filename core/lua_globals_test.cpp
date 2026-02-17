@@ -1,7 +1,9 @@
-#include "core/tool_executor.h"
-#include <gtest/gtest.h>
 #include "absl/strings/match.h"
+
 #include "core/database.h"
+#include "core/tool_executor.h"
+
+#include <gtest/gtest.h>
 
 namespace slop {
 
@@ -47,10 +49,11 @@ TEST(ToolExecutorTest, HelpToolCheck) {
   std::string script = "return tools.help()";
   auto res = executor.Execute("run_lua", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
-  
+
   EXPECT_TRUE(absl::StrContains(*res, "Slop Orchestrator Help")) << "Result: " << *res;
   EXPECT_TRUE(absl::StrContains(*res, "read_file({path, start_line, end_line, add_line_numbers=true})"));
-  EXPECT_TRUE(absl::StrContains(*res, "git_grep_tool({pattern, patterns, path, context, case_insensitive, word_regexp, ...})"));
+  EXPECT_TRUE(
+      absl::StrContains(*res, "git_grep_tool({pattern, patterns, path, context, case_insensitive, word_regexp, ...})"));
 }
 
 TEST(ToolExecutorTest, ScratchpadAutoConversionCheck) {
@@ -96,7 +99,6 @@ TEST(ToolExecutorTest, ManageScratchpadToolCheck) {
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_TRUE(absl::StrContains(*res, "Return Value: bar"));
 }
-
 
 TEST(ToolExecutorTest, LLMQueryStructuredTest) {
   Database db;
@@ -175,9 +177,12 @@ TEST(ToolExecutorTest, HelpUpdateCheck) {
   std::string script = "return tools.help()";
   auto res = executor.Execute("run_lua", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
-  
-  EXPECT_TRUE(absl::StrContains(*res, "llm_query({query, context}): (string) Runs a sub-task LLM query.")) << "Help content missing expected llm_query update";
-  EXPECT_TRUE(absl::StrContains(*res, "Accepts string or table: { query = \"instruction\", context = \"data\" | {\"data1\", \"data2\"} }")) << "Help content missing expected table format details";
+
+  EXPECT_TRUE(absl::StrContains(*res, "llm_query({query, context}): (string) Runs a sub-task LLM query."))
+      << "Help content missing expected llm_query update";
+  EXPECT_TRUE(absl::StrContains(
+      *res, "Accepts string or table: { query = \"instruction\", context = \"data\" | {\"data1\", \"data2\"} }"))
+      << "Help content missing expected table format details";
 }
 
 }  // namespace slop

@@ -429,8 +429,6 @@ TEST(ToolExecutorTest, ApplyPatch_WhitespaceSensitivity) {
   std::filesystem::remove(test_file);
 }
 
-
-
 TEST(ToolExecutorTest, UseSkill) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

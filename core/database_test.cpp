@@ -533,10 +533,11 @@ TEST(DatabaseTest, LargeNumberOfTags) {
   ASSERT_TRUE(db.AddMemo("Target Memo", "[\"important-tag\"]").ok());
 
   std::vector<std::string> tags;
-  for (int i = 0; i < 1100; ++i) {
+  tags.reserve(1100);
+for (int i = 0; i < 1100; ++i) {
     tags.push_back(absl::StrCat("tag-", i));
   }
-  tags.push_back("important-tag");
+  tags.emplace_back("important-tag");
 
   // This would fail without the CTE JOIN optimization
   auto results = db.GetMemosByTags(tags);
@@ -545,9 +546,9 @@ TEST(DatabaseTest, LargeNumberOfTags) {
   EXPECT_EQ((*results)[0].content, "Target Memo");
 }
 
+#include <atomic>
 #include <thread>
 #include <vector>
-#include <atomic>
 
 TEST(DatabaseTest, ConcurrentAccess) {
   slop::Database db;
@@ -558,7 +559,8 @@ TEST(DatabaseTest, ConcurrentAccess) {
   std::atomic<int> success_count{0};
   std::vector<std::thread> threads;
 
-  for (int i = 0; i < num_threads; ++i) {
+  threads.reserve(num_threads);
+for (int i = 0; i < num_threads; ++i) {
     threads.emplace_back([&db, &success_count, i]() {
       for (int j = 0; j < iterations; ++j) {
         std::string session = absl::StrCat("session_", i);
@@ -567,7 +569,7 @@ TEST(DatabaseTest, ConcurrentAccess) {
         if (status.ok()) {
           success_count++;
         }
-        
+
         // Use an existing method that is thread-safe (locks mu_)
         auto history = db.GetSkills();
         if (history.ok()) {

@@ -71,11 +71,11 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
   int stderr_pipe[2] = {-1, -1};
   int stdin_pipe[2] = {-1, -1};
 
-  auto pipe_cleanup = absl::MakeCleanup([&] {
+  absl::Cleanup pipe_cleanup = [&] {
     for (int fd : {stdout_pipe[0], stdout_pipe[1], stderr_pipe[0], stderr_pipe[1], stdin_pipe[0], stdin_pipe[1]}) {
       if (fd != -1) close(fd);
     }
-  });
+  };
 
   if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1 || pipe(stdin_pipe) == -1) {
     return absl::InternalError("Failed to create pipes");
@@ -127,7 +127,7 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
 
   int exit_sig = SIGKILL;
   bool finished = false;
-  auto child_cleanup = absl::MakeCleanup([&] {
+  absl::Cleanup child_cleanup = [&] {
     if (finished) return;
     kill(-pid, exit_sig);
     if (exit_sig == SIGTERM) {
@@ -139,7 +139,7 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
     }
     int status;
     waitpid(pid, &status, 0);
-  });
+  };
 
   std::string stdout_str, stderr_str;
   std::vector<char> buffer(4096);
@@ -235,10 +235,8 @@ bool IsEscPressed() {
 
   struct termios oldt;
   if (tcgetattr(STDIN_FILENO, &oldt) != 0) return false;
-  
-  auto cleanup = absl::MakeCleanup([&] {
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-  });
+
+  absl::Cleanup cleanup = [&] { tcsetattr(STDIN_FILENO, TCSANOW, &oldt); };
 
   struct termios newt = oldt;
   newt.c_lflag &= ~(ICANON | ECHO);
@@ -247,9 +245,7 @@ bool IsEscPressed() {
   int oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
   if (oldf == -1) return false;
 
-  auto fcntl_cleanup = absl::MakeCleanup([&] {
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
-  });
+  absl::Cleanup fcntl_cleanup = [&] { fcntl(STDIN_FILENO, F_SETFL, oldf); };
 
   if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) return false;
 

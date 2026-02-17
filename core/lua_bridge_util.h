@@ -1,11 +1,12 @@
 #ifndef SLOP_CORE_LUA_BRIDGE_UTIL_H_
 #define SLOP_CORE_LUA_BRIDGE_UTIL_H_
 
-#include <nlohmann/json.hpp>
-#include <sol/sol.hpp>
-#include <vector>
 #include <algorithm>
 #include <string>
+#include <vector>
+
+#include <nlohmann/json.hpp>
+#include <sol/sol.hpp>
 
 namespace slop {
 
@@ -14,11 +15,11 @@ namespace detail {
 inline nlohmann::json LuaToJSONInternal(sol::object obj, int depth, std::vector<const void*>& visited) {
   if (depth > 64) return nullptr;
   if (!obj.valid() || obj.is<sol::lua_nil_t>()) return nullptr;
-  
+
   if (obj.is<bool>()) return obj.as<bool>();
   if (obj.is<double>()) return obj.as<double>();
   if (obj.is<std::string>()) return obj.as<std::string>();
-  
+
   if (obj.is<sol::table>()) {
     sol::table t = obj.as<sol::table>();
     const void* ptr = t.pointer();
@@ -27,9 +28,7 @@ inline nlohmann::json LuaToJSONInternal(sol::object obj, int depth, std::vector<
 
     // Collect items first to avoid recursing inside for_each
     std::vector<std::pair<sol::object, sol::object>> items;
-    t.for_each([&](sol::object k, sol::object v) {
-      items.push_back({k, v});
-    });
+    t.for_each([&](sol::object k, sol::object v) { items.push_back({k, v}); });
 
     size_t count = items.size();
     size_t max_idx = 0;
@@ -78,7 +77,7 @@ inline nlohmann::json LuaToJSONInternal(sol::object obj, int depth, std::vector<
   return nullptr;
 }
 
-} // namespace detail
+}  // namespace detail
 
 inline nlohmann::json LuaToJSON(sol::object obj) {
   std::vector<const void*> visited;

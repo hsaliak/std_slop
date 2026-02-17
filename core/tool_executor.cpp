@@ -56,7 +56,6 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   return db_->Query(sql, params);
 }
 
-
 absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& args,
                                                        std::shared_ptr<CancellationRequest> cancellation) {
   RunLuaRequest req;

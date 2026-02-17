@@ -6,8 +6,7 @@
 
 namespace slop {
 
-ToolDispatcher::ToolDispatcher(ToolFunc executor_func)
-    : executor_func_(std::move(executor_func)) {}
+ToolDispatcher::ToolDispatcher(ToolFunc executor_func) : executor_func_(std::move(executor_func)) {}
 
 ToolDispatcher::~ToolDispatcher() {
   absl::MutexLock lock(&mu_);
@@ -77,7 +76,5 @@ std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(const std::vector<C
   }
   return results;
 }
-
-
 
 }  // namespace slop
