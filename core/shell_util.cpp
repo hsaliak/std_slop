@@ -68,92 +68,71 @@ bool ScopedRawMode::IsActive() const { return g_terminal_state.active; }
 absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_ptr<CancellationRequest> cancellation,
                                          std::string_view input, int timeout_seconds) {
   LOG(INFO) << "Running command: " << command;
-  std::array<int, 2> stdin_pipe;
-  std::array<int, 2> stdout_pipe;
-  std::array<int, 2> stderr_pipe;
 
-  if (pipe(stdin_pipe.data()) == -1) {
-    return absl::InternalError("Failed to create stdin pipe");
-  }
-  if (pipe(stdout_pipe.data()) == -1) {
-    close(stdin_pipe[0]);
-    close(stdin_pipe[1]);
-    return absl::InternalError("Failed to create stdout pipe");
-  }
-  if (pipe(stderr_pipe.data()) == -1) {
-    close(stdin_pipe[0]);
-    close(stdin_pipe[1]);
-    close(stdout_pipe[0]);
-    close(stdout_pipe[1]);
-    return absl::InternalError("Failed to create stderr pipe");
+  int stdout_pipe[2];
+  int stderr_pipe[2];
+  int stdin_pipe[2];
+
+  if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1 || pipe(stdin_pipe) == -1) {
+    return absl::InternalError("Failed to create pipes");
   }
 
   pid_t pid = fork();
   if (pid == -1) {
-    close(stdin_pipe[0]);
-    close(stdin_pipe[1]);
-    close(stdout_pipe[0]);
-    close(stdout_pipe[1]);
-    close(stderr_pipe[0]);
-    close(stderr_pipe[1]);
     return absl::InternalError("Failed to fork");
   }
 
   if (pid == 0) {
-    // Child process
-    // Set process group ID to own PID so we can kill the whole group
-    setpgid(0, 0);
-
-    close(stdin_pipe[1]);
-    dup2(stdin_pipe[0], STDIN_FILENO);
-    close(stdin_pipe[0]);
-
-    close(stdout_pipe[0]);
-    close(stderr_pipe[0]);
+    setsid();
     dup2(stdout_pipe[1], STDOUT_FILENO);
     dup2(stderr_pipe[1], STDERR_FILENO);
+    dup2(stdin_pipe[0], STDIN_FILENO);
+
+    close(stdout_pipe[0]);
     close(stdout_pipe[1]);
+    close(stderr_pipe[0]);
     close(stderr_pipe[1]);
+    close(stdin_pipe[0]);
+    close(stdin_pipe[1]);
 
     execl("/bin/sh", "sh", "-c", std::string(command).c_str(), nullptr);
-    _exit(1);
+    exit(1);
   }
 
-  // Parent process
-  close(stdin_pipe[0]);
   close(stdout_pipe[1]);
   close(stderr_pipe[1]);
+  close(stdin_pipe[0]);
 
-  if (!input.empty()) {
-    // For small inputs, we can write directly.
-    // NOTE: This might block if input > PIPE_BUF (usually 4KB or 64KB).
-    // For larger inputs, we should move this to the poll loop.
-    if (write(stdin_pipe[1], input.data(), input.size()) == -1) {
-      LOG(WARNING) << "Failed to write to child stdin: " << strerror(errno);
+  auto set_nonblocking = [](int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags != -1) {
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     }
-  }
-  close(stdin_pipe[1]);
+  };
+  set_nonblocking(stdout_pipe[0]);
+  set_nonblocking(stderr_pipe[0]);
+  set_nonblocking(stdin_pipe[1]);
 
   std::string stdout_str;
   std::string stderr_str;
-  std::array<char, 4096> buffer;
+  std::vector<char> buffer(4096);
 
-  std::vector<pollfd> fds(2);
-  fds[0].fd = stdout_pipe[0];
-  fds[0].events = POLLIN;
-  fds[1].fd = stderr_pipe[0];
-  fds[1].events = POLLIN;
-
+  size_t stdin_written = 0;
+  bool stdin_open = !input.empty();
   bool stdout_open = true;
   bool stderr_open = true;
 
+  if (!stdin_open) close(stdin_pipe[1]);
+
   auto start_time = std::chrono::steady_clock::now();
+  std::vector<struct pollfd> fds = {
+      {stdout_pipe[0], POLLIN, 0},
+      {stderr_pipe[0], POLLIN, 0},
+      {stdin_open ? stdin_pipe[1] : -1, POLLOUT, 0},
+  };
 
   auto cleanup_child = [&](int sig) {
-    LOG(INFO) << "Cleaning up child process " << pid << " with signal " << sig;
-    kill(-pid, sig);  // Kill process group
-
-    // Give it a moment to shut down
+    kill(-pid, sig);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     int status;
     if (waitpid(pid, &status, WNOHANG) == 0) {
@@ -162,70 +141,70 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
     }
   };
 
-  while (stdout_open || stderr_open) {
+  while (stdout_open || stderr_open || stdin_open) {
     if (cancellation && cancellation->IsCancelled()) {
-      LOG(INFO) << "Command cancelled via CancellationRequest";
       cleanup_child(SIGTERM);
-      close(stdout_pipe[0]);
-      close(stderr_pipe[0]);
+      if (stdout_open) close(stdout_pipe[0]);
+      if (stderr_open) close(stderr_pipe[0]);
+      if (stdin_open) close(stdin_pipe[1]);
       return absl::CancelledError("Command cancelled");
     }
 
     if (timeout_seconds > 0) {
       auto now = std::chrono::steady_clock::now();
       if (std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count() >= timeout_seconds) {
-        LOG(INFO) << "Command timed out after " << timeout_seconds << " seconds";
         cleanup_child(SIGKILL);
-        close(stdout_pipe[0]);
-        close(stderr_pipe[0]);
-        return absl::DeadlineExceededError(absl::StrCat("Command timed out after ", timeout_seconds, " seconds"));
+        if (stdout_open) close(stdout_pipe[0]);
+        if (stderr_open) close(stderr_pipe[0]);
+        if (stdin_open) close(stdin_pipe[1]);
+        return absl::DeadlineExceededError("Command timed out");
       }
     }
 
-    int ret = poll(fds.data(), fds.size(), 50);  // Shorter timeout for faster cancellation check
-    if (ret == -1) {
-      if (errno == EINTR) continue;
-      break;
+    int ret = poll(fds.data(), fds.size(), 50);
+    if (ret <= 0) {
+        if (ret == -1 && errno == EINTR) continue;
+        if (ret == 0) continue;
+        break;
     }
 
-    if (ret == 0) continue;
-
     for (int i = 0; i < 2; ++i) {
-      if (fds[i].revents & (POLLIN | POLLHUP)) {
+      if (fds[i].fd != -1 && (fds[i].revents & (POLLIN | POLLHUP))) {
         ssize_t bytes = read(fds[i].fd, buffer.data(), buffer.size());
         if (bytes > 0) {
-          if (i == 0) {
-            stdout_str.append(buffer.data(), bytes);
-          } else {
-            stderr_str.append(buffer.data(), bytes);
-          }
-        } else if (bytes == 0 || (bytes == -1 && errno != EINTR && errno != EAGAIN)) {
-          if (i == 0)
-            stdout_open = false;
-          else
-            stderr_open = false;
-          fds[i].fd = -1;  // Stop polling this fd
+          if (i == 0) stdout_str.append(buffer.data(), bytes);
+          else stderr_str.append(buffer.data(), bytes);
+        } else if (bytes == 0 || (bytes == -1 && errno != EAGAIN)) {
+          if (i == 0) stdout_open = false; else stderr_open = false;
+          close(fds[i].fd); fds[i].fd = -1;
         }
-      } else if (fds[i].revents & (POLLERR | POLLNVAL)) {
-        if (i == 0)
-          stdout_open = false;
-        else
-          stderr_open = false;
-        fds[i].fd = -1;
+      }
+    }
+
+    if (stdin_open && (fds[2].revents & POLLOUT)) {
+      ssize_t bytes = write(stdin_pipe[1], input.data() + stdin_written, input.size() - stdin_written);
+      if (bytes > 0) {
+        stdin_written += bytes;
+        if (stdin_written == input.size()) {
+          stdin_open = false;
+          close(stdin_pipe[1]);
+          fds[2].fd = -1;
+        }
+      } else if (bytes == -1 && errno != EAGAIN) {
+        stdin_open = false;
+        close(stdin_pipe[1]);
+        fds[2].fd = -1;
       }
     }
   }
 
-  close(stdout_pipe[0]);
-  close(stderr_pipe[0]);
+  if (stdout_open) close(stdout_pipe[0]);
+  if (stderr_open) close(stderr_pipe[0]);
+  if (stdin_open) close(stdin_pipe[1]);
 
   int status;
   waitpid(pid, &status, 0);
-  int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-
-  LOG(INFO) << "Command exited with code " << exit_code;
-
-  return CommandResult{stdout_str, stderr_str, exit_code};
+  return CommandResult{stdout_str, stderr_str, WIFEXITED(status) ? WEXITSTATUS(status) : -1};
 }
 
 std::string EscapeShellArg(std::string_view arg) {
