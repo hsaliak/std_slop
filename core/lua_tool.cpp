@@ -52,7 +52,7 @@ void InitializeEnvironment(sol::state& lua, [[maybe_unused]] Database* db, ToolD
     }
     return JSONToLua(lua, j);
   };
-  json_lib["stringify"] = [](sol::object obj) { return LuaToJSON(obj).dump(); };
+  json_lib["stringify"] = [](sol::object obj) { return SafeDump(LuaToJSON(obj)); };
   lua["JSON"] = json_lib;
 
   // Register ToolJob class

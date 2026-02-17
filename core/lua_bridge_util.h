@@ -3,70 +3,93 @@
 
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
+#include <vector>
+#include <algorithm>
+#include <string>
 
 namespace slop {
 
-inline nlohmann::json LuaToJSON(sol::object obj) {
+namespace detail {
+
+inline nlohmann::json LuaToJSONInternal(sol::object obj, int depth, std::vector<const void*>& visited) {
+  if (depth > 64) return nullptr;
+  if (!obj.valid() || obj.is<sol::lua_nil_t>()) return nullptr;
+  
   if (obj.is<bool>()) return obj.as<bool>();
-  if (obj.is<double>()) {
-    double d = obj.as<double>();
-    // Check if it's actually an integer to avoid .0 in JSON if possible,
-    // though nlohmann::json handles doubles fine.
-    return d;
-  }
+  if (obj.is<double>()) return obj.as<double>();
   if (obj.is<std::string>()) return obj.as<std::string>();
+  
   if (obj.is<sol::table>()) {
     sol::table t = obj.as<sol::table>();
+    const void* ptr = t.pointer();
+    if (std::find(visited.begin(), visited.end(), ptr) != visited.end()) return "<<cycle>>";
+    visited.push_back(ptr);
 
-    // Check if it's an array (heuristic: keys are all positive integers)
-    bool is_array = true;
-    size_t count = 0;
-    size_t max_idx = 0;
-    t.for_each([&](sol::object key, sol::object /*value*/) {
-      count++;
-      if (!key.is<int>()) {
-        is_array = false;
-      } else {
-        int k = key.as<int>();
-        if (k <= 0) {
-          is_array = false;
-        } else if ((size_t)k > max_idx) {
-          max_idx = k;
-        }
-      }
+    // Collect items first to avoid recursing inside for_each
+    std::vector<std::pair<sol::object, sol::object>> items;
+    t.for_each([&](sol::object k, sol::object v) {
+      items.push_back({k, v});
     });
 
-    // If it's an empty table, we'll treat it as an object by default in Lua -> JSON
-    // unless we have a better hint. JSON {} is usually safer than [].
-    if (count == 0) return nlohmann::json::object();
-
-    if (is_array && max_idx == count) {
-      nlohmann::json j = nlohmann::json::array();
-      for (size_t i = 1; i <= max_idx; ++i) {
-        j.push_back(LuaToJSON(t[i]));
-      }
-      return j;
-    } else {
-      nlohmann::json j = nlohmann::json::object();
-      t.for_each([&](sol::object key, sol::object value) {
-        std::string k;
-        if (key.is<std::string>()) {
-          k = key.as<std::string>();
-        } else if (key.is<int>()) {
-          k = std::to_string(key.as<int>());
+    size_t count = items.size();
+    size_t max_idx = 0;
+    bool is_array = true;
+    for (auto& item : items) {
+      if (item.first.is<int>()) {
+        int idx = item.first.as<int>();
+        if (idx > 0) {
+          if (static_cast<size_t>(idx) > max_idx) max_idx = idx;
         } else {
-          // Skip non-string/int keys for JSON objects
-          return;
+          is_array = false;
         }
-        j[k] = LuaToJSON(value);
-      });
-      return j;
+      } else {
+        is_array = false;
+      }
     }
+
+    nlohmann::json j;
+    if (count == 0) {
+      j = nlohmann::json::object();
+    } else if (is_array && max_idx == count) {
+      j = nlohmann::json::array();
+      // For arrays, we need to ensure correct order
+      // So we'll just use t[i] again, but it's safe now because we're not inside for_each
+      for (size_t i = 1; i <= max_idx; ++i) {
+        j.push_back(LuaToJSONInternal(t[i], depth + 1, visited));
+      }
+    } else {
+      j = nlohmann::json::object();
+      for (auto& item : items) {
+        std::string k;
+        if (item.first.is<std::string>()) {
+          k = item.first.as<std::string>();
+        } else if (item.first.is<int>()) {
+          k = std::to_string(item.first.as<int>());
+        } else {
+          continue;
+        }
+        j[k] = LuaToJSONInternal(item.second, depth + 1, visited);
+      }
+    }
+
+    visited.pop_back();
+    return j;
   }
   return nullptr;
 }
 
-inline sol::object JSONToLua(sol::state_view& lua, const nlohmann::json& j) {
+} // namespace detail
+
+inline nlohmann::json LuaToJSON(sol::object obj) {
+  std::vector<const void*> visited;
+  return detail::LuaToJSONInternal(obj, 0, visited);
+}
+
+inline std::string SafeDump(const nlohmann::json& j, int indent = -1) {
+  return j.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
+}
+
+inline sol::object JSONToLua(sol::state_view lua, const nlohmann::json& j) {
   if (j.is_null()) return sol::lua_nil;
   if (j.is_boolean()) return sol::make_object(lua, j.get<bool>());
   if (j.is_number_integer()) return sol::make_object(lua, j.get<int64_t>());
