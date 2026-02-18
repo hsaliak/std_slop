@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <nlohmann/json.hpp>
+#include "json_utils.h"
 #include <sol/sol.hpp>
 
 namespace slop {
@@ -90,11 +91,11 @@ inline std::string SafeDump(const nlohmann::json& j, int indent = -1) {
 
 inline sol::object JSONToLua(sol::state_view lua, const nlohmann::json& j) {
   if (j.is_null()) return sol::lua_nil;
-  if (j.is_boolean()) return sol::make_object(lua, j.get<bool>());
-  if (j.is_number_integer()) return sol::make_object(lua, j.get<int64_t>());
-  if (j.is_number_unsigned()) return sol::make_object(lua, j.get<uint64_t>());
-  if (j.is_number_float()) return sol::make_object(lua, j.get<double>());
-  if (j.is_string()) return sol::make_object(lua, j.get<std::string>());
+  if (j.is_boolean()) return sol::make_object(lua, json_getter<bool>::get(j).value_or(false));
+  if (j.is_number_integer()) return sol::make_object(lua, json_getter<int64_t>::get(j).value_or(0));
+  if (j.is_number_unsigned()) return sol::make_object(lua, json_getter<uint64_t>::get(j).value_or(0));
+  if (j.is_number_float()) return sol::make_object(lua, json_getter<double>::get(j).value_or(0.0));
+  if (j.is_string()) return sol::make_object(lua, json_getter<std::string>::get(j).value_or(""));
   if (j.is_array()) {
     sol::table t = lua.create_table();
     for (size_t i = 0; i < j.size(); ++i) {
