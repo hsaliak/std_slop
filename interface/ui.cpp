@@ -30,6 +30,7 @@ inline constexpr std::string_view kTool = "tool";
 #include "absl/strings/substitute.h"
 #include "absl/synchronization/mutex.h"
 #include "nlohmann/json.hpp"
+#include "core/json_utils.h"
 
 #include "core/message_parser.h"
 #include "interface/color.h"
@@ -314,7 +315,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
     ss << "SYSTEM INSTRUCTION:\n";
     if (j["system_instruction"].contains("parts")) {
       for (const auto& part : j["system_instruction"]["parts"]) {
-        if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
+        if (part.contains("text")) ss << json_get_or(part, "text", std::string{}) << "\n";
       }
     }
     ss << "\n";
@@ -325,7 +326,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
       ss << "Role: " << role << "\n";
       if (entry.contains("parts")) {
         for (const auto& part : entry["parts"]) {
-          if (part.contains("text")) ss << part["text"].get<std::string>() << "\n";
+          if (part.contains("text")) ss << json_get_or(part, "text", std::string{}) << "\n";
           if (part.contains("functionCall"))
             ss << "Function Call: "
                << part["functionCall"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
@@ -341,14 +342,14 @@ std::string FormatAssembledContext(const std::string& json_str) {
       std::string role = msg.value("role", "unknown");
       ss << "Role: " << role << "\n";
       if (msg.contains("content") && !msg["content"].is_null()) {
-        ss << msg["content"].get<std::string>() << "\n";
+        ss << json_get_or(msg, "content", std::string{}) << "\n";
       }
       if (msg.contains("tool_calls")) {
         ss << "Tool Calls: " << msg["tool_calls"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)
            << "\n";
       }
       if (msg.contains("tool_call_id")) {
-        ss << "Tool Call ID: " << msg["tool_call_id"].get<std::string>() << "\n";
+        ss << "Tool Call ID: " << json_get_or(msg, "tool_call_id", std::string{}) << "\n";
       }
       ss << "\n";
     }
