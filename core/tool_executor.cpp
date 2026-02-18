@@ -73,7 +73,6 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& arg
   return res->FullOutput();
 }
 
-}
 
 void ToolExecutor::RegisterTools() {
   RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });

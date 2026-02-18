@@ -118,6 +118,7 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
 
 
   return payload;
+}
 absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                         const std::string& group_id) {
   auto j_opt = json_parse(response_json);
@@ -192,7 +193,7 @@ absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::
       models.push_back(info);
     }
   }
-
+  return models;
 }
 
 absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& oauth_token) {

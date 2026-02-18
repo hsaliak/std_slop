@@ -179,7 +179,6 @@ absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::
   auto& j = *j_opt;
 
   std::vector<ModelInfo> models;
-  std::vector<ModelInfo> models;
   if (auto data = json_get<nlohmann::json::array_t>(j, "data")) {
     for (const auto& m : *data) {
       ModelInfo info;

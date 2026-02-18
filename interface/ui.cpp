@@ -305,7 +305,6 @@ void SmartDisplay(const std::string& content, bool is_markdown) {
 }
 
 std::string FormatAssembledContext(const std::string& json_str) {
-std::string FormatAssembledContext(const std::string& json_str) {
   auto j_top_opt = json_parse(json_str);
   if (!j_top_opt) return json_str;
   auto& j_top = *j_top_opt;

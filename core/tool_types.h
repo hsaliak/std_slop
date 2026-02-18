@@ -145,7 +145,6 @@ inline void from_json(const nlohmann::json& j, GrepRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
-inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
   r.pattern = json_get_or(j, "pattern", std::optional<std::string>{});
   r.patterns = json_get_or(j, "patterns", std::vector<std::string>{});
   if (auto path_vec = json_get<std::vector<std::string>>(j, "path")) {
