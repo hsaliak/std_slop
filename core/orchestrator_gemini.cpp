@@ -129,12 +129,12 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
   auto& j = *j_opt;
 
   const nlohmann::json* target = &j;
-  if (auto* response = json_at(j, "response"); response && response->is_object()) {
+  if (const auto* response = json_at(j, "response"); response && response->is_object()) {
     target = response;
   }
 
   int total_tokens = 0;
-  if (auto* usage = json_at(*target, "usageMetadata")) {
+  if (const auto* usage = json_at(*target, "usageMetadata")) {
     int prompt = json_get_or(*usage, "promptTokenCount", 0);
     int completion = json_get_or(*usage, "candidatesTokenCount", 0);
     total_tokens = prompt + completion;
@@ -144,10 +144,10 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
   absl::Status status = absl::InternalError("No candidates in response");
   if (auto candidates = json_get<nlohmann::json::array_t>(*target, "candidates"); candidates && !candidates->empty()) {
     auto& candidate = (*candidates)[0];
-    if (auto* content = json_at(candidate, "content")) {
+    if (const auto* content = json_at(candidate, "content")) {
       if (auto parts = json_get<nlohmann::json::array_t>(*content, "parts")) {
         for (const auto& part : *parts) {
-          if (auto* fc = json_at(part, "functionCall")) {
+          if (const auto* fc = json_at(part, "functionCall")) {
             std::string name = json_get_or(*fc, "name", std::string{});
             status = db_->AppendMessage(session_id, "assistant", json_dump(part), name, "tool_call", group_id, GetName(),
                                         total_tokens);

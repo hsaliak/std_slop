@@ -67,7 +67,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& arg
     return absl::InvalidArgumentError("'script' must be a string");
   }
   req.script = *script;
-  if (auto* lua_args = json_at(args, "args")) req.args = *lua_args;
+  if (const auto* lua_args = json_at(args, "args")) req.args = *lua_args;
   auto res = RunLua(req, cancellation);
   if (!res.ok()) return res.status();
   return res->FullOutput();

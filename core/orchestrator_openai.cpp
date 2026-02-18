@@ -126,7 +126,7 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
   auto& j = *j_opt;
 
   int total_tokens = 0;
-  if (auto* usage = json_at(j, "usage")) {
+  if (const auto* usage = json_at(j, "usage")) {
     int prompt = json_get_or(*usage, "prompt_tokens", 0);
     int completion = json_get_or(*usage, "completion_tokens", 0);
     total_tokens = prompt + completion;
@@ -136,12 +136,12 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
   absl::Status status = absl::InternalError("No choices in response");
   if (auto choices = json_get<nlohmann::json::array_t>(j, "choices"); choices && !choices->empty()) {
     auto& choice = (*choices)[0];
-    if (auto* msg = json_at(choice, "message")) {
+    if (const auto* msg = json_at(choice, "message")) {
       if (auto tool_calls = json_get<nlohmann::json::array_t>(*msg, "tool_calls"); tool_calls && !tool_calls->empty()) {
         auto& first_call = (*tool_calls)[0];
         std::string call_id = json_get_or(first_call, "id", std::string{});
-        std::string fn_name = "";
-        if (auto* fn = json_at(first_call, "function")) {
+        std::string fn_name;
+        if (const auto* fn = json_at(first_call, "function")) {
           fn_name = json_get_or(*fn, "name", std::string{});
         }
         status = db_->AppendMessage(session_id, "assistant", json_dump(*msg), call_id + "|" + fn_name, "tool_call",

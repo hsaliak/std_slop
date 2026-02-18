@@ -119,7 +119,7 @@ inline const nlohmann::json* json_at(const nlohmann::json& j, const std::string&
 // Returns std::nullopt if the key is missing or the type is incorrect.
 template <typename T>
 inline std::optional<T> json_get(const nlohmann::json& j, const std::string& key) {
-  auto* val = json_at(j, key);
+  const auto* val = json_at(j, key);
   if (!val) return std::nullopt;
   return json_getter<T>::get(*val);
 }

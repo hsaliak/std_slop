@@ -296,7 +296,7 @@ int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
     }
   };
 
-  if (auto* error = json_at(j, "error"); error && error->is_object()) {
+  if (const auto* error = json_at(j, "error"); error && error->is_object()) {
     // 1. Parse from message
     if (auto msg = json_get<std::string>(*error, "message")) {
       constexpr absl::string_view kPrefix = "Your quota will reset after ";

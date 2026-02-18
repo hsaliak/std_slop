@@ -47,7 +47,7 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
       for (const auto& call : *tool_calls) {
         ToolCall tc;
         tc.id = json_get_or(call, "id", std::string{});
-        if (auto* fn = json_at(call, "function")) {
+        if (const auto* fn = json_at(call, "function")) {
           tc.name = json_get_or(*fn, "name", std::string("unknown"));
           std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
           tc.args = json_parse(args_str).value_or(nlohmann::json::object());
@@ -60,12 +60,12 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
     tc.id = msg.tool_call_id;
     tc.name = msg.tool_call_id;  // Default to ID if name not in JSON
 
-    if (auto* fc = json_at(j, "functionCall")) {
+    if (const auto* fc = json_at(j, "functionCall")) {
       tc.name = json_get_or(*fc, "name", tc.name);
-      if (auto* args = json_at(*fc, "args")) {
+      if (const auto* args = json_at(*fc, "args")) {
         tc.args = *args;
       }
-    } else if (auto* args = json_at(j, "args")) {
+    } else if (const auto* args = json_at(j, "args")) {
       tc.args = *args;
     }
     calls.push_back(tc);
@@ -75,7 +75,7 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
       for (const auto& call : *f_calls) {
         ToolCall tc;
         tc.name = json_get_or(call, "name", std::string("unknown"));
-        if (auto* args = json_at(call, "args")) {
+        if (const auto* args = json_at(call, "args")) {
           tc.args = *args;
         } else {
           tc.args = nlohmann::json::object();
