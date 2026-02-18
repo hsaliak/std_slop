@@ -305,6 +305,7 @@ void SmartDisplay(const std::string& content, bool is_markdown) {
 }
 
 std::string FormatAssembledContext(const std::string& json_str) {
+std::string FormatAssembledContext(const std::string& json_str) {
   auto j_top_opt = json_parse(json_str);
   if (!j_top_opt) return json_str;
   auto& j_top = *j_top_opt;
@@ -323,42 +324,43 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
   // Handle Gemini format (system_instruction + contents)
   if (j.contains("system_instruction") || j.contains("contents")) {
-    if (j.contains("system_instruction")) {
+    if (auto sys_instr = json_at(j, "system_instruction")) {
       ss << "## " << icons::Robot << " System Instruction\n\n";
-      if (j["system_instruction"].contains("parts")) {
-        for (const auto& part : j["system_instruction"]["parts"]) {
-          if (part.contains("text")) {
-            ss << json_get_or(part, "text", std::string{}) << "\n\n";
+      if (auto parts = json_get<nlohmann::json::array_t>(*sys_instr, "parts")) {
+        for (const auto& part : *parts) {
+          if (auto text = json_get<std::string>(part, "text")) {
+            ss << *text << "\n\n";
           }
         }
       }
     }
 
-    if (j.contains("contents")) {
-      for (const auto& item : j["contents"]) {
+    if (auto contents = json_get<nlohmann::json::array_t>(j, "contents")) {
+      for (const auto& item : *contents) {
         std::string role = json_get_or(item, "role", std::string("unknown"));
         ss << "## " << (role == "user" ? icons::Input : icons::Robot) << " Role: " << role << "\n\n";
-        if (item.contains("parts")) {
-          for (const auto& part : item["parts"]) {
-            if (part.contains("text")) {
-              ss << json_get_or(part, "text", std::string{}) << "\n\n";
+        if (auto parts = json_get<nlohmann::json::array_t>(item, "parts")) {
+          for (const auto& part : *parts) {
+            if (auto text = json_get<std::string>(part, "text")) {
+              ss << *text << "\n\n";
             }
-            if (part.contains("functionCall")) {
-              auto& fc = part["functionCall"];
-              std::string name = json_get_or(fc, "name", std::string("unknown"));
+            if (auto fc = json_at(part, "functionCall")) {
+              std::string name = json_get_or(*fc, "name", std::string("unknown"));
               ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
-              auto args = fc["args"];
-              if (name == "run_lua") {
-                ss << "```lua\n" << json_get_or(args, "script", std::string{}) << "\n```\n\n";
-              } else {
-                ss << "```json\n" << args.dump(2) << "\n```\n\n";
+              if (auto args = json_at(*fc, "args")) {
+                if (name == "run_lua") {
+                  ss << "```lua\n" << json_get_or(*args, "script", std::string{}) << "\n```\n\n";
+                } else {
+                  ss << "```json\n" << args->dump(2) << "\n```\n\n";
+                }
               }
             }
-            if (part.contains("functionResponse")) {
-              auto& fr = part["functionResponse"];
-              std::string name = json_get_or(fr, "name", std::string("unknown"));
+            if (auto fr = json_at(part, "functionResponse")) {
+              std::string name = json_get_or(*fr, "name", std::string("unknown"));
               ss << "### " << icons::Tool << " Tool Result: " << name << "\n\n";
-              ss << "```\n" << fr["response"].dump(2) << "\n```\n\n";
+              if (auto response = json_at(*fr, "response")) {
+                ss << "```\n" << response->dump(2) << "\n```\n\n";
+              }
             }
           }
         }
@@ -366,30 +368,31 @@ std::string FormatAssembledContext(const std::string& json_str) {
     }
   }
   // Handle OpenAI format (messages)
-  else if (j.contains("messages")) {
-    for (const auto& msg : j["messages"]) {
-      std::string role = msg.value("role", "unknown");
+  else if (auto messages = json_get<nlohmann::json::array_t>(j, "messages")) {
+    for (const auto& msg : *messages) {
+      std::string role = json_get_or(msg, "role", std::string("unknown"));
       ss << "## " << (role == "user" ? icons::Input : (role == "system" ? icons::Info : icons::Robot))
          << " Role: " << role << "\n\n";
 
-      if (msg.contains("content") && msg["content"].is_string()) {
-        ss << msg["content"].get<std::string>() << "\n\n";
+      if (auto content = json_get<std::string>(msg, "content")) {
+        ss << *content << "\n\n";
       }
 
-      if (msg.contains("tool_calls")) {
-        for (const auto& call : msg["tool_calls"]) {
-          auto& fn = call["function"];
-          std::string name = json_get_or(fn, "name", std::string("unknown"));
-          ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
+      if (auto tool_calls = json_get<nlohmann::json::array_t>(msg, "tool_calls")) {
+        for (const auto& call : *tool_calls) {
+          if (auto fn = json_at(call, "function")) {
+            std::string name = json_get_or(*fn, "name", std::string("unknown"));
+            ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
 
-          std::string args_str = json_get_or(fn, "arguments", std::string("{}"));
-          auto args_opt = json_parse(args_str);
-          if (args_opt && name == "run_lua") {
-            ss << "```lua\n" << json_get_or(*args_opt, "script", std::string{}) << "\n```\n\n";
-          } else if (args_opt) {
-            ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
-          } else {
-            ss << "```\n" << args_str << "\n```\n\n";
+            std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
+            auto args_opt = json_parse(args_str);
+            if (args_opt && name == "run_lua") {
+              ss << "```lua\n" << json_get_or(*args_opt, "script", std::string{}) << "\n```\n\n";
+            } else if (args_opt) {
+              ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
+            } else {
+              ss << "```\n" << args_str << "\n```\n\n";
+            }
           }
         }
       }
@@ -407,6 +410,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
   return ss.str();
 }
+
 
 void DisplayAssembledContext(const std::string& json_str) {
   SmartDisplay(FormatAssembledContext(json_str), true);
