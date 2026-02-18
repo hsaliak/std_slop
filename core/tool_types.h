@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "json_utils.h"
 
 namespace slop {
 
@@ -78,13 +79,14 @@ struct ListDirectoryRequest {
 };
 
 struct ManageScratchpadRequest {
-  std::string action = "read";  // "read", "update", "append"
+  std::string action;
+  std::string key;
   std::optional<std::string> content;
 };
 
 struct UseSkillRequest {
   std::string name;
-  std::string action = "activate";  // "activate", "deactivate"
+  std::string action;
 };
 
 struct SearchCodeRequest {
@@ -124,153 +126,134 @@ struct RunLuaRequest {
   nlohmann::json args;
 };
 
-}  // namespace slop
-
-namespace nlohmann {
-
-template <typename T>
-struct adl_serializer<std::optional<T>> {
-  static void to_json(json& j, const std::optional<T>& opt) {
-    if (opt.has_value()) {
-      j = *opt;
-    } else {
-      j = nullptr;
-    }
-  }
-
-  static void from_json(const json& j, std::optional<T>& opt) {
-    if (j.is_null()) {
-      opt = std::nullopt;
-    } else {
-      opt = j.get<T>();
-    }
-  }
-};
-
-// We need to define to_json/from_json for our structs here or in slop namespace if they are used with get<T>()
-}  // namespace nlohmann
-
-namespace slop {
-
-// Define from_json for each request struct to avoid using the macro which might have issues with optional
 inline void from_json(const nlohmann::json& j, ReadFileRequest& r) {
-  r.path = j.value("path", "");
-  if (j.contains("start_line")) r.start_line = j.at("start_line").get<std::optional<int>>();
-  if (j.contains("end_line")) r.end_line = j.at("end_line").get<std::optional<int>>();
-  r.add_line_numbers = j.value("add_line_numbers", true);
+  r.path = json_get_or(j, "path", std::string{});
+  r.start_line = json_get_or(j, "start_line", std::optional<int>{});
+  r.end_line = json_get_or(j, "end_line", std::optional<int>{});
+  r.add_line_numbers = json_get_or(j, "add_line_numbers", true);
 }
 
 inline void from_json(const nlohmann::json& j, WriteFileRequest& r) {
-  r.path = j.value("path", "");
-  r.content = j.value("content", "");
+  r.path = json_get_or(j, "path", std::string{});
+  r.content = json_get_or(j, "content", std::string{});
 }
 
 inline void from_json(const nlohmann::json& j, GrepRequest& r) {
-  r.pattern = j.value("pattern", "");
-  r.path = j.value("path", ".");
-  r.context = j.value("context", 0);
+  r.pattern = json_get_or(j, "pattern", std::string{});
+  r.path = json_get_or(j, "path", std::string{"."});
+  r.context = json_get_or(j, "context", 0);
 }
 
 inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
-  if (j.contains("pattern")) r.pattern = j.at("pattern").get<std::optional<std::string>>();
-  if (j.contains("patterns")) r.patterns = j.at("patterns").get<std::vector<std::string>>();
+  r.pattern = json_get_or(j, "pattern", std::optional<std::string>{});
+  r.patterns = json_get_or(j, "patterns", std::vector<std::string>{});
   if (j.contains("path")) {
-    if (j.at("path").is_array()) {
-      r.path = j.at("path").get<std::vector<std::string>>();
+    auto path_opt = json_get<std::vector<std::string>>(j, "path");
+    if (path_opt) {
+      r.path = *path_opt;
     } else {
-      r.path = {j.at("path").get<std::string>()};
+      auto path_single = json_get<std::string>(j, "path");
+      if (path_single) {
+        r.path = {*path_single};
+      } else {
+        r.path = {"."};
+      }
     }
   } else {
     r.path = {"."};
   }
-  if (j.contains("branch")) r.branch = j.at("branch").get<std::optional<std::string>>();
-  r.case_insensitive = j.value("case_insensitive", false);
-  r.word_regexp = j.value("word_regexp", false);
-  r.line_number = j.value("line_number", true);
-  r.files_with_matches = j.value("files_with_matches", false);
-  r.count = j.value("count", false);
-  r.show_function = j.value("show_function", false);
-  r.cached = j.value("cached", false);
-  r.all_match = j.value("all_match", false);
-  r.pcre = j.value("pcre", false);
-  r.function_context = j.value("function_context", false);
-  r.untracked = j.value("untracked", false);
-  r.no_index = j.value("no_index", false);
-  r.exclude_standard = j.value("exclude_standard", true);
-  r.fixed_strings = j.value("fixed_strings", false);
-  if (j.contains("max_depth")) r.max_depth = j.at("max_depth").get<std::optional<int>>();
-  if (j.contains("context")) r.context = j.at("context").get<std::optional<int>>();
-  if (j.contains("before")) r.before = j.at("before").get<std::optional<int>>();
-  if (j.contains("after")) r.after = j.at("after").get<std::optional<int>>();
+  r.branch = json_get_or(j, "branch", std::optional<std::string>{});
+  r.case_insensitive = json_get_or(j, "case_insensitive", false);
+  r.word_regexp = json_get_or(j, "word_regexp", false);
+  r.line_number = json_get_or(j, "line_number", true);
+  r.files_with_matches = json_get_or(j, "files_with_matches", false);
+  r.count = json_get_or(j, "count", false);
+  r.show_function = json_get_or(j, "show_function", false);
+  r.cached = json_get_or(j, "cached", false);
+  r.all_match = json_get_or(j, "all_match", false);
+  r.pcre = json_get_or(j, "pcre", false);
+  r.function_context = json_get_or(j, "function_context", false);
+  r.untracked = json_get_or(j, "untracked", false);
+  r.no_index = json_get_or(j, "no_index", false);
+  r.exclude_standard = json_get_or(j, "exclude_standard", true);
+  r.fixed_strings = json_get_or(j, "fixed_strings", false);
+  r.max_depth = json_get_or(j, "max_depth", std::optional<int>{});
+  r.context = json_get_or(j, "context", std::optional<int>{});
+  r.before = json_get_or(j, "before", std::optional<int>{});
+  r.after = json_get_or(j, "after", std::optional<int>{});
 }
 
 inline void from_json(const nlohmann::json& j, ExecuteBashRequest& r) {
-  r.command = j.value("command", "");
-  r.input = j.value("input", "");
+  r.command = json_get_or(j, "command", std::string{});
+  r.input = json_get_or(j, "input", std::string{});
 }
 
-inline void from_json(const nlohmann::json& j, QueryDbRequest& r) { r.sql = j.value("sql", ""); }
+inline void from_json(const nlohmann::json& j, QueryDbRequest& r) {
+  r.sql = json_get_or(j, "sql", std::string{});
+}
 
 inline void from_json(const nlohmann::json& j, SaveMemoRequest& r) {
-  r.content = j.value("content", "");
-  if (j.contains("tags") && j.at("tags").is_array()) {
-    r.tags = j.at("tags").get<std::vector<std::string>>();
-  }
+  r.content = json_get_or(j, "content", std::string{});
+  r.tags = json_get_or(j, "tags", std::vector<std::string>{});
 }
 
 inline void from_json(const nlohmann::json& j, RetrieveMemosRequest& r) {
-  if (j.contains("tags") && j.at("tags").is_array()) {
-    r.tags = j.at("tags").get<std::vector<std::string>>();
-  }
+  r.tags = json_get_or(j, "tags", std::vector<std::string>{});
 }
 
 inline void from_json(const nlohmann::json& j, ListDirectoryRequest& r) {
-  r.path = j.value("path", ".");
-  if (j.contains("depth")) r.depth = j.at("depth").get<std::optional<int>>();
-  r.git_only = j.value("git_only", false);
+  r.path = json_get_or(j, "path", std::string{"."});
+  r.depth = json_get_or(j, "depth", std::optional<int>{});
+  r.git_only = json_get_or(j, "git_only", false);
 }
 
 inline void from_json(const nlohmann::json& j, ManageScratchpadRequest& r) {
-  r.action = j.value("action", "read");
-  if (j.contains("content")) r.content = j.at("content").get<std::optional<std::string>>();
+  r.action = json_get_or(j, "action", std::string{"read"});
+  r.key = json_get_or(j, "key", std::string{});
+  r.content = json_get_or(j, "content", std::optional<std::string>{});
 }
 
 inline void from_json(const nlohmann::json& j, UseSkillRequest& r) {
-  r.name = j.value("name", "");
-  r.action = j.value("action", "activate");
+  r.name = json_get_or(j, "name", std::string{});
+  r.action = json_get_or(j, "action", std::string{"activate"});
 }
 
-inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) { r.query = j.value("query", ""); }
+inline void from_json(const nlohmann::json& j, SearchCodeRequest& r) {
+  r.query = json_get_or(j, "query", std::string{});
+}
 
 inline void from_json(const nlohmann::json& j, GitBranchStagingRequest& r) {
-  r.name = j.value("name", "");
-  r.base_branch = j.value("base_branch", "");
+  r.name = json_get_or(j, "name", std::string{});
+  r.base_branch = json_get_or(j, "base_branch", std::string{});
 }
 
 inline void from_json(const nlohmann::json& j, GitCommitPatchRequest& r) {
-  r.summary = j.value("summary", "");
-  r.rationale = j.value("rationale", "");
+  r.summary = json_get_or(j, "summary", std::string{});
+  r.rationale = json_get_or(j, "rationale", std::string{});
 }
 
 inline void from_json(const nlohmann::json& j, GitFormatPatchSeriesRequest& r) {
-  r.base_branch = j.value("base_branch", "");
+  r.base_branch = json_get_or(j, "base_branch", std::string{});
 }
 
 inline void from_json(const nlohmann::json& j, GitFinalizeSeriesRequest& r) {
-  r.target_branch = j.value("target_branch", "");
+  r.target_branch = json_get_or(j, "target_branch", std::string{});
 }
 
 inline void from_json(const nlohmann::json& j, GitVerifySeriesRequest& r) {
-  r.command = j.value("command", "");
-  r.base_branch = j.value("base_branch", "");
+  r.command = json_get_or(j, "command", std::string{});
+  r.base_branch = json_get_or(j, "base_branch", std::string{});
 }
 
 inline void from_json(const nlohmann::json& j, GitRerollPatchRequest& r) {
-  r.index = j.value("index", 0);
-  r.base_branch = j.value("base_branch", "");
+  r.index = json_get_or(j, "index", 0);
+  r.base_branch = json_get_or(j, "base_branch", std::string{});
 }
 
-inline void from_json(const nlohmann::json& j, RunLuaRequest& r) { r.script = j.value("script", ""); }
+inline void from_json(const nlohmann::json& j, RunLuaRequest& r) {
+  r.script = json_get_or(j, "script", std::string{});
+  r.args = json_get_or(j, "args", nlohmann::json{});
+}
 
 }  // namespace slop
 
