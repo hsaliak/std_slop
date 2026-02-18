@@ -16,6 +16,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/strip.h"
 #include "nlohmann/json.hpp"
+#include "json_utils.h"
 
 #include "core/shell_util.h"
 namespace slop {
