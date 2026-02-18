@@ -67,9 +67,6 @@ openai_base_url = https://api.openai.com/v1
 See [docs/example_config.ini](docs/example_config.ini) for a full list of options.
 
 #### Environment Variables
-- `GEMINI_API_KEY`: Google API key.
-- `OPENAI_API_KEY`: OpenAI-compatible API key.
-- `OPENAI_API_BASE`: Base URL for OpenAI-compatible providers.
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
 You can also use Google OAuth login if no keys are provided.
