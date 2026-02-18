@@ -14,6 +14,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "nlohmann/json.hpp"
+#include "json_utils.h"
 
 #include "core/constants.h"
 #include "core/shell_util.h"
@@ -179,15 +180,15 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
   auto gca_res =
       http_client_->Post(gca_url, gca_req.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
   if (gca_res.ok()) {
-    auto j = nlohmann::json::parse(*gca_res, nullptr, false);
-    if (!j.is_discarded() && j.contains("cloudaicompanionProject") && !j["cloudaicompanionProject"].is_null()) {
-      auto& proj = j["cloudaicompanionProject"];
+    auto j_opt = json_parse(*gca_res);
+    if (j_opt && (*j_opt).contains("cloudaicompanionProject") && !(*j_opt)["cloudaicompanionProject"].is_null()) {
+      auto& proj = (*j_opt)["cloudaicompanionProject"];
       if (proj.is_string()) {
-        std::string pid = proj.get<std::string>();
+        std::string pid = json_getter<std::string>::get(proj).value_or("");
         if (!pid.empty()) return pid;
       }
       if (proj.is_object() && proj.contains("id")) {
-        std::string pid = proj["id"].get<std::string>();
+        std::string pid = json_get_or(proj, "id", std::string{});
         if (!pid.empty()) return pid;
       }
     }
@@ -204,9 +205,9 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
   std::string url = absl::StrCat(kCloudResourceManagerBaseUrl, "/projects");
   auto res = http_client_->Get(url, {"Authorization: Bearer " + access_token});
   if (res.ok()) {
-    auto j = nlohmann::json::parse(*res, nullptr, false);
-    if (!j.is_discarded() && j.contains("projects") && !j["projects"].empty()) {
-      return j["projects"][0].value("projectId", "");
+    auto j_opt = json_parse(*res);
+    if (j_opt && (*j_opt).contains("projects") && (*j_opt)["projects"].is_array() && !(*j_opt)["projects"].empty()) {
+      return json_get_or((*j_opt)["projects"][0], "projectId", std::string{});
     }
   }
 
