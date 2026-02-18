@@ -300,7 +300,9 @@ void SmartDisplay(const std::string& content) {
   OpenInEditor(content);
 }
 std::string FormatAssembledContext(const std::string& json_str) {
-  auto j_top = nlohmann::json::parse(json_str, nullptr, false);
+  auto j_top_opt = json_parse(json_str);
+  if (!j_top_opt) return json_str;
+  auto& j_top = *j_top_opt;
   if (j_top.is_discarded()) {
     return "Error parsing context JSON: " + json_str;
   }
@@ -391,7 +393,9 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
   }
 }
 std::string FlattenJsonArgs(const std::string& json_str) {
-  auto j = nlohmann::json::parse(json_str, nullptr, false);
+  auto j_opt = json_parse(json_str);
+  if (!j_opt) return json_str;
+  auto& j = *j_opt;
   if (j.is_discarded()) {
     return json_str;
   }
@@ -407,7 +411,9 @@ std::string FlattenJsonArgs(const std::string& json_str) {
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix, int tokens) {
   absl::MutexLock lock(&g_ui_mu);
   if (name == "run_lua") {
-    auto j = nlohmann::json::parse(args, nullptr, false);
+    auto j_opt = json_parse(args);
+    if (!j_opt) return;
+    auto& j = *j_opt;
     if (!j.is_discarded() && j.is_object() && j.contains("script")) {
       std::string script = j["script"];
       // Escape any existing backticks to avoid breaking our markdown code fence

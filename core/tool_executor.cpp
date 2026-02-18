@@ -1,4 +1,5 @@
 #include "core/tool_executor.h"
+#include "json_utils.h"
 
 #include <algorithm>
 #include <memory>
@@ -44,7 +45,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   if (args.contains("params") && args["params"].is_array()) {
     for (const auto& p : args["params"]) {
       if (p.is_string()) {
-        params.push_back(p.get<std::string>());
+        params.push_back(json_getter<std::string>::get(p).value_or(""));
       } else if (p.is_null()) {
         params.emplace_back("NULL");
       } else {

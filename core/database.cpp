@@ -769,9 +769,11 @@ absl::StatusOr<std::vector<std::string>> Database::GetActiveSkills(const std::st
   if (*row_or) {
     std::string active_skills_raw = stmt->ColumnText(0);
     if (active_skills_raw.empty()) return std::vector<std::string>();
-    auto j = nlohmann::json::parse(active_skills_raw, nullptr, false);
+    auto j_opt = json_parse(active_skills_raw);
+    if (!j_opt) return absl::InternalError("Failed to parse active skills");
+    auto& j = *j_opt;
     if (!j.is_discarded() && j.is_array()) {
-      return j.get<std::vector<std::string>>();
+      return json_getter<std::vector<std::string>>::get(j).value_or(std::vector<std::string>{});
     }
   }
   return std::vector<std::string>();

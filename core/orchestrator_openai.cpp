@@ -88,7 +88,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
 
     if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") {
       messages.back()["content"] =
-          messages.back()["content"].get<std::string>() + "\n" + msg_obj["content"].get<std::string>();
+          json_get_or(messages.back(), "content", std::string{}) + "\n" + json_get_or(msg_obj, "content", std::string{});
     } else {
       messages.push_back(msg_obj);
     }

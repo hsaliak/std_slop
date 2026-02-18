@@ -282,7 +282,9 @@ int64_t HttpClient::ParseXRateLimitReset(const absl::flat_hash_map<std::string, 
 }
 
 int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
-  auto j = nlohmann::json::parse(response_body, nullptr, false);
+  auto j_opt = json_parse(response_body);
+  if (!j_opt) return -1;
+  auto& j = *j_opt;
   if (j.is_discarded() || !j.is_object()) return -1;
 
   int64_t max_delay_ms = -1;

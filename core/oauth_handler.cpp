@@ -54,7 +54,9 @@ absl::Status OAuthHandler::LoadTokens() {
   }
 
   std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  auto j = nlohmann::json::parse(content, nullptr, false);
+  auto j_opt = json_parse(content);
+  if (!j_opt) return absl::InternalError("Failed to parse tokens");
+  auto& j = *j_opt;
   if (j.is_discarded()) {
     return absl::InternalError("Failed to parse tokens");
   }
@@ -119,7 +121,9 @@ absl::Status OAuthHandler::RefreshToken() {
   }
   LOG(INFO) << "Token refreshed successfully.";
 
-  auto j = nlohmann::json::parse(*res, nullptr, false);
+  auto j_opt = json_parse(*res);
+  if (!j_opt) return absl::InternalError("Failed to parse refresh response");
+  auto& j = *j_opt;
   if (j.is_discarded()) return absl::InternalError("Failed to parse refresh response");
 
   tokens_.access_token = j.value("access_token", "");

@@ -177,7 +177,7 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
         std::to_string(n);
     auto res = db_->Query(sql, {args.session_id});
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && j.is_array()) {
         std::string md = absl::Substitute("### Message History (Last $0)\n\n", n);
         md += "| Group ID | User Prompt Snippet | Assistant Tokens |\n";
@@ -199,7 +199,7 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
     auto res =
         db_->Query("SELECT role, content, tokens FROM messages WHERE group_id = ? ORDER BY created_at ASC", {sub_args});
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && !j.empty()) {
         std::string md = absl::Substitute("### Interaction Group: `$0` \n\n", sub_args);
         for (const auto& m : j) {
@@ -299,7 +299,7 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && j.is_array()) {
         std::string md = "### Available Tools\n\n";
         md += "| Name | Description | Enabled |\n";
@@ -314,7 +314,7 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
   } else if (sub_cmd == "show") {
     auto res = db_->Query("SELECT name, description, json_schema FROM tools WHERE name = ?", {sub_args});
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && !j.empty()) {
         std::string md = absl::Substitute("### Tool: $0\n\n", j[0].value("name", ""));
         md += "**Description**: " + j[0].value("description", "") + "\n\n";
@@ -334,7 +334,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT id, name, description, activation_count FROM skills");
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && j.is_array()) {
         std::string md = "### Skills\n\n";
         md += "| ID | Name | Description | Activations | Status |\n";
@@ -358,7 +358,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
   } else if (sub_cmd == "activate") {
     auto res = db_->Query("SELECT name FROM skills WHERE id = ? OR name = ?", {sub_args, sub_args});
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && !j.empty()) {
         std::string name = j[0]["name"];
         if (std::find(args.active_skills.begin(), args.active_skills.end(), name) == args.active_skills.end()) {
@@ -374,7 +374,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
   } else if (sub_cmd == "deactivate") {
     auto res = db_->Query("SELECT name FROM skills WHERE id = ? OR name = ?", {sub_args, sub_args});
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && !j.empty()) {
         std::string name = j[0]["name"];
         args.active_skills.erase(std::remove(args.active_skills.begin(), args.active_skills.end(), name),
@@ -387,7 +387,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
     auto res = db_->Query("SELECT name, description, system_prompt_patch FROM skills WHERE name = ? OR id = ?",
                           {sub_args, sub_args});
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && !j.empty()) {
         std::cout << "Skill: " << json_get_or(j[0], "name", std::string{}) << std::endl;
         std::cout << "Description: " << json_get_or(j[0], "description", std::string{}) << std::endl;
@@ -399,7 +399,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         "SELECT id, name, description, system_prompt_patch, activation_count FROM skills WHERE name = ? OR id = ?",
         {sub_args, sub_args});
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && !j.empty()) {
         auto& skill_data = j[0];
         int id = json_get_or(skill_data, "id", 0);
@@ -465,7 +465,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT DISTINCT session_id FROM messages UNION SELECT DISTINCT id FROM sessions");
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && j.is_array()) {
         std::string md = "### Sessions\n\n";
         md += "| Status | Session ID |\n";
@@ -561,7 +561,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       {args.session_id});
   if (res.ok()) {
     std::string md = "## Usage Stats for Session [" + args.session_id + "]\n\n";
-    auto j = nlohmann::json::parse(*res, nullptr, false);
+    auto j = json_parse(*res).value_or(nlohmann::json::object());
     if (!j.is_discarded() && j.is_array() && !j.empty()) {
       md += "| Model | Prompt | Completion | Total |\n";
       md += "| :--- | :---: | :---: | :---: |\n";
@@ -578,7 +578,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
 
   auto tools_res = db_->Query("SELECT name, call_count FROM tools WHERE call_count > 0 ORDER BY call_count DESC");
   if (tools_res.ok()) {
-    auto j = nlohmann::json::parse(*tools_res, nullptr, false);
+    auto j = json_parse(*tools_res).value_or(nlohmann::json::object());
     if (!j.is_discarded() && j.is_array() && !j.empty()) {
       std::string md = "### Tool Usage (All-time)\n\n";
       md += "| Tool | Calls |\n";
@@ -594,7 +594,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
   auto skills_res =
       db_->Query("SELECT name, activation_count FROM skills WHERE activation_count > 0 ORDER BY activation_count DESC");
   if (skills_res.ok()) {
-    auto j = nlohmann::json::parse(*skills_res, nullptr, false);
+    auto j = json_parse(*skills_res).value_or(nlohmann::json::object());
     if (!j.is_discarded() && j.is_array() && !j.empty()) {
       std::string md = "### Skill Activations (All-time)\n\n";
       md += "| Skill | Activations |\n";
@@ -678,7 +678,7 @@ CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
 CommandHandler::Result CommandHandler::HandleSchema([[maybe_unused]] CommandArgs& args) {
   auto res = db_->Query("SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
   if (res.ok()) {
-    auto j = nlohmann::json::parse(*res, nullptr, false);
+    auto j = json_parse(*res).value_or(nlohmann::json::object());
     if (!j.is_discarded()) {
       for (const auto& row : j) {
         std::cout << json_get_or(row, "sql", std::string{}) << ";\n" << std::endl;
@@ -1244,7 +1244,7 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
     // Auto-activate patcher skill if it exists
     auto res = db_->Query("SELECT name FROM skills WHERE name = 'patcher'");
     if (res.ok()) {
-      auto j = nlohmann::json::parse(*res, nullptr, false);
+      auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && j.is_array() && !j.empty()) {
         bool already_active = false;
         for (const auto& s : args.active_skills) {
@@ -1307,7 +1307,9 @@ Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
 }
 
 std::string CommandHandler::MemoToMarkdown(const Database::Memo& memo) {
-  nlohmann::json tags_j = nlohmann::json::parse(memo.semantic_tags, nullptr, false);
+  auto tags_j_opt = json_parse(memo.semantic_tags);
+  if (!tags_j_opt) return "";
+  auto& tags_j = *tags_j_opt;
   std::string tags_str;
   if (!tags_j.is_discarded() && tags_j.is_array()) {
     tags_str = absl::StrJoin(

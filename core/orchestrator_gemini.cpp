@@ -46,8 +46,9 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
     nlohmann::json part;
 
     if (msg.status == "tool_call") {
-      auto j = nlohmann::json::parse(msg.content, nullptr, false);
-      if (!j.is_discarded()) {
+      auto j_opt = json_parse(msg.content);
+      if (j_opt && !j_opt->is_discarded()) {
+        auto& j = *j_opt;
         bool valid = true;
         if (j.contains("functionCall")) {
           std::string name = j["functionCall"]["name"];
@@ -102,9 +103,9 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
     for (const auto& t : *tools_or) {
       auto it = tool_schema_cache_.find(t.name);
       if (it == tool_schema_cache_.end()) {
-        auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
-        if (!schema.is_discarded()) {
-          it = tool_schema_cache_.emplace(t.name, std::move(schema)).first;
+        auto schema_opt = json_parse(t.json_schema);
+        if (schema_opt) {
+          it = tool_schema_cache_.emplace(t.name, std::move(*schema_opt)).first;
         }
       }
       if (it != tool_schema_cache_.end()) {
@@ -112,7 +113,9 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
       }
     }
   }
+
   if (!f_decls.empty()) payload["tools"] = {{{"function_declarations", f_decls}}};
+
 
   return payload;
 }
