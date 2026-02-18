@@ -11,6 +11,7 @@
 #include "core/status_macros.h"
 
 #include <nlohmann/json.hpp>
+#include "json_utils.h"
 #include <sqlite3.h>
 namespace slop {
 
