@@ -175,6 +175,7 @@ cc_library(
         "orchestrator_test",
         "orchestrator_openai_test",
         "tool_executor_test",
+        "tool_typing_test",
         "oauth_handler_test",
         "system_info_test",
         "shell_util_test",

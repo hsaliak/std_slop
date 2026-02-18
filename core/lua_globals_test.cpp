@@ -51,7 +51,7 @@ TEST(ToolExecutorTest, HelpToolCheck) {
   ASSERT_TRUE(res.ok()) << res.status().message();
 
   EXPECT_TRUE(absl::StrContains(*res, "Slop Orchestrator Help")) << "Result: " << *res;
-  EXPECT_TRUE(absl::StrContains(*res, "read_file({path, start_line, end_line, add_line_numbers=true})"));
+  EXPECT_TRUE(absl::StrContains(*res, "read_file({path, start_line, end_line})"));
   EXPECT_TRUE(
       absl::StrContains(*res, "git_grep_tool({pattern, patterns, path, context, case_insensitive, word_regexp, ...})"));
 }
