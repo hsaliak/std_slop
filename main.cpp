@@ -48,9 +48,9 @@ ABSL_FLAG(std::string, log, "", "Log file path");
 ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
 ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_MODEL env vars)");
-ABSL_FLAG(std::string, google_api_key, "", "Google API key (overrides GOOGLE_API_KEY env var)");
-ABSL_FLAG(std::string, openai_api_key, "", "OpenAI API key (overrides OPENAI_API_KEY env var)");
-ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL (overrides OPENAI_BASE_URL env var)");
+ABSL_FLAG(std::string, google_api_key, "", "Google API key");
+ABSL_FLAG(std::string, openai_api_key, "", "OpenAI API key");
+ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL");
 ABSL_FLAG(bool, strip_reasoning, false,
           "Strip reasoning from OpenAI-compatible API responses (Recommended when using newer models via OpenRouter to "
           "improve response speed and focus)");
@@ -175,22 +175,10 @@ int main(int argc, char* argv[]) {
   builder.WithStripReasoning(absl::GetFlag(FLAGS_strip_reasoning));
 
   std::string google_key = absl::GetFlag(FLAGS_google_api_key);
-  if (google_key.empty()) {
-    const char* env_key = std::getenv("GOOGLE_API_KEY");
-    if (env_key) google_key = env_key;
-  }
 
   std::string openai_key = absl::GetFlag(FLAGS_openai_api_key);
-  if (openai_key.empty()) {
-    const char* env_key = std::getenv("OPENAI_API_KEY");
-    if (env_key) openai_key = env_key;
-  }
 
   std::string openai_base_url = absl::GetFlag(FLAGS_openai_base_url);
-  if (openai_base_url.empty()) {
-    const char* env_url = std::getenv("OPENAI_BASE_URL");
-    if (env_url) openai_base_url = env_url;
-  }
 
   if (!google_auth && google_key.empty() && openai_key.empty()) {
     google_auth = true;
@@ -198,15 +186,6 @@ int main(int argc, char* argv[]) {
   }
 
   std::string model = absl::GetFlag(FLAGS_model);
-  if (model.empty()) {
-    if (!openai_key.empty()) {
-      const char* env_model = std::getenv("OPENAI_MODEL");
-      if (env_model) model = env_model;
-    } else {
-      const char* env_model = std::getenv("GEMINI_MODEL");
-      if (env_model) model = env_model;
-    }
-  }
 
   if (google_auth) {
     builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
