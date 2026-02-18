@@ -1,4 +1,5 @@
 #include "core/orchestrator_gemini.h"
+#include "json_utils.h"
 
 #include <iostream>
 
@@ -118,11 +119,12 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
 
 absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                         const std::string& group_id) {
-  auto j = nlohmann::json::parse(response_json, nullptr, false);
-  if (j.is_discarded()) {
+  auto j_opt = json_parse(response_json);
+  if (!j_opt) {
     LOG(ERROR) << "Failed to parse Gemini response: " << response_json;
     return absl::InternalError("Failed to parse LLM response");
   }
+  auto& j = *j_opt;
 
   nlohmann::json* target = &j;
   if (j.contains("response") && j["response"].is_object()) {
@@ -173,8 +175,9 @@ absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::
   auto resp_or = http_client_->Get(url, {});
   if (!resp_or.ok()) return resp_or.status();
 
-  auto j = nlohmann::json::parse(*resp_or, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse models response");
+  auto j_opt = json_parse(*resp_or);
+  if (!j_opt) return absl::InternalError("Failed to parse models response");
+  auto& j = *j_opt;
 
   std::vector<ModelInfo> models;
   if (j.contains("models")) {
@@ -237,9 +240,9 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::GetQuota(const std::string
   auto resp_or = http_client_->Post(url, body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
   if (!resp_or.ok()) return resp_or.status();
 
-  auto j = nlohmann::json::parse(*resp_or, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse quota response");
-  return j;
+  auto j_opt = json_parse(*resp_or);
+  if (!j_opt) return absl::InternalError("Failed to parse quota response");
+  return *j_opt;
 }
 
 }  // namespace slop
