@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
+#include "json_utils.h"
 
 TEST(DatabaseTest, InitWorks) {
   slop::Database db;
@@ -332,7 +333,7 @@ TEST(DatabaseTest, GenericQuery) {
   auto res = db.Query("SELECT 42 as answer, 'slop' as name");
   ASSERT_TRUE(res.ok());
 
-  nlohmann::json j = nlohmann::json::parse(*res, nullptr, false);
+  nlohmann::json j = slop::json_parse(*res).value_or(nlohmann::json::object());
   ASSERT_FALSE(j.is_discarded());
   ASSERT_EQ(j.size(), 1);
   EXPECT_EQ(j[0]["answer"], 42);
@@ -409,7 +410,7 @@ TEST(DatabaseTest, ApplyPatchToolSchema) {
   for (const auto& t : *tools) {
     if (t.name == "apply_patch") {
       found = true;
-      nlohmann::json schema = nlohmann::json::parse(t.json_schema, nullptr, false);
+      nlohmann::json schema = slop::json_parse(t.json_schema).value_or(nlohmann::json::object());
       ASSERT_FALSE(schema.is_discarded());
       EXPECT_EQ(schema["type"], "object");
       EXPECT_TRUE(schema["properties"].contains("path"));
