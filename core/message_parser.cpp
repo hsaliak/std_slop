@@ -1,4 +1,5 @@
 #include "core/message_parser.h"
+#include "json_utils.h"
 
 #include "absl/status/status.h"
 
@@ -10,8 +11,13 @@ MessageContext::MessageContext(const Database::Message& msg) : msg_(msg) {}
 
 void MessageContext::EnsureParsed() const {
   if (parsed_) return;
-  json_ = nlohmann::json::parse(msg_.content, nullptr, false);
-  valid_ = !json_.is_discarded();
+  auto j_opt = json_parse(msg_.content);
+  if (j_opt) {
+    json_ = *j_opt;
+    valid_ = true;
+  } else {
+    valid_ = false;
+  }
   parsed_ = true;
 }
 
@@ -44,7 +50,7 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
         if (call.contains("function")) {
           tc.name = call["function"].value("name", "unknown");
           std::string args_str = call["function"].value("arguments", "{}");
-          tc.args = nlohmann::json::parse(args_str, nullptr, false);
+          tc.args = json_parse(args_str).value_or(nlohmann::json::object());
         }
         calls.push_back(tc);
       }
