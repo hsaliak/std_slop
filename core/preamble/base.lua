@@ -246,14 +246,7 @@ function git.get_base_branch(requested_base)
   local current = git.get_current_branch()
   if not current then return "main" end
   
-  -- 1. Check git config slop.basebranch
-  local config_res = __os_run("git config slop.basebranch")
-  if config_res.exit_code == 0 then
-    local branch = config_res.stdout:gsub("%s+", "")
-    if branch ~= "" then return branch end
-  end
-  
-  -- 2. Check database for staging branch parent
+  -- The ONLY source of truth: the staging_branches table
   local res_json = tools.query_db({
     sql = "SELECT parent_branch FROM staging_branches WHERE branch_name = ?",
     params = {current}
@@ -264,18 +257,8 @@ function git.get_base_branch(requested_base)
     if parent then return parent end
   end
   
-  -- 3. Check git upstream
-  local upstream_res = __os_run("git rev-parse --abbrev-ref @{u} 2>/dev/null")
-  if upstream_res.exit_code == 0 then
-    local branch = upstream_res.stdout:gsub("%s+", "")
-    if branch ~= "" then
-      -- Strip remote prefix if present (e.g. origin/main -> main)
-      return branch:gsub("^[^/]+/", "")
-    end
-  end
-  
   if current:find("^slop/staging/") then
-    error("Could not determine base branch for staging branch '" .. current .. "'. Please provide base_branch explicitly or set slop.basebranch.")
+    error("Base branch not found in database for staging branch '" .. current .. "'.")
   end
   
   return "main"
