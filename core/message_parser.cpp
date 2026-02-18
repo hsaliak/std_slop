@@ -43,13 +43,13 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
   std::vector<ToolCall> calls;
 
   if (msg.parsing_strategy == "openai") {
-    if (j.contains("tool_calls") && j["tool_calls"].is_array()) {
-      for (const auto& call : j["tool_calls"]) {
+    if (auto tool_calls = json_get<nlohmann::json::array_t>(j, "tool_calls")) {
+      for (const auto& call : *tool_calls) {
         ToolCall tc;
-        tc.id = call.value("id", "");
-        if (call.contains("function")) {
-          tc.name = call["function"].value("name", "unknown");
-          std::string args_str = call["function"].value("arguments", "{}");
+        tc.id = json_get_or(call, "id", std::string{});
+        if (auto* fn = json_at(call, "function")) {
+          tc.name = json_get_or(*fn, "name", std::string("unknown"));
+          std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
           tc.args = json_parse(args_str).value_or(nlohmann::json::object());
         }
         calls.push_back(tc);
@@ -60,22 +60,26 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
     tc.id = msg.tool_call_id;
     tc.name = msg.tool_call_id;  // Default to ID if name not in JSON
 
-    if (j.contains("functionCall")) {
-      tc.name = j["functionCall"].value("name", tc.name);
-      if (j["functionCall"].contains("args")) {
-        tc.args = j["functionCall"]["args"];
+    if (auto* fc = json_at(j, "functionCall")) {
+      tc.name = json_get_or(*fc, "name", tc.name);
+      if (auto* args = json_at(*fc, "args")) {
+        tc.args = *args;
       }
-    } else if (j.contains("args")) {
-      tc.args = j["args"];
+    } else if (auto* args = json_at(j, "args")) {
+      tc.args = *args;
     }
     calls.push_back(tc);
   } else {
     // Default fallback for unidentified strategies
-    if (j.contains("functionCalls") && j["functionCalls"].is_array()) {
-      for (const auto& call : j["functionCalls"]) {
+    if (auto f_calls = json_get<nlohmann::json::array_t>(j, "functionCalls")) {
+      for (const auto& call : *f_calls) {
         ToolCall tc;
-        tc.name = call.value("name", "unknown");
-        tc.args = call.contains("args") ? call["args"] : nlohmann::json::object();
+        tc.name = json_get_or(call, "name", std::string("unknown"));
+        if (auto* args = json_at(call, "args")) {
+          tc.args = *args;
+        } else {
+          tc.args = nlohmann::json::object();
+        }
         calls.push_back(tc);
       }
     }
@@ -84,6 +88,7 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
   return calls;
 }
 
+
 std::string MessageParser::ExtractAssistantText(const MessageContext& ctx) {
   const auto& msg = ctx.message();
   if (msg.status != "tool_call") return msg.content;
@@ -91,11 +96,8 @@ std::string MessageParser::ExtractAssistantText(const MessageContext& ctx) {
   if (!ctx.is_valid()) return "";
 
   const auto& j = ctx.json();
-  if (j.contains("content") && j["content"].is_string()) {
-    return j["content"];
-  }
-
-  return "";
+  return json_get_or(j, "content", std::string{});
 }
+
 
 }  // namespace slop

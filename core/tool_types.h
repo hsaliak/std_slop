@@ -145,24 +145,18 @@ inline void from_json(const nlohmann::json& j, GrepRequest& r) {
 }
 
 inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
+inline void from_json(const nlohmann::json& j, GitGrepRequest& r) {
   r.pattern = json_get_or(j, "pattern", std::optional<std::string>{});
   r.patterns = json_get_or(j, "patterns", std::vector<std::string>{});
-  if (j.contains("path")) {
-    auto path_opt = json_get<std::vector<std::string>>(j, "path");
-    if (path_opt) {
-      r.path = *path_opt;
-    } else {
-      auto path_single = json_get<std::string>(j, "path");
-      if (path_single) {
-        r.path = {*path_single};
-      } else {
-        r.path = {"."};
-      }
-    }
+  if (auto path_vec = json_get<std::vector<std::string>>(j, "path")) {
+    r.path = *path_vec;
+  } else if (auto path_str = json_get<std::string>(j, "path")) {
+    r.path = {*path_str};
   } else {
     r.path = {"."};
   }
   r.branch = json_get_or(j, "branch", std::optional<std::string>{});
+
   r.case_insensitive = json_get_or(j, "case_insensitive", false);
   r.word_regexp = json_get_or(j, "word_regexp", false);
   r.line_number = json_get_or(j, "line_number", true);

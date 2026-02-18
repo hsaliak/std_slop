@@ -118,8 +118,6 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
 
 
   return payload;
-}
-
 absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                         const std::string& group_id) {
   auto j_opt = json_parse(response_json);
@@ -129,45 +127,48 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
   }
   auto& j = *j_opt;
 
-  nlohmann::json* target = &j;
-  if (j.contains("response") && j["response"].is_object()) {
-    target = &j["response"];
+  const nlohmann::json* target = &j;
+  if (auto* response = json_at(j, "response"); response && response->is_object()) {
+    target = response;
   }
 
   int total_tokens = 0;
-  if (target->contains("usageMetadata")) {
-    auto& usage = (*target)["usageMetadata"];
-    int prompt = usage.value("promptTokenCount", 0);
-    int completion = usage.value("candidatesTokenCount", 0);
+  if (auto* usage = json_at(*target, "usageMetadata")) {
+    int prompt = json_get_or(*usage, "promptTokenCount", 0);
+    int completion = json_get_or(*usage, "candidatesTokenCount", 0);
     total_tokens = prompt + completion;
     (void)db_->RecordUsage(session_id, model_, prompt, completion);
   }
 
   absl::Status status = absl::InternalError("No candidates in response");
-  if (target->contains("candidates") && !(*target)["candidates"].empty()) {
-    if (!(*target)["candidates"][0].contains("content")) {
-      return absl::InternalError("Gemini response candidate missing 'content'");
-    }
-    auto& parts = (*target)["candidates"][0]["content"]["parts"];
-    for (const auto& part : parts) {
-      if (part.contains("functionCall")) {
-        status = db_->AppendMessage(session_id, "assistant",
-                                    part.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
-                                    part["functionCall"]["name"], "tool_call", group_id, GetName(), total_tokens);
-      } else if (part.contains("text")) {
-        std::string text = part["text"];
-        status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);
+  if (auto candidates = json_get<nlohmann::json::array_t>(*target, "candidates"); candidates && !candidates->empty()) {
+    auto& candidate = (*candidates)[0];
+    if (auto* content = json_at(candidate, "content")) {
+      if (auto parts = json_get<nlohmann::json::array_t>(*content, "parts")) {
+        for (const auto& part : *parts) {
+          if (auto* fc = json_at(part, "functionCall")) {
+            std::string name = json_get_or(*fc, "name", std::string{});
+            status = db_->AppendMessage(session_id, "assistant", json_dump(part), name, "tool_call", group_id, GetName(),
+                                        total_tokens);
+          } else if (auto text = json_get<std::string>(part, "text")) {
+            status =
+                db_->AppendMessage(session_id, "assistant", *text, "", "completed", group_id, GetName(), total_tokens);
 
-        auto state = Orchestrator::ExtractState(text);
-        if (state) {
-          db_->SetSessionState(session_id, *state).IgnoreError();
+            auto state = Orchestrator::ExtractState(*text);
+            if (state) {
+              db_->SetSessionState(session_id, *state).IgnoreError();
+            }
+          }
         }
       }
+    } else {
+      return absl::InternalError("Gemini response candidate missing 'content'");
     }
   }
   if (!status.ok()) return status;
   return total_tokens;
 }
+
 
 absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const Database::Message& msg) {
   return MessageParser::ExtractToolCalls(MessageContext(msg));
@@ -183,15 +184,15 @@ absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::
   auto& j = *j_opt;
 
   std::vector<ModelInfo> models;
-  if (j.contains("models")) {
-    for (const auto& m : j["models"]) {
+  if (auto models_json = json_get<nlohmann::json::array_t>(j, "models")) {
+    for (const auto& m : *models_json) {
       ModelInfo info;
-      info.id = m["name"];
-      info.name = m["displayName"];
+      info.id = json_get_or(m, "name", std::string{});
+      info.name = json_get_or(m, "displayName", std::string{});
       models.push_back(info);
     }
   }
-  return models;
+
 }
 
 absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& oauth_token) {

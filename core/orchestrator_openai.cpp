@@ -126,39 +126,43 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
   auto& j = *j_opt;
 
   int total_tokens = 0;
-  if (j.contains("usage")) {
-    auto& usage = j["usage"];
-    int prompt = usage.value("prompt_tokens", 0);
-    int completion = usage.value("completion_tokens", 0);
+  if (auto* usage = json_at(j, "usage")) {
+    int prompt = json_get_or(*usage, "prompt_tokens", 0);
+    int completion = json_get_or(*usage, "completion_tokens", 0);
     total_tokens = prompt + completion;
     (void)db_->RecordUsage(session_id, model_, prompt, completion);
   }
 
   absl::Status status = absl::InternalError("No choices in response");
-  if (j.contains("choices") && !j["choices"].empty()) {
-    if (!j["choices"][0].contains("message")) {
-      return absl::InternalError("OpenAI response choice missing 'message'");
-    }
-    auto& msg = j["choices"][0]["message"];
-    if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
-      status = db_->AppendMessage(session_id, "assistant",
-                                  msg.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
-                                  json_get_or(msg["tool_calls"][0], "id", std::string{}) + "|" +
-                                      json_get_or(msg["tool_calls"][0]["function"], "name", std::string{}),
-                                  "tool_call", group_id, GetName(), total_tokens);
-    } else if (msg.contains("content") && !msg["content"].is_null()) {
-      std::string text = msg["content"];
-      status = db_->AppendMessage(session_id, "assistant", text, "", "completed", group_id, GetName(), total_tokens);
+  if (auto choices = json_get<nlohmann::json::array_t>(j, "choices"); choices && !choices->empty()) {
+    auto& choice = (*choices)[0];
+    if (auto* msg = json_at(choice, "message")) {
+      if (auto tool_calls = json_get<nlohmann::json::array_t>(*msg, "tool_calls"); tool_calls && !tool_calls->empty()) {
+        auto& first_call = (*tool_calls)[0];
+        std::string call_id = json_get_or(first_call, "id", std::string{});
+        std::string fn_name = "";
+        if (auto* fn = json_at(first_call, "function")) {
+          fn_name = json_get_or(*fn, "name", std::string{});
+        }
+        status = db_->AppendMessage(session_id, "assistant", json_dump(*msg), call_id + "|" + fn_name, "tool_call",
+                                    group_id, GetName(), total_tokens);
+      } else if (auto content = json_get<std::string>(*msg, "content")) {
+        status =
+            db_->AppendMessage(session_id, "assistant", *content, "", "completed", group_id, GetName(), total_tokens);
 
-      auto state = Orchestrator::ExtractState(text);
-      if (state) {
-        db_->SetSessionState(session_id, *state).IgnoreError();
+        auto state = Orchestrator::ExtractState(*content);
+        if (state) {
+          db_->SetSessionState(session_id, *state).IgnoreError();
+        }
       }
+    } else {
+      return absl::InternalError("OpenAI response choice missing 'message'");
     }
   }
   if (!status.ok()) return status;
   return total_tokens;
 }
+
 
 absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const Database::Message& msg) {
   return MessageParser::ExtractToolCalls(MessageContext(msg));
@@ -175,14 +179,16 @@ absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::
   auto& j = *j_opt;
 
   std::vector<ModelInfo> models;
-  if (j.contains("data")) {
-    for (const auto& m : j["data"]) {
+  std::vector<ModelInfo> models;
+  if (auto data = json_get<nlohmann::json::array_t>(j, "data")) {
+    for (const auto& m : *data) {
       ModelInfo info;
-      info.id = m["id"];
-      info.name = m["id"];
+      info.id = json_get_or(m, "id", std::string{});
+      info.name = json_get_or(m, "id", std::string{});
       models.push_back(info);
     }
   }
+
   return models;
 }
 

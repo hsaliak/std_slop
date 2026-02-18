@@ -37,15 +37,16 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
     return absl::InvalidArgumentError("Arguments must be a JSON object");
   }
 
-  if (!args.contains("sql") || !args["sql"].is_string()) {
+  auto sql = json_get<std::string>(args, "sql");
+  if (!sql) {
     return absl::InvalidArgumentError("'sql' must be a string");
   }
-  std::string sql = args["sql"];
+
   std::vector<std::string> params;
-  if (args.contains("params") && args["params"].is_array()) {
-    for (const auto& p : args["params"]) {
+  if (auto p_array = json_get<nlohmann::json::array_t>(args, "params")) {
+    for (const auto& p : *p_array) {
       if (p.is_string()) {
-        params.push_back(json_getter<std::string>::get(p).value_or(""));
+        params.push_back(p.get<std::string>());
       } else if (p.is_null()) {
         params.emplace_back("NULL");
       } else {
@@ -54,20 +55,24 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
       }
     }
   }
-  return db_->Query(sql, params);
+  return db_->Query(*sql, params);
 }
+
 
 absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& args,
                                                        std::shared_ptr<CancellationRequest> cancellation) {
   RunLuaRequest req;
-  if (!args.contains("script") || !args["script"].is_string()) {
+  auto script = json_get<std::string>(args, "script");
+  if (!script) {
     return absl::InvalidArgumentError("'script' must be a string");
   }
-  req.script = args["script"];
-  if (args.contains("args")) req.args = args["args"];
+  req.script = *script;
+  if (auto* lua_args = json_at(args, "args")) req.args = *lua_args;
   auto res = RunLua(req, cancellation);
   if (!res.ok()) return res.status();
   return res->FullOutput();
+}
+
 }
 
 void ToolExecutor::RegisterTools() {
