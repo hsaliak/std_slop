@@ -17,6 +17,7 @@
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
+#include "core/json_utils.h"
 
 #include "core/message_parser.h"
 #include "core/oauth_handler.h"
@@ -204,8 +205,8 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
         for (const auto& m : j) {
           std::string role = m.value("role", "unknown");
           md += absl::Substitute("#### $0", role);
-          if (m.contains("tokens") && !m["tokens"].is_null() && m["tokens"].get<int>() > 0) {
-            md += absl::Substitute(" ($0 tokens)", m["tokens"].get<int>());
+          if (m.contains("tokens") && !m["tokens"].is_null() && json_get_or(m, "tokens", 0) > 0) {
+            md += absl::Substitute(" ($0 tokens)", json_get_or(m, "tokens", 0));
           }
           md += "\n" + m.value("content", "") + "\n\n";
         }
@@ -388,9 +389,9 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
     if (res.ok()) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
-        std::cout << "Skill: " << j[0]["name"].get<std::string>() << std::endl;
-        std::cout << "Description: " << j[0]["description"].get<std::string>() << std::endl;
-        std::cout << "Patch:\n" << j[0]["system_prompt_patch"].get<std::string>() << std::endl;
+        std::cout << "Skill: " << json_get_or(j[0], "name", std::string{}) << std::endl;
+        std::cout << "Description: " << json_get_or(j[0], "description", std::string{}) << std::endl;
+        std::cout << "Patch:\n" << json_get_or(j[0], "system_prompt_patch", std::string{}) << std::endl;
       }
     }
   } else if (sub_cmd == "edit") {
@@ -401,9 +402,9 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       auto j = nlohmann::json::parse(*res, nullptr, false);
       if (!j.is_discarded() && !j.empty()) {
         auto& skill_data = j[0];
-        int id = skill_data["id"].get<int>();
+        int id = json_get_or(skill_data, "id", 0);
         Database::Skill skill{id, skill_data["name"], skill_data["description"], skill_data["system_prompt_patch"],
-                              skill_data["activation_count"].get<int>()};
+                              json_get_or(skill_data, "activation_count", 0)};
 
         std::string initial_md = SkillToMarkdown(skill);
         std::string edited_md = TriggerEditor(initial_md, ".md");
@@ -680,7 +681,7 @@ CommandHandler::Result CommandHandler::HandleSchema([[maybe_unused]] CommandArgs
     auto j = nlohmann::json::parse(*res, nullptr, false);
     if (!j.is_discarded()) {
       for (const auto& row : j) {
-        std::cout << row["sql"].get<std::string>() << ";\n" << std::endl;
+        std::cout << json_get_or(row, "sql", std::string{}) << ";\n" << std::endl;
       }
     }
   }
@@ -1310,7 +1311,7 @@ std::string CommandHandler::MemoToMarkdown(const Database::Memo& memo) {
   std::string tags_str;
   if (!tags_j.is_discarded() && tags_j.is_array()) {
     tags_str = absl::StrJoin(
-        tags_j, ", ", [](std::string* out, const nlohmann::json& j) { absl::StrAppend(out, j.get<std::string>()); });
+        tags_j, ", ", [](std::string* out, const nlohmann::json& j) { absl::StrAppend(out, json_getter<std::string>::get(j).value_or(std::string{})); });
   }
   return absl::Substitute("# Tags: $0\n\n$1", tags_str, memo.content);
 }
