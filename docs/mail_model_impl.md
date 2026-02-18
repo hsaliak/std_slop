@@ -112,15 +112,14 @@ Defining the persona and intent detection.
 Ensuring the workflow is consistent across different repository structures and session restarts.
 
 ### 7.1 Metadata Persistence (Staging Database)
-- **Mechanism**: Use `git config staging database <name>` to store the target branch for a staging series.
+- **Mechanism**: Use the `staging_branches` table in the database to store the parent branch for a staging series.
 - **Logic**:
-    1. `git_branch_staging` captures the current branch (e.g., `main`, `develop`, or a feature branch) and stores it in the local git config.
-    2. All subsequent tools (`git_format_patch_series`, `git_verify_series`, `git_reroll_patch`, `git_finalize_series`) use a centralized `GetBaseBranch()` helper.
+    1. `git_branch_staging` records the parent branch (e.g., `main`, `develop`) in the database.
+    2. All subsequent tools use a centralized `GetBaseBranch()` helper that queries this table exclusively for staging branches.
 - **Resolution Order**:
     1. Explicit `base_branch` argument (if provided).
-    2. Database lookup from `staging_branches` (for current branch).
-    3. Auto-detected `main` or `master`.
-    4. Fallback to `origin/main` or `origin/master`.
+    2. Database lookup from `staging_branches` (matching the current branch name).
+    3. Default to `main` (for non-staging branches).
 
 ### 7.2 Diagnostics & UX
 - **No-Patch Messaging**: 
