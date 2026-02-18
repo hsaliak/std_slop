@@ -52,6 +52,8 @@ You can configure `std::slop` using environment variables or a configuration fil
 
 #### Configuration File
 The agent looks for a configuration file at `~/.config/slop/config.ini`. You can also specify a custom path using the `--config` flag.
+It is STRONGLY RECOMMENDED that slop.db lies in a central directory or outside the codebase. It generates 2 other artifact files, at least ensure that
+your .gitignore contains this. The context ledger is completely stored in the database, and it can inadvertently capture information from your environment if you are not careful. Eg Environment Variables.
 
 ```ini
 [slop]
