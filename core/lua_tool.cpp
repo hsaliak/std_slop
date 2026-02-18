@@ -44,13 +44,13 @@ void InitializeEnvironment(sol::state& lua, [[maybe_unused]] Database* db, ToolD
 
   // JSON library
   sol::table json_lib = lua.create_table();
-  json_lib["parse"] = [](const std::string& s, sol::this_state st) {
+    json_lib["parse"] = [](const std::string& s, sol::this_state st) {
     sol::state_view lua(st);
-    auto j = nlohmann::json::parse(s, nullptr, false);
-    if (j.is_discarded()) {
+    auto j_opt = json_parse(s);
+    if (!j_opt) {
       return sol::make_object(lua, sol::lua_nil);
     }
-    return JSONToLua(lua, j);
+    return JSONToLua(lua, *j_opt);
   };
   json_lib["stringify"] = [](sol::object obj) { return SafeDump(LuaToJSON(obj)); };
   lua["JSON"] = json_lib;

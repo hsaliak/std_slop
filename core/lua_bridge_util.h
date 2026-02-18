@@ -85,9 +85,7 @@ inline nlohmann::json LuaToJSON(sol::object obj) {
   return detail::LuaToJSONInternal(obj, 0, visited);
 }
 
-inline std::string SafeDump(const nlohmann::json& j, int indent = -1) {
-  return j.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
-}
+inline std::string SafeDump(const nlohmann::json& j, int indent = -1) { return json_dump(j, indent); }
 
 inline sol::object JSONToLua(sol::state_view lua, const nlohmann::json& j) {
   if (j.is_null()) return sol::lua_nil;

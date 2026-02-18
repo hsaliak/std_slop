@@ -91,6 +91,11 @@ inline T json_get_or(const nlohmann::json& j, const std::string& key, T default_
   return val.has_value() ? *val : default_val;
 }
 
+// Safely dump a JSON object to a string without exceptions.
+inline std::string json_dump(const nlohmann::json& j, int indent = -1) {
+  return j.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
+}
+
 } // namespace slop
 
 #endif // SLOP_CORE_JSON_UTILS_H_

@@ -1061,7 +1061,7 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql, const std::v
     }
     results.push_back(row);
   }
-  return results.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+  return json_dump(results);
 }
 
 absl::Status Database::UpdateScratchpad(const std::string& session_id, const std::string& scratchpad) {
