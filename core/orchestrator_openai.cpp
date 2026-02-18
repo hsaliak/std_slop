@@ -1,4 +1,5 @@
 #include "core/orchestrator_openai.h"
+#include "json_utils.h"
 
 #include <iostream>
 
@@ -44,8 +45,9 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
     nlohmann::json msg_obj;
 
     if (msg.status == "tool_call") {
-      auto j = nlohmann::json::parse(msg.content, nullptr, false);
-      if (!j.is_discarded()) {
+      auto j_opt = json_parse(msg.content);
+      if (j_opt) {
+        auto& j = *j_opt;
         bool valid = true;
         if (j.contains("tool_calls")) {
           for (auto& tc : j["tool_calls"]) {
@@ -97,8 +99,9 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
   nlohmann::json tools = nlohmann::json::array();
   if (tools_or.ok()) {
     for (const auto& t : *tools_or) {
-      auto schema = nlohmann::json::parse(t.json_schema, nullptr, false);
-      if (!schema.is_discarded()) {
+      auto schema_opt = json_parse(t.json_schema);
+      if (schema_opt) {
+        auto& schema = *schema_opt;
         tools.push_back({{"type", "function"},
                          {"function", {{"name", t.name}, {"description", t.description}, {"parameters", schema}}}});
       }
@@ -115,11 +118,12 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
 
 absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                         const std::string& group_id) {
-  auto j = nlohmann::json::parse(response_json, nullptr, false);
-  if (j.is_discarded()) {
+  auto j_opt = json_parse(response_json);
+  if (!j_opt) {
     LOG(ERROR) << "Failed to parse OpenAI response: " << response_json;
     return absl::InternalError("Failed to parse LLM response");
   }
+  auto& j = *j_opt;
 
   int total_tokens = 0;
   if (j.contains("usage")) {
@@ -139,8 +143,8 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
     if (msg.contains("tool_calls") && !msg["tool_calls"].empty()) {
       status = db_->AppendMessage(session_id, "assistant",
                                   msg.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
-                                  msg["tool_calls"][0]["id"].get<std::string>() + "|" +
-                                      msg["tool_calls"][0]["function"]["name"].get<std::string>(),
+                                  json_get_or(msg["tool_calls"][0], "id", std::string{}) + "|" +
+                                      json_get_or(msg["tool_calls"][0]["function"], "name", std::string{}),
                                   "tool_call", group_id, GetName(), total_tokens);
     } else if (msg.contains("content") && !msg["content"].is_null()) {
       std::string text = msg["content"];
@@ -166,8 +170,9 @@ absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::
   auto resp_or = http_client_->Get(url, headers);
   if (!resp_or.ok()) return resp_or.status();
 
-  auto j = nlohmann::json::parse(*resp_or, nullptr, false);
-  if (j.is_discarded()) return absl::InternalError("Failed to parse models response");
+  auto j_opt = json_parse(*resp_or);
+  if (!j_opt) return absl::InternalError("Failed to parse models response");
+  auto& j = *j_opt;
 
   std::vector<ModelInfo> models;
   if (j.contains("data")) {
