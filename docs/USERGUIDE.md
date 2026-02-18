@@ -21,7 +21,7 @@ bazel build //:std_slop
 `std::slop` supports three levels of configuration, in order of precedence:
 1.  **Command-line Flags** (e.g., `--model=gpt-4o`)
 2.  **Configuration File** (`~/.config/slop/config.ini`)
-3.  **Environment Variables** (e.g., `GOOGLE_API_KEY`)
+3.  **Environment Variables** (e.g., `SLOP_DEBUG_HTTP`)
 
 ### Configuration File
 By default, the application looks for a configuration file at `~/.config/slop/config.ini`. You can override this path using the `--config` flag:
@@ -41,34 +41,9 @@ google_api_key = AIza...
 See [example_config.ini](example_config.ini) for a template with all supported options.
 
 ### Environment Variables
-For quick setup or CI environments, you can use environment variables:
+For debugging purposes, you can use the following environment variable:
 
-#### For Google Gemini:
-```bash
-export GOOGLE_API_KEY="your_api_key"
-```
-Or use Google OAuth (recommended):
-```bash
-bazel run //:std_slop
-```
-If no API keys are found, the CLI defaults to Google OAuth. To authenticate, run:
-```bash
-./slop_auth.sh
-```
-The script will provide a URL for you to visit. After authorizing, paste the **full redirect URL** back into the script, and it will automatically extract the tokens and save them to `~/.config/slop/token.json`.
-
-
-### For OpenAI/OpenRouter:
-We default `OPENAI_BASE_URL` to `https://openrouter.ai/api/v1`. 
-To use OpenAI proper or another provider, override it:
-```bash
-export OPENAI_BASE_URL="https://api.openai.com/v1"
-```
-
-Set your API key:
-```bash
-export OPENAI_API_KEY="your_api_key"
-```
+- `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
 #### Recommended Settings for OpenRouter:
 When using newer models via OpenRouter, it is highly recommended to use the `strip_reasoning = true` in your `config.ini` or the `--strip_reasoning` flag. This improves response focus and can reduce latency by preventing the reasoning chain from being included in the final output.
