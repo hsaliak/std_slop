@@ -291,14 +291,19 @@ std::string OpenInEditor(const std::string& initial_content, const std::string& 
   }
   return content;
 }
-void SmartDisplay(const std::string& content) {
+void SmartDisplay(const std::string& content, bool is_markdown) {
   const char* editor = std::getenv("EDITOR");
-  if (!editor || std::string(editor).empty()) {
-    std::cout << WrapText(content, GetTerminalWidth()) << std::endl;
+  if (editor && !std::string(editor).empty() && content.length() > 5000) {
+    OpenInEditor(content, is_markdown ? ".md" : ".txt");
     return;
   }
-  OpenInEditor(content);
+  if (is_markdown) {
+    PrintMarkdown(content);
+  } else {
+    std::cout << WrapText(content, GetTerminalWidth()) << std::endl;
+  }
 }
+
 std::string FormatAssembledContext(const std::string& json_str) {
   auto j_top_opt = json_parse(json_str);
   if (!j_top_opt) return json_str;
@@ -306,59 +311,107 @@ std::string FormatAssembledContext(const std::string& json_str) {
   if (j_top.is_discarded()) {
     return "Error parsing context JSON: " + json_str;
   }
+
   const nlohmann::json* j_ptr = &j_top;
   if (j_top.contains("request")) {
     j_ptr = &j_top["request"];
   }
   const nlohmann::json& j = *j_ptr;
+
   std::stringstream ss;
-  ss << "=== Assembled Context ===\n\n";
-  if (j.contains("system_instruction")) {
-    ss << "SYSTEM INSTRUCTION:\n";
-    if (j["system_instruction"].contains("parts")) {
-      for (const auto& part : j["system_instruction"]["parts"]) {
-        if (part.contains("text")) ss << json_get_or(part, "text", std::string{}) << "\n";
-      }
-    }
-    ss << "\n";
-  }
-  if (j.contains("contents") && j["contents"].is_array()) {
-    for (const auto& entry : j["contents"]) {
-      std::string role = entry.value("role", "unknown");
-      ss << "Role: " << role << "\n";
-      if (entry.contains("parts")) {
-        for (const auto& part : entry["parts"]) {
-          if (part.contains("text")) ss << json_get_or(part, "text", std::string{}) << "\n";
-          if (part.contains("functionCall"))
-            ss << "Function Call: "
-               << part["functionCall"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
-          if (part.contains("functionResponse"))
-            ss << "Function Response: "
-               << part["functionResponse"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
+  ss << "# Assembled Context\n\n";
+
+  // Handle Gemini format (system_instruction + contents)
+  if (j.contains("system_instruction") || j.contains("contents")) {
+    if (j.contains("system_instruction")) {
+      ss << "## " << icons::Robot << " System Instruction\n\n";
+      if (j["system_instruction"].contains("parts")) {
+        for (const auto& part : j["system_instruction"]["parts"]) {
+          if (part.contains("text")) {
+            ss << json_get_or(part, "text", std::string{}) << "\n\n";
+          }
         }
       }
-      ss << "\n";
     }
-  } else if (j.contains("messages") && j["messages"].is_array()) {
-    for (const auto& msg : j["messages"]) {
-      std::string role = msg.value("role", "unknown");
-      ss << "Role: " << role << "\n";
-      if (msg.contains("content") && !msg["content"].is_null()) {
-        ss << json_get_or(msg, "content", std::string{}) << "\n";
+
+    if (j.contains("contents")) {
+      for (const auto& item : j["contents"]) {
+        std::string role = json_get_or(item, "role", std::string("unknown"));
+        ss << "## " << (role == "user" ? icons::Input : icons::Robot) << " Role: " << role << "\n\n";
+        if (item.contains("parts")) {
+          for (const auto& part : item["parts"]) {
+            if (part.contains("text")) {
+              ss << json_get_or(part, "text", std::string{}) << "\n\n";
+            }
+            if (part.contains("functionCall")) {
+              auto& fc = part["functionCall"];
+              std::string name = json_get_or(fc, "name", std::string("unknown"));
+              ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
+              auto args = fc["args"];
+              if (name == "run_lua") {
+                ss << "```lua\n" << json_get_or(args, "script", std::string{}) << "\n```\n\n";
+              } else {
+                ss << "```json\n" << args.dump(2) << "\n```\n\n";
+              }
+            }
+            if (part.contains("functionResponse")) {
+              auto& fr = part["functionResponse"];
+              std::string name = json_get_or(fr, "name", std::string("unknown"));
+              ss << "### " << icons::Tool << " Tool Result: " << name << "\n\n";
+              ss << "```\n" << fr["response"].dump(2) << "\n```\n\n";
+            }
+          }
+        }
       }
-      if (msg.contains("tool_calls")) {
-        ss << "Tool Calls: " << msg["tool_calls"].dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)
-           << "\n";
-      }
-      if (msg.contains("tool_call_id")) {
-        ss << "Tool Call ID: " << json_get_or(msg, "tool_call_id", std::string{}) << "\n";
-      }
-      ss << "\n";
     }
   }
+  // Handle OpenAI format (messages)
+  else if (j.contains("messages")) {
+    for (const auto& msg : j["messages"]) {
+      std::string role = msg.value("role", "unknown");
+      ss << "## " << (role == "user" ? icons::Input : (role == "system" ? icons::Info : icons::Robot))
+         << " Role: " << role << "\n\n";
+
+      if (msg.contains("content") && msg["content"].is_string()) {
+        ss << msg["content"].get<std::string>() << "\n\n";
+      }
+
+      if (msg.contains("tool_calls")) {
+        for (const auto& call : msg["tool_calls"]) {
+          auto& fn = call["function"];
+          std::string name = json_get_or(fn, "name", std::string("unknown"));
+          ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
+
+          std::string args_str = json_get_or(fn, "arguments", std::string("{}"));
+          auto args_opt = json_parse(args_str);
+          if (args_opt && name == "run_lua") {
+            ss << "```lua\n" << json_get_or(*args_opt, "script", std::string{}) << "\n```\n\n";
+          } else if (args_opt) {
+            ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
+          } else {
+            ss << "```\n" << args_str << "\n```\n\n";
+          }
+        }
+      }
+
+      if (role == "tool") {
+        std::string tool_id = json_get_or(msg, "tool_call_id", std::string("unknown"));
+        ss << "### " << icons::Tool << " Tool Result (ID: " << tool_id << ")\n\n";
+        ss << "```\n" << json_get_or(msg, "content", std::string{}) << "\n```\n\n";
+      }
+    }
+  } else {
+    // Fallback
+    ss << "```json\n" << j.dump(2) << "\n```\n";
+  }
+
   return ss.str();
 }
-void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatAssembledContext(json_str)); }
+
+void DisplayAssembledContext(const std::string& json_str) {
+  SmartDisplay(FormatAssembledContext(json_str), true);
+}
+
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
   auto& parser = GetMarkdownParser();
   auto& renderer = GetMarkdownRenderer();

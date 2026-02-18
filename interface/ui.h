@@ -24,7 +24,8 @@ absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, i
 std::string FormatAssembledContext(const std::string& json_str);
 
 // Tries to display content in $EDITOR, falls back to stdout.
-void SmartDisplay(const std::string& content);
+void SmartDisplay(const std::string& content, bool is_markdown = false);
+void DisplayAssembledContext(const std::string& json_str);
 
 // Convenience wrapper for FormatAssembledContext + SmartDisplay.
 
