@@ -156,9 +156,13 @@ function tools.git_finalize_series(args)
   -- 3. Cleanup
   __os_run("git branch -D " .. shell_escape(current_branch))
   
-  -- Remove sticky parent info
+  -- Remove metadata from database
   tools.query_db({
     sql = "DELETE FROM staging_branches WHERE branch_name = ?",
+    params = {current_branch}
+  })
+  tools.query_db({
+    sql = "DELETE FROM patch_approvals WHERE branch_name = ?",
     params = {current_branch}
   })
 
