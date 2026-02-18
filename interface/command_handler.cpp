@@ -1344,31 +1344,17 @@ std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch)
     return current_branch;
   }
 
-  // Try per-branch config first (set by git_branch_staging)
-  if (!current_branch.empty()) {
-    auto config_res = ExecuteCommand("git config branch." + current_branch + ".base");
-    if (config_res.ok() && !config_res->empty()) {
-      std::string base = *config_res;
-      absl::StripAsciiWhitespace(&base);
-      if (!base.empty()) return base;
+  // The ONLY source of truth: the staging_branches table
+  auto results = db_->Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {current_branch});
+  if (results.ok()) {
+    auto j_opt = json_parse(*results);
+    if (j_opt && j_opt->is_array() && !j_opt->empty()) {
+      auto parent = json_get<std::string>((*j_opt)[0], "parent_branch");
+      if (parent) return *parent;
     }
   }
 
-  // Fallback to global/local slop config
-  auto config_res = ExecuteCommand("git config slop.basebranch");
-  if (config_res.ok() && !config_res->empty()) {
-    std::string base = *config_res;
-    absl::StripAsciiWhitespace(&base);
-    if (!base.empty()) return base;
-  }
-
-  // Final fallbacks: Check for common local branch names in order of preference
-  for (const std::string& candidate : {"main", "master"}) {
-    if (ExecuteCommand("git rev-parse --verify " + candidate).ok()) {
-      return candidate;
-    }
-  }
-
+  // Final fallback for non-staging or missing DB entry
   return "main";
 }
 

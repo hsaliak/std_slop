@@ -41,7 +41,7 @@ class ToolExecutor {
                                       std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
   // Resolves the base branch for git operations.
-  // Checks git config slop.basebranch, then defaults to main/master.
+  // Resolves from database (staging_branches) or defaults to main.
   absl::StatusOr<std::string> GetBaseBranch(const std::string& requested_base);
 
   void SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher);

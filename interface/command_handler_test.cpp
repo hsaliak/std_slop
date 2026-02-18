@@ -787,7 +787,7 @@ TEST_F(CommandHandlerTest, ReviewPatchDiagnosticsOnBaseBranch) {
   // 1. Mock we are on main and comparing main..HEAD (empty)
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "main";
-  handler.command_responses["git config slop.basebranch"] = "main";
+  
   handler.command_responses["git rev-list --reverse main..HEAD"] = "";  // No patches
 
   testing::internal::CaptureStdout();
@@ -806,7 +806,7 @@ TEST_F(CommandHandlerTest, ReviewMailEmptyStagingBranch) {
 
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
-  handler.command_responses["git config slop.basebranch"] = "main";
+  
   handler.command_responses["git rev-list --reverse main..HEAD"] = "";
 
   testing::internal::CaptureStdout();
@@ -864,7 +864,7 @@ TEST_F(CommandHandlerTest, ReviewMailApproveProceedsToLLM) {
 
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
-  handler.command_responses["git config slop.basebranch"] = "main";
+  
   handler.command_responses["git rev-list --reverse main..HEAD"] = "commit_hash_123";
   handler.command_responses["git rev-parse HEAD"] = "abcd123";
 
@@ -886,7 +886,7 @@ TEST_F(CommandHandlerTest, ReviewDashboard) {
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git status --porcelain"] = "M file.cpp";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
-  handler.command_responses["git config branch.slop/staging/feature.base"] = "main";
+  
   handler.command_responses["git rev-list --count main..HEAD"] = "1";
 
   std::string input = "/review";
@@ -921,9 +921,9 @@ TEST_F(CommandHandlerTest, ModeMailResolvesCorrectBaseBranch) {
     EXPECT_TRUE(absl::StrContains(output, "Base Branch: develop"));
   }
 
-  // Case 2: On 'slop/staging/fix' (staging) with config set to 'main'
+  // Case 2: On 'slop/staging/fix' (staging)
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/fix";
-  handler.command_responses["git config branch.slop/staging/fix.base"] = "main";
+  (void)db.Execute("INSERT INTO staging_branches (branch_name, parent_branch) VALUES (?, ?);", "slop/staging/fix", "main");
   {
     testing::internal::CaptureStdout();
     std::string input = "/mode mail";
