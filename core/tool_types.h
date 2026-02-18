@@ -15,7 +15,6 @@ struct ReadFileRequest {
   std::string path;
   std::optional<int> start_line;
   std::optional<int> end_line;
-  bool add_line_numbers = true;
 };
 
 struct WriteFileRequest {
@@ -130,7 +129,6 @@ inline void from_json(const nlohmann::json& j, ReadFileRequest& r) {
   r.path = json_get_or(j, "path", std::string{});
   r.start_line = json_get_or(j, "start_line", std::optional<int>{});
   r.end_line = json_get_or(j, "end_line", std::optional<int>{});
-  r.add_line_numbers = json_get_or(j, "add_line_numbers", true);
 }
 
 inline void from_json(const nlohmann::json& j, WriteFileRequest& r) {

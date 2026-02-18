@@ -1,6 +1,8 @@
 function tools.read_file(args)
+  if type(args.path) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: path", 0) end
+  if args.start_line ~= nil and type(args.start_line) ~= "number" then error("INVALID_ARGUMENT: 'start_line' must be an integer", 0) end
+  if args.end_line ~= nil and type(args.end_line) ~= "number" then error("INVALID_ARGUMENT: 'end_line' must be an integer", 0) end
   local path = args.path
-  if not path then error("path is required") end
 
   local f = io.open(path, "r")
   if not f then error("Could not open file: " .. path) end
@@ -11,55 +13,37 @@ function tools.read_file(args)
   end
   f:close()
 
-  local start_line_req = args.start_line
-  local end_line_req = args.end_line
+  local start_line = args.start_line or 1
+  local end_line = args.end_line or #lines
 
-  if start_line_req and end_line_req and start_line_req > end_line_req then
+  if start_line > end_line then
     error("INVALID_ARGUMENT: start_line must be less than or equal to end_line", 0)
   end
 
-  local start_line = start_line_req or 1
-  local end_line = end_line_req or #lines
-
-  local add_line_numbers = true
-  if args.add_line_numbers ~= nil then add_line_numbers = args.add_line_numbers end
-  if args.line_numbers ~= nil then add_line_numbers = args.line_numbers end
-
-  -- Validation logic similar to C++
   if start_line < 1 then start_line = 1 end
   if end_line > #lines then end_line = #lines end
+  
   if start_line > #lines then
-    return string.format("### FILE: %s | TOTAL_LINES: %d\n(requested start_line %d is beyond file length %d)\n", path, #lines, start_line, #lines)
+    return ""
   end
-
-  local header = string.format("### FILE: %s | TOTAL_LINES: %d | RANGE: %d-%d\n", path, #lines, start_line, end_line)
 
   local body_lines = {}
   for i = start_line, end_line do
-    local line = lines[i]
-    if add_line_numbers then
-      table.insert(body_lines, string.format("%d: %s", i, line))
-    else
-      table.insert(body_lines, line)
-    end
+    table.insert(body_lines, lines[i])
   end
 
   local body = table.concat(body_lines, "\n")
   if #body > 0 then body = body .. "\n" end
 
-  if end_line < #lines then
-    body = body .. string.format("\n... [Truncated. Use 'read_file' with start_line=%d to see more] ...", end_line + 1)
-  end
-
-  return header .. body
+  return body
 end
 
 function tools.write_file(args)
   slop_guard() -- Require staging branch for writing
   local path = args.path
   local content = args.content
-  if not path then error("path is required") end
-  if not content then error("content is required") end
+  if type(args.path) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: path", 0) end
+  if type(args.content) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: content", 0) end
 
   local f = io.open(path, "w")
   if not f then error("Could not open file for writing: " .. path) end
@@ -248,9 +232,8 @@ end
 
 function tools.apply_patch(args)
   slop_guard()
-  if not args.path or not args.patches or #args.patches == 0 then
-    error("Usage: apply_patch({path='...', patches={{find='...', replace='...'}, ...}})", 0)
-  end
+  if type(args.path) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: path", 0) end
+  if type(args.patches) ~= "table" then error("INVALID_ARGUMENT: Missing mandatory field: patches", 0) end
 
   local f = io.open(args.path, "r")
   if not f then
@@ -262,6 +245,9 @@ function tools.apply_patch(args)
   for i, patch in ipairs(args.patches) do
     local find = patch.find
     local replace = patch.replace
+    if type(find) ~= "string" or type(replace) ~= "string" then
+      error("INVALID_ARGUMENT: each patch must have 'find' and 'replace' strings", 0)
+    end
 
     local start_idx, end_idx = string.find(content, find, 1, true)
     if not start_idx then
@@ -278,13 +264,12 @@ function tools.apply_patch(args)
                   string.sub(content, end_idx + 1)
   end
 
-  local f = io.open(args.path, "w")
-  if not f then
+  local f_out = io.open(args.path, "w")
+  if not f_out then
     error("Could not open file for writing: " .. args.path, 0)
   end
-  f:write(content)
-  f:close()
+  f_out:write(content)
+  f_out:close()
 
   return "File written successfully: " .. args.path
 end
-

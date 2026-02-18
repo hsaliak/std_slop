@@ -15,7 +15,7 @@ function tools.help()
 - help(): (string) Shows this help message.
 
 #### File System ####
-- read_file({path, start_line, end_line, add_line_numbers=true}): Reads a file (optional range).
+- read_file({path, start_line, end_line}): Reads a file (optional range).
 - write_file({path, content}): Overwrites a file with new content.
 - list_directory({path=".", depth=1, git_only=false}): Lists directory contents.
 - apply_patch({path, patches}): Multi-replacement in a file. patches = {{find="...", replace="..."}}.
