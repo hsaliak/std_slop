@@ -29,7 +29,11 @@ function tools.read_file(args)
 
   local body_lines = {}
   for i = start_line, end_line do
-    table.insert(body_lines, lines[i])
+    local line = lines[i]
+    if args.line_numbers then
+      line = string.format("%d: %s", i, line)
+    end
+    table.insert(body_lines, line)
   end
 
   local body = table.concat(body_lines, "\n")

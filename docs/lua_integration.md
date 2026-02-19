@@ -48,9 +48,10 @@ These variables bridge the gap between individual turns and provide persistent c
 
 ### The `tools` Table
 All system tools are available under the `tools` namespace. For example:
-- `tools.read_file({path = "..."})`
-- `tools.execute_bash({command = "..."})`
-- `tools.query_db({sql = "..."})`
+- `tools.read_file({path = "...", start_line = 1, end_line = 10, line_numbers = true})`: Reads a file with optional line range and `line_numbers`.
+- `tools.git_grep_tool({pattern = "..."})`: **Preferred** for cross-file searching.
+- `tools.execute_bash({command = "..."})`: Executes arbitrary bash commands.
+- `tools.query_db({sql = "..."})`: Queries the project database.
 
 ### Asynchronous Execution
 Most tools have an `_async` variant that returns a **job handle**.
@@ -96,6 +97,11 @@ Memos are for long-term project invariants. Once the agent learns how to run tes
 The LCP allows the agent to "fork" its reasoning by calling sub-LLMs.
 - `tools.llm_query`: Synchronous; best for small, investigative tasks.
 - `tools.llm_query_async`: Parallel; best for processing large batches of data (e.g., summarizing 10 files at once).
+
+### Transient Scope
+Sub-queries spawned via `llm_query` operate within a transient, in-memory database context.
+*   **Skill Limitation**: The `hey <skill>` hotword detection does not work for non-default or custom skills within a sub-query, as the sub-query's database only contains default system personas.
+*   **Isolation**: Messages and state changes within an `llm_query` do not persist in the main `slop.db` history.
 
 **Example: Batch Analysis**
 ```lua
