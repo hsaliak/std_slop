@@ -29,6 +29,7 @@ function tools.help()
 - save_memo({content, tags}): Saves a project invariant or learned convention.
 - retrieve_memos({tags}): Searches for memos matching tags.
 - manage_scratchpad({action="read"|"update", key, value, content}): Persistent memory.
+- use_skill({name, action="activate"|"deactivate"}): Activates or deactivates specific system behaviors or prompt patches.
 
 #### Search ####
 - query_db({sql, params}): Executes a SQLite query on the project database.
