@@ -44,6 +44,11 @@ function tools.help()
 - git_format_patch_series({base_branch}): Summarizes the current patchset.
 - git_verify_series({command, base_branch}): Verifies the entire series passes tests.
 - git_finalize_series({target_branch}): Merges the series and cleans up.
+
+### Codebase Navigation Hierarchy ###
+- **Explore First:** You MUST use `git_grep_tool` as your primary method for locating function definitions, variables, classes, or keywords. This keeps the context window lean and isolated.
+- **Extract Second:** Use `read_file` **ONLY** after you have used `git_grep_tool` to confirm the exact file path, and ONLY if you need the broader context of the surrounding code to complete the task.
+- **Never Guess:** Do not use `read_file` to "guess" where a symbol might be located.
 ]]
 end
 
