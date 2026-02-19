@@ -27,6 +27,9 @@ You can temporarily activate a skill for a single turn without permanently chang
 hey <skill_name> <your query>
 ```
 
+> [!IMPORTANT]
+> **Limitation in Sub-Queries**: The `hey` hotword detection does not work for sub-queries (e.g., within `llm_query` or `llm_query_async` calls). Sub-queries operate on a transient, in-memory database that only contains default system skills. Any non-default or custom skills registered in the main database will not be found by the `hey` detection logic inside a sub-query.
+
 For example:
 - `hey code_reviewer what do you think of this PR?`
 - `hey sql_expert show me the last 5 logs from the messages table`
