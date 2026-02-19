@@ -7,6 +7,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 
 #include "core/cancellation.h"
@@ -30,6 +31,10 @@ InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator, C
 
 bool InteractionEngine::Process(std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
                                 const Config& config) {
+  bool is_hey_mode = false;
+  std::string hey_skill_name;
+  std::vector<std::string> original_active_skills = active_skills;
+
   if (input.empty()) return true;
 
   if (input == "/exit" || input == "/quit") return false;
@@ -47,6 +52,52 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   if (res == CommandHandler::Result::HANDLED || res == CommandHandler::Result::UNKNOWN) {
     return true;
   }
+  // 0. Check for hotword prefix "hey <skill> <query>"
+  if (absl::StartsWith(input, "hey ")) {
+    std::vector<std::string> parts = absl::StrSplit(input, absl::MaxSplits(' ', 2));
+    if (parts.size() == 3) {
+      hey_skill_name = std::string(parts[1]);
+      std::string query = std::string(parts[2]);
+
+      auto exists_or = db_.SkillExists(hey_skill_name);
+      if (exists_or.ok() && *exists_or) {
+        is_hey_mode = true;
+        // Check if skill is already active
+        bool already_active = false;
+        for (const auto& s : active_skills) {
+          if (s == hey_skill_name) {
+            already_active = true;
+            break;
+          }
+        }
+
+        if (!already_active) {
+          active_skills.push_back(hey_skill_name);
+          (void)db_.SetActiveSkills(session_id, active_skills);
+        }
+        (void)db_.IncrementSkillActivationCount(hey_skill_name);
+        input = std::move(query);
+      } else {
+        slop::PrintMarkdown(absl::StrCat(
+            "### Skill Hotword: 'hey'\n",
+            "The 'hey' hotword allows you to activate a skill for a single prompt.\n\n",
+            "**Usage:** `hey <skill_name> <query>`\n",
+            "**Example:** `hey code_reviewer review this patchset.`\n\n",
+            (hey_skill_name.empty() ? "" : absl::StrCat("Error: Skill '**", hey_skill_name, "**' not found.\n\n")),
+            "To see available skills, use `/skill list`."));
+        return true;
+      }
+    } else {
+      slop::PrintMarkdown(absl::StrCat(
+          "### Skill Hotword: 'hey'\n",
+          "The 'hey' hotword allows you to activate a skill for a single prompt.\n\n",
+          "**Usage:** `hey <skill_name> <query>`\n",
+          "**Example:** `hey code_reviewer review this patchset.`\n\n",
+          "To see available skills, use `/skill list`."));
+      return true;
+    }
+  }
+
 
   tool_executor_.SetSessionId(session_id);
   tool_executor_.SetMailMode(cmd_handler_.IsMailMode());
@@ -192,7 +243,12 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     break;
   }
 
-  return true;
+  
+  if (is_hey_mode) {
+    active_skills = original_active_skills;
+    (void)db_.SetActiveSkills(session_id, active_skills);
+  }
+return true;
 }
 
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
