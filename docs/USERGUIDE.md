@@ -17,13 +17,37 @@ Build using Bazel:
 bazel build //:std_slop
 ```
 
+
+
+
+## Skill Hotwords
+You can temporarily activate a skill for a single turn without permanently changing your session configuration using the `hey` hotword:
+
+```bash
+hey <skill_name> <your query>
+```
+
+For example:
+- `hey code_reviewer what do you think of this PR?`
+- `hey sql_expert show me the last 5 logs from the messages table`
+
+The system will:
+1. Temporarily activate the requested skill.
+2. Increment the skill's activation count for analytics.
+3. Process your query.
+4. Restore your previous active skills immediately after the response is generated.
+
+Matching is case-insensitive, so `hey Code_Reviewer` and `hey code_reviewer` both work.
+
 ## Configuration
 `std::slop` supports three levels of configuration, in order of precedence:
 1.  **Command-line Flags** (e.g., `--model=gpt-4o`)
 2.  **Configuration File** (`~/.config/slop/config.ini`)
 3.  **Environment Variables** (e.g., `SLOP_DEBUG_HTTP`)
 
-### Configuration File
+#
+
+## Configuration File
 By default, the application looks for a configuration file at `~/.config/slop/config.ini`. You can override this path using the `--config` flag:
 ```bash
 bazel run //:std_slop -- --config=/path/to/my_config.ini

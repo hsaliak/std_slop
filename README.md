@@ -12,6 +12,7 @@
 - **📜 [Lua Control Plane](docs/lua_integration.md)**: Programmatic orchestration via a Lua 5.4 bridge, allowing scripts, staging, and execution.
 - **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval. 
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
+- **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax.
 
 ## 🚀 Quick Start
 

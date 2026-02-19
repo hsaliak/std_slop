@@ -642,6 +642,8 @@ std::string GetHelpText() {
       "- `--session <id>`: Use a specific session ID (overrides positional argument).\n"
       "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
       "- `--helpfull`: See all available command-line flags.\n\n"
+      "## Hotwords\n"
+      "- `hey <skill> <query>`: Temporarily activate a skill for a single prompt. For example: `hey code_reviewer what do you think of this?`.\n\n"
       "## Slash Commands\n\n";
   std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;
   std::vector<std::string> categories;
