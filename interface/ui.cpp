@@ -205,7 +205,7 @@ void ShowBanner() {
 std::string ReadLine(const std::string& modeline) {
   SetupTerminal();
   PrintHorizontalLine(0, ansi::Grey, modeline);
-  char* buf = readline("> ");
+  char* buf = readline("❯ ");
   if (!buf) return "/exit";
   std::string line(buf);
   free(buf);
