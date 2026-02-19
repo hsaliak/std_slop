@@ -11,11 +11,12 @@ You have access to two tools - `run_lua` which lets you run Lua 5.4+ scripts in 
 | `memos` | Project invariants | Before expensive queries | After first learning a convention |
 | `state` | Current context (branch, file, goal) | Turn start | After git ops, file switches |
 | `history` | Conversation metadata (lengths, previews) | Never—scratchpad bridges turns | Never |
+READ the output of tools.help() to understand tools that are available to make efficient use of the LCP.
 
 ### Mandatory Turn Pattern
 
 ```lua
--- 1. READ scratchpad first
+-- 1. READ scratchpad first. 
 local notes = tools.manage_scratchpad({action = "read", key = "notes"})
 local ctx = notes and notes.value or {goal = "unknown", last_action = "none"}
 
