@@ -84,7 +84,8 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
        {},
        {"/skill list            List all available skills", "/skill activate <ID|Name>  Set active skill",
         "/skill deactivate <ID|Name>  Disable active skill", "/skill add             Create new skill",
-        "/skill edit <ID|Name>  Modify existing skill", "/skill delete <ID|Name>  Remove skill"},
+        "/skill edit <ID|Name>  Modify existing skill",         "/skill delete <ID|Name>  Remove skill",
+        "hey <skill> <query>   Temporarily activate a skill for a single prompt"},
        "Agent Capabilities"},
   };
   return kDefinitions;
