@@ -33,7 +33,7 @@ function tools.help()
 #### Search ####
 - query_db({sql, params}): Executes a SQLite query on the project database.
 - describe_db({}): Returns the schema of all tables in the local database.
-- git_grep_tool({pattern, patterns, path, context, case_insensitive, word_regexp, ...}): Advanced git-grep.
+- git_grep_tool({pattern, patterns, path, context, case_insensitive, word_regexp, ...}): Advanced git-grep. The use of this tool is *strongly preferred* over grep and read_file whnevever possible.
 - grep_tool({pattern, path, context}): Simple regex search.
 - search_code({query}): Shortcut for searching code across the project.
 
