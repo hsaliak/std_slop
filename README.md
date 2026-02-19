@@ -2,17 +2,17 @@
   
 ![std::slop](docs/slop.png)
 
-`std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through a per-project ledger, providing long-term recall, structured state management, and Built-in Git integration. It's goal is to make the context and its use fully transparent and configurable.
+`std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through per-session ledgers, providing long-term recall, structured state management. std::slop features built-in Git integration. It's goal is to be an agent for which the context and its use fully transparent and configurable.
 
 ## ✨ Key Features
 
-- **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability.
-- **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows.
+- **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
+- **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long-term memory.
-- **📜 [Lua Control Plane](docs/lua_integration.md)**: Programmatic orchestration via a Lua 5.4 bridge, allowing scripts, staging, and execution.
-- **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval. 
+- **📜 [Lua Control Plane](docs/lua_integration.md)**: Programmatic orchestration via a Lua 5.4 bridge, allowing scripts, staging, and execution. std::slop uses this REPL to accomplish all it's tasks.
+- **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval.  Use this if you want a clean, bisect-safe view of changes, and want to be 'in the loop'. You can, of course offload the reviews to a `code_reviewer` skill as well.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
-- **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax.
+- **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax. Eg: "hey code_reviewer review these patches".
 
 ## 🚀 Quick Start
 

@@ -1,6 +1,6 @@
 # Lua Control Plane & Orchestration
 
-`std::slop` uses Lua 5.4+ as its high-level orchestration layer and "control plane." Instead of executing single tools in isolation, the agent writes and executes Lua scripts that combine tools, handle complex logic, and perform parallel operations safely.
+`std::slop` uses (Lua 5.5) Lua 5.4+ as its high-level orchestration layer and "control plane." Instead of executing single tools in isolation, the agent writes and executes Lua scripts that combine tools, handle complex logic, and perform parallel operations safely.
 
 ## 1. The Core Philosophy: Why Lua?
 
@@ -8,7 +8,7 @@ The primary reason for the Lua Control Plane (LCP) is to solve the **Context Rot
 
 ### Code as a Scalpel
 Traditional agents often ingest raw, massive datasets into their context window (e.g., reading a 2000-line file just to find one function). This leads to "context rot" where the model's reasoning is degraded by irrelevant information.
-In `std::slop`, the LCP allows the agent to use **code as a scalpel**:
+In `std::slop`, the LCP allows the agent to  pass the context programatically into a sub-query and evaluate the provided results, avoiding rot.
 - Instead of reading a whole file, a Lua script can grep for a pattern, process the result in-memory, and only return the relevant snippets.
 - Data filtering happens *within* the LCP, not the LLM's context window.
 
@@ -16,7 +16,7 @@ In `std::slop`, the LCP allows the agent to use **code as a scalpel**:
 The LCP supports asynchronous execution. An agent can initiate multiple file reads, code searches, or even sub-LLM queries simultaneously using `_async` tool variants, drastically reducing the latency of complex investigative tasks.
 
 ### Persistence and State Continuity
-The LCP provides a persistent environment across turns. By using the `scratchpad`, `memos`, and `state` globals, the agent maintains a "Source of Truth" that is programmatically accessible, reducing the need to re-summarize or re-search for the same information in every turn.
+The LCP provides a persistent environment across turns. By using the `scratchpad`, `memos`, and `state` globals, the agent maintains a "Source of Truth" that is programmatically accessible, reducing the need to re-summarize or re-search for the same information in every turn. These globals are saved in sqlite at the end of a turn, and injected into the environment in the next.
 
 ---
 
