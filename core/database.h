@@ -176,6 +176,7 @@ class Database {
   absl::Status UpdateSkill(const Skill& skill);
   absl::Status DeleteSkill(const std::string& name_or_id);
   absl::StatusOr<std::vector<Skill>> GetSkills();
+  absl::StatusOr<bool> SkillExists(const std::string& name_or_id);
   absl::Status IncrementSkillActivationCount(const std::string& name_or_id);
   absl::Status IncrementToolCallCount(const std::string& name);
 
