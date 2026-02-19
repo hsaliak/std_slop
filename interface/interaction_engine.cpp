@@ -33,7 +33,23 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                                 const Config& config) {
   bool is_hey_mode = false;
   std::string hey_skill_name;
-  std::vector<std::string> original_active_skills = active_skills;
+  const std::vector<std::string> original_active_skills = active_skills;
+
+  // RAII guard to restore active skills if we're in "hey" mode.
+  struct HeyModeGuard {
+    bool& active;
+    std::vector<std::string>& current;
+    const std::vector<std::string> original;
+    const std::string& session;
+    Database& database;
+    ~HeyModeGuard() {
+      if (active) {
+        current = original;
+        (void)database.SetActiveSkills(session, current);
+      }
+    }
+  } guard{is_hey_mode, active_skills, original_active_skills, session_id, db_};
+
 
   if (input.empty()) return true;
 
@@ -65,7 +81,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         // Check if skill is already active
         bool already_active = false;
         for (const auto& s : active_skills) {
-          if (s == hey_skill_name) {
+          if (absl::EqualsIgnoreCase(s, hey_skill_name)) {
             already_active = true;
             break;
           }
@@ -244,10 +260,6 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   }
 
   
-  if (is_hey_mode) {
-    active_skills = original_active_skills;
-    (void)db_.SetActiveSkills(session_id, active_skills);
-  }
 return true;
 }
 

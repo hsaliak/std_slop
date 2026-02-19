@@ -1117,7 +1117,7 @@ absl::Status Database::ClearPatchApproval(const std::string& branch_name) {
 }
 
 absl::StatusOr<bool> Database::SkillExists(const std::string& name_or_id) {
-  std::string sql = "SELECT 1 FROM skills WHERE name = ? OR id = ? LIMIT 1";
+  std::string sql = "SELECT 1 FROM skills WHERE name = ? COLLATE NOCASE OR id = ? LIMIT 1";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
   (void)stmt->BindText(1, name_or_id);
   (void)stmt->BindText(2, name_or_id);
