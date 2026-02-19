@@ -183,14 +183,15 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
         md += "| Group ID | User Prompt Snippet | Assistant Tokens |\n";
         md += "| :--- | :--- | :---: |\n";
         for (const auto& row : j) {
-          std::string prompt = row.value("prompt", "");
+          std::string prompt = json_get_or(row, "prompt", std::string{});
           std::string escaped_prompt = absl::StrReplaceAll(prompt, {{"|", "\\|"}, {"\n", " "}});
           if (escaped_prompt.length() > 50) escaped_prompt = escaped_prompt.substr(0, 47) + "...";
           std::string tokens_str = "N/A";
           if (row.contains("tokens") && !row["tokens"].is_null()) {
-            tokens_str = std::to_string(row.value("tokens", 0));
+            tokens_str = std::to_string(json_get_or(row, "tokens", 0));
           }
-          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("group_id", ""), escaped_prompt, tokens_str);
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", json_get_or(row, "group_id", std::string{}), escaped_prompt,
+                                 tokens_str);
         }
         PrintMarkdown(md);
       }
@@ -305,8 +306,9 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
         md += "| Name | Description | Enabled |\n";
         md += "| :--- | :--- | :---: |\n";
         for (const auto& row : j) {
-          md += absl::Substitute("| `$0` | $1 | $2 |\n", row.value("name", ""), row.value("description", ""),
-                                 row.value("is_enabled", 1) ? "✅" : "❌");
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", json_get_or(row, "name", std::string{}),
+                                 json_get_or(row, "description", std::string{}),
+                                 json_get_or(row, "is_enabled", 1) ? "✅" : "❌");
         }
         PrintMarkdown(md);
       }
@@ -316,9 +318,9 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     if (res.ok()) {
       auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && !j.empty()) {
-        std::string md = absl::Substitute("### Tool: $0\n\n", j[0].value("name", ""));
-        md += "**Description**: " + j[0].value("description", "") + "\n\n";
-        md += "**JSON Schema**:\n```json\n" + j[0].value("json_schema", "{}") + "\n```\n";
+        std::string md = absl::Substitute("### Tool: $0\n\n", json_get_or(j[0], "name", std::string{}));
+        md += "**Description**: " + json_get_or(j[0], "description", std::string{}) + "\n\n";
+        md += "**JSON Schema**:\n```json\n" + json_get_or(j[0], "json_schema", std::string{"{}"}) + "\n```\n";
         PrintMarkdown(md);
       }
     }
@@ -340,15 +342,16 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         md += "| ID | Name | Description | Activations | Status |\n";
         md += "| :---: | :--- | :--- | :---: | :---: |\n";
         for (const auto& row : j) {
-          std::string description = row.value("description", "");
+          std::string description = json_get_or(row, "description", std::string{});
           description = absl::StrReplaceAll(description, {{"|", "\\|"}, {"\n", " "}});
           if (description.length() > 60) {
             description = description.substr(0, 57) + "...";
           }
-          bool active = std::find(args.active_skills.begin(), args.active_skills.end(), row.value("name", "")) !=
-                        args.active_skills.end();
-          md += absl::Substitute("| $0 | **$1** | $2 | $3 | $4 |\n", row.value("id", 0), row.value("name", ""),
-                                 description, row.value("activation_count", 0), active ? "✓" : "");
+          bool active = std::find(args.active_skills.begin(), args.active_skills.end(),
+                                  json_get_or(row, "name", std::string{})) != args.active_skills.end();
+          md += absl::Substitute("| $0 | **$1** | $2 | $3 | $4 |\n", json_get_or(row, "id", 0),
+                                 json_get_or(row, "name", std::string{}), description,
+                                 json_get_or(row, "activation_count", 0), active ? "✓" : "");
         }
         PrintMarkdown(md);
       }
@@ -471,7 +474,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         md += "| Status | Session ID |\n";
         md += "| :---: | :--- |\n";
         for (const auto& row : j) {
-          std::string sid = row.value("session_id", row.value("id", ""));
+          std::string sid = json_get_or(row, "session_id", json_get_or(row, "id", std::string{}));
           bool active = (sid == args.session_id);
           md += absl::Substitute("| $0 | $1 |\n", active ? "✓" : "", sid);
         }
@@ -566,8 +569,9 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       md += "| Model | Prompt | Completion | Total |\n";
       md += "| :--- | :---: | :---: | :---: |\n";
       for (const auto& row : j) {
-        md += absl::Substitute("| $0 | $1 | $2 | $3 |\n", row.value("model", "unknown"), row.value("prompt", 0),
-                               row.value("completion", 0), row.value("total", 0));
+        md += absl::Substitute("| $0 | $1 | $2 | $3 |\n", json_get_or(row, "model", std::string{"unknown"}),
+                               json_get_or(row, "prompt", 0), json_get_or(row, "completion", 0),
+                               json_get_or(row, "total", 0));
       }
       md += "\n";
       PrintMarkdown(md);
@@ -584,7 +588,8 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       md += "| Tool | Calls |\n";
       md += "| :--- | :---: |\n";
       for (const auto& row : j) {
-        md += absl::Substitute("| $0 | $1 |\n", row.value("name", "unknown"), row.value("call_count", 0));
+        md += absl::Substitute("| $0 | $1 |\n", json_get_or(row, "name", std::string{"unknown"}),
+                               json_get_or(row, "call_count", 0));
       }
       md += "\n";
       PrintMarkdown(md);
@@ -600,7 +605,8 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       md += "| Skill | Activations |\n";
       md += "| :--- | :---: |\n";
       for (const auto& row : j) {
-        md += absl::Substitute("| $0 | $1 |\n", row.value("name", "unknown"), row.value("activation_count", 0));
+        md += absl::Substitute("| $0 | $1 |\n", json_get_or(row, "name", std::string{"unknown"}),
+                               json_get_or(row, "activation_count", 0));
       }
       md += "\n";
       PrintMarkdown(md);
@@ -619,10 +625,11 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
           md += "| :--- | :--- | :---: | :--- | :--- |\n";
           for (const auto& b : (*quota_or)["buckets"]) {
             if (!b.is_object()) continue;
-            double fraction = b.value("remainingFraction", 0.0);
-            md += absl::Substitute("| `$0` | $1 | $2% | $3 | $4 |\n", b.value("modelId", "N/A"),
-                                   b.value("remainingAmount", "N/A"), static_cast<int>(fraction * 100),
-                                   b.value("resetTime", "N/A"), b.value("tokenType", "N/A"));
+            double fraction = json_get_or(b, "remainingFraction", 0.0);
+            md += absl::Substitute("| `$0` | $1 | $2% | $3 | $4 |\n", json_get_or(b, "modelId", std::string{"N/A"}),
+                                   json_get_or(b, "remainingAmount", std::string{"N/A"}), static_cast<int>(fraction * 100),
+                                   json_get_or(b, "resetTime", std::string{"N/A"}),
+                                   json_get_or(b, "tokenType", std::string{"N/A"}));
           }
           PrintMarkdown(md);
         } else {
