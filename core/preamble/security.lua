@@ -32,11 +32,16 @@ function tools.help()
 - use_skill({name, action="activate"|"deactivate"}): Activates or deactivates specific system behaviors or prompt patches.
 
 #### Search ####
-- query_db({sql, params}): Executes a SQLite query on the project database.
-- describe_db({}): Returns the schema of all tables in the local database.
-- git_grep_tool({pattern, patterns, path, context, case_insensitive, word_regexp, ...}): Advanced git-grep. The use of this tool is *strongly preferred* over grep and read_file whenever possible.
-- grep_tool({pattern, path, context}): Simple regex search.
-- search_code({query}): Shortcut for searching code across the project.
+- tools.grep({pattern, patterns, query, path, context, case_insensitive, word_regexp, ...}): Unified search.
+    - Uses `git grep` when possible (efficient, respects .gitignore).
+    - Falls back to `grep` for untracked files or outside of git.
+    - Supports multiple patterns and comprehensive flags.
+    - Returns a `Result` object.
+- query_db({sql, params}): Executes a SQLite query (returns Result).
+- describe_db({}): Schema of local database.
+- search_code({query}): Alias for tools.grep. (Deprecated)
+- grep_tool({pattern, path}): Alias for tools.grep. (Deprecated)
+- git_grep_tool({pattern, path}): Alias for tools.grep. (Deprecated)
 
 #### Patch Workflow (Mail Model) ####
 - git_branch_staging({name}): Creates a slop/staging/ branch.
