@@ -17,39 +17,54 @@ constexpr const char* Skill = "🎓";
 constexpr const char* Session = "🕒";
 constexpr const char* Robot = "🤖";
 constexpr const char* Mailbox = "📬";
+constexpr const char* Camera = "📷";
+constexpr const char* MagnifyingGlass = "🔍";
+constexpr const char* Sparkles = "✨";
+constexpr const char* Hammer = "🔨";
+constexpr const char* Gear = "⚙️";
+constexpr const char* Link = "🔗";
 constexpr const char* CallArrow = "❯";
 constexpr const char* ResultConnector = "┗━";
 }  // namespace icons
 
 namespace ansi {
-// Reset code
+// Gruvbox Dark Palette
+namespace gruvbox {
+constexpr const char* Aqua = "\x1b[38;2;142;192;124m";
+constexpr const char* Blue = "\x1b[38;2;69;133;136m";
+constexpr const char* Yellow = "\x1b[38;2;215;153;33m";
+constexpr const char* Red = "\x1b[38;2;204;36;29m";
+constexpr const char* Gray = "\x1b[38;2;146;131;116m";
+constexpr const char* DarkGray = "\x1b[38;2;60;56;54m";
+constexpr const char* Bg = "\x1b[48;2;60;56;54m";
+} // namespace gruvbox
+
 constexpr const char* Reset = "\033[0m";
-
-// Text style
 constexpr const char* Bold = "\033[1m";
+constexpr const char* Dim = "\033[2m";
+constexpr const char* Underline = "\033[4m";
+constexpr const char* Blink = "\033[5m";
+constexpr const char* Reverse = "\033[7m";
+constexpr const char* Hidden = "\033[8m";
 
-// Background colors
-constexpr const char* BlueBg = "\033[44m";   // Blue background
-constexpr const char* CyanBg = "\033[46m";   // Cyan background
-constexpr const char* GreyBg = "\033[100m";  // Grey (bright black) background
+// Standard Foreground (text) color - Mapped to Gruvbox
+constexpr const char* White = "\x1b[38;2;235;219;178m"; // Gruvbox light0
+constexpr const char* Black = gruvbox::DarkGray;
+constexpr const char* Blue = gruvbox::Blue;
+constexpr const char* Cyan = gruvbox::Aqua;
+constexpr const char* Grey = gruvbox::Gray;
+constexpr const char* LightGrey = "\x1b[38;2;168;153;132m"; // Gruvbox gray_245
+constexpr const char* MildGrey = gruvbox::Gray;
+constexpr const char* Green = gruvbox::Aqua; // Using Aqua for Green as requested
+constexpr const char* Yellow = gruvbox::Yellow;
+constexpr const char* Magenta = "\x1b[38;2;177;98;134m"; // Gruvbox Purple
+constexpr const char* Red = gruvbox::Red;
 
-// Foreground (text) color
-constexpr const char* White = "\033[37m";
-constexpr const char* Black = "\033[30m";
-constexpr const char* Blue = "\033[34m";
-constexpr const char* Cyan = "\033[36m";
-constexpr const char* Grey = "\033[90m";
-constexpr const char* LightGrey = "\033[38;5;251m";
-constexpr const char* MildGrey = "\033[38;5;244m";
-constexpr const char* Green = "\033[32m";
-constexpr const char* Yellow = "\033[33m";
-constexpr const char* Magenta = "\033[35m";
-constexpr const char* Red = "\033[31m";
 constexpr const char* Thought = Grey;
 constexpr const char* Assistant = White;
 constexpr const char* Metadata = Grey;
 constexpr const char* UserLabel = Green;
-constexpr const char* EchoBg = GreyBg;
+constexpr const char* EchoBg = gruvbox::Bg;
 constexpr const char* EchoFg = White;
 constexpr const char* Warning = Yellow;
 constexpr const char* Logo = Cyan;
@@ -57,33 +72,33 @@ constexpr const char* SystemLabel = Yellow;
 
 namespace theme {
 namespace markdown {
-inline constexpr const char* Header = "\033[1;36m";      // Bold Cyan
-inline constexpr const char* HeaderMarker = "\033[90m";  // Grey
+inline constexpr const char* Header = "\033[1m\x1b[38;2;142;192;124m";      // Bold Aqua
+inline constexpr const char* HeaderMarker = gruvbox::Gray;
 inline constexpr const char* Bold = "\033[1m";
 inline constexpr const char* Italic = "\033[3m";
-inline constexpr const char* CodeInline = "\e[38;5;81m";  // Green
+inline constexpr const char* CodeInline = "\x1b[38;2;142;192;124m";  // Aqua
 inline constexpr const char* CodeBlock = LightGrey;
-inline constexpr const char* LinkText = "\033[34;4m";      // Blue Underline
-inline constexpr const char* LinkUrl = "\033[90m";         // Grey
-inline constexpr const char* ListMarker = "\033[33m";      // Yellow
-inline constexpr const char* Quote = "\033[35m";           // Magenta
-inline constexpr const char* HorizontalRule = "\033[90m";  // Grey
-inline constexpr const char* TableBorder = "\033[90m";     // Grey
-inline constexpr const char* TableHeader = "\033[1;36m";   // Bold Cyan
+inline constexpr const char* LinkText = "\x1b[38;2;69;133;136m\033[4m";      // Blue Underline
+inline constexpr const char* LinkUrl = gruvbox::Gray;
+inline constexpr const char* ListMarker = gruvbox::Yellow;
+inline constexpr const char* Quote = "\x1b[38;2;177;98;134m";           // Purple
+inline constexpr const char* HorizontalRule = gruvbox::Gray;
+inline constexpr const char* TableBorder = gruvbox::Gray;
+inline constexpr const char* TableHeader = "\033[1m\x1b[38;2;142;192;124m";   // Bold Aqua
 }  // namespace markdown
 
 namespace syntax {
-inline constexpr const char* Keyword = "\033[35m";   // Magenta
-inline constexpr const char* Function = "\033[34m";  // Blue
-inline constexpr const char* Type = "\033[33m";      // Yellow
-inline constexpr const char* String = "\033[32m";    // Green
-inline constexpr const char* Comment = "\033[90m";   // Grey
-inline constexpr const char* Number = "\033[31m";    // Red
-inline constexpr const char* Operator = "\033[36m";  // Cyan
-inline constexpr const char* Preproc = "\033[36m";   // Cyan
-inline constexpr const char* Constant = "\033[31m";  // Red
-inline constexpr const char* Variable = "\033[37m";  // White
-inline constexpr const char* Label = "\033[33m";     // Yellow
+inline constexpr const char* Keyword = gruvbox::Red;
+inline constexpr const char* Function = gruvbox::Blue;
+inline constexpr const char* Type = gruvbox::Yellow;
+inline constexpr const char* String = gruvbox::Aqua;
+inline constexpr const char* Comment = gruvbox::Gray;
+inline constexpr const char* Number = "\x1b[38;2;177;98;134m";    // Purple
+inline constexpr const char* Operator = gruvbox::Aqua;
+inline constexpr const char* Preproc = gruvbox::Aqua;
+inline constexpr const char* Constant = gruvbox::Red;
+inline constexpr const char* Variable = White;
+inline constexpr const char* Label = gruvbox::Yellow;
 }  // namespace syntax
 }  // namespace theme
 }  // namespace ansi
@@ -107,15 +122,12 @@ inline std::string Colorize(const std::string& text, const char* bg_background,
 inline size_t VisibleLength(std::string_view s) {
   size_t len = 0;
   for (size_t i = 0; i < s.length(); ++i) {
-    // Detect start of ANSI escape sequence
     if (s[i] == '\033' && i + 1 < s.length() && s[i + 1] == '[') {
       i += 2;
-      // Skip characters until the termination character of the sequence (0x40-0x7E)
       while (i < s.length() && (s[i] < 0x40 || s[i] > 0x7E)) {
         i++;
       }
     } else {
-      // For UTF-8, only count the start byte of a character sequence (bytes not 10xxxxxx)
       if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
         len++;
       }

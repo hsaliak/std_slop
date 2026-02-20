@@ -58,12 +58,12 @@ TEST(UiTest, PrintAssistantMessageWithSpecialHeaders) {
   EXPECT_TRUE(absl::StrContains(output, "Goal: test"));
   EXPECT_TRUE(absl::StrContains(output, "Hello, user!"));
   // Verify color codes
-  // Grey/Thought: \033[90m
-  EXPECT_TRUE(absl::StrContains(output, "\033[90m"));
-  // Yellow/State: \033[33m
-  EXPECT_TRUE(absl::StrContains(output, "\033[33m"));
-  // White/Assistant: \033[37m
-  EXPECT_TRUE(absl::StrContains(output, "\033[37m"));
+  // Grey/Thought
+  EXPECT_TRUE(absl::StrContains(output, ansi::Grey));
+  // Yellow/State
+  EXPECT_TRUE(absl::StrContains(output, ansi::Yellow));
+  // White/Assistant
+  EXPECT_TRUE(absl::StrContains(output, ansi::White));
 }
 TEST(UiTest, PrintAssistantMessageWithPrefix) {
   std::string content = "Hello world";

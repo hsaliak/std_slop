@@ -229,7 +229,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
               if (!config.silent && slop::IsEscPressed()) {
                 cancellation->Cancel();
                 std::cerr << "\n"
-                          << "  " << slop::Colorize("[Esc] Cancellation requested...", "", "\033[31m") << std::endl;
+                          << "  " << slop::Colorize("[Esc] Cancellation requested...", "", ansi::Red) << std::endl;
               }
               std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
