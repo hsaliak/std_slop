@@ -101,7 +101,7 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
     std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
     bool is_mail = engine.GetCommandHandler().IsMailMode();
-    std::string color = is_mail ? ansi::Green : ansi::Cyan;
+    std::string color = is_mail ? ansi::MailMode : ansi::StandardMode;
     std::string mode_label =
         is_mail ? absl::StrCat(icons::Mailbox, " MAIL_MODEL") : absl::StrCat(icons::Robot, " STANDARD");
     std::string modeline =
