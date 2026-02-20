@@ -101,6 +101,7 @@ end
 
 -- Auto-wrap existing tools to return Result objects
 local wrapped_tools = {
+  "grep",
   "read_file", "execute_bash", "git_grep_tool", "query_db", "llm_query"
 }
 
