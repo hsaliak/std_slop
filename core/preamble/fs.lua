@@ -54,15 +54,44 @@ end
 
 function tools.write_file(args)
   slop_guard() -- Require staging branch for writing
-  local path = args.path
-  local content = args.content
+  
+  -- 1. Validate inputs before assignment
   if type(args.path) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: path", 0) end
   if type(args.content) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: content", 0) end
 
-  local f = io.open(path, "w")
-  if not f then error("Could not open file for writing: " .. path) end
-  f:write(content)
-  f:close()
+  local path = args.path
+  local content = args.content
+
+  -- 2. SECURITY: Prevent path traversal and absolute paths
+  if string.find(path, "%.%.") or string.sub(path, 1, 1) == "/" then
+    error("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.", 0)
+  end
+
+  -- 3. Attempt to open the file
+  local f, err = io.open(path, "w")
+  
+  -- 4. Handle the "Missing Directory" edge case specifically for the LLM
+  if not f then 
+    -- If it failed, it might be because the parent directory doesn't exist.
+    -- We give the LLM a highly specific error so it knows to create the dir first.
+    error(string.format(
+      "Could not open file for writing: %s\n" ..
+      "Hint: Does the directory exist? Lua cannot create nested directories automatically. " ..
+      "Use tools.execute_bash({command='mkdir -p <dir>'}) first if needed. Original error: %s", 
+      path, err
+    ), 0)
+  end
+
+  local ok, write_err = f:write(content)
+  if not ok then
+    f:close()
+    error("IO_ERROR: Failed to write to file: " .. tostring(write_err), 0)
+  end
+  
+  local close_ok, close_err = f:close()
+  if not close_ok then
+    error("IO_ERROR: Failed to close file: " .. tostring(close_err), 0)
+  end
 
   local result = "File written successfully:\n"
   result = result .. "Path: " .. path .. "\n"
