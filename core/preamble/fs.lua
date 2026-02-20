@@ -168,31 +168,60 @@ function tools.list_directory(args)
   return table.concat(output, "\n")
 end
 
-function tools.git_grep_tool(args)
-  local cmd = "git grep --line-number -I"
-  if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
-  if args.before and args.before > 0 then cmd = cmd .. " -B " .. args.before end
-  if args.after and args.after > 0 then cmd = cmd .. " -A " .. args.after end
-  if args.case_insensitive then cmd = cmd .. " -i" end
-  if args.word_regexp then cmd = cmd .. " -w" end
-  if args.files_with_matches then cmd = cmd .. " -l" end
-  if args.count then cmd = cmd .. " -c" end
-  if args.show_function then cmd = cmd .. " -p" end
-  
-  if args.branch then cmd = cmd .. " " .. shell_escape(args.branch) end
-
+function tools.grep(args)
   local patterns = args.patterns or {}
   if args.pattern then table.insert(patterns, args.pattern) end
+  if args.query then table.insert(patterns, args.query) end -- Alias for search_code
+  
   if #patterns == 0 then
-    error("git_grep_tool requires at least one pattern.")
+    error("grep requires at least one pattern (use 'pattern' or 'query').")
   end
+
+  local path = args.path or "."
+  local paths = type(path) == "table" and path or {path}
+
+  -- Try git grep first
+  local git_check_ok, git_check_res = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree"})
+  local is_git = git_check_ok and git_check_res:find("true")
+  
+  if is_git then
+    local cmd = "git grep --line-number -I"
+    if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
+    if args.before and args.before > 0 then cmd = cmd .. " -B " .. args.before end
+    if args.after and args.after > 0 then cmd = cmd .. " -A " .. args.after end
+    if args.case_insensitive then cmd = cmd .. " -i" end
+    if args.word_regexp then cmd = cmd .. " -w" end
+    if args.files_with_matches then cmd = cmd .. " -l" end
+    if args.count then cmd = cmd .. " -c" end
+    if args.show_function then cmd = cmd .. " -p" end
+    
+    if args.branch then cmd = cmd .. " " .. shell_escape(args.branch) end
+    for _, p in ipairs(patterns) do cmd = cmd .. " -e " .. shell_escape(p) end
+    cmd = cmd .. " --"
+    for _, p in ipairs(paths) do cmd = cmd .. " " .. shell_escape(p) end
+    
+    local success, res = call_tool(tools.execute_bash, {command = cmd})
+    if success and res and res ~= "" then
+      return res
+    elseif not success and not res:find("status 1") then
+      error(res)
+    end
+    -- If git grep returned nothing, fall through to standard grep (might be untracked files)
+  end
+  
+  -- Fallback to standard grep
+  local cmd = "grep -rnE"
+  if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
+  if args.case_insensitive then cmd = cmd .. " -i" end
+  
   for _, p in ipairs(patterns) do
+    -- standard grep doesn't support multiple patterns with -e as easily in all versions, 
+    -- but -E (extended regex) allows pattern1|pattern2
+    -- for simplicity, we'll just use the first pattern if multiple are provided, 
+    -- or join them with |
     cmd = cmd .. " -e " .. shell_escape(p)
   end
   
-  local paths = args.path or {"."}
-  if type(paths) == "string" then paths = {paths} end
-  cmd = cmd .. " --"
   for _, p in ipairs(paths) do
     cmd = cmd .. " " .. shell_escape(p)
   end
@@ -206,70 +235,13 @@ function tools.git_grep_tool(args)
     end
   end
   
-  local lines = {}
-  local count = 0
-  for line in res:gmatch("[^\r\n]+") do
-    count = count + 1
-    if count <= 500 then
-      table.insert(lines, line)
-    end
-  end
-  
-  local output = table.concat(lines, "\n")
-  if count > 500 then
-    output = output .. "\n[TRUNCATED: Use a more specific pattern or path to narrow results]"
-  end
-  
-  return output
+  return res
 end
 
-function tools.grep_tool(args)
-  local pattern = args.pattern
-  local path = args.path or "."
-  
-  local git_check_ok, git_check_res = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree"})
-  local is_git = git_check_ok and git_check_res:find("true")
-  
-  if is_git then
-    local ok, res = pcall(tools.git_grep_tool, {pattern = pattern, path = {path}, context = args.context})
-    if ok and res and res ~= "" then
-      return res
-    end
-  end
-  
-  local cmd = "grep -rnE"
-  if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
-  cmd = cmd .. " -- " .. shell_escape(pattern) .. " " .. shell_escape(path)
-  
-  local success, res = call_tool(tools.execute_bash, {command = cmd})
-  if not success then
-    if res:find("status 1") then
-      res = ""
-    else
-      error(res)
-    end
-  end
-  
-  local lines = {}
-  local count = 0
-  for line in res:gmatch("[^\r\n]+") do
-    count = count + 1
-    if count <= 50 then
-      table.insert(lines, line)
-    end
-  end
-  
-  local output = table.concat(lines, "\n")
-  if count > 50 then
-    output = output .. "\n[TRUNCATED: Use a more specific pattern or path to narrow results]"
-  end
-  
-  return output
-end
+function tools.git_grep_tool(args) return tools.grep(args) end
+function tools.grep_tool(args) return tools.grep(args) end
+function tools.search_code(args) return tools.grep(args) end
 
-function tools.search_code(args)
-  return tools.grep_tool({pattern = args.query, path = "."})
-end
 
 -- Mail Model Support (Git Tools)
 
@@ -331,4 +303,3 @@ function tools.apply_patch(args)
 
   return "File patched successfully: " .. path
 end
-
