@@ -278,12 +278,22 @@ function tools.apply_patch(args)
   if type(args.path) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: path", 0) end
   if type(args.patches) ~= "table" then error("INVALID_ARGUMENT: Missing mandatory field: patches", 0) end
 
-  local f = io.open(args.path, "r")
+  local path = args.path
+
+  -- SECURITY: Prevent path traversal
+  if string.find(path, "%.%.") or string.sub(path, 1, 1) == "/" then
+    error("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.", 0)
+  end
+
+  local f = io.open(path, "r")
   if not f then
-    error("NOT_FOUND: Could not open file: " .. args.path, 0)
+    error("NOT_FOUND: Could not open file: " .. path, 0)
   end
   local content = f:read("*all")
   f:close()
+
+  -- AI UX FIX: Normalize file content newlines to standard \n
+  content = string.gsub(content, "\r\n", "\n")
 
   for i, patch in ipairs(args.patches) do
     local find = patch.find
@@ -292,27 +302,33 @@ function tools.apply_patch(args)
       error("INVALID_ARGUMENT: each patch must have 'find' and 'replace' strings", 0)
     end
 
+    -- AI UX FIX: Normalize LLM patch newlines as well
+    find = string.gsub(find, "\r\n", "\n")
+    replace = string.gsub(replace, "\r\n", "\n")
+
     local start_idx, end_idx = string.find(content, find, 1, true)
     if not start_idx then
-      error("NOT_FOUND: Could not find exact match for: " .. find, 0)
+      -- Hint added so the LLM knows *why* it failed and how to fix it
+      error("NOT_FOUND: Could not find exact match for the 'find' block in: " .. path ..
+            "\nHint: Ensure your indentation matches the target file exactly, and provide more context lines if needed.", 0)
     end
 
     local second_start = string.find(content, find, end_idx + 1, true)
     if second_start then
-      error("FAILED_PRECONDITION: Multiple matches found for: " .. find ..
-                ". Please use a more specific 'find' block.", 0)
+      error("FAILED_PRECONDITION: Multiple matches found for the 'find' block. " ..
+            "Please use a more specific 'find' block with more surrounding context lines.", 0)
     end
 
-    content = string.sub(content, 1, start_idx - 1) .. replace ..
-                  string.sub(content, end_idx + 1)
+    content = string.sub(content, 1, start_idx - 1) .. replace .. string.sub(content, end_idx + 1)
   end
 
-  local f_out = io.open(args.path, "w")
+  local f_out = io.open(path, "w")
   if not f_out then
-    error("Could not open file for writing: " .. args.path, 0)
+    error("Could not open file for writing: " .. path, 0)
   end
   f_out:write(content)
   f_out:close()
 
-  return "File written successfully: " .. args.path
+  return "File patched successfully: " .. path
 end
+
