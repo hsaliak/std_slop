@@ -58,7 +58,7 @@ your .gitignore contains this. The context ledger is completely stored in the da
 
 ```ini
 [slop]
-model = gemini-2.0-flash-exp
+model = gemini-3-flash-preview
 google_api_key = AIza...
 # OR
 openai_api_key = sk-...
