@@ -100,7 +100,7 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 
   auto res = executor_->Execute("apply_patch", args);
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("File written successfully") != std::string::npos);
+  EXPECT_TRUE(res->find("File patched successfully") != std::string::npos);
 
   std::ifstream ifs("test_patch.txt");
   std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
