@@ -15,7 +15,7 @@ function tools.help()
 - help(): (string) Shows this help message.
 
 #### File System ####
-- read_file({path, start_line, end_line}): Reads a file (optional range).
+- read_file({path, start_line, end_line}): Reads a file (returns Result) (optional range).
 - write_file({path, content}): Overwrites a file with new content.
 - list_directory({path=".", depth=1, git_only=false}): Lists directory contents.
 - apply_patch({path, patches}): Multi-replacement in a file. patches = {{find="...", replace="..."}}.
@@ -45,6 +45,21 @@ function tools.help()
 - git_format_patch_series({base_branch}): Summarizes the current patchset.
 - git_verify_series({command, base_branch}): Verifies the entire series passes tests.
 - git_finalize_series({target_branch}): Merges the series and cleans up.
+
+#### Expressive Layer (Fluent API) ####
+- tools.file(path): Returns a File object.
+    - :read({start_line, end_line}): Reads the file.
+    - :patch({patches}): Applies patches.
+    - :write(content): Overwrites the file.
+- tools.files(pattern): Returns a Collection of File objects matching the pattern.
+    - :foreach(fn): Iterates over each file in the collection.
+- tools.concurrent({task1, task2, ...}): Runs multiple tools in parallel and returns an array of results.
+    Tasks can be strings ("ls") or tables {tool="name", args={...}}.
+- tools.wait_all(job1, job2, ...): Waits for multiple jobs or values to complete.
+- Result Objects: read_file, execute_bash, git_grep_tool, query_db, and llm_query now return Result objects.
+    - :lines(): Returns an array of strings (one per line).
+    - :json(): Parses the result as JSON.
+- Auto-Memo Injection: Reading or patching a file automatically loads relevant architectural memos into `scratchpad.relevant_memos`.
 
 ### Codebase Navigation Hierarchy ###
 - **Explore First:** You MUST use `git_grep_tool` as your primary method for locating function definitions, variables, classes, or keywords. This keeps the context window lean and isolated.
