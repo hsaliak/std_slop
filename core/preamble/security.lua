@@ -47,19 +47,22 @@ function tools.help()
 - git_finalize_series({target_branch}): Merges the series and cleans up.
 
 #### Expressive Layer (Fluent API) ####
-- tools.file(path): Returns a File object.
-    - :read({start_line, end_line}): Reads the file.
-    - :patch({patches}): Applies patches.
-    - :write(content): Overwrites the file.
-- tools.files(pattern): Returns a Collection of File objects matching the pattern.
-    - :foreach(fn): Iterates over each file in the collection.
-- tools.concurrent({task1, task2, ...}): Runs multiple tools in parallel and returns an array of results.
-    Tasks can be strings ("ls") or tables {tool="name", args={...}}.
-- tools.wait_all(job1, job2, ...): Waits for multiple jobs or values to complete.
-- Result Objects: read_file, execute_bash, git_grep_tool, query_db, and llm_query now return Result objects.
-    - :lines(): Returns an array of strings (one per line).
-    - :json(): Parses the result as JSON.
-- Auto-Memo Injection: Reading or patching a file automatically loads relevant architectural memos into `scratchpad.relevant_memos`.
+This layer simplifies complex operations and adds parallelism.
+- tools.file(path): Returns a File object with :read(), :patch(), :write().
+- tools.files(pattern): Returns a Collection of File objects with :foreach().
+- tools.concurrent({task1, task2, ...}): Runs tasks in parallel.
+- Result Objects (wrapped read_file, execute_bash, etc.):
+    - res:lines(): Returns table of lines.
+    - res:json(): Parses as JSON.
+- Auto-Memo Injection: Reading/Patching files automatically updates `scratchpad.relevant_memos`.
+
+EXAMPLES:
+-- Parallel Read:
+local contents = tools.concurrent({ {tool="read_file", args={path="a.lua"}}, "ls" })
+
+-- Batch Edit:
+tools.files("*.lua"):foreach(function(f) f:patch({find="TODO", replace="DONE"}) end)
+
 
 ### Codebase Navigation Hierarchy ###
 - **Explore First:** You MUST use `git_grep_tool` as your primary method for locating function definitions, variables, classes, or keywords. This keeps the context window lean and isolated.
