@@ -2,38 +2,48 @@ function tools.read_file(args)
   if type(args.path) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: path", 0) end
   if args.start_line ~= nil and type(args.start_line) ~= "number" then error("INVALID_ARGUMENT: 'start_line' must be an integer", 0) end
   if args.end_line ~= nil and type(args.end_line) ~= "number" then error("INVALID_ARGUMENT: 'end_line' must be an integer", 0) end
+
   local path = args.path
 
-  local f = io.open(path, "r")
-  if not f then error("Could not open file: " .. path) end
+  -- SECURITY: Prevent basic path traversal and absolute path escapes
+  if string.find(path, "%.%.") or string.sub(path, 1, 1) == "/" then
+    error("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.", 0)
+  end
 
-  local lines = {}
+  local f, err = io.open(path, "r")
+  if not f then error("Could not open file: " .. (err or path)) end
+
+  local start_line = args.start_line or 1
+  local end_line = args.end_line or math.huge -- Use math.huge to represent EOF if no end is specified
+
+  if start_line > end_line then
+    f:close()
+    error("INVALID_ARGUMENT: start_line must be less than or equal to end_line", 0)
+  end
+  if start_line < 1 then start_line = 1 end
+
+  local body_lines = {}
+  local current_line = 1
+
+  -- OPTIMIZATION: Stream the file and stop early
   for line in f:lines() do
-    table.insert(lines, line)
+    if current_line > end_line then
+      break -- We hit the end_line limit, stop reading disk entirely!
+    end
+
+    if current_line >= start_line then
+      if args.line_numbers then
+        line = string.format("%d: %s", current_line, line)
+      end
+      table.insert(body_lines, line)
+    end
+
+    current_line = current_line + 1
   end
   f:close()
 
-  local start_line = args.start_line or 1
-  local end_line = args.end_line or #lines
-
-  if start_line > end_line then
-    error("INVALID_ARGUMENT: start_line must be less than or equal to end_line", 0)
-  end
-
-  if start_line < 1 then start_line = 1 end
-  if end_line > #lines then end_line = #lines end
-  
-  if start_line > #lines then
-    return ""
-  end
-
-  local body_lines = {}
-  for i = start_line, end_line do
-    local line = lines[i]
-    if args.line_numbers then
-      line = string.format("%d: %s", i, line)
-    end
-    table.insert(body_lines, line)
+  if start_line >= current_line then
+    return "" -- The start_line was beyond the EOF
   end
 
   local body = table.concat(body_lines, "\n")
