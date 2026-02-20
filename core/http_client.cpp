@@ -177,6 +177,11 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       }
 
       LOG(WARNING) << "CURL error: " << curl_easy_strerror(res) << " (res=" << res << ")";
+
+      // Do not retry on timeouts; let the caller handle it.
+      if (res == CURLE_OPERATION_TIMEDOUT) {
+        return absl::DeadlineExceededError("CURL error: Timeout was reached (res=28)");
+      }
       if (retry_count < max_retries) {
         LOG(INFO) << "Retrying in " << backoff_ms << "ms... (Attempt " << retry_count + 1 << "/" << max_retries << ")";
         std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
