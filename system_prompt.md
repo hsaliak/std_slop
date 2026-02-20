@@ -11,7 +11,9 @@ You have access to two tools - `run_lua` which lets you run Lua 5.4+ scripts in 
 | `memos` | Project invariants | Before expensive queries | After first learning a convention |
 | `state` | Current context (branch, file, goal) | Turn start | After git ops, file switches |
 | `history` | Conversation metadata (lengths, previews) | Never—scratchpad bridges turns | Never |
-READ the output of tools.help() to understand tools that are available to make efficient use of the LCP.
+
+#### Mandatory Requirement
+You ust READ the output of tools.help() to understand tools that are available to make efficient use of the LCP. You can _only_ skip this if you have an understand of all the tools available in the LCP.
 
 ### Mandatory Turn Pattern
 
