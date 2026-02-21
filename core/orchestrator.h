@@ -35,7 +35,7 @@ class Orchestrator {
     bool gca_mode = false;
     std::string project_id;
     std::string base_url;
-    int throttle = 0;
+    int throttle = 1;
     bool strip_reasoning = false;
     TruncationSettings truncation = {};
   };
