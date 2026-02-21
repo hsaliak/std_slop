@@ -1,109 +1,68 @@
 #include "core/http_client.h"
-#include "absl/random/random.h"
-
-#include <fcntl.h>
-#include <termios.h>
-#include <unistd.h>
 
 #include <chrono>
 #include <iostream>
+#include <sstream>
 #include <thread>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
-#include "absl/status/status.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
-#include "absl/strings/strip.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "nlohmann/json.hpp"
-#include "json_utils.h"
 
-#include "core/shell_util.h"
 namespace slop {
 
-namespace {
-struct CurlDeleter {
-  void operator()(CURL* curl) const {
-    if (curl) curl_easy_cleanup(curl);
-  }
-};
-struct SlistDeleter {
-  void operator()(struct curl_slist* list) const {
-    if (list) curl_slist_free_all(list);
-  }
-};
-}  // namespace
+HttpClient::HttpClient() : max_retries_(6), initial_backoff_ms_(5000) {
+  curl_global_init(CURL_GLOBAL_ALL);
+}
 
-HttpClient::HttpClient() { curl_global_init(CURL_GLOBAL_ALL); }
+HttpClient::HttpClient(int max_retries, int64_t initial_backoff_ms)
+    : max_retries_(max_retries), initial_backoff_ms_(initial_backoff_ms) {
+  curl_global_init(CURL_GLOBAL_ALL);
+}
 
 HttpClient::~HttpClient() { curl_global_cleanup(); }
 
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-  static_cast<std::string*>(userp)->append(static_cast<const char*>(contents), size * nmemb);
+  ((std::string*)userp)->append((char*)contents, size * nmemb);
   return size * nmemb;
 }
 
-size_t HttpClient::HeaderCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-  size_t total_size = size * nmemb;
-  std::string header(static_cast<char*>(contents), total_size);
-  auto* headers = static_cast<absl::flat_hash_map<std::string, std::string>*>(userp);
+size_t HttpClient::HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
+  size_t total_size = size * nitems;
+  std::string header(buffer, total_size);
+  auto* headers = static_cast<absl::flat_hash_map<std::string, std::string>*>(userdata);
 
   size_t colon_pos = header.find(':');
   if (colon_pos != std::string::npos) {
-    std::string key = std::string(absl::StripAsciiWhitespace(header.substr(0, colon_pos)));
-    std::string value = std::string(absl::StripAsciiWhitespace(header.substr(colon_pos + 1)));
-    (*headers)[absl::AsciiStrToLower(key)] = value;
+    std::string key = header.substr(0, colon_pos);
+    std::string value = header.substr(colon_pos + 1);
+
+    key.erase(0, key.find_first_not_of(" \t\r\n"));
+    key.erase(key.find_last_not_of(" \t\r\n") + 1);
+    value.erase(0, value.find_first_not_of(" \t\r\n"));
+    value.erase(value.find_last_not_of(" \t\r\n") + 1);
+
+    for (char& c : key) c = std::tolower(c);
+    (*headers)[key] = value;
   }
 
   return total_size;
 }
 
-int HttpClient::ProgressCallback(void* clientp, [[maybe_unused]] curl_off_t dltotal, [[maybe_unused]] curl_off_t dlnow,
-                                 [[maybe_unused]] curl_off_t ultotal, [[maybe_unused]] curl_off_t ulnow) {
-  HttpClient* client = static_cast<HttpClient*>(clientp);
-  if (client->abort_requested_) {
+int HttpClient::ProgressCallback(void* clientp, curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
+                                 curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) {
+  auto* client = static_cast<HttpClient*>(clientp);
+  if (client->IsAborted()) {
     return 1;
   }
-
-  if (IsEscPressed()) {
-    std::cout << "\n[Cancelled by user]" << std::endl;
-    client->Abort();
-    return 1;
-  }
-
   return 0;
 }
 
-int HttpClient::DebugCallback([[maybe_unused]] CURL* handle, curl_infotype type, char* data, size_t size,
-                              [[maybe_unused]] void* userptr) {
-  std::string text(data, size);
-  switch (type) {
-    case CURLINFO_TEXT:
-      LOG(INFO) << "== Info: " << absl::StripAsciiWhitespace(text);
-      break;
-    case CURLINFO_HEADER_OUT:
-      LOG(INFO) << "=> Send header: " << absl::StripAsciiWhitespace(text);
-      break;
-    case CURLINFO_DATA_OUT:
-      LOG(INFO) << "=> Send data (" << size << " bytes):\n" << text;
-      break;
-    case CURLINFO_SSL_DATA_OUT:
-      VLOG(2) << "=> Send SSL data (" << size << " bytes)";
-      break;
-    case CURLINFO_HEADER_IN:
-      LOG(INFO) << "<= Recv header: " << absl::StripAsciiWhitespace(text);
-      break;
-    case CURLINFO_DATA_IN:
-      LOG(INFO) << "<= Recv data (" << size << " bytes):\n" << text;
-      break;
-    case CURLINFO_SSL_DATA_IN:
-      VLOG(2) << "<= Recv SSL data (" << size << " bytes)";
-      break;
-    default:
-      break;
-  }
-  return 0;
+absl::StatusOr<std::string> HttpClient::Get(const std::string& url,
+                                            const std::vector<std::string>& headers) {
+  return ExecuteWithRetry(url, "GET", "", headers);
 }
 
 absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::string& body,
@@ -111,250 +70,184 @@ absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::
   return ExecuteWithRetry(url, "POST", body, headers);
 }
 
-absl::StatusOr<std::string> HttpClient::Get(const std::string& url, const std::vector<std::string>& headers) {
-  return ExecuteWithRetry(url, "GET", "", headers);
-}
-
 absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url, const std::string& method,
                                                          const std::string& body,
                                                          const std::vector<std::string>& headers) {
-  ResetAbort();
-  ScopedRawMode raw;
-  LOG(INFO) << "Executing HTTP " << method << " to " << url;
-
-  int max_retries = 6;
   int retry_count = 0;
-  int64_t backoff_ms = 5000;
+  int64_t backoff_ms = initial_backoff_ms_;
 
-  std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
-  if (!curl) {
-    return absl::InternalError("Failed to initialize CURL");
-  }
+  while (retry_count <= max_retries_) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+      return absl::InternalError("Failed to initialize CURL");
+    }
 
-  struct curl_slist* raw_chunk = nullptr;
-  for (const auto& header : headers) {
-    raw_chunk = curl_slist_append(raw_chunk, header.c_str());
-    VLOG(1) << "Header: " << header;
-  }
-  VLOG(2) << "Request Body: " << body;
-  std::unique_ptr<struct curl_slist, SlistDeleter> chunk(raw_chunk);
-
-  bool debug_http = std::getenv("SLOP_DEBUG_HTTP") != nullptr;
-
-  while (true) {
-    std::string response_string;
+    std::string response_body;
     absl::flat_hash_map<std::string, std::string> response_headers;
+    struct curl_slist* chunk = nullptr;
 
-    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    for (const auto& header : headers) {
+      chunk = curl_slist_append(chunk, header.c_str());
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_headers);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, ProgressCallback);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+
     if (method == "POST") {
-      curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, body.c_str());
-    } else {
-      curl_easy_setopt(curl.get(), CURLOPT_HTTPGET, 1L);
-    }
-    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, chunk.get());
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, HttpClient::WriteCallback);
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response_string);
-    curl_easy_setopt(curl.get(), CURLOPT_HEADERFUNCTION, HttpClient::HeaderCallback);
-    curl_easy_setopt(curl.get(), CURLOPT_HEADERDATA, &response_headers);
-    curl_easy_setopt(curl.get(), CURLOPT_XFERINFOFUNCTION, HttpClient::ProgressCallback);
-    curl_easy_setopt(curl.get(), CURLOPT_XFERINFODATA, this);
-    curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, 60L);
-
-    if (debug_http) {
-      curl_easy_setopt(curl.get(), CURLOPT_VERBOSE, 1L);
-      curl_easy_setopt(curl.get(), CURLOPT_DEBUGFUNCTION, HttpClient::DebugCallback);
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     }
 
-    CURLcode res = curl_easy_perform(curl.get());
+    CURLcode res = curl_easy_perform(curl);
+    long response_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-    long response_code = 0;  // NOLINT(runtime/int)
-    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &response_code);
+    curl_slist_free_all(chunk);
+    curl_easy_cleanup(curl);
 
-    if (res != CURLE_OK) {
-      if (this->abort_requested_) {
-        LOG(INFO) << "Request cancelled by user";
-        return absl::CancelledError("Request cancelled by user");
+    if (res == CURLE_OK) {
+      if (response_code >= 200 && response_code < 300) {
+        return response_body;
       }
 
-      LOG(WARNING) << "CURL error: " << curl_easy_strerror(res) << " (res=" << res << ")";
-
-      // Do not retry on timeouts more than twice; let the caller handle it.
-      if (res == CURLE_OPERATION_TIMEDOUT & retry_count > 2) {
-        return absl::DeadlineExceededError("CURL error: Timeout was reached (res=28)");
-      }
-      if (retry_count < max_retries) {
-        LOG(INFO) << "Retrying in " << backoff_ms << "ms... (Attempt " << retry_count + 1 << "/" << max_retries << ")";
-        std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
-        retry_count++;
-        backoff_ms *= 2;
-        continue;
-      }
-      LOG(ERROR) << "Maximum retries reached for CURL error: " << curl_easy_strerror(res);
-      return absl::InternalError("CURL error: " + std::string(curl_easy_strerror(res)));
-    }
-
-    LOG(INFO) << "HTTP Status: " << response_code;
-    VLOG(2) << "Response Body: " << response_string;
-
-    if (response_code >= 200 && response_code < 300) {
-      return response_string;
-    }
-
-    LOG(WARNING) << "HTTP error " << response_code << ": " << response_string;
-
-    if (IsTerminalError(response_code, response_string)) {
-      LOG(ERROR) << "Terminal error detected (e.g. daily quota reached). Stopping retries.";
-      return absl::ResourceExhaustedError("Terminal HTTP error " + std::to_string(response_code) + ": " + response_string);
-    }
-
-    if (response_code >= 500 || response_code == 429) {
-      int64_t retry_after_ms = ParseRetryAfter(response_headers);
-      int64_t x_reset_ms = (response_code == 429) ? ParseXRateLimitReset(response_headers) : -1;
-      int64_t google_retry_ms = ParseGoogleRetryDelay(response_string);
-
-      int64_t extra_wait = std::max({retry_after_ms, x_reset_ms, google_retry_ms});
-
-      if (retry_count < max_retries) {
-        static absl::BitGen bitgen;
-        double jitter = absl::Uniform(bitgen, 0.8, 1.2);
-        int64_t wait_ms = static_cast<int64_t>(backoff_ms * jitter);
-        if (extra_wait > 0) {
-          LOG(INFO) << "Server suggested backoff for " << response_code << ": " << extra_wait << "ms";
-          wait_ms = std::max(wait_ms, extra_wait);
-        }
-
-        LOG(INFO) << "Retrying " << response_code << " in " << wait_ms << "ms... (Attempt " << retry_count + 1 << "/"
-                  << max_retries << ")";
-        std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
-        retry_count++;
-        backoff_ms *= 2;
-        continue;
-      }
-      if (extra_wait > 0) {
-        LOG(ERROR) << "Maximum retries reached for " << response_code << ". Server still suggesting backoff of "
-                   << extra_wait << "ms";
+      if (IsTerminalError(response_code, response_body)) {
+        return absl::UnavailableError(
+            absl::StrCat("Terminal HTTP error: ", response_code, " Body: ", response_body));
       }
     }
 
-    return absl::Status(static_cast<absl::StatusCode>(response_code),
-                        "HTTP error " + std::to_string(response_code) + ": " + response_string);
+    if (retry_count >= max_retries_ || IsAborted()) {
+      return absl::UnavailableError(
+          absl::StrCat("HTTP request failed after ", retry_count, " retries. Code: ", response_code));
+    }
+
+    int64_t header_delay = ParseRetryAfter(response_headers);
+    if (header_delay == -1) {
+      header_delay = ParseXRateLimitReset(response_headers);
+    }
+    if (header_delay == -1) {
+      header_delay = ParseGoogleRetryDelay(response_body);
+    }
+
+    int64_t wait_ms = (header_delay > 0) ? header_delay : backoff_ms;
+
+    std::cout << "Request failed (code " << response_code << "), retrying in " << wait_ms
+              << "ms... (attempt " << (retry_count + 1) << "/" << max_retries_ << ")" << std::endl;
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+
+    if (header_delay <= 0) {
+      backoff_ms *= 2;
+    }
+    retry_count++;
   }
+
+  return absl::UnavailableError("HTTP request failed");
+}
+
+bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {
+  if (response_code == 429 || response_code == 403) {
+    if (response_body.find("QUOTA_EXHAUSTED") != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
 }
 
 int64_t HttpClient::ParseRetryAfter(const absl::flat_hash_map<std::string, std::string>& headers) {
   auto it = headers.find("retry-after");
   if (it == headers.end()) return -1;
+  const std::string& val = it->second;
+  if (val.empty()) return -1;
 
-  const std::string& value = it->second;
-
-  // Try parsing as seconds
-  int64_t seconds = 0;
-  if (absl::SimpleAtoi(value, &seconds)) {
-    VLOG(1) << "Parsed Retry-After as seconds: " << seconds;
+  char* end;
+  long long seconds = std::strtoll(val.c_str(), &end, 10);
+  if (end == val.c_str() + val.size()) {
     return seconds * 1000;
   }
 
-  // Try parsing as HTTP-Date
-  absl::Time retry_time;
+  absl::Time time;
   std::string err;
-  // Standard HTTP date formats (RFC 7231)
-  // IMF-fixdate: Fri, 31 Dec 1999 23:59:59 GMT
-  if (absl::ParseTime("%a, %d %b %Y %H:%M:%S GMT", value, &retry_time, &err)) {
-    int64_t diff_ms = absl::ToInt64Milliseconds(retry_time - absl::Now());
-    VLOG(1) << "Parsed Retry-After as date: " << value << " (" << diff_ms << "ms from now)";
-    return std::max<int64_t>(0, diff_ms);
+  if (absl::ParseTime("%a, %d %b %Y %H:%M:%S GMT", val, absl::UTCTimeZone(), &time, &err)) {
+    auto now = absl::Now();
+    if (time > now) {
+      return absl::ToInt64Milliseconds(time - now);
+    }
   }
-
-  LOG(WARNING) << "Malformed Retry-After header: " << value;
   return -1;
 }
 
 int64_t HttpClient::ParseXRateLimitReset(const absl::flat_hash_map<std::string, std::string>& headers) {
   auto it = headers.find("x-ratelimit-reset");
   if (it == headers.end()) return -1;
-
-  const std::string& value = it->second;
-  double reset_val = 0;
-  if (!absl::SimpleAtod(value, &reset_val)) {
-    LOG(WARNING) << "Malformed x-ratelimit-reset header: " << value;
-    return -1;
+  char* end;
+  double reset_val = std::strtod(it->second.c_str(), &end);
+  if (end != it->second.c_str()) {
+    if (reset_val > 1000000000) {
+      auto now = absl::ToUnixSeconds(absl::Now());
+      return std::max<int64_t>(0, (static_cast<int64_t>(reset_val) - now) * 1000);
+    }
+    return static_cast<int64_t>(reset_val * 1000);
   }
-
-  // If it's a large value, it's likely a Unix timestamp
-  if (reset_val > 1000000000) {
-    int64_t now_ts = absl::ToUnixSeconds(absl::Now());
-    int64_t diff = static_cast<int64_t>(reset_val) - now_ts;
-    int64_t wait_ms = std::max<int64_t>(0, diff * 1000);
-    VLOG(1) << "Parsed x-ratelimit-reset as timestamp: " << reset_val << " (" << wait_ms << "ms wait)";
-    return wait_ms;
-  }
-
-  // Otherwise, treat as relative seconds
-  return static_cast<int64_t>(reset_val * 1000);
+  return -1;
 }
 
-int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
-  auto j_opt = json_parse(response_body);
-  if (!j_opt) return -1;
-  auto& j = *j_opt;
-  if (j.is_discarded() || !j.is_object()) return -1;
-
-  int64_t max_delay_ms = -1;
-
-  auto update_max_delay = [&](const std::string& delay_str) {
-    absl::Duration d;
-    if (absl::ParseDuration(delay_str, &d)) {
-      max_delay_ms = std::max(max_delay_ms, absl::ToInt64Milliseconds(d));
-    }
-  };
-
-  if (const auto* error = json_at(j, "error"); error && error->is_object()) {
-    // 1. Parse from message
-    if (auto msg = json_get<std::string>(*error, "message")) {
-      constexpr absl::string_view kPrefix = "Your quota will reset after ";
-      size_t pos = msg->find(kPrefix);
-      if (pos != std::string::npos) {
-        absl::string_view delay_part = static_cast<absl::string_view>(*msg).substr(pos + kPrefix.size());
-        delay_part = absl::StripSuffix(delay_part, ".");
-        update_max_delay(std::string(delay_part));
-      }
-    }
-
-    // 2. Parse from details
-    if (auto details = json_get<nlohmann::json::array_t>(*error, "details")) {
-      for (const auto& detail : *details) {
-        auto type = json_get<std::string>(detail, "@type");
-        if (!type) continue;
-
-        if (*type == "type.googleapis.com/google.rpc.RetryInfo") {
-          if (auto retry_delay = json_get<std::string>(detail, "retryDelay")) {
-            update_max_delay(*retry_delay);
-          }
-        } else if (*type == "type.googleapis.com/google.rpc.ErrorInfo") {
-          if (auto metadata = json_get<nlohmann::json::object_t>(detail, "metadata")) {
-            if (auto quota_reset = json_get<std::string>(*metadata, "quotaResetDelay")) {
-              update_max_delay(*quota_reset);
-            }
+int64_t HttpClient::ParseGoogleRetryDelay(const std::string& body) {
+  auto j = nlohmann::json::parse(body, nullptr, false);
+  if (j.is_discarded() || !j.contains("error") || !j["error"].is_object()) return -1;
+  auto error = j["error"];
+  
+  if (error.contains("details") && error["details"].is_array()) {
+    for (const auto& detail : error["details"]) {
+      if (!detail.is_object() || !detail.contains("@type")) continue;
+      
+      if (detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" &&
+          detail.contains("retryDelay")) {
+        std::string delay_str = detail["retryDelay"];
+        if (!delay_str.empty() && delay_str.back() == 's') {
+          char* end;
+          double d = std::strtod(delay_str.substr(0, delay_str.size() - 1).c_str(), &end);
+          return static_cast<int64_t>(d * 1000);
+        }
+      } else if (detail["@type"] == "type.googleapis.com/google.rpc.ErrorInfo" &&
+                 detail.contains("metadata")) {
+        auto metadata = detail["metadata"];
+        if (metadata.is_object() && metadata.contains("quotaResetDelay")) {
+          std::string delay_str = metadata["quotaResetDelay"];
+          if (!delay_str.empty() && delay_str.back() == 's') {
+            char* end;
+            double d = std::strtod(delay_str.substr(0, delay_str.size() - 1).c_str(), &end);
+            return static_cast<int64_t>(d * 1000);
           }
         }
       }
     }
   }
-
-
-  if (max_delay_ms > 0) {
-    VLOG(1) << "Parsed Google retry delay: " << max_delay_ms << "ms";
+  
+  if (error.contains("message") && error["message"].is_string()) {
+    std::string message = error["message"];
+    size_t after_pos = message.find("after ");
+    if (after_pos != std::string::npos) {
+      size_t s_pos = message.find("s.", after_pos);
+      if (s_pos != std::string::npos) {
+        std::string delay_str = message.substr(after_pos + 6, s_pos - (after_pos + 6));
+        char* end;
+        long long val = std::strtoll(delay_str.c_str(), &end, 10);
+        if (end != delay_str.c_str()) {
+          return val * 1000;
+        }
+      }
+    }
   }
-
-  return max_delay_ms;
-}
-
-bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {
-  if (response_code != 429 && response_code != 403) return false;
-
-  // Terminal errors specifically relate to exhausted quotas that won't resolve with simple backoff.
-  return absl::StrContains(response_body, "QUOTA_EXHAUSTED");
+  
+  return -1;
 }
 
 }  // namespace slop

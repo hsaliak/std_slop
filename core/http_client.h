@@ -8,45 +8,48 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
-
 #include <curl/curl.h>
+
 namespace slop {
 
 class HttpClient {
  public:
   HttpClient();
+  HttpClient(int max_retries, int64_t initial_backoff_ms);
   virtual ~HttpClient();
 
   // Non-copyable
   HttpClient(const HttpClient&) = delete;
   HttpClient& operator=(const HttpClient&) = delete;
 
-  // Sends a POST request to the given URL with the provided JSON body and headers.
   virtual absl::StatusOr<std::string> Post(const std::string& url, const std::string& body,
                                            const std::vector<std::string>& headers);
 
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
+  static bool IsTerminalError(long response_code, const std::string& response_body);
 
-  void Abort() { abort_requested_ = true; }
-  void ResetAbort() { abort_requested_ = false; }
+  void Abort() { abort_requested_.store(true); }
+  bool IsAborted() const { return abort_requested_.load(); }
 
-  // Public for testing
+  // Callbacks and internal parsing (public for testing)
+  static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
+  static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata);
+  static int ProgressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal,
+                              curl_off_t ulnow);
+
   int64_t ParseRetryAfter(const absl::flat_hash_map<std::string, std::string>& headers);
   int64_t ParseXRateLimitReset(const absl::flat_hash_map<std::string, std::string>& headers);
-  int64_t ParseGoogleRetryDelay(const std::string& response_body);
-  static size_t HeaderCallback(void* contents, size_t size, size_t nmemb, void* userp);
-  static int DebugCallback(CURL* handle, curl_infotype type, char* data, size_t size, void* userptr);
+  int64_t ParseGoogleRetryDelay(const std::string& body);
 
  private:
   absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,
-                                               const std::string& body, const std::vector<std::string>& headers);
-
-  static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
-  static int ProgressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal,
-                              curl_off_t ulnow);
-  static bool IsTerminalError(long response_code, const std::string& response_body);
+                                               const std::string& body,
+                                               const std::vector<std::string>& headers);
 
   std::atomic<bool> abort_requested_{false};
+
+  int max_retries_;
+  int64_t initial_backoff_ms_;
 };
 
 }  // namespace slop
