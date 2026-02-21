@@ -143,6 +143,7 @@ cc_library(
         "@curl//:curl",
         "@nlohmann_json//:json",
         "//lua-bridge:interpreter",
+        "@abseil-cpp//absl/random",
     ],
 )
 
