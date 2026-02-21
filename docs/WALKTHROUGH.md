@@ -215,19 +215,22 @@ In this example, the agent needs to find all instances of a deprecated function 
 run_lua({
   script = [[
     -- 1. Find occurrences
-    local grep_res = tools.execute_bash({command = "grep -r 'old_func' core/"})
-    print("Found: " .. grep_res)
+    local grep_res = tools.grep({pattern = 'old_func', path = 'core/'})
+    for line in grep_res:lines() do
+        print(line)
+    end
 
-    -- 2. Apply replacements (parallel)
-    local j1 = tools.execute_bash_async({command = "sed -i 's/old_func/new_func/g' core/file1.cpp"})
-    local j2 = tools.execute_bash_async({command = "sed -i 's/old_func/new_func/g' core/file2.cpp"})
-    j1:wait(); j2:wait()
+    -- 2. Apply replacements (sequential example using tools.file)
+    local files = {"core/file1.cpp", "core/file2.cpp"}
+    for _, path in ipairs(files) do
+        tools.file(path):patch({find = "old_func", replace = "new_func"})
+    end
 
-    -- 3. Verify build
-    local build_res = tools.execute_bash({command = "bazel build //..."})
+    -- 3. Verify build (using dispatch_async for background execution)
+    local job = tools.dispatch_async("execute_bash", {command = "bazel build //..."})
+    local build_res = job:wait()
     if build_res:find("FAILED") then
-        print("Build failed! Rolling back.")
-        tools.execute_bash({command = "git checkout core/"})
+        print("Build failed!")
     else
         print("Build successful.")
     end

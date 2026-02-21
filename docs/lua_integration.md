@@ -49,20 +49,18 @@ These variables bridge the gap between individual turns and provide persistent c
 ### The `tools` Table
 All system tools are available under the `tools` namespace. For example:
 - `tools.read_file({path = "...", start_line = 1, end_line = 10, line_numbers = true})`: Reads a file with optional line range and `line_numbers`.
-- `tools.grep_tool({pattern = "..."})`: **Preferred** for cross-file searching.
-- `tools.execute_bash({command = "..."})`: Executes arbitrary bash commands.
+- `tools.grep({pattern = "..."})`: **Preferred** for cross-file searching.
+- `tools.file(path)`: Provides an expressive API for file operations.
 - `tools.query_db({sql = "..."})`: Queries the project database.
 
 ### Asynchronous Execution
-Most tools have an `_async` variant that returns a **job handle**.
+Most tools have an `_async` variant or can be used with `dispatch_async`.
 ```lua
-local job1 = tools.execute_bash_async({command = "bazel test //core:test1"})
-local job2 = tools.execute_bash_async({command = "bazel test //core:test2"})
+local job1 = tools.dispatch_async("execute_bash", {command = "bazel test //core:test1"})
+local job2 = tools.dispatch_async("execute_bash", {command = "bazel test //core:test2"})
 
 -- Perform other logic while tests run...
-
-local res1 = job1:wait()
-local res2 = job2:wait()
+local results = tools.wait_all(job1, job2)
 ```
 
 ---
