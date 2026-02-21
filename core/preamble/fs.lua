@@ -194,6 +194,7 @@ function tools.grep(args)
     if args.files_with_matches then cmd = cmd .. " -l" end
     if args.count then cmd = cmd .. " -c" end
     if args.show_function then cmd = cmd .. " -p" end
+    if args.function_context then cmd = cmd .. " -W" end
     
     if args.branch then cmd = cmd .. " " .. shell_escape(args.branch) end
     for _, p in ipairs(patterns) do cmd = cmd .. " -e " .. shell_escape(p) end

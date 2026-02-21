@@ -81,11 +81,11 @@ TEST_F(ToolTypingTest, GitGrepFlexiblePath) {
 
   auto res_git = executor_->Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
   if (res_git.ok() && res_git->find("true") != std::string::npos) {
-    auto res1 = executor_->Execute("git_grep_tool", args_str);
+    auto res1 = executor_->Execute("grep_tool", args_str);
     EXPECT_TRUE(res1.ok());
     EXPECT_TRUE(res1->find("Error: INVALID_ARGUMENT") == std::string::npos);
 
-    auto res2 = executor_->Execute("git_grep_tool", args_arr);
+    auto res2 = executor_->Execute("grep_tool", args_arr);
     EXPECT_TRUE(res2.ok());
     EXPECT_TRUE(res2->find("Error: INVALID_ARGUMENT") == std::string::npos);
   }

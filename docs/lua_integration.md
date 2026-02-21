@@ -49,7 +49,7 @@ These variables bridge the gap between individual turns and provide persistent c
 ### The `tools` Table
 All system tools are available under the `tools` namespace. For example:
 - `tools.read_file({path = "...", start_line = 1, end_line = 10, line_numbers = true})`: Reads a file with optional line range and `line_numbers`.
-- `tools.git_grep_tool({pattern = "..."})`: **Preferred** for cross-file searching.
+- `tools.grep_tool({pattern = "..."})`: **Preferred** for cross-file searching.
 - `tools.execute_bash({command = "..."})`: Executes arbitrary bash commands.
 - `tools.query_db({sql = "..."})`: Queries the project database.
 

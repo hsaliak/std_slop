@@ -39,8 +39,7 @@ function tools.help()
     - Returns a `Result` object.
 - query_db({sql, params}): Executes a SQLite query (returns Result).
 - describe_db({}): Schema of local database.
-- grep_tool({pattern, path}): Alias for tools.grep. (Deprecated)
-- git_grep_tool({pattern, path}): Alias for tools.grep. (Deprecated)
+- grep_tool({pattern, paths, ...}): Advanced search (uses git grep if available).
 
 #### Patch Workflow (Mail Model) ####
 - git_branch_staging({name}): Creates a slop/staging/ branch.
@@ -69,8 +68,8 @@ tools.files("*.lua"):foreach(function(f) f:patch({find="TODO", replace="DONE"}) 
 
 
 ### Codebase Navigation Hierarchy ###
-- **Explore First:** You MUST use `git_grep_tool` as your primary method for locating function definitions, variables, classes, or keywords. This keeps the context window lean and isolated.
-- **Extract Second:** Use `read_file` **ONLY** after you have used `git_grep_tool` to confirm the exact file path, and ONLY if you need the broader context of the surrounding code to complete the task.
+- **Explore First:** You MUST use `grep_tool` as your primary method for locating function definitions, variables, classes, or keywords. This keeps the context window lean and isolated.
+- **Extract Second:** Use `read_file` **ONLY** after you have used `grep_tool` to confirm the exact file path, and ONLY if you need the broader context of the surrounding code to complete the task.
 - **Never Guess:** Do not use `read_file` to "guess" where a symbol might be located.
 ]]
 end
