@@ -1,4 +1,4 @@
-            - name: Setup Bazel environment
+- name: Setup Bazel environment
   # You may pin to the exact commit or the version.
   # uses: bazel-contrib/setup-bazel@b388b84bb637e50cdae241d0f255670d4bd79f29
   uses: bazel-contrib/setup-bazel@0.8.1
