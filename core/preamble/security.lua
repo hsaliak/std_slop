@@ -22,8 +22,6 @@ function tools.help()
 - describe_db({}): Schema of local database.
 
 #### Shell & Systems ####
-- execute_bash({command, input}): Executes a command and returns a Result object (stdout/stderr).
-- execute_bash_async({command, input}): Returns a Job object for non-blocking execution.
 - dispatch_async(tool_name, args): Runs any tool asynchronously. Returns a Job object.
 - tools.concurrent({task1, task2, ...}): Executes tools in parallel.
 - tools.wait_all(job1, job2, ...): Waits for multiple jobs.
