@@ -259,6 +259,22 @@ Similar to `/review`, this allows you to provide line-by-line feedback on the **
 - **Providing Feedback**: Add your comments on new lines starting with `R:`.
 - **Processing**: If comments are found, they are sent back to the LLM to address in its next turn. If no `R:` comments are added, the command is ignored.
 
+## Rate Limit Handling
+
+std::slop implements intelligent retry logic to gracefully handle API rate limits (HTTP 429):
+
+| Feature | Behavior |
+|---------|----------|
+| **Backoff Strategy** | Exponential backoff with jitter |
+| **Default Delay** | 5 seconds |
+| **Jitter Range** | ±10% random variance (±450ms at default) |
+| **Max Retries** | 6 attempts |
+| **Terminal Detection** | Skips retries for daily quota errors ("QUOTA_EXHAUSTED") |
+
+### Manual Control
+- `/throttle N` - Set delay between automatic requests in seconds (default: 1)
+- `/throttle 0` - Disable automatic delays (not recommended)
+
 ## Troubleshooting & Debugging
 
 ### HTTP Logging
