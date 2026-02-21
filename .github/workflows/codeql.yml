@@ -46,7 +46,8 @@ jobs:
         - language: actions
           build-mode: none
         - language: c-cpp
-          build-mode: autobuild
+          build-mode: manual
+          
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
@@ -88,6 +89,21 @@ jobs:
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
+        # Clear cache and stop background server processes
+        bazel clean --expunge
+        bazel shutdown
+
+        # Force a local, uncached build so CodeQL can trace the C++ compiler
+        bazel build \
+          --spawn_strategy=local \
+          --nouse_action_cache \
+          --noremote_accept_cached \
+          --noremote_upload_local_results \
+          --disk_cache= \
+          //:std_slop 
+        
+        # Clean up Bazel server processes
+        bazel shutdown
         echo 'If you are using a "manual" build mode for one or more of the' \
           'languages you are analyzing, replace this with the commands to build' \
           'your code, for example:'
