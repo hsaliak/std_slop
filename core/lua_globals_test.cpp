@@ -180,6 +180,10 @@ TEST(ToolExecutorTest, HelpUpdateCheck) {
   EXPECT_TRUE(absl::StrContains(*res, "llm_query({query, context}): (string) Runs a sub-task LLM query."))
       << "Help content missing expected llm_query update";
 
+  EXPECT_FALSE(absl::StrContains(*res, "execute_bash({command, input})"))
+      << "Help content should not contain deprecated execute_bash";
+  EXPECT_FALSE(absl::StrContains(*res, "execute_bash_async({command, input})"))
+      << "Help content should not contain deprecated execute_bash_async";
 }
 
 }  // namespace slop
