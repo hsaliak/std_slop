@@ -44,6 +44,7 @@ class HttpClient {
   static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
   static int ProgressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal,
                               curl_off_t ulnow);
+  static bool IsTerminalError(long response_code, const std::string& response_body);
 
   std::atomic<bool> abort_requested_{false};
 };
