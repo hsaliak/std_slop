@@ -36,9 +36,13 @@ void ToolDispatcher::PruneThreads() {
   }
 }
 
-std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation) {
+std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation,
+                                               int64_t delay_ms) {
   auto job = std::make_shared<ToolJob>(call.id, call.name);
-  auto task = [job, cancellation, this, call]() {
+  auto task = [job, cancellation, this, call, delay_ms]() {
+    if (delay_ms > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    }
     // The cancellation request is shared between the caller and this thread.
     // If the caller (or any other holder) triggers cancellation, this job will
     // see it either here or inside the executor_func_.
@@ -56,13 +60,14 @@ std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_pt
 }
 
 std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(const std::vector<Call>& calls,
-                                                             std::shared_ptr<CancellationRequest> cancellation) {
+                                                             std::shared_ptr<CancellationRequest> cancellation,
+                                                             int throttle_seconds) {
   if (calls.empty()) return {};
 
   std::vector<std::shared_ptr<ToolJob>> jobs;
   jobs.reserve(calls.size());
-  for (const auto& call : calls) {
-    jobs.push_back(Submit(call, cancellation));
+  for (size_t i = 0; i < calls.size(); ++i) {
+    jobs.push_back(Submit(calls[i], cancellation, (int64_t)i * throttle_seconds * 1000));
   }
 
   std::vector<Result> results;
