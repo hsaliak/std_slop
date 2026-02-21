@@ -171,15 +171,15 @@ end
 function tools.grep(args)
   local patterns = args.patterns or {}
   if args.pattern then table.insert(patterns, args.pattern) end
-  if args.query then table.insert(patterns, args.query) end -- Alias for search_code
   
   if #patterns == 0 then
-    error("grep requires at least one pattern (use 'pattern' or 'query').")
+    error("grep requires at least one pattern (use 'pattern').")
   end
 
   local path = args.path or "."
   local paths = type(path) == "table" and path or {path}
 
+  local res = ""
   -- Try git grep first
   local git_check_ok, git_check_res = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree"})
   local is_git = git_check_ok and git_check_res:find("true")
@@ -200,47 +200,56 @@ function tools.grep(args)
     cmd = cmd .. " --"
     for _, p in ipairs(paths) do cmd = cmd .. " " .. shell_escape(p) end
     
-    local success, res = call_tool(tools.execute_bash, {command = cmd})
-    if success and res and res ~= "" then
-      return res
-    elseif not success and not res:find("status 1") then
-      error(res)
-    end
-    -- If git grep returned nothing, fall through to standard grep (might be untracked files)
-  end
-  
-  -- Fallback to standard grep
-  local cmd = "grep -rnE"
-  if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
-  if args.case_insensitive then cmd = cmd .. " -i" end
-  
-  for _, p in ipairs(patterns) do
-    -- standard grep doesn't support multiple patterns with -e as easily in all versions, 
-    -- but -E (extended regex) allows pattern1|pattern2
-    -- for simplicity, we'll just use the first pattern if multiple are provided, 
-    -- or join them with |
-    cmd = cmd .. " -e " .. shell_escape(p)
-  end
-  
-  for _, p in ipairs(paths) do
-    cmd = cmd .. " " .. shell_escape(p)
-  end
-  
-  local success, res = call_tool(tools.execute_bash, {command = cmd})
-  if not success then
-    if res:find("status 1") then
-      res = ""
-    else
-      error(res)
+    local success, git_res = call_tool(tools.execute_bash, {command = cmd})
+    if success and git_res and git_res ~= "" then
+      res = git_res
+    elseif not success and not git_res:find("status 1") then
+      error(git_res)
     end
   end
   
-  return res
+  -- Fallback to standard grep if git grep returned nothing
+  if res == "" then
+    local cmd = "grep -rnE"
+    if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
+    if args.case_insensitive then cmd = cmd .. " -i" end
+    
+    for _, p in ipairs(patterns) do
+      cmd = cmd .. " -e " .. shell_escape(p)
+    end
+    
+    for _, p in ipairs(paths) do
+      cmd = cmd .. " " .. shell_escape(p)
+    end
+    
+    local success, grep_res = call_tool(tools.execute_bash, {command = cmd})
+    if success then
+      res = grep_res
+    elseif not grep_res:find("status 1") then
+      error(grep_res)
+    end
+  end
+  
+  -- Apply truncation
+  local limit = tonumber(args.limit) or 500
+  local lines = {}
+  local count = 0
+  for line in res:gmatch("[^\r\n]+") do
+    count = count + 1
+    if count <= limit then
+      table.insert(lines, line)
+    end
+  end
+  
+  local output = table.concat(lines, "\n")
+  if count > limit then
+    output = output .. "\n[TRUNCATED: Use a more specific pattern or path to narrow results]"
+  end
+  
+  return output
 end
 
-function tools.git_grep_tool(args) return tools.grep(args) end
 function tools.grep_tool(args) return tools.grep(args) end
-function tools.search_code(args) return tools.grep(args) end
 
 
 -- Mail Model Support (Git Tools)

@@ -39,7 +39,6 @@ function tools.help()
     - Returns a `Result` object.
 - query_db({sql, params}): Executes a SQLite query (returns Result).
 - describe_db({}): Schema of local database.
-- search_code({query}): Alias for tools.grep. (Deprecated)
 - grep_tool({pattern, path}): Alias for tools.grep. (Deprecated)
 - git_grep_tool({pattern, path}): Alias for tools.grep. (Deprecated)
 
