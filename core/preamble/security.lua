@@ -9,24 +9,21 @@ function tools.help()
 
 #### Core Tools ####
 - llm_query({query, context}): (string) Runs a sub-task LLM query. 
-    Accepts string or table: { query = "instruction", context = "data" | {"data1", "data2"} }
 - llm_query_async({query, context}): (job) Asynchronous version of llm_query.
 - help(): (string) Shows this help message.
 
-#### File System ####
-- file(path): Returns a File object (read, write, patch).
-- files(glob): Returns a Collection of File objects matching the pattern.
+#### File System & Expressive API ####
+- tools.file(path): Returns a File object with read(), write(content), and patch({find, replace}).
+- tools.files(glob): Returns a Collection of File objects; use :foreach(fn).
 - list_directory({path=".", depth=1, git_only=false}): Lists directory contents.
-- tools.grep({pattern, patterns, query, path, context, case_insensitive, word_regexp, ...}): Unified search.
-    - Uses `git grep` when possible (efficient, respects .gitignore).
-    - Falls back to `grep` for untracked files or outside of git.
-    - Returns a `Result` object.
+- tools.grep({pattern, patterns, query, path, context, case_insensitive, word_regexp, ...}): Unified search using git grep or standard grep. Returns a Result object.
+- Result Objects: Structured output from tools. Use :lines(), :json(), or :filter(pattern).
 - query_db({sql, params}): Executes a SQLite query (returns Result).
 - describe_db({}): Schema of local database.
 
-#### Shell & Execution ####
-- execute_bash({command, input}): Executes a bash command synchronously.
-- execute_bash_async({command, input}): Returns a Job object.
+#### Shell & Systems ####
+- execute_bash({command, input}): Executes a command and returns a Result object (stdout/stderr).
+- execute_bash_async({command, input}): Returns a Job object for non-blocking execution.
 - dispatch_async(tool_name, args): Runs any tool asynchronously. Returns a Job object.
 - tools.concurrent({task1, task2, ...}): Executes tools in parallel.
 - tools.wait_all(job1, job2, ...): Waits for multiple jobs.
@@ -39,27 +36,10 @@ function tools.help()
 - git_verify_series({command, base_branch}): Verifies the entire series passes tests.
 - git_finalize_series({target_branch}): Merges the series and cleans up.
 
-#### Expressive Layer (Fluent API) ####
-This layer simplifies complex operations and adds parallelism.
-- **`tools.file(path)`**: `read()`, `write(content)`, `patch({find, replace})`.
-- **`tools.files(glob)`**: `foreach(fn)`.
-- Result Objects (wrapped read_file, execute_bash, etc.):
-    - res:lines(): Returns table of lines.
-    - res:json(): Parses as JSON.
-
-EXAMPLES:
--- Parallel Search:
-local results = tools.concurrent({ {tool="grep", args={pattern="foo", path="a.lua"}}, "ls" })
-
--- Batch Edit:
-tools.files("*.lua"):foreach(function(f) f:patch({find="TODO", replace="DONE"}) end)
-
-
 ### Codebase Navigation Hierarchy ###
 - **Explore First:** You MUST use `grep_tool` as your primary method for locating function definitions, variables, classes, or keywords.
 - **Extract Second:** Use `tools.file(path):read()` **ONLY** after you have used `grep_tool` to confirm the exact file path.
-- **Never Guess:** Do not use `tools.file(path):read()` to "guess" where a symbol might be located.
-]]
+- **Never Guess:** Do not use `tools.file(path):read()` to "guess" where a symbol might be located.]]
 end
 
 -- Security Wrappers for Standard Library (Mail Mode Protection)

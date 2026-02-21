@@ -51,8 +51,8 @@ TEST(ToolExecutorTest, HelpToolCheck) {
   ASSERT_TRUE(res.ok()) << res.status().message();
 
   EXPECT_TRUE(absl::StrContains(*res, "Slop Orchestrator Help")) << "Result: " << *res;
-  EXPECT_TRUE(absl::StrContains(*res, "file(path)"));
-  EXPECT_TRUE(absl::StrContains(*res, "tools.grep({pattern, patterns, query, path, context, case_insensitive, word_regexp, ...})"));
+  EXPECT_TRUE(absl::StrContains(*res, "tools.file(path)"));
+  EXPECT_TRUE(absl::StrContains(*res, "tools.grep"));
 }
 
 TEST(ToolExecutorTest, ScratchpadAutoConversionCheck) {
@@ -179,9 +179,7 @@ TEST(ToolExecutorTest, HelpUpdateCheck) {
 
   EXPECT_TRUE(absl::StrContains(*res, "llm_query({query, context}): (string) Runs a sub-task LLM query."))
       << "Help content missing expected llm_query update";
-  EXPECT_TRUE(absl::StrContains(
-      *res, "Accepts string or table: { query = \"instruction\", context = \"data\" | {\"data1\", \"data2\"} }"))
-      << "Help content missing expected table format details";
+
 }
 
 }  // namespace slop
