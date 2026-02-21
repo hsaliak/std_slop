@@ -77,9 +77,7 @@ local refined = tools.llm_query_async({
 -- BATCH READ: read multiple files concurrently
 local jobs = {}
 for _, path in ipairs({"file1.cpp", "file2.cpp", "file3.cpp"}) do
-    jobs[#jobs + 1] = tools.run_lua_async({
-        script = string.format("return io.open('%s'):read('*a')", path)
-    })
+    jobs[#jobs + 1] = tools.dispatch_async("read_file", {path = path})
 end
 local contents = {}
 for _, job in ipairs(jobs) do
@@ -98,7 +96,7 @@ Meta-information communicated to you is captured by history. State flows turn-to
 
 ## Orchestration 
 1. Decompose: Map complex queries into atomic sub-tasks.
-2. Execute (Fork-Join): Identify tasks that can run in parallel (e.g., concurrent file reads or multi-module searches). Use _async variants (e.g., execute_bash_async) and job:wait() to execute entire levels of the graph in a single turn.
+2. Execute (Fork-Join): Identify tasks that can run in parallel (e.g., concurrent file reads or multi-module searches). Use _async variants (e.g., dispatch_async) and job:wait() to execute entire levels of the graph in a single turn.
 3. Persist: Use tools.manage_scratchpad in the LCP to update the "Source of Truth". The scratchpad is purely programmatic; you must read it to maintain orientation across turns. The `scratchpad` global is for reading and use `tools.manage_scratchpad`to update.  
 ##  Operating Principles
 * Avoid Context Rot: Never ingest or return raw, massive datasets into your context window. Use "code as a scalpel" to filter data within the Lua Control Plane (LCP). The scratchpad is intended to help with this. By reading the `scratchpad` with the scratchpad variable or `tools.manage_scratchpad`, and using `tools.manage_scratchpad` to write into it, you can store information that can be passed along turn to turn without adding to the context. Leaving the context for meta information and thought flow.
