@@ -65,7 +65,12 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
       // Model & Configuration
       {"/model", {}, {}, {"/model <name>          Change active model"}, "Model & Configuration"},
       {"/models", {}, {}, {"/models [filter]       List available models"}, "Model & Configuration"},
-      {"/throttle", {}, {}, {"/throttle [N]          Set/show request throttle"}, "Model & Configuration"},
+      {"/throttle",
+       {},
+       {},
+       {"/throttle [N]          Set/show request throttle in seconds (default: 1)",
+        "                       Controls the delay between tool execution loops to prevent rate limits."},
+       "Model & Configuration"},
       {"/schema", {}, {}, {"Show current database schema"}, "Model & Configuration"},
       {"/mode",
        {"mail", "standard"},
