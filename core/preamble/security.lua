@@ -1,6 +1,5 @@
 function tools.help()
-  return [[
-### Slop Orchestrator Help ###
+  return [[### Slop Orchestrator Help ###
 
 #### Globals ####
 - tools: Table containing all available tools.
@@ -15,31 +14,22 @@ function tools.help()
 - help(): (string) Shows this help message.
 
 #### File System ####
-- read_file({path, start_line, end_line}): Reads a file (returns Result) (optional range).
-- write_file({path, content}): Overwrites a file with new content.
+- file(path): Returns a File object (read, write, patch).
+- files(glob): Returns a Collection of File objects matching the pattern.
 - list_directory({path=".", depth=1, git_only=false}): Lists directory contents.
-- apply_patch({path, patches}): Multi-replacement in a file. patches = {{find="...", replace="..."}}.
+- tools.grep({pattern, patterns, query, path, context, case_insensitive, word_regexp, ...}): Unified search.
+    - Uses `git grep` when possible (efficient, respects .gitignore).
+    - Falls back to `grep` for untracked files or outside of git.
+    - Returns a `Result` object.
+- query_db({sql, params}): Executes a SQLite query (returns Result).
+- describe_db({}): Schema of local database.
 
 #### Shell & Execution ####
 - execute_bash({command, input}): Executes a bash command synchronously.
 - execute_bash_async({command, input}): Returns a Job object.
 - dispatch_async(tool_name, args): Runs any tool asynchronously. Returns a Job object.
-
-#### Knowledge Management ####
-- save_memo({content, tags}): Saves a project invariant or learned convention.
-- retrieve_memos({tags}): Searches for memos matching tags.
-- manage_scratchpad({action="read"|"update", key, value, content}): Persistent memory.
-- use_skill({name, action="activate"|"deactivate"}): Activates or deactivates specific system behaviors or prompt patches.
-
-#### Search ####
-- tools.grep({pattern, patterns, query, path, context, case_insensitive, word_regexp, ...}): Unified search.
-    - Uses `git grep` when possible (efficient, respects .gitignore).
-    - Falls back to `grep` for untracked files or outside of git.
-    - Supports multiple patterns and comprehensive flags.
-    - Returns a `Result` object.
-- query_db({sql, params}): Executes a SQLite query (returns Result).
-- describe_db({}): Schema of local database.
-- grep_tool({pattern, paths, ...}): Advanced search (uses git grep if available).
+- tools.concurrent({task1, task2, ...}): Executes tools in parallel.
+- tools.wait_all(job1, job2, ...): Waits for multiple jobs.
 
 #### Patch Workflow (Mail Model) ####
 - git_branch_staging({name}): Creates a slop/staging/ branch.
@@ -51,26 +41,24 @@ function tools.help()
 
 #### Expressive Layer (Fluent API) ####
 This layer simplifies complex operations and adds parallelism.
-- tools.file(path): Returns a File object with :read(), :patch(), :write().
-- tools.files(pattern): Returns a Collection of File objects with :foreach().
-- tools.concurrent({task1, task2, ...}): Runs tasks in parallel.
+- **`tools.file(path)`**: `read()`, `write(content)`, `patch({find, replace})`.
+- **`tools.files(glob)`**: `foreach(fn)`.
 - Result Objects (wrapped read_file, execute_bash, etc.):
     - res:lines(): Returns table of lines.
     - res:json(): Parses as JSON.
-- Auto-Memo Injection: Reading/Patching files automatically updates `scratchpad.relevant_memos`.
 
 EXAMPLES:
--- Parallel Read:
-local contents = tools.concurrent({ {tool="read_file", args={path="a.lua"}}, "ls" })
+-- Parallel Search:
+local results = tools.concurrent({ {tool="grep", args={pattern="foo", path="a.lua"}}, "ls" })
 
 -- Batch Edit:
 tools.files("*.lua"):foreach(function(f) f:patch({find="TODO", replace="DONE"}) end)
 
 
 ### Codebase Navigation Hierarchy ###
-- **Explore First:** You MUST use `grep_tool` as your primary method for locating function definitions, variables, classes, or keywords. This keeps the context window lean and isolated.
-- **Extract Second:** Use `read_file` **ONLY** after you have used `grep_tool` to confirm the exact file path, and ONLY if you need the broader context of the surrounding code to complete the task.
-- **Never Guess:** Do not use `read_file` to "guess" where a symbol might be located.
+- **Explore First:** You MUST use `grep_tool` as your primary method for locating function definitions, variables, classes, or keywords.
+- **Extract Second:** Use `tools.file(path):read()` **ONLY** after you have used `grep_tool` to confirm the exact file path.
+- **Never Guess:** Do not use `tools.file(path):read()` to "guess" where a symbol might be located.
 ]]
 end
 
@@ -156,6 +144,5 @@ io.open = function(path, mode)
   end
   return _native_io_open(path, mode)
 end
-
 
 manifest = get_tool_manifest()

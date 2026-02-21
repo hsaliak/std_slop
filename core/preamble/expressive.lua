@@ -3,6 +3,7 @@
 -- Utility: String Splitting
 local function split_lines(s)
   local lines = {}
+  if s == nil then return lines end
   for line in s:gmatch("([^\r\n]+)") do
     table.insert(lines, line)
   end
@@ -15,7 +16,16 @@ Result.__index = Result
 
 function Result:lines() return split_lines(self.raw) end
 function Result:json() return JSON.parse(self.raw) end
-function Result:__tostring() return self.raw end
+function Result:__tostring() return self.raw or "" end
+
+function Result:filter(pattern)
+  local lines = self:lines()
+  local out = {}
+  for _, line in ipairs(lines) do
+    if line:find(pattern) then table.insert(out, line) end
+  end
+  return setmetatable({ raw = table.concat(out, "\n") }, Result)
+end
 
 -- File Object Metatable
 local File = {}
@@ -34,6 +44,12 @@ end
 function File:patch(args)
   args = args or {}
   args.path = self.path
+  -- Support both {find, replace} and {patches}
+  if args.find and args.replace then
+    args.patches = {{find = args.find, replace = args.replace}}
+    args.find = nil
+    args.replace = nil
+  end
   return tools.apply_patch(args)
 end
 
@@ -117,4 +133,3 @@ for _, name in ipairs(wrapped_tools) do
     end
   end
 end
-
