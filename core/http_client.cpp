@@ -1,4 +1,5 @@
 #include "core/http_client.h"
+#include "absl/random/random.h"
 
 #include <fcntl.h>
 #include <termios.h>
@@ -123,7 +124,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
   int max_retries = 6;
   int retry_count = 0;
-  int64_t backoff_ms = 2000;
+  int64_t backoff_ms = 5000;
 
   std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
   if (!curl) {
@@ -210,7 +211,9 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       int64_t extra_wait = std::max({retry_after_ms, x_reset_ms, google_retry_ms});
 
       if (retry_count < max_retries) {
-        int64_t wait_ms = backoff_ms;
+        static absl::BitGen bitgen;
+        double jitter = absl::Uniform(bitgen, 0.8, 1.2);
+        int64_t wait_ms = static_cast<int64_t>(backoff_ms * jitter);
         if (extra_wait > 0) {
           LOG(INFO) << "Server suggested backoff for " << response_code << ": " << extra_wait << "ms";
           wait_ms = std::max(wait_ms, extra_wait);
