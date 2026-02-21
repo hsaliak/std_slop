@@ -1,24 +1,37 @@
-- name: Setup Bazel environment
-  # You may pin to the exact commit or the version.
-  # uses: bazel-contrib/setup-bazel@b388b84bb637e50cdae241d0f255670d4bd79f29
-  uses: bazel-contrib/setup-bazel@0.8.1
-  with:
-    # Caches Bazelisk downloads based on .bazelversion
-    bazelisk-cache: # optional, default is false
-    # The Bazelisk version to download and use if necessary
-    bazelisk-version: # optional, default is 
-    # Extra contents to write to user .bazelrc
-    bazelrc: .bazelrc # optional, default is 
-    # Version of all caches
-    cache-version: # optional, default is 1
-    # Cache actions outputs based on BUILD
-    disk-cache: # optional, default is false
-    # Cache external 10MB+ repositories based on MODULE.bazel/WORKSPACE
-    external-cache: # optional, default is 
-    # Google Cloud account key for remote cache
-    google-credentials: # optional, default is 
-    # Cache repositories based on MODULE.bazel/WORKSPACE
-    repository-cache: # optional, default is false
-    # GitHub token to query Bazelisk releases
-    token: # optional, default is ${{ github.token }}
-          
+name: Release
+run-name: Release ${{ inputs.tag }}
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release
+        required: true
+        default: 0.1.0
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          node-version-file: package.json
+      - run: |
+          sed -ri 's/"version": ".+"/"version": "${{ inputs.tag }}"/' package.json
+          sed -ri 's/setup-bazel@.+$/setup-bazel@${{ inputs.tag }}/g' README.md
+      - run: npm install
+      - run: npm run build
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+      - run: git commit -am "Release ${{ inputs.tag }}"
+      - run: git push
+      - run: git tag -a ${{ inputs.tag }} -m "Release ${{ inputs.tag }}"
+      - run: git push --tags
+      - run: gh release create ${{ inputs.tag }} --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
