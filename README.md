@@ -17,7 +17,7 @@
 ## 🚀 Quick Start
 
 ### Download
-The project ships Linux x86-64 and OSX packages every [release](https://github.com/hsaliak/std_slop/releases). You can directly use them.
+The project ships Linux x86-64 and OSX binaries every [release](https://github.com/hsaliak/std_slop/releases). You can directly use them.
 
 ### 📋 Prerequisites
 - C++17 compiler (Clang/GCC)
