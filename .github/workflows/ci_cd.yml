@@ -52,7 +52,7 @@ jobs:
       - name: Build Optimized Binary
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          bazel build -c opt //:std_slop \
+          bazel build //:std_slop \
             --repository_cache=~/.cache/bazel-repo \
             --disk_cache=~/.cache/bazel-disk
           cp bazel-bin/std_slop ${{ matrix.artifact_name }}
