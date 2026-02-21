@@ -156,4 +156,23 @@ TEST(HttpClientTest, ParseGoogleRetryDelayRobustness) {
   EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": {"message": "Your quota will reset after infinity."}})"), -1);
 }
 
+TEST(HttpClientTest, IsTerminalErrorTest) {
+  HttpClient client;
+
+  // Case 1: Not a terminal code (e.g. 500)
+  EXPECT_FALSE(client.IsTerminalError(500, "{\"error\": \"QUOTA_EXHAUSTED\"}"));
+
+  // Case 2: 429 with QUOTA_EXHAUSTED
+  EXPECT_TRUE(client.IsTerminalError(429, "{\"error\": \"QUOTA_EXHAUSTED\"}"));
+
+  // Case 3: 403 with QUOTA_EXHAUSTED
+  EXPECT_TRUE(client.IsTerminalError(403, "QUOTA_EXHAUSTED in a raw string"));
+
+  // Case 4: 429 without QUOTA_EXHAUSTED (transient)
+  EXPECT_FALSE(client.IsTerminalError(429, "Too many requests per minute"));
+
+  // Case 5: 403 without QUOTA_EXHAUSTED
+  EXPECT_FALSE(client.IsTerminalError(403, "Access denied"));
+}
+
 }  // namespace slop
