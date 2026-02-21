@@ -178,8 +178,8 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
       LOG(WARNING) << "CURL error: " << curl_easy_strerror(res) << " (res=" << res << ")";
 
-      // Do not retry on timeouts; let the caller handle it.
-      if (res == CURLE_OPERATION_TIMEDOUT) {
+      // Do not retry on timeouts more than twice; let the caller handle it.
+      if (res == CURLE_OPERATION_TIMEDOUT & retry_count > 2) {
         return absl::DeadlineExceededError("CURL error: Timeout was reached (res=28)");
       }
       if (retry_count < max_retries) {
