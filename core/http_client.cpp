@@ -25,7 +25,7 @@ HttpClient::HttpClient(int max_retries, int64_t initial_backoff_ms)
 HttpClient::~HttpClient() { curl_global_cleanup(); }
 
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-  ((std::string*)userp)->append((char*)contents, size * nmemb);
+  static_cast<std::string*>(userp)->append(static_cast<char*>(contents), size * nmemb);
   return size * nmemb;
 }
 
@@ -154,7 +154,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
 bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {
   if (response_code == 429 || response_code == 403) {
-    if (response_body.find("QUOTA_EXHAUSTED") != std::string::npos) {
+    if (absl::StrContains(response_body, "QUOTA_EXHAUSTED")) {
       return true;
     }
   }
