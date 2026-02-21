@@ -203,6 +203,11 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
     LOG(WARNING) << "HTTP error " << response_code << ": " << response_string;
 
+    if (IsTerminalError(response_code, response_string)) {
+      LOG(ERROR) << "Terminal error detected (e.g. daily quota reached). Stopping retries.";
+      return absl::ResourceExhaustedError("Terminal HTTP error " + std::to_string(response_code) + ": " + response_string);
+    }
+
     if (response_code >= 500 || response_code == 429) {
       int64_t retry_after_ms = ParseRetryAfter(response_headers);
       int64_t x_reset_ms = (response_code == 429) ? ParseXRateLimitReset(response_headers) : -1;
@@ -343,6 +348,13 @@ int64_t HttpClient::ParseGoogleRetryDelay(const std::string& response_body) {
   }
 
   return max_delay_ms;
+}
+
+bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {
+  if (response_code != 429 && response_code != 403) return false;
+
+  // Terminal errors specifically relate to exhausted quotas that won't resolve with simple backoff.
+  return absl::StrContains(response_body, "QUOTA_EXHAUSTED");
 }
 
 }  // namespace slop
