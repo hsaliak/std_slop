@@ -10,12 +10,12 @@
 namespace slop {
 
 TEST(HttpClientTest, PostInit) {
-  HttpClient client;
+  HttpClient client(0, 0);
   // Basic test to ensure it doesn't crash
 }
 
 TEST(HttpClientTest, GetError) {
-  HttpClient client;
+  HttpClient client(0, 0);
   // Should fail on a non-existent local port or invalid URL
   auto res = client.Get("http://localhost:1", {});
   EXPECT_FALSE(res.ok());
@@ -27,7 +27,7 @@ TEST(HttpClientTest, HttpsSupport) {
   ASSERT_NE(info, nullptr);
   EXPECT_TRUE(info->features & CURL_VERSION_SSL) << "libcurl was built without SSL support";
 
-  HttpClient client;
+  HttpClient client(0, 0);
   auto res = client.Get("https://www.google.com", {});
   // If protocol is unsupported, it will return an InternalError with "Unsupported protocol"
   if (!res.ok()) {
@@ -37,7 +37,7 @@ TEST(HttpClientTest, HttpsSupport) {
 }
 
 TEST(HttpClientTest, PostBasic) {
-  HttpClient client;
+  HttpClient client(0, 0);
   // We don't have a mock server, but we can at least check if it handles
   // a non-existent endpoint correctly without crashing.
   auto res = client.Post("http://localhost:1", "{\"test\":true}", {"Content-Type: application/json"});
@@ -45,13 +45,13 @@ TEST(HttpClientTest, PostBasic) {
 }
 
 TEST(HttpClientTest, ParseRetryAfterSeconds) {
-  HttpClient client;
+  HttpClient client(0, 0);
   absl::flat_hash_map<std::string, std::string> headers = {{"retry-after", "30"}};
   EXPECT_EQ(client.ParseRetryAfter(headers), 30000);
 }
 
 TEST(HttpClientTest, ParseRetryAfterDate) {
-  HttpClient client;
+  HttpClient client(0, 0);
   // Use a date in the future
   absl::Time future = absl::Now() + absl::Seconds(60);
   std::string date_str = absl::FormatTime("%a, %d %b %Y %H:%M:%S GMT", future, absl::UTCTimeZone());
@@ -64,7 +64,7 @@ TEST(HttpClientTest, ParseRetryAfterDate) {
 }
 
 TEST(HttpClientTest, ParseRetryAfterMissing) {
-  HttpClient client;
+  HttpClient client(0, 0);
   absl::flat_hash_map<std::string, std::string> headers = {{"content-type", "application/json"}};
   EXPECT_EQ(client.ParseRetryAfter(headers), -1);
 }
@@ -82,7 +82,7 @@ TEST(HttpClientTest, HeaderCallback) {
 }
 
 TEST(HttpClientTest, ParseXRateLimitResetTimestamp) {
-  HttpClient client;
+  HttpClient client(0, 0);
   int64_t future_ts = absl::ToUnixSeconds(absl::Now()) + 60;
   absl::flat_hash_map<std::string, std::string> headers = {{"x-ratelimit-reset", std::to_string(future_ts)}};
   int64_t delay = client.ParseXRateLimitReset(headers);
@@ -91,13 +91,13 @@ TEST(HttpClientTest, ParseXRateLimitResetTimestamp) {
 }
 
 TEST(HttpClientTest, ParseXRateLimitResetRelative) {
-  HttpClient client;
+  HttpClient client(0, 0);
   absl::flat_hash_map<std::string, std::string> headers = {{"x-ratelimit-reset", "5.5"}};
   EXPECT_EQ(client.ParseXRateLimitReset(headers), 5500);
 }
 
 TEST(HttpClientTest, ParseGoogleRetryInfo) {
-  HttpClient client;
+  HttpClient client(0, 0);
   std::string body = R"({
   "error": {
     "details": [
@@ -112,7 +112,7 @@ TEST(HttpClientTest, ParseGoogleRetryInfo) {
 }
 
 TEST(HttpClientTest, ParseGoogleErrorInfoDelay) {
-  HttpClient client;
+  HttpClient client(0, 0);
   std::string body = R"({
   "error": {
     "details": [
@@ -131,7 +131,7 @@ TEST(HttpClientTest, ParseGoogleErrorInfoDelay) {
 }
 
 TEST(HttpClientTest, ParseGoogleErrorMessageDelay) {
-  HttpClient client;
+  HttpClient client(0, 0);
   std::string body = R"({
   "error": {
     "code": 429,
@@ -143,7 +143,7 @@ TEST(HttpClientTest, ParseGoogleErrorMessageDelay) {
 }
 
 TEST(HttpClientTest, ParseGoogleRetryDelayRobustness) {
-  HttpClient client;
+  HttpClient client(0, 0);
   // Test with non-object error
   EXPECT_EQ(client.ParseGoogleRetryDelay(R"({"error": "not an object"})"), -1);
   // Test with non-array details
@@ -157,7 +157,7 @@ TEST(HttpClientTest, ParseGoogleRetryDelayRobustness) {
 }
 
 TEST(HttpClientTest, IsTerminalErrorTest) {
-  HttpClient client;
+  HttpClient client(0, 0);
 
   // Case 1: Not a terminal code (e.g. 500)
   EXPECT_FALSE(client.IsTerminalError(500, "{\"error\": \"QUOTA_EXHAUSTED\"}"));
