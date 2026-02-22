@@ -140,6 +140,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
     }
   }
   std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
+  InjectAgentMd(&system_instruction);
   auto payload_or = strategy_->AssemblePayload(session_id, system_instruction, history);
   if (payload_or.ok() && std::getenv("SLOP_TOOL_DEBUG")) {
     LOG(INFO) << "--- ASSEMBLED PROMPT ---\n" << payload_or->dump(2) << "\n--- END PROMPT ---";

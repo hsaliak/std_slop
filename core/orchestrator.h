@@ -50,6 +50,7 @@ class Orchestrator {
     Database* db_;
     HttpClient* http_client_;
     Config config_;
+  std::string active_agent_md_path_ = "./AGENTS.md";
   };
   // Constructor is public to allow stack allocation if desired,
   // but Builder is preferred for complex configuration.
@@ -82,10 +83,14 @@ class Orchestrator {
   Database* db_;
   HttpClient* http_client_;
   Config config_;
+  std::string active_agent_md_path_ = "./AGENTS.md";
   std::vector<std::string> last_selected_groups_;
   std::unique_ptr<OrchestratorStrategy> strategy_;
   // Helper methods for AssemblePrompt
   std::string BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills);
+  absl::Status LoadAgentMd(const std::string& path);
+  void InjectAgentMd(std::string* system_instruction);
+  std::string GetActiveAgentMdPath() const { return active_agent_md_path_; }
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_
