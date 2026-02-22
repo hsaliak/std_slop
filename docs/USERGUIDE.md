@@ -20,6 +20,25 @@ bazel build //:std_slop
 
 
 
+## Context & Personas
+
+### Agent Context (AGENTS.md)
+The agent's core instructions and persona can be managed via the `AGENTS.md` file.
+
+- `/agent load [path]` - Load a new global context from a Markdown file.
+- `/agent reload` - Reload the current `AGENTS.md` from disk.
+
+### Modular Skills (SKILLS.md)
+Skills are modular instructions and tools located in the `skills/` directory.
+
+- `/skill list` - List all available skills in the `skills/` directory.
+- `/skill activate <name>` - Enable a skill for the current session.
+- `/skill deactivate <name>` - Disable an active skill.
+- `/skill reload` - Refresh the skill list from the filesystem.
+
+Skills use YAML frontmatter to define their name and description. For more details on creating skills and managing context, see [CONTEXT.md](CONTEXT.md).
+
+
 ## Skill Hotwords
 You can temporarily activate a skill for a single turn without permanently changing your session configuration using the `hey` hotword:
 
