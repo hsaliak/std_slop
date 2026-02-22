@@ -11,6 +11,7 @@
 
 ## ✨ Key Features
 
+- **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long-term memory.
@@ -92,6 +93,7 @@ You can also use Google OAuth login if no keys are provided.
 
 ## 📚 Documentation
 
+- **[Personas & Skills](docs/CONTEXT.md)**: Understanding global context injection and modular skills.
 - **[User Guide](docs/USERGUIDE.md)**: Detailed commands and workflow tips.
 - **[Architecture & Schema](docs/SCHEMA.md)**: Understanding the database-driven engine.
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
