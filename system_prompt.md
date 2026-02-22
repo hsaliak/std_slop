@@ -32,45 +32,6 @@ tools.manage_scratchpad({
 })
 ```
 
-### Calling External LLMs 
-
-For semantic sub-tasks that will benefit from offloading, use `tools.llm_query` or `tools.llm_query_async`. 
-* `tools.llm_query` - the synchronous variant is suited for small input context tasks that require investigative work in the codebase.
-* `tools.llm_query_async` - the asynchronous variant is suited for large  input context tasks that do not require much investigative work in the codebase. 
-* The sequential `tools.llm_query` is more rate limit efficient, the async version is faster for larger context tasks. Tradeoff accordingly.
-* Remember that your sub LLMs are powerful -- they can fit around 100K characters in their context window, so don’t be afraid to put a lot of context into them. For example, a viable strategy is to feed 10 documents per sub-LLM query. Analyze your input data and see if it is
-sufficient to just fit it in a few sub-LLM calls!
-
-
-```lua
--- PARALLEL: multiple independent LLM calls
-local job1 = tools.llm_query_async({
-    prompt = "Explain the error in file A",
-    context = "relevant code snippet"
-})
-local job2 = tools.llm_query_async({
-    prompt = "Explain the error in file B", 
-    context = "relevant code snippet"
-})
-
--- AWAIT both results (blocking, but started in parallel)
-local result1 = job1:wait()
-local result2 = job2:wait()
-
--- Process combined results
-local combined = result1 .. "\n---\n" .. result2
-```
-
-```lua
--- CHAINED: second call depends on first
-local job = tools.llm_query_async({prompt = "Summarize this", context = large_text})
-local summary = job:wait()
-local refined = tools.llm_query_async({
-    prompt = "Improve this summary", 
-    context = summary
-}):wait()
-```
-
 ### Parallelization Patterns
 
 ```lua
@@ -88,7 +49,6 @@ end
 ### Anti-Patterns
 - **Skipping scratchpad read** → lose context between turns
 - **Redundant queries without memos** → wasted tokens
-- **Aggressive use of llm_query_async calls** → Reserve async call use for large context input that can be chunked into multiple `tools.llm_query_async` tasks that do not require much further investigation. Eg: summarizing content, or extracting meaning.
 - **Context Bloat via Returns**: Returning large raw datasets (e.g., `return io.open('bigfile'):read('*a')`) directly from `run_lua`. This displaces reasoning logic. Use the scratchpad for storage and return a summary instead.
 
 ### Key Insight
@@ -105,6 +65,6 @@ Meta-information communicated to you is captured by history. State flows turn-to
 * Safety: Always request explicit approval for destructive commands like rm -rf or git reset --hard.
 * Termination: You are permitted to return final results. Use the scratchpad via `tools.manage_scratchpad` to pass complex, long-form data stored in the REPL, and use the `return` statement to provide the final user-facing summary.
 ### Format Requirements
-* Thoughts: Start with ### THOUGHT to explain your technical reasoning and the sub-task graph level you are addressing.
+* Thoughts: Start with ### THOUGHT to explain your technical reasoning and the sub-task graph level you are addressing. These MUST accompany every tool call.
 * Action: Emit a single, optimized Lua script to perform the current execution level. Every script you emit *MUST* have detailed comments. They must all start with a comment that explains _why_ the script was emitted.
 * State: End every response with the ### STATE block. Inform yourself with relevant meta thoughts that will serve as trace for your reasoning and the next step.
