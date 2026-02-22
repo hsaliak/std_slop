@@ -16,7 +16,7 @@ In `std::slop`, the LCP allows the agent to  pass the context programatically in
 The LCP supports asynchronous execution. An agent can initiate multiple file reads, code searches, or even sub-LLM queries simultaneously using `_async` tool variants, drastically reducing the latency of complex investigative tasks.
 
 ### Persistence and State Continuity
-The LCP provides a persistent environment across turns. By using the `scratchpad`, `memos`, and `state` globals, the agent maintains a "Source of Truth" that is programmatically accessible, reducing the need to re-summarize or re-search for the same information in every turn. These globals are saved in sqlite at the end of a turn, and injected into the environment in the next.
+The LCP provides a persistent environment across turns. By using the `scratchpad` and `state` globals, the agent maintains a "Source of Truth" that is programmatically accessible, reducing the need to re-summarize or re-search for the same information in every turn. These globals are saved in sqlite at the end of a turn, and injected into the environment in the next.
 
 ---
 
@@ -42,7 +42,6 @@ These variables bridge the gap between individual turns and provide persistent c
 | Global | Purpose | Usage |
 | :--- | :--- | :--- |
 | `scratchpad` | Working notes and checklists. | Read at turn start; update via `tools.manage_scratchpad`. |
-| `memos` | Project-wide invariants and conventions. | Used to avoid redundant queries (e.g., build commands). |
 | `state` | Current technical anchors (branch, files, ports). | Tracks progress through a multi-step workflow. |
 | `history` | Conversation metadata. | Used by the system to manage turn transitions. |
 
@@ -84,11 +83,6 @@ tools.manage_scratchpad({
     value = {step = 2, status = "Refactored module A"}
 })
 ```
-
-### Memos (`tools.manage_memo`)
-Memos are for long-term project invariants. Once the agent learns how to run tests or where a specific configuration is kept, it should store it in a memo to avoid re-discovering it in future sessions.
-
----
 
 ### Transient Scope
 *   **Skill Limitation**: The `hey <skill>` hotword detection does not work for non-default or custom skills within a sub-query, as the sub-query's database only contains default system personas.
