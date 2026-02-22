@@ -1131,10 +1131,18 @@ CommandHandler::Result CommandHandler::HandleSkills(CommandArgs& args) {
       std::cout << *list_or << std::endl;
     }
   } else if (sub == "reload") {
-    std::string path = (parts.size() > 1) ? parts[1] : "./skills";
-    auto status = orchestrator_->ReloadSkills(path);
+    absl::Status status;
+    std::string msg;
+    if (parts.size() > 1) {
+      status = orchestrator_->ReloadSkills(parts[1]);
+      msg = "from " + parts[1];
+    } else {
+      status = orchestrator_->ReloadAllSkills();
+      msg = "from default paths";
+    }
+
     if (status.ok()) {
-      std::cout << "Successfully reloaded skills from " << path << std::endl;
+      std::cout << "Successfully reloaded skills " << msg << std::endl;
     } else {
       std::cout << "Error reloading skills: " << status.message() << std::endl;
     }

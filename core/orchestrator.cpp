@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "core/orchestrator.h"
 #include <algorithm>
 #include <fstream>
@@ -359,13 +360,27 @@ void Orchestrator::InjectAgentMd(std::string* system_instruction) {
 
 // ...
 
+namespace {
+std::string ExpandPath(const std::string& path) {
+  if (path.empty()) return path;
+  if (path[0] == '~') {
+    const char* home = std::getenv("HOME");
+    if (home) {
+      return std::string(home) + path.substr(1);
+    }
+  }
+  return path;
+}
+}  // namespace
+
 absl::Status Orchestrator::ReloadSkills(const std::string& directory) {
-  if (!std::filesystem::exists(directory)) {
+  std::string expanded = ExpandPath(directory);
+  if (!std::filesystem::exists(expanded)) {
     // It's okay if it doesn't exist, just return OK (no skills loaded)
     return absl::OkStatus();
   }
 
-  for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+  for (const auto& entry : std::filesystem::directory_iterator(expanded)) {
     if (!entry.is_directory()) continue;
     
     std::filesystem::path skill_file = entry.path() / "SKILL.md";
@@ -433,4 +448,10 @@ void Orchestrator::InjectSkillsSummary(std::string* system_instruction) {
   }
 }
 
+
+absl::Status Orchestrator::ReloadAllSkills() {
+  (void)ReloadSkills("./skills");
+  (void)ReloadSkills("~/.config/slop/skills");
+  return absl::OkStatus(); 
+}
 }  // namespace slop

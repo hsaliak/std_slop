@@ -82,6 +82,7 @@ class Orchestrator {
   void InjectAgentMd(std::string* system_instruction);
   std::string GetActiveAgentMdPath() const { return active_agent_md_path_; }
   Database* GetDatabase() const { return db_; }  // Skills Management
+  absl::Status ReloadAllSkills();
   absl::Status ReloadSkills(const std::string& directory = "./skills");
   absl::StatusOr<std::string> ListSkills() const;
   void InjectSkillsSummary(std::string* system_instruction);
