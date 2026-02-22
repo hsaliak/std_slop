@@ -1,5 +1,6 @@
 #include "core/http_client.h"
 
+#include "absl/random/random.h"
 #include <chrono>
 #include <iostream>
 #include <sstream>
@@ -23,7 +24,7 @@ inline bool IsDebugHttpEnabled() {
   return enabled;
 }
 
-HttpClient::HttpClient() : max_retries_(6), initial_backoff_ms_(5000) {
+HttpClient::HttpClient() : max_retries_(3), initial_backoff_ms_(5000) {
   curl_global_init(CURL_GLOBAL_ALL);
 }
 
@@ -177,7 +178,13 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       header_delay = ParseGoogleRetryDelay(response_body);
     }
 
-    int64_t wait_ms = (header_delay > 0) ? header_delay : backoff_ms;
+    static absl::BitGen bitgen;
+    double jitter = absl::Uniform(bitgen, 0.8, 1.2);
+    int64_t jittered_backoff = static_cast<int64_t>(backoff_ms * jitter);
+    int64_t wait_ms = jittered_backoff;
+    if (header_delay > 0) {
+      wait_ms = std::max(wait_ms, header_delay);
+    }
 
     LOG(INFO) << "Request failed (code " << response_code << "), retrying in " << wait_ms
               << "ms... (attempt " << (retry_count + 1) << "/" << max_retries_ << ")" << std::endl;
