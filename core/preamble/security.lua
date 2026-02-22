@@ -8,8 +8,6 @@ function tools.help()
 - history: (table) Array of conversation messages: {role, content}.
 
 #### Core Tools ####
-- llm_query({query, context}): (string) Runs a sub-task LLM query. 
-- llm_query_async({query, context}): (job) Asynchronous version of llm_query.
 - help(): (string) Shows this help message.
 
 #### File System & Expressive API ####

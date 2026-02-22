@@ -118,7 +118,7 @@ end
 -- Auto-wrap existing tools to return Result objects
 local wrapped_tools = {
   "grep", "grep_tool",
-  "read_file", "execute_bash", "query_db", "llm_query"
+  "read_file", "execute_bash", "query_db"
 }
 
 for _, name in ipairs(wrapped_tools) do

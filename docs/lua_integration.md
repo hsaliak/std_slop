@@ -90,16 +90,8 @@ Memos are for long-term project invariants. Once the agent learns how to run tes
 
 ---
 
-## 5. Offloading via `llm_query`
-
-The LCP allows the agent to "fork" its reasoning by calling sub-LLMs.
-- `tools.llm_query`: Synchronous; best for small, investigative tasks.
-- `tools.llm_query_async`: Parallel; best for processing large batches of data (e.g., summarizing 10 files at once).
-
 ### Transient Scope
-Sub-queries spawned via `llm_query` operate within a transient, in-memory database context.
 *   **Skill Limitation**: The `hey <skill>` hotword detection does not work for non-default or custom skills within a sub-query, as the sub-query's database only contains default system personas.
-*   **Isolation**: Messages and state changes within an `llm_query` do not persist in the main `slop.db` history.
 
 **Example: Batch Analysis**
 ```lua
@@ -107,7 +99,6 @@ local files = {"auth.cpp", "session.cpp", "db.cpp"}
 local jobs = {}
 for _, f in ipairs(files) do
     local code = tools.read_file({path = f})
-    jobs[#jobs+1] = tools.llm_query_async({
         prompt = "Explain the error handling pattern in this file",
         context = code
     })
@@ -124,5 +115,4 @@ end
 
 1.  **Read Before Writing**: Always read the `scratchpad` at the beginning of a script to maintain continuity.
 2.  **Filter Aggressively**: Use Lua's string manipulation or `grep` to filter data before returning it from `run_lua`.
-3.  **Parallelize Independent Tasks**: If you need to read 5 files, use `read_file_async` (if available) or `llm_query_async`.
 4.  **No Uncommitted State**: In the Mail Model workflow, ensure all logical units of work are committed via `tools.git_commit_patch` before ending the script.

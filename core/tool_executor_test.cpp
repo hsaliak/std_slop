@@ -630,14 +630,8 @@ TEST(ToolExecutorTest, RunLuaPreamble) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  executor.RegisterTool("llm_query",
-                        []([[maybe_unused]] const nlohmann::json& args, std::shared_ptr<CancellationRequest>) {
-                          return absl::StatusOr<std::string>("mock_llm_result");
-                        });
-
-  // Test manifest and llm_query
   std::string script = R"(
-    -- Test manifest
+    local manifest = get_tool_manifest()
     assert(manifest ~= nil)
     assert(#manifest.tools > 0)
     local found_bash = false
@@ -645,18 +639,6 @@ TEST(ToolExecutorTest, RunLuaPreamble) {
       if name == "execute_bash" then found_bash = true end
     end
     assert(found_bash)
-
-    -- Test llm_query (which calls execute_bash)
-    -- Since we can't easily mock std_slop here without complex setup, 
-    -- we just check it exists and is a function.
-    assert(type(llm_query) == "function")
-    assert(type(tools.llm_query) == "function")
-
-    -- Test error handling for empty query
-    local ok, err = pcall(llm_query, "")
-    assert(not ok)
-    assert(err:find("requires a query string") ~= nil)
-    
     return "preamble_ok"
   )";
 

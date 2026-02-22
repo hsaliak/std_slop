@@ -269,16 +269,6 @@ int main(int argc, char* argv[]) {
   engine_config.openai_base_url = openai_base_url;
   engine_config.google_oauth = google_auth;
 
-  tool_executor->RegisterTool(
-      "llm_query",
-      [&engine, engine_config, active_skills](
-          const nlohmann::json& args, std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
-        if (!args.contains("query")) {
-          return absl::InvalidArgumentError("Missing 'query' argument");
-        }
-        return engine.Query(args["query"], engine_config, active_skills);
-      });
-
   std::string batch_prompt = absl::GetFlag(FLAGS_prompt);
   if (!batch_prompt.empty()) {
     engine_config.is_batch_mode = true;

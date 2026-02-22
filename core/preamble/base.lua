@@ -7,7 +7,6 @@ and implements the 'Mail Model' workflow helpers.
 
 Key Globals:
 - tools: Table containing all tool functions (e.g., tools.read_file).
-- llm_query: Global helper for isolated LLM sub-tasks.
 - state, scratchpad, history: Injected session context.
 
 For a full API reference, call 'tools.help()'.
@@ -270,3 +269,11 @@ end
 
 
 -- Foundation Tools (Migrated from C++)
+
+function get_tool_manifest()
+  local m = { tools = {} }
+  for name, _ in pairs(tools) do
+    table.insert(m.tools, name)
+  end
+  return m
+end

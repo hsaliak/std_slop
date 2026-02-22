@@ -28,7 +28,6 @@ hey <skill_name> <your query>
 ```
 
 > [!IMPORTANT]
-> **Limitation in Sub-Queries**: The `hey` hotword detection does not work for sub-queries (e.g., within `llm_query` or `llm_query_async` calls). Sub-queries operate on a transient, in-memory database that only contains default system skills. Any non-default or custom skills registered in the main database will not be found by the `hey` detection logic inside a sub-query.
 
 For example:
 - `hey code_reviewer what do you think of this PR?`
@@ -121,8 +120,7 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 The `run_lua` tool allows the agent to execute orchestrated scripts. It has access to:
 - **`tools`**: A table containing all standard tools.
 - **`history`**: Session message history for programmatic context extraction.
-- **`llm_query`**: Synchronous and asynchronous helpers for isolated LLM sub-tasks.
-- **Async Execution**: `tools.execute_bash_async` and `llm_query_async` allow for parallel execution (e.g., running multiple tests at once).
+- **Async Execution**: `tools.execute_bash_async` allow for parallel execution (e.g., running multiple tests at once).
 
 For more details, see the **[Lua Integration Documentation](lua_integration.md)**.
 

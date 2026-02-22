@@ -288,7 +288,7 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"run_lua",
        "Execute a Lua 5.4 script acting as a high-level 'control plane' with access to the full standard library, a "
-       "'tools' table (supporting async variants like llm_query_async), and global variables 'history', 'state', and "
+       "'tools' table (supporting async variants), and global variables 'history', 'state', and "
        "'scratchpad'. Output and return values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
        true}};
@@ -342,10 +342,10 @@ absl::Status Database::RegisterDefaultSkills() {
 
   default_skills.push_back(
       {0, "lua_control_plane",
-       "Constrains the agent to only use the 'run_lua' control plane, 'query_db', and 'llm_query' for all operations.",
+       "Constrains the agent to only use the 'run_lua' control plane, and 'query_db' for all operations.",
        "### Skill: lua_control_plane\n"
        "DANGER: You are in **LUA CONTROL PLANE** mode.\n"
-       "- You MUST NOT use any tools directly EXCEPT for `run_lua`, `query_db`, and `llm_query`.\n"
+       "- You MUST NOT use any tools directly EXCEPT for `run_lua` and `query_db`.\n"
        "- All other operations (file manipulation, searching, bash execution, etc.) MUST be performed by writing and "
        "executing a Lua script via `run_lua`.\n"
        "- Use `query_db` only for reading schema or metadata when necessary to construct your Lua scripts.\n"
@@ -363,9 +363,9 @@ absl::Status Database::RegisterDefaultSkills() {
                             "- **'history'**: Array of messages providing session context. It is appended to after "
                             "each turn and can be used to programmatically extract information from prior turns.\n"
                             "- **'state', 'scratchpad'**: Global context strings.\n"
-                            "- **'llm_query(prompt)'**: Global synchronous helper for isolated sub-tasks.\n"
+                            ""
                             "### PARALLELISM\n"
-                            "Use `tools.execute_bash_async` and `llm_query_async` to launch parallel jobs, then "
+                            "Use `tools.execute_bash_async` to launch parallel jobs, then "
                             "`job:wait()` to block and collect results.\n"
                             "### OUTPUT\n"
                             "Use `print()` for debugging/logging. The script's final expression or explicit `return` "
