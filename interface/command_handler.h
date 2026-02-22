@@ -1,20 +1,14 @@
 #ifndef SLOP_SQL_COMMAND_HANDLER_H_
 #define SLOP_SQL_COMMAND_HANDLER_H_
-
 #include <functional>
 #include <string>
 #include <utility>
 #include <vector>
-
 #include "absl/container/flat_hash_map.h"
-
 #include "core/database.h"
 #include "interface/ui.h"
-
 namespace slop {
-
 class OAuthHandler;
-
 class CommandHandler {
  public:
   enum class Result {
@@ -23,7 +17,6 @@ class CommandHandler {
     UNKNOWN,         // Starts with /, but unrecognized. Don't send to LLM.
     PROCEED_TO_LLM,  // Special case for /edit where we now have LLM input
   };
-
   struct CommandArgs {
     std::string& input;
     std::string& session_id;
@@ -32,11 +25,8 @@ class CommandHandler {
     const std::vector<std::string>& selected_groups;
     std::string args;
   };
-
   using CommandFunc = std::function<Result(CommandArgs&)>;
-
   virtual ~CommandHandler() = default;
-
   static absl::StatusOr<std::unique_ptr<CommandHandler>> Create(Database* db,
                                                                 class Orchestrator* orchestrator = nullptr,
                                                                 OAuthHandler* oauth_handler = nullptr,
@@ -48,19 +38,13 @@ class CommandHandler {
     return std::unique_ptr<CommandHandler>(
         new CommandHandler(db, orchestrator, oauth_handler, std::move(google_api_key), std::move(openai_api_key)));
   }
-
   Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills,
                 std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
-
   std::vector<std::string> GetCommandNames() const;
-
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
-
   bool IsMailMode() const { return mail_mode_; }
-
  private:
   void RegisterCommands();
-
   // Individual command handlers
   Result HandleHelp(CommandArgs& args);
   Result HandleExit(CommandArgs& args);
@@ -77,11 +61,9 @@ class CommandHandler {
   Result HandleSchema(CommandArgs& args);
   Result HandleModel(CommandArgs& args);
   Result HandleThrottle(CommandArgs& args);
-  Result HandleMemo(CommandArgs& args);
   Result HandleReview(CommandArgs& args);
   Result HandleFeedback(CommandArgs& args);
   Result HandleMode(CommandArgs& args);
-
   Database* db_;
   bool mail_mode_ = false;
   class Orchestrator* orchestrator_;
@@ -90,27 +72,18 @@ class CommandHandler {
   std::string openai_api_key_;
   absl::flat_hash_map<std::string, CommandFunc> commands_;
   absl::flat_hash_map<std::string, std::vector<std::string>> sub_commands_;
-
  protected:
   explicit CommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
                           OAuthHandler* oauth_handler = nullptr, std::string google_api_key = "",
                           std::string openai_api_key = "");
-
   // Testing hook for dependency injection. Overridden in tests to mock editor input.
   virtual std::string TriggerEditor(const std::string& initial_content, const std::string& extension);
-
   // Testing hook for shell commands.
   virtual absl::StatusOr<std::string> ExecuteCommand(const std::string& command);
-
   std::string ResolveBaseBranch(const std::string& current_branch);
-
   // Helper methods for Markdown editing
   static std::string SkillToMarkdown(const Database::Skill& skill);
   static Database::Skill MarkdownToSkill(const std::string& md, int id);
-  static std::string MemoToMarkdown(const Database::Memo& memo);
-  static Database::Memo MarkdownToMemo(const std::string& md, int id);
 };
-
 }  // namespace slop
-
 #endif  // SLOP_SQL_COMMAND_HANDLER_H_

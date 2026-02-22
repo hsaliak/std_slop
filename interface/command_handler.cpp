@@ -1,12 +1,9 @@
 #include "interface/command_handler.h"
-
 #include <unistd.h>
-
 #include <algorithm>
 #include <array>
 #include <cstdio>
 #include <iostream>
-
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -18,18 +15,14 @@
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
 #include "core/json_utils.h"
-
 #include "core/message_parser.h"
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
 #include "core/shell_util.h"
 #include "interface/command_definitions.h"
 #include "interface/ui.h"
-
 namespace slop {
-
 namespace {
-
 bool HasReviewComments(const std::string& content) {
   std::vector<std::string> lines = absl::StrSplit(content, '\n');
   for (const auto& line : lines) {
@@ -48,7 +41,6 @@ bool HasReviewComments(const std::string& content) {
         trimmed = absl::StripLeadingAsciiWhitespace(trimmed);
       }
     }
-
     if (!trimmed.empty() && (trimmed[0] == 'R' || trimmed[0] == 'r')) {
       std::string_view rest = trimmed;
       rest.remove_prefix(1);
@@ -60,9 +52,7 @@ bool HasReviewComments(const std::string& content) {
   }
   return false;
 }
-
 }  // namespace
-
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
                                std::string google_api_key, std::string openai_api_key)
     : db_(db),
@@ -72,7 +62,6 @@ CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHa
       openai_api_key_(std::move(openai_api_key)) {
   RegisterCommands();
 }
-
 void CommandHandler::RegisterCommands() {
   commands_.reserve(64);  // Allocate enough bucket space up front
   commands_["/help"] = [this](CommandArgs& args) { return HandleHelp(args); };
@@ -90,11 +79,9 @@ void CommandHandler::RegisterCommands() {
   commands_["/schema"] = [this](CommandArgs& args) { return HandleSchema(args); };
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
-  commands_["/memo"] = [this](CommandArgs& args) { return HandleMemo(args); };
   commands_["/review"] = [this](CommandArgs& args) { return HandleReview(args); };
   commands_["/feedback"] = [this](CommandArgs& args) { return HandleFeedback(args); };
   commands_["/mode"] = [this](CommandArgs& args) { return HandleMode(args); };
-
   for (const auto& def : GetCommandDefinitions()) {
     auto it = commands_.find(def.name);
     if (it != commands_.end()) {
@@ -108,7 +95,6 @@ void CommandHandler::RegisterCommands() {
     }
   }
 }
-
 std::vector<std::string> CommandHandler::GetCommandNames() const {
   std::vector<std::string> names;
   for (const auto& [name, _] : commands_) {
@@ -117,47 +103,38 @@ std::vector<std::string> CommandHandler::GetCommandNames() const {
   std::sort(names.begin(), names.end());
   return names;
 }
-
 CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id,
                                               std::vector<std::string>& active_skills,
                                               std::function<void()> show_help_fn,
                                               const std::vector<std::string>& selected_groups) {
   std::string trimmed = std::string(absl::StripLeadingAsciiWhitespace(input));
   if (trimmed.empty()) return Result::NOT_A_COMMAND;
-
   if (trimmed[0] != '/') {
     return Result::NOT_A_COMMAND;
   }
-
   std::vector<std::string> parts = absl::StrSplit(trimmed, absl::MaxSplits(' ', 1));
   std::string cmd = parts[0];
   std::string args_str = (parts.size() > 1) ? parts[1] : "";
-
   auto it = commands_.find(cmd);
   if (it != commands_.end()) {
     LOG(INFO) << "Dispatching command: " << cmd << " (args: " << args_str << ")";
     CommandArgs args{input, session_id, active_skills, show_help_fn, selected_groups, args_str};
     return it->second(args);
   }
-
   std::cerr << "Unknown command: " << cmd << std::endl;
   return Result::UNKNOWN;
 }
-
 CommandHandler::Result CommandHandler::HandleHelp(CommandArgs& args) {
   args.show_help_fn();
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleExit([[maybe_unused]] CommandArgs& args) { return Result::HANDLED; }
-
 CommandHandler::Result CommandHandler::HandleEdit(CommandArgs& args) {
   std::string edited = TriggerEditor("", ".txt");
   if (edited.empty()) return Result::HANDLED;
   args.input = edited;
   return Result::PROCEED_TO_LLM;
 }
-
 CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
   std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
   std::string sub_cmd = sub_parts[0];
@@ -220,7 +197,6 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleUndo(CommandArgs& args) {
   auto gid_or = db_->GetLastGroupId(args.session_id);
   if (gid_or.ok()) {
@@ -239,12 +215,10 @@ CommandHandler::Result CommandHandler::HandleUndo(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
   std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
   std::string sub_cmd = sub_parts[0];
   std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-
   if (sub_cmd == "window") {
     int n = sub_args.empty() ? 0 : std::atoi(sub_args.c_str());
     HandleStatus(db_->SetContextWindow(args.session_id, n));
@@ -256,7 +230,6 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
       std::cout << "Context Hidden (None)." << std::endl;
     return Result::HANDLED;
   }
-
   if (sub_cmd == "rebuild") {
     if (orchestrator_) {
       auto status = orchestrator_->RebuildContext(args.session_id);
@@ -280,7 +253,6 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     if (!args.active_skills.empty()) {
       ss << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
     }
-
     if (orchestrator_) {
       auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
       if (prompt_or.ok()) {
@@ -291,12 +263,10 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
   std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
   std::string sub_cmd = sub_parts[0];
   std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
     if (res.ok()) {
@@ -327,12 +297,10 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
   std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
   std::string sub_cmd = sub_parts[0];
   std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT id, name, description, activation_count FROM skills");
     if (res.ok()) {
@@ -408,16 +376,13 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
         int id = json_get_or(skill_data, "id", 0);
         Database::Skill skill{id, skill_data["name"], skill_data["description"], skill_data["system_prompt_patch"],
                               json_get_or(skill_data, "activation_count", 0)};
-
         std::string initial_md = SkillToMarkdown(skill);
         std::string edited_md = TriggerEditor(initial_md, ".md");
-
         if (absl::StripAsciiWhitespace(edited_md).empty()) {
           std::cout << "Empty content. Deleting skill..." << std::endl;
           HandleStatus(db_->DeleteSkill(std::to_string(id)));
           return Result::HANDLED;
         }
-
         if (edited_md != initial_md) {
           Database::Skill s = MarkdownToSkill(edited_md, id);
           s.activation_count = skill.activation_count;
@@ -448,7 +413,6 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 /**
  * @brief Handles session management commands (/session).
  *
@@ -464,7 +428,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
   std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
   std::string sub_cmd = sub_parts[0];
   std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-
   if (sub_cmd == "list") {
     auto res = db_->Query("SELECT DISTINCT session_id FROM messages UNION SELECT DISTINCT id FROM sessions");
     if (res.ok()) {
@@ -517,7 +480,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     // when the context window shifts.
     std::vector<std::string> scratch_parts = absl::StrSplit(sub_args, absl::MaxSplits(' ', 1));
     std::string scratch_op = scratch_parts[0];
-
     if (scratch_op == "read") {
       auto res = db_->GetScratchpad(args.session_id);
       if (res.ok()) {
@@ -546,7 +508,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 /**
  * @brief Displays usage statistics and Gemini user quota.
  *
@@ -579,7 +540,6 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       std::cout << "No usage data for session [" << args.session_id << "]" << std::endl;
     }
   }
-
   auto tools_res = db_->Query("SELECT name, call_count FROM tools WHERE call_count > 0 ORDER BY call_count DESC");
   if (tools_res.ok()) {
     auto j = json_parse(*tools_res).value_or(nlohmann::json::object());
@@ -595,7 +555,6 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       PrintMarkdown(md);
     }
   }
-
   auto skills_res =
       db_->Query("SELECT name, activation_count FROM skills WHERE activation_count > 0 ORDER BY activation_count DESC");
   if (skills_res.ok()) {
@@ -612,7 +571,6 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       PrintMarkdown(md);
     }
   }
-
   if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ &&
       oauth_handler_->IsEnabled()) {
     auto token_or = oauth_handler_->GetValidToken();
@@ -640,26 +598,21 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       }
     }
   }
-
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
   if (!orchestrator_) return Result::HANDLED;
-
   std::string api_key =
       (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI) ? google_api_key_ : openai_api_key_;
   if (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled()) {
     auto token_or = oauth_handler_->GetValidToken();
     if (token_or.ok()) api_key = *token_or;
   }
-
   auto models_or = orchestrator_->GetModels(api_key);
   if (!models_or.ok()) {
     HandleStatus(models_or.status(), "Error fetching models");
     return Result::HANDLED;
   }
-
   std::cout << "Available Models:" << std::endl;
   for (const auto& m : *models_or) {
     if (args.args.empty() || absl::StrContains(m.id, args.args)) {
@@ -668,7 +621,6 @@ CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
   if (args.args.empty()) {
     std::cerr << "Usage: /exec <command>" << std::endl;
@@ -681,7 +633,6 @@ CommandHandler::Result CommandHandler::HandleExec(CommandArgs& args) {
   std::cout << "Exit code: " << res << std::endl;
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleSchema([[maybe_unused]] CommandArgs& args) {
   auto res = db_->Query("SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
   if (res.ok()) {
@@ -694,7 +645,6 @@ CommandHandler::Result CommandHandler::HandleSchema([[maybe_unused]] CommandArgs
   }
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleModel(CommandArgs& args) {
   if (args.args.empty()) {
     std::cout << "Current model: " << orchestrator_->GetModel() << std::endl;
@@ -704,7 +654,6 @@ CommandHandler::Result CommandHandler::HandleModel(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
   if (args.args.empty()) {
     std::cout << "Current throttle: " << orchestrator_->GetThrottle() << " seconds." << std::endl;
@@ -719,161 +668,9 @@ CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
-CommandHandler::Result CommandHandler::HandleMemo(CommandArgs& args) {
-  std::vector<std::string> parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
-  std::string sub_cmd = parts[0];
-
-  if (sub_cmd == "list") {
-    auto memos_or = db_->GetAllMemos();
-    if (!memos_or.ok()) {
-      HandleStatus(memos_or.status(), "Error");
-      return Result::HANDLED;
-    }
-    if (memos_or->empty()) {
-      std::cout << icons::Info << " No memos found." << std::endl;
-      return Result::HANDLED;
-    }
-    std::string md = absl::StrCat("### ", icons::Memo, " Memos (All)\n\n");
-    md += "| ID | Tags | Content Snippet |\n";
-    md += "| :--- | :--- | :--- |\n";
-    for (const auto& m : *memos_or) {
-      std::string tags = absl::StrReplaceAll(m.semantic_tags, {{"|", "\\|"}});
-      std::string content = absl::StrReplaceAll(m.content, {{"|", "\\|"}, {"\n", " "}});
-      if (content.length() > 60) content = content.substr(0, 57) + "...";
-      md += absl::Substitute("| $0 | $1 | $2 |\n", m.id, tags, content);
-    }
-    PrintMarkdown(md);
-  } else if (sub_cmd == "show") {
-    if (parts.size() < 2) {
-      std::cerr << "Usage: /memo show <id>" << std::endl;
-      return Result::HANDLED;
-    }
-    int id;
-    if (!absl::SimpleAtoi(parts[1], &id)) {
-      std::cerr << "Invalid memo ID: " << parts[1] << std::endl;
-      return Result::HANDLED;
-    }
-    auto memo_or = db_->GetMemo(id);
-    if (memo_or.ok()) {
-      std::string escaped_tags = absl::StrReplaceAll(memo_or->semantic_tags, {{"*", "\\*"}, {"_", "\\_"}});
-      std::string md =
-          absl::Substitute("### Memo $0\n\n**Tags**: $1\n\n---\n\n$2", memo_or->id, escaped_tags, memo_or->content);
-      PrintMarkdown(md);
-    } else {
-      HandleStatus(memo_or.status(), "Error");
-    }
-  } else if (sub_cmd == "edit") {
-    if (parts.size() < 2) {
-      std::cerr << "Usage: /memo edit <id>" << std::endl;
-      return Result::HANDLED;
-    }
-    int id;
-    if (!absl::SimpleAtoi(parts[1], &id)) {
-      std::cerr << "Invalid memo ID: " << parts[1] << std::endl;
-      return Result::HANDLED;
-    }
-    auto memo_or = db_->GetMemo(id);
-    if (memo_or.ok()) {
-      std::string initial_md = MemoToMarkdown(*memo_or);
-      std::string edited_md = TriggerEditor(initial_md, ".md");
-
-      if (absl::StripAsciiWhitespace(edited_md).empty()) {
-        std::cout << "Empty content. Deleting memo..." << std::endl;
-        HandleStatus(db_->DeleteMemo(id));
-        return Result::HANDLED;
-      }
-
-      if (edited_md != initial_md) {
-        Database::Memo m = MarkdownToMemo(edited_md, id);
-        auto status = db_->UpdateMemo(id, m.content, m.semantic_tags);
-        HandleStatus(status);
-        if (status.ok()) std::cout << "Memo " << id << " updated." << std::endl;
-      } else {
-        std::cout << "No changes made." << std::endl;
-      }
-    } else {
-      HandleStatus(memo_or.status(), "Error");
-    }
-  } else if (sub_cmd == "remove" || sub_cmd == "delete") {
-    if (parts.size() < 2) {
-      std::cerr << "Usage: /memo remove <id>" << std::endl;
-      return Result::HANDLED;
-    }
-    int id;
-    if (!absl::SimpleAtoi(parts[1], &id)) {
-      std::cerr << "Invalid memo ID: " << parts[1] << std::endl;
-      return Result::HANDLED;
-    }
-    HandleStatus(db_->DeleteMemo(id));
-    std::cout << "Memo " << id << " deleted." << std::endl;
-  } else if (sub_cmd == "add") {
-    if (parts.size() < 2) {
-      // Allow adding via editor if no args
-      std::string template_md = "# Tags: new-tag\n\nMemo content here";
-      std::string edited_md = TriggerEditor(template_md, ".md");
-      if (!absl::StripAsciiWhitespace(edited_md).empty()) {
-        Database::Memo m = MarkdownToMemo(edited_md, 0);
-        auto status = db_->AddMemo(m.content, m.semantic_tags);
-        HandleStatus(status);
-        if (status.ok()) std::cout << "Memo added." << std::endl;
-      }
-      return Result::HANDLED;
-    }
-    std::vector<std::string> add_parts = absl::StrSplit(parts[1], absl::MaxSplits(' ', 1));
-    if (add_parts.size() < 2) {
-      std::cerr << "Usage: /memo add <tags> <content>" << std::endl;
-      return Result::HANDLED;
-    }
-    std::string tags_str = add_parts[0];
-    std::string content = add_parts[1];
-    std::vector<std::string> tags = absl::StrSplit(tags_str, ',');
-    for (auto& t : tags) t = std::string(absl::StripAsciiWhitespace(t));
-    nlohmann::json tags_json = tags;
-    HandleStatus(db_->AddMemo(content, tags_json.dump()));
-    std::cout << "Memo added." << std::endl;
-  } else if (sub_cmd == "search") {
-    if (parts.size() < 2) {
-      std::cerr << "Usage: /memo search <tags or keywords>" << std::endl;
-      return Result::HANDLED;
-    }
-    // Try splitting by comma first, if no comma, use the whole string which will be split by ExtractTags
-    std::vector<std::string> tags_input;
-    if (absl::StrContains(parts[1], ',')) {
-      tags_input = absl::StrSplit(parts[1], ',');
-    } else {
-      tags_input.push_back(parts[1]);
-    }
-
-    auto memos_or = db_->GetMemosByTags(tags_input);
-    if (!memos_or.ok()) {
-      HandleStatus(memos_or.status(), "Error");
-      return Result::HANDLED;
-    }
-    if (memos_or->empty()) {
-      std::cout << "No matching memos found." << std::endl;
-    } else {
-      std::string md = "### Memos (Search Results)\n\n";
-      md += "| ID | Tags | Content Snippet |\n";
-      md += "| :--- | :--- | :--- |\n";
-      for (const auto& m : *memos_or) {
-        std::string tags = absl::StrReplaceAll(m.semantic_tags, {{"|", "\\|"}});
-        std::string content = absl::StrReplaceAll(m.content, {{"|", "\\|"}, {"\n", " "}});
-        if (content.length() > 60) content = content.substr(0, 57) + "...";
-        md += absl::Substitute("| $0 | $1 | $2 |\n", m.id, tags, content);
-      }
-      PrintMarkdown(md);
-    }
-  } else {
-    std::cerr << "Unknown memo sub-command: " << sub_cmd << std::endl;
-  }
-  return Result::HANDLED;
-}
-
 std::string CommandHandler::TriggerEditor(const std::string& initial_content, const std::string& extension) {
   return slop::OpenInEditor(initial_content, extension);
 }
-
 absl::StatusOr<std::string> CommandHandler::ExecuteCommand(const std::string& command) {
   auto res = slop::RunCommand(command);
   if (!res.ok()) return res.status();
@@ -887,20 +684,16 @@ absl::StatusOr<std::string> CommandHandler::ExecuteCommand(const std::string& co
   }
   return output;
 }
-
 CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
   auto git_check = ExecuteCommand("git rev-parse --is-inside-work-tree");
   if (!git_check.ok() || !absl::StrContains(*git_check, "true")) {
     std::cerr << "Error: /review is only available inside a git repository." << std::endl;
     return Result::HANDLED;
   }
-
   std::vector<std::string> tokens = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
-
   // --- Dashboard ---
   if (tokens.empty()) {
     std::cout << "--- Review Dashboard ---" << std::endl;
-
     // Session Status
     auto status_res = ExecuteCommand("git status --porcelain");
     if (status_res.ok() && !status_res->empty()) {
@@ -911,7 +704,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     } else {
       std::cout << "[Session] No uncommitted changes." << std::endl;
     }
-
     // Mail Status
     auto branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
     if (branch_res.ok()) {
@@ -931,13 +723,10 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
         std::cout << "[Mail]    No active staging branch." << std::endl;
       }
     }
-
     std::cout << "\n[Git]     Review any git reference (branch, hash, or HEAD~n)." << std::endl;
     std::cout << "          Use '/review git <ref>'." << std::endl;
-
     return Result::HANDLED;
   }
-
   // Handle mail review
   if (tokens[0] == "mail") {
     std::string base;
@@ -948,17 +737,14 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
         base = patch_args[1];
       }
     }
-
     if (base.empty()) {
       auto branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
       std::string branch = branch_res.ok() ? *branch_res : "";
       absl::StripAsciiWhitespace(&branch);
       base = ResolveBaseBranch(branch);
     }
-
     std::string rev_cmd = "git rev-list --reverse " + base + "..HEAD";
     auto rev_res = ExecuteCommand(rev_cmd);
-
     // Diagnostic check: are we on the base branch?
     auto current_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
     std::string current_branch;
@@ -966,7 +752,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       current_branch = *current_res;
       absl::StripAsciiWhitespace(&current_branch);
     }
-
     // Handle approval
     if (patch_args.size() > 1 && patch_args[1] == "approve") {
       if (!absl::StartsWith(current_branch, "slop/staging/")) {
@@ -984,7 +769,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       }
       std::string head_hash = *head_res;
       absl::StripAsciiWhitespace(&head_hash);
-
       auto status = db_->SetPatchApproval(current_branch, head_hash);
       if (status.ok()) {
         std::cout << "Approved patchset for branch '" << current_branch << "' at hash " << head_hash << std::endl;
@@ -996,7 +780,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       std::cerr << "Error: Failed to save approval to database: " << status.message() << std::endl;
       return Result::HANDLED;
     }
-
     if (!rev_res.ok() || rev_res->empty()) {
       std::cout << "No patches found to review in range " << base << "..HEAD." << std::endl;
       if (current_branch == base) {
@@ -1009,10 +792,8 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       }
       return Result::HANDLED;
     }
-
     std::vector<std::string> commits = absl::StrSplit(*rev_res, '\n', absl::SkipEmpty());
     std::cout << "Reviewing " << commits.size() << " patch(es) in range " << base << "..HEAD" << std::endl;
-
     std::string review_content;
     if (patch_idx > 0 && patch_idx <= static_cast<int>(commits.size())) {
       std::string hash = commits[patch_idx - 1];
@@ -1029,7 +810,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
                           "\n\n";
       }
     }
-
     std::string initial_content =
         "# --- MAIL REVIEW ---\n"
         "# Add your review comments on new lines starting with 'R:'\n"
@@ -1043,7 +823,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     if (feedback.empty() || feedback == initial_content) {
       return Result::HANDLED;
     }
-
     if (HasReviewComments(feedback)) {
       args.input = "I have reviewed the patches. Here are my comments:\n\n" + feedback +
                    "\n\nPlease address only the comments marked with 'R:' in the patches above.";
@@ -1052,10 +831,8 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     std::cout << "No 'R:' comments found. Ignoring review." << std::endl;
     return Result::HANDLED;
   }
-
   std::string diff_cmd;
   bool is_historical = false;
-
   if (tokens[0] == "session") {
     diff_cmd = "git diff";
     for (size_t i = 1; i < tokens.size(); ++i) {
@@ -1083,7 +860,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     std::cerr << "Use /review for a list of available commands." << std::endl;
     return Result::HANDLED;
   }
-
   // Handle new files with intent-to-add
   if (!is_historical) {
     auto untracked_or = ExecuteCommand("git ls-files --others --exclude-standard");
@@ -1104,7 +880,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       }
     }
   }
-
   auto diff_or = ExecuteCommand(diff_cmd);
   if (!diff_or.ok() || diff_or->empty()) {
     std::cout << "No changes to review." << std::endl;
@@ -1113,7 +888,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     }
     return Result::HANDLED;
   }
-
   std::string initial_content =
       "# --- MANUAL REVIEW ---\n"
       "# Add your review comments on new lines starting with 'R:'\n"
@@ -1123,7 +897,6 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
       "# Save and exit to send comments to the LLM.\n"
       "# ----------------------\n\n" +
       *diff_or;
-
   std::string edited = TriggerEditor(initial_content, ".diff");
   if (edited.empty()) {
     LOG(INFO) << "Editor returned no content or failed for review.";
@@ -1134,19 +907,15 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     std::cout << "No changes detected. Ignoring review." << std::endl;
     return Result::HANDLED;
   }
-
   if (!HasReviewComments(edited)) {
     std::cout << "No 'R:' comments found. Ignoring review." << std::endl;
     return Result::HANDLED;
   }
-
   args.input = "The user has reviewed the current changes. Here is the diff with their 'R:' comments:\n\n" + edited +
                "\n\nPlease address the instructions marked with 'R:' in the diff above. Do not commit any changes "
                "after addressing.";
-
   return Result::PROCEED_TO_LLM;
 }
-
 CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
   auto history_or = db_->GetConversationHistory(args.session_id);
   if (!history_or.ok() || history_or->empty()) {
@@ -1154,7 +923,6 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
     return Result::HANDLED;
   }
   const auto& history = *history_or;
-
   std::optional<Database::Message> last_assistant;
   for (auto it = history.rbegin(); it != history.rend(); ++it) {
     if (it->role == "assistant") {
@@ -1162,18 +930,15 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
       break;
     }
   }
-
   if (!last_assistant) {
     std::cout << "No assistant message found to provide feedback on." << std::endl;
     return Result::HANDLED;
   }
-
   std::string assistant_text = MessageParser::ExtractAssistantText(MessageContext(*last_assistant));
   if (assistant_text.empty()) {
     std::cout << "The last assistant message has no text content to provide feedback on." << std::endl;
     return Result::HANDLED;
   }
-
   std::vector<std::string> lines = absl::StrSplit(assistant_text, '\n');
   std::string initial_content =
       "# --- ASSISTANT MESSAGE FEEDBACK ---\n"
@@ -1184,11 +949,9 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
       "#\n"
       "# Save and exit to send feedback to the LLM.\n"
       "# ----------------------------------\n\n";
-
   for (size_t i = 0; i < lines.size(); ++i) {
     absl::StrAppend(&initial_content, i + 1, ": ", lines[i], "\n");
   }
-
   std::string edited = TriggerEditor(initial_content, ".txt");
   if (edited.empty()) {
     LOG(INFO) << "Editor returned no content or failed for feedback.";
@@ -1199,19 +962,15 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
     std::cout << "No changes detected. Ignoring feedback." << std::endl;
     return Result::HANDLED;
   }
-
   if (!HasReviewComments(edited)) {
     std::cout << "No 'R:' comments found. Ignoring feedback." << std::endl;
     return Result::HANDLED;
   }
-
   args.input =
       "The user has provided feedback on your last message. Here is the message with their 'R:' comments:\n\n" +
       edited + "\n\nPlease address the feedback marked with 'R:' in the message above.";
-
   return Result::PROCEED_TO_LLM;
 }
-
 CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
   std::string mode = std::string(absl::StripAsciiWhitespace(args.args));
   if (mode == "mail") {
@@ -1221,13 +980,11 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
       std::cout << "Error: Not a git repository. Please run 'git init' first." << std::endl;
       return Result::HANDLED;
     }
-
     auto status_check = ExecuteCommand("git status --porcelain");
     if (!status_check.ok()) {
       std::cout << "Error: Failed to check git status: " << status_check.status().message() << std::endl;
       return Result::HANDLED;
     }
-
     if (!absl::StripAsciiWhitespace(*status_check).empty()) {
       std::cout << "Error: Git repository is dirty. The Mail Model requires a clean state because 'git_commit_patch' "
                    "automatically includes all local changes (including untracked files) into your patches."
@@ -1236,14 +993,12 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
       std::cout << "\nDirty files:\n" << *status_check << std::endl;
       return Result::HANDLED;
     }
-
     mail_mode_ = true;
     (void)db_->Query("UPDATE settings SET mode = 'mail' WHERE id = 1");
     auto current_branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
     std::string current_branch = current_branch_res.ok() ? *current_branch_res : "";
     absl::StripAsciiWhitespace(&current_branch);
     std::string base = ResolveBaseBranch(current_branch);
-
     std::cout << "Switched to MAIL mode." << std::endl;
     std::cout << "  - Modeline: std::slop<MAIL, ...>" << std::endl;
     std::cout << "  - Base Branch: " << base << std::endl;
@@ -1285,12 +1040,10 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
 std::string CommandHandler::SkillToMarkdown(const Database::Skill& skill) {
   return absl::Substitute("# Name: $0\n# Description: $1\n\n# System Prompt Patch\n$2", skill.name, skill.description,
                           skill.system_prompt_patch);
 }
-
 Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
   Database::Skill s;
   s.id = id;
@@ -1312,45 +1065,12 @@ Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
   s.system_prompt_patch = std::string(absl::StripAsciiWhitespace(s.system_prompt_patch));
   return s;
 }
-
-std::string CommandHandler::MemoToMarkdown(const Database::Memo& memo) {
-  auto tags_j_opt = json_parse(memo.semantic_tags);
-  if (!tags_j_opt) return "";
-  auto& tags_j = *tags_j_opt;
-  std::string tags_str;
-  if (!tags_j.is_discarded() && tags_j.is_array()) {
-    tags_str = absl::StrJoin(
-        tags_j, ", ", [](std::string* out, const nlohmann::json& j) { absl::StrAppend(out, json_getter<std::string>::get(j).value_or(std::string{})); });
-  }
-  return absl::Substitute("# Tags: $0\n\n$1", tags_str, memo.content);
-}
-
-Database::Memo CommandHandler::MarkdownToMemo(const std::string& md, int id) {
-  Database::Memo m;
-  m.id = id;
-  bool found_tags = false;
-  for (absl::string_view line : absl::StrSplit(md, '\n')) {
-    absl::string_view line_view = line;
-    if (!found_tags && absl::ConsumePrefix(&line_view, "# Tags:")) {
-      std::vector<absl::string_view> tags = absl::StrSplit(line_view, ',', absl::SkipWhitespace());
-      m.semantic_tags = nlohmann::json(tags).dump();
-      found_tags = true;
-    } else if (found_tags) {
-      if (m.content.empty() && absl::StripAsciiWhitespace(line).empty()) continue;
-      absl::StrAppend(&m.content, line, "\n");
-    }
-  }
-  m.content = std::string(absl::StripAsciiWhitespace(m.content));
-  return m;
-}
-
 std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch) {
   // If we are not on a staging branch, then we are on what will be the base branch
   // for any subsequent Mail Model actions.
   if (!current_branch.empty() && !absl::StartsWith(current_branch, "slop/staging/")) {
     return current_branch;
   }
-
   // The ONLY source of truth: the staging_branches table
   auto results = db_->Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {current_branch});
   if (results.ok()) {
@@ -1360,9 +1080,7 @@ std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch)
       if (parent) return *parent;
     }
   }
-
   // Final fallback for non-staging or missing DB entry
   return "main";
 }
-
 }  // namespace slop

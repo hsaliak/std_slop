@@ -1,61 +1,50 @@
 #include "core/database.h"
-
 #include <iostream>
-
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
-
 #include "core/status_macros.h"
-
 #include <nlohmann/json.hpp>
 #include "json_utils.h"
 #include <sqlite3.h>
 namespace slop {
-
 Database::Statement::~Statement() {
   if (stmt_) {
     db_wrapper_->ReturnStatement(sql_, stmt_);
   }
 }
-
 absl::Status Database::Statement::BindInt(int index, int value) {
   if (sqlite3_bind_int(stmt_, index, value) != SQLITE_OK) {
     return absl::InternalError("BindInt error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
-
 absl::Status Database::Statement::BindInt64(int index, int64_t value) {
   if (sqlite3_bind_int64(stmt_, index, value) != SQLITE_OK) {
     return absl::InternalError("BindInt64 error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
-
 absl::Status Database::Statement::BindDouble(int index, double value) {
   if (sqlite3_bind_double(stmt_, index, value) != SQLITE_OK) {
     return absl::InternalError("BindDouble error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
-
 absl::Status Database::Statement::BindText(int index, const std::string& value) {
   if (sqlite3_bind_text(stmt_, index, value.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
     return absl::InternalError("BindText error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
-
 absl::Status Database::Statement::BindNull(int index) {
   if (sqlite3_bind_null(stmt_, index) != SQLITE_OK) {
     return absl::InternalError("BindNull error: " + std::string(sqlite3_errmsg(db_)));
   }
   return absl::OkStatus();
 }
-
 absl::StatusOr<bool> Database::Statement::Step() {
   int rc = sqlite3_step(stmt_);
   if (rc == SQLITE_ROW) return true;
@@ -64,59 +53,21 @@ absl::StatusOr<bool> Database::Statement::Step() {
   LOG(ERROR) << "Step error: " << err << " (SQL: " << sql_ << ")";
   return absl::InternalError("Step error: " + err + " (SQL: " + sql_ + ")");
 }
-
 absl::Status Database::Statement::Run() {
   auto res = Step();
   if (!res.ok()) return res.status();
   return absl::OkStatus();
 }
-
 int Database::Statement::ColumnInt(int index) { return sqlite3_column_int(stmt_, index); }
-
 int64_t Database::Statement::ColumnInt64(int index) { return sqlite3_column_int64(stmt_, index); }
-
 double Database::Statement::ColumnDouble(int index) { return sqlite3_column_double(stmt_, index); }
-
 std::string Database::Statement::ColumnText(int index) {
   const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt_, index));
   return text ? std::string(text) : "";
 }
-
 int Database::Statement::ColumnType(int index) { return sqlite3_column_type(stmt_, index); }
-
 const char* Database::Statement::ColumnName(int index) { return sqlite3_column_name(stmt_, index); }
-
 int Database::Statement::ColumnCount() { return sqlite3_column_count(stmt_); }
-
-bool Database::IsStopWord(const std::string& word) {
-  static const absl::flat_hash_set<std::string> kStopWords = {
-      "about", "above", "after",   "again", "against", "all",   "and",    "any",   "because",  "been",      "before",
-      "being", "below", "between", "both",  "but",     "could", "did",    "does",  "doing",    "down",      "during",
-      "each",  "few",   "for",     "from",  "further", "had",   "has",    "have",  "having",   "here",      "how",
-      "into",  "its",   "just",    "more",  "most",    "now",   "off",    "once",  "only",     "other",     "ought",
-      "our",   "ours",  "out",     "own",   "same",    "she",   "should", "some",  "such",     "than",      "that",
-      "the",   "their", "theirs",  "them",  "then",    "there", "these",  "they",  "this",     "those",     "through",
-      "too",   "under", "until",   "very",  "was",     "were",  "what",   "when",  "where",    "which",     "while",
-      "who",   "whom",  "why",     "with",  "would",   "you",   "your",   "yours", "yourself", "yourselves"};
-  return kStopWords.find(word) != kStopWords.end();
-}
-
-std::vector<std::string> Database::ExtractTags(const std::string& text) {
-  std::vector<std::string> words = absl::StrSplit(text, absl::ByAnyChar(" \t\n\r.,;:()[]{}<>\"'-"));
-  std::vector<std::string> tags;
-  absl::flat_hash_set<std::string> seen;
-  for (const auto& w : words) {
-    std::string word = absl::AsciiStrToLower(absl::StripAsciiWhitespace(w));
-    if (word.length() > 3 && !IsStopWord(word)) {
-      if (seen.find(word) == seen.end()) {
-        tags.push_back(word);
-        seen.insert(word);
-      }
-    }
-  }
-  return tags;
-}
-
 absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std::string& sql) {
   absl::MutexLock lock(&mu_);
   sqlite3_stmt* raw_stmt = nullptr;
@@ -134,14 +85,12 @@ absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std
   }
   return std::make_unique<Statement>(this, db_.get(), sql, raw_stmt);
 }
-
 void Database::ReturnStatement(const std::string& sql, sqlite3_stmt* stmt) {
   sqlite3_reset(stmt);
   sqlite3_clear_bindings(stmt);
   absl::MutexLock lock(&mu_);
   stmt_cache_[sql].push_back(stmt);
 }
-
 Database::~Database() {
   absl::MutexLock lock(&mu_);
   for (auto& pair : stmt_cache_) {
@@ -150,7 +99,6 @@ Database::~Database() {
     }
   }
 }
-
 absl::Status Database::Init(const std::string& db_path) {
   LOG(INFO) << "Initializing database at " << db_path;
   sqlite3* raw_db = nullptr;
@@ -162,9 +110,7 @@ absl::Status Database::Init(const std::string& db_path) {
     LOG(ERROR) << "Failed to open database: " << err;
     return absl::InternalError("Failed to open database: " + err);
   }
-
   sqlite3_exec(raw_db, "DROP TABLE IF EXISTS code_search;", nullptr, nullptr, nullptr);
-
   const char* schema = R"(
     CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,7 +124,6 @@ absl::Status Database::Init(const std::string& db_path) {
         parsing_strategy TEXT,
         tokens INTEGER DEFAULT 0
     );
-
     CREATE TABLE IF NOT EXISTS tools (
         name TEXT PRIMARY KEY,
         description TEXT,
@@ -186,7 +131,6 @@ absl::Status Database::Init(const std::string& db_path) {
         is_enabled INTEGER DEFAULT 1,
         call_count INTEGER DEFAULT 0
     );
-
     CREATE TABLE IF NOT EXISTS skills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
@@ -194,14 +138,12 @@ absl::Status Database::Init(const std::string& db_path) {
         system_prompt_patch TEXT,
         activation_count INTEGER DEFAULT 0
     );
-
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         context_size INTEGER DEFAULT 3,
         scratchpad TEXT,
         active_skills TEXT
     );
-
     CREATE TABLE IF NOT EXISTS usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id TEXT,
@@ -211,39 +153,28 @@ absl::Status Database::Init(const std::string& db_path) {
         total_tokens INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-
     CREATE TABLE IF NOT EXISTS session_state (
         session_id TEXT PRIMARY KEY,
         state_blob TEXT
     );
-
-    CREATE TABLE IF NOT EXISTS llm_memos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        content TEXT NOT NULL,
-        semantic_tags TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+    CREATE TABLE IF NOT EXISTS agent_md (path TEXT PRIMARY KEY, content TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
   )";
-
   rc = sqlite3_exec(raw_db, schema, nullptr, nullptr, nullptr);
   if (rc != SQLITE_OK) {
     std::string err = sqlite3_errmsg(raw_db);
     sqlite3_close(raw_db);
     return absl::InternalError("Schema error: " + err);
   }
-
   // Enable WAL mode for better concurrency and performance.
   (void)sqlite3_exec(raw_db, "PRAGMA journal_mode = WAL;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "PRAGMA synchronous = NORMAL;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "PRAGMA busy_timeout = 5000;", nullptr, nullptr, nullptr);
-
   // Migration: Add tokens column to messages table if it doesn't exist
   (void)sqlite3_exec(raw_db, "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE skills ADD COLUMN activation_count INTEGER DEFAULT 0;", nullptr, nullptr,
                      nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
-
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (
@@ -262,25 +193,19 @@ absl::Status Database::Init(const std::string& db_path) {
     );
   )",
                      nullptr, nullptr, nullptr);
-
   // Initialize settings
   (void)sqlite3_exec(raw_db, "INSERT OR IGNORE INTO settings (id, mode) VALUES (1, 'standard');", nullptr, nullptr,
                      nullptr);
-
   {
     absl::MutexLock lock(&mu_);
     db_.reset(raw_db);
   }
-
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
-
   s = RegisterDefaultSkills();
   if (!s.ok()) return s;
-
   return absl::OkStatus();
 }
-
 absl::Status Database::RegisterDefaultTools() {
   std::vector<Tool> default_tools = {
       {"query_db", "Query the local SQLite database using SQL.",
@@ -292,7 +217,6 @@ absl::Status Database::RegisterDefaultTools() {
        "'scratchpad'. Output and return values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
        true}};
-
   // Automatically register all core tools defined in the default_tools list.
   // This ensures the agent always has access to the fundamental building blocks
   // for code manipulation and system interaction.
@@ -302,12 +226,10 @@ absl::Status Database::RegisterDefaultTools() {
   }
   return absl::OkStatus();
 }
-
 absl::Status Database::RegisterDefaultSkills() {
   std::vector<Skill> default_skills = {
       {0, "planner", "Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.",
        "You are a Strategic Tech Lead specialized in architectural decomposition. Before planning, always check for "
-       "relevant memos via retrieve_memos. When planning, you MUST use manage_scratchpad to initialize a detailed, "
        "iterative checklist. You MUST NOT implement code; you must provide a plan and request feedback. Your job is "
        "to break down a large or abstract request into a plan that is composed of smaller, iterable tasks. You ask "
        "questions and feedback to refine the plan, you iterate with the user until youa are absolutely convinced that "
@@ -323,7 +245,6 @@ absl::Status Database::RegisterDefaultSkills() {
        "metaprogramming or deep inheritance. You ALWAYS run all tests. You ALWAYS ensure affected targets compile.",
        "You are a C++ Expert specialized in the std::slop codebase.\nYou MUST adhere to these constraints in every "
        "code change:\n- Language: C++17.\n- Style: Google C++ Style Guide.\n- Exceptions: Strictly disabled "
-       "(-fno-exceptions). Never use try, catch, or throw.\n- Memory: Use RAII and std::unique_ptr exclusively. Avoid "
        "raw new/delete. Use stack allocation where possible.\n- Error Handling: Use absl::Status and absl::StatusOr "
        "for all fallible operations.\n- Abseil: Proactively use Abseil (absl) libraries for strings, containers, and "
        "synchronization wherever they provide benefits over standard or custom implementations.\n- Threading: Avoid "
@@ -339,7 +260,6 @@ absl::Status Database::RegisterDefaultSkills() {
        "changes. You ONLY provide an annotated set of required changes or comments. Only after explicit user approval "
        "can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, "
        "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
-
   default_skills.push_back(
       {0, "lua_control_plane",
        "Constrains the agent to only use the 'run_lua' control plane, and 'query_db' for all operations.",
@@ -352,7 +272,6 @@ absl::Status Database::RegisterDefaultSkills() {
        "- This mode ensures all actions are documented, reproducible, and orchestrated via the control plane.\n"
        "- If you need to search, read files, or apply patches, write a Lua script that calls the appropriate `tools` "
        "functions."});
-
   default_skills.push_back({0, "run_lua",
                             "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
                             "You are a Lua scripting expert. You use 'run_lua' to orchestrate complex tasks.\n"
@@ -370,7 +289,6 @@ absl::Status Database::RegisterDefaultSkills() {
                             "### OUTPUT\n"
                             "Use `print()` for debugging/logging. The script's final expression or explicit `return` "
                             "value is captured and returned to you."});
-
   default_skills.push_back(
       {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
        "You are the Patcher, an expert software engineer specialized in the \"Mail Model\" workflow. Your primary "
@@ -430,7 +348,6 @@ absl::Status Database::RegisterDefaultSkills() {
        "automatically.\n\n"
        "Stay focused on the commit history. Be precise, technical, and proactive in fixing your own bugs before the "
        "user sees them."});
-
   default_skills.push_back(
       {0, "delegator",
        "Uses std_slop with the --prompt flag to execute one-off reasoning that does not require existing context.",
@@ -455,16 +372,13 @@ absl::Status Database::RegisterDefaultSkills() {
        "- Use single quotes or properly escape double quotes in the shell command.\n"
        "- If the task is too large for a single prompt, consider if it's actually suitable for this delegation "
        "model."});
-
   for (const auto& s : default_skills) {
     absl::Status status = RegisterSkill(s);
     if (!status.ok()) return status;
   }
   return absl::OkStatus();
 }
-
 absl::Status Database::Execute(const std::string& sql) { return Execute(sql, {}); }
-
 absl::Status Database::Execute(const std::string& sql, const std::vector<std::string>& params) {
   auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) return stmt_or.status();
@@ -473,18 +387,15 @@ absl::Status Database::Execute(const std::string& sql, const std::vector<std::st
   }
   return (*stmt_or)->Run();
 }
-
 absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
                                      const std::string& tool_call_id, const std::string& status,
                                      const std::string& group_id, const std::string& parsing_strategy, int tokens) {
   // Ensure session exists
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
-
   std::string sql =
       "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy, tokens) "
       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
   RETURN_IF_ERROR(stmt->BindText(2, role));
   RETURN_IF_ERROR(stmt->BindText(3, content));
@@ -505,14 +416,11 @@ absl::Status Database::AppendMessage(const std::string& session_id, const std::s
     RETURN_IF_ERROR(stmt->BindText(7, parsing_strategy));
   }
   RETURN_IF_ERROR(stmt->BindInt(8, tokens));
-
   return stmt->Run();
 }
-
 absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
   return Execute("UPDATE messages SET status = ? WHERE id = ?;", status, id);
 }
-
 /**
  * @brief Retrieves messages for a specific session, optionally windowed.
  *
@@ -528,7 +436,6 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
                                                                                 bool include_dropped, int window_size) {
   std::string sql;
   std::string drop_filter = include_dropped ? "" : "AND status != 'dropped'";
-
   if (window_size > 0) {
     // This query retrieves the history with a turn-based windowing logic.
     // Instead of limiting by raw message count, it limits by 'group_id' count.
@@ -548,21 +455,17 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
         "ORDER BY created_at ASC, id ASC",
         drop_filter);
   }
-
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
   if (window_size > 0) {
     RETURN_IF_ERROR(stmt->BindText(2, session_id));
     RETURN_IF_ERROR(stmt->BindInt(3, window_size));
   }
-
   std::vector<Message> history;
   while (true) {
     auto row_or = stmt->Step();
     if (!row_or.ok()) return row_or.status();
     if (!*row_or) break;
-
     Message m;
     m.id = stmt->ColumnInt(0);
     m.session_id = stmt->ColumnText(1);
@@ -578,33 +481,26 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
   }
   return history;
 }
-
 absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(
     const std::vector<std::string>& group_ids) {
   if (group_ids.empty()) return std::vector<Message>();
-
   std::string placeholders;
   for (size_t i = 0; i < group_ids.size(); ++i) {
     placeholders += (i == 0 ? "?" : ", ?");
   }
-
   std::string sql =
       "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
       "FROM messages WHERE group_id IN (" +
       placeholders + ") ORDER BY created_at ASC, id ASC";
-
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   for (size_t i = 0; i < group_ids.size(); ++i) {
     RETURN_IF_ERROR(stmt->BindText(i + 1, group_ids[i]));
   }
-
   std::vector<Message> messages;
   while (true) {
     auto row_or = stmt->Step();
     if (!row_or.ok()) return row_or.status();
     if (!*row_or) break;
-
     Message m;
     m.id = stmt->ColumnInt(0);
     m.session_id = stmt->ColumnText(1);
@@ -620,7 +516,6 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(
   }
   return messages;
 }
-
 absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_id) {
   std::string sql =
       "SELECT group_id FROM messages WHERE session_id = ? AND group_id IS NOT NULL ORDER BY created_at DESC, id DESC "
@@ -634,32 +529,25 @@ absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_
   }
   return absl::NotFoundError("No group found");
 }
-
 absl::Status Database::RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
                                    int completion_tokens) {
   // Ensure session exists
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
-
   return Execute(
       "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?);",
       session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens);
 }
-
 absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& session_id) {
   std::string sql = "SELECT SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens) FROM usage";
   if (!session_id.empty()) {
     sql += " WHERE session_id = ?";
   }
-
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   if (!session_id.empty()) {
     RETURN_IF_ERROR(stmt->BindText(1, session_id));
   }
-
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-
   TotalUsage usage = {0, 0, 0};
   if (*row_or) {
     usage.prompt_tokens = stmt->ColumnInt(0);
@@ -668,7 +556,6 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
   }
   return usage;
 }
-
 absl::Status Database::RegisterTool(const Tool& tool) {
   std::string sql =
       "INSERT INTO tools (name, description, json_schema, is_enabled, call_count) VALUES (?, ?, ?, ?, ?) "
@@ -676,17 +563,14 @@ absl::Status Database::RegisterTool(const Tool& tool) {
       "is_enabled=excluded.is_enabled;";
   return Execute(sql, tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0, tool.call_count);
 }
-
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
   std::string sql = "SELECT name, description, json_schema, is_enabled, call_count FROM tools WHERE is_enabled = 1";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   std::vector<Tool> tools;
   while (true) {
     auto row_or = stmt->Step();
     if (!row_or.ok()) return row_or.status();
     if (!*row_or) break;
-
     Tool t;
     t.name = stmt->ColumnText(0);
     t.description = stmt->ColumnText(1);
@@ -697,18 +581,15 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
   }
   return tools;
 }
-
 absl::Status Database::RegisterSkill(const Skill& skill) {
   return Execute(
       "INSERT OR IGNORE INTO skills (name, description, system_prompt_patch, activation_count) VALUES (?, ?, ?, ?);",
       skill.name, skill.description, skill.system_prompt_patch, skill.activation_count);
 }
-
 absl::Status Database::UpdateSkill(const Skill& skill) {
   return Execute("UPDATE skills SET description = ?, system_prompt_patch = ?, activation_count = ? WHERE name = ?;",
                  skill.description, skill.system_prompt_patch, skill.activation_count, skill.name);
 }
-
 absl::Status Database::DeleteSkill(const std::string& name_or_id) {
   std::string sql = "DELETE FROM skills WHERE name = ? OR id = ?;";
   int id = 0;
@@ -717,17 +598,14 @@ absl::Status Database::DeleteSkill(const std::string& name_or_id) {
   }
   return Execute(sql, name_or_id, nullptr);
 }
-
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
   std::string sql = "SELECT id, name, description, system_prompt_patch, activation_count FROM skills";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   std::vector<Skill> skills;
   while (true) {
     auto row_or = stmt->Step();
     if (!row_or.ok()) return row_or.status();
     if (!*row_or) break;
-
     Skill s;
     s.id = stmt->ColumnInt(0);
     s.name = stmt->ColumnText(1);
@@ -738,7 +616,6 @@ absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
   }
   return skills;
 }
-
 absl::Status Database::IncrementSkillActivationCount(const std::string& name_or_id) {
   std::string sql = "UPDATE skills SET activation_count = activation_count + 1 WHERE name = ? OR id = ?;";
   int id = 0;
@@ -747,20 +624,16 @@ absl::Status Database::IncrementSkillActivationCount(const std::string& name_or_
   }
   return Execute(sql, name_or_id, nullptr);
 }
-
 absl::Status Database::IncrementToolCallCount(const std::string& name) {
   std::string sql = "UPDATE tools SET call_count = call_count + 1 WHERE name = ?;";
   return Execute(sql, name);
 }
-
 absl::Status Database::SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills) {
   // Ensure session exists
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
-
   nlohmann::json j = skills;
   return Execute("UPDATE sessions SET active_skills = ? WHERE id = ?;", j.dump(), session_id);
 }
-
 absl::StatusOr<std::vector<std::string>> Database::GetActiveSkills(const std::string& session_id) {
   ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT active_skills FROM sessions WHERE id = ?;"));
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
@@ -778,36 +651,28 @@ absl::StatusOr<std::vector<std::string>> Database::GetActiveSkills(const std::st
   }
   return std::vector<std::string>();
 }
-
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
   return Execute("UPDATE sessions SET context_size = ? WHERE id = ?;", size, session_id);
 }
-
 absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
   std::string sql = "SELECT context_size FROM sessions WHERE id = ?";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
-
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-
   ContextSettings settings = {3};  // Default
   if (*row_or) {
     settings.size = stmt->ColumnInt(0);
   }
   return settings;
 }
-
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
   // Ensure session exists
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
-
   return Execute("INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?);", session_id,
                  state_blob);
 }
-
 /**
  * @brief Retrieves the persisted state blob for a session.
  *
@@ -820,18 +685,14 @@ absl::Status Database::SetSessionState(const std::string& session_id, const std:
 absl::StatusOr<std::string> Database::GetSessionState(const std::string& session_id) {
   std::string sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
-
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-
   if (*row_or) {
     return stmt->ColumnText(0);
   }
   return absl::NotFoundError("Session state not found");
 }
-
 absl::Status Database::DeleteSession(const std::string& session_id) {
   RETURN_IF_ERROR(Execute("DELETE FROM messages WHERE session_id = ?;", session_id));
   RETURN_IF_ERROR(Execute("DELETE FROM usage WHERE session_id = ?;", session_id));
@@ -839,7 +700,6 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   RETURN_IF_ERROR(Execute("DELETE FROM session_state WHERE session_id = ?;", session_id));
   return absl::OkStatus();
 }
-
 absl::Status Database::CloneSession(const std::string& source_id, const std::string& target_id) {
   // Check source exists
   {
@@ -852,7 +712,6 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
       return absl::NotFoundError(absl::StrCat("Source session '", source_id, "' not found."));
     }
   }
-
   // Check target doesn't exist
   {
     auto stmt_or = Prepare("SELECT 1 FROM sessions WHERE id = ?");
@@ -864,23 +723,19 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
       return absl::AlreadyExistsError(absl::StrCat("Target session '", target_id, "' already exists."));
     }
   }
-
   RETURN_IF_ERROR(Execute("BEGIN TRANSACTION;"));
-
   auto rollback_on_failure = [&](absl::Status s) {
     if (!s.ok()) {
       (void)Execute("ROLLBACK;");
     }
     return s;
   };
-
   absl::Status status = Execute(
       "INSERT INTO sessions (id, context_size, scratchpad, active_skills) "
       "SELECT ?, context_size, scratchpad, active_skills FROM sessions "
       "WHERE id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
-
   status = Execute(
       "INSERT INTO messages (session_id, role, content, tool_call_id, status, "
       "created_at, group_id, parsing_strategy, tokens) "
@@ -888,7 +743,6 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
       "parsing_strategy, tokens FROM messages WHERE session_id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
-
   status = Execute(
       "INSERT INTO usage (session_id, model, prompt_tokens, "
       "completion_tokens, total_tokens, created_at) "
@@ -896,156 +750,28 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
       "created_at FROM usage WHERE session_id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
-
   status = Execute(
       "INSERT INTO session_state (session_id, state_blob) "
       "SELECT ?, state_blob FROM session_state WHERE session_id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
-
   return Execute("COMMIT;");
 }
-
-absl::Status Database::AddMemo(const std::string& content, const std::string& semantic_tags) {
-  auto stmt_or = Prepare("INSERT INTO llm_memos (content, semantic_tags) VALUES (?, ?)");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-  (void)stmt->BindText(1, content);
-  (void)stmt->BindText(2, semantic_tags);
-  return stmt->Run();
-}
-
-absl::Status Database::UpdateMemo(int id, const std::string& content, const std::string& semantic_tags) {
-  auto stmt_or = Prepare("UPDATE llm_memos SET content = ?, semantic_tags = ? WHERE id = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-  (void)stmt->BindText(1, content);
-  (void)stmt->BindText(2, semantic_tags);
-  (void)stmt->BindInt(3, id);
-  return stmt->Run();
-}
-
-absl::Status Database::DeleteMemo(int id) {
-  auto stmt_or = Prepare("DELETE FROM llm_memos WHERE id = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-  (void)stmt->BindInt(1, id);
-  return stmt->Run();
-}
-
-absl::StatusOr<Database::Memo> Database::GetMemo(int id) {
-  auto stmt_or = Prepare("SELECT id, content, semantic_tags, created_at FROM llm_memos WHERE id = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-  (void)stmt->BindInt(1, id);
-
-  auto res = stmt->Step();
-  if (!res.ok()) return res.status();
-  if (!*res) return absl::NotFoundError(absl::Substitute("Memo $0 not found", id));
-
-  return Memo{
-      stmt->ColumnInt(0),
-      stmt->ColumnText(1),
-      stmt->ColumnText(2),
-      stmt->ColumnText(3),
-  };
-}
-
-absl::StatusOr<std::vector<Database::Memo>> Database::GetMemosByTags(const std::vector<std::string>& tags_input) {
-  if (tags_input.empty()) return std::vector<Memo>();
-
-  std::set<std::string> unique_tags;
-  for (const auto& t : tags_input) {
-    auto extracted = ExtractTags(t);
-    unique_tags.insert(extracted.begin(), extracted.end());
-    // Also add the raw tag if it's not a stopword and long enough
-    std::string lower_t = absl::AsciiStrToLower(absl::StripAsciiWhitespace(t));
-    if (lower_t.length() > 2 && !IsStopWord(lower_t)) {
-      unique_tags.insert(lower_t);
-    }
-  }
-
-  if (unique_tags.empty()) return std::vector<Memo>();
-  std::vector<std::string> tags(unique_tags.begin(), unique_tags.end());
-
-  nlohmann::json tags_json = nlohmann::json::array();
-  for (const auto& tag : tags) {
-    tags_json.push_back(tag);
-  }
-
-  std::string sql =
-      "WITH input_tags(tag) AS (SELECT value FROM json_each(?)) "
-      "SELECT DISTINCT m.id, m.content, m.semantic_tags, m.created_at "
-      "FROM llm_memos m, json_each(m.semantic_tags) j "
-      "JOIN input_tags it ON ("
-      "  j.value = it.tag OR "
-      "  j.value LIKE it.tag || '-%' OR "
-      "  j.value LIKE '%-' || it.tag OR "
-      "  j.value LIKE '%-' || it.tag || '-%'"
-      ")";
-
-  auto stmt_or = Prepare(sql);
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  (void)stmt->BindText(1, tags_json.dump());
-
-  std::vector<Memo> results;
-  while (true) {
-    auto res = stmt->Step();
-    if (!res.ok()) return res.status();
-    if (!*res) break;
-
-    results.push_back({
-        stmt->ColumnInt(0),
-        stmt->ColumnText(1),
-        stmt->ColumnText(2),
-        stmt->ColumnText(3),
-    });
-  }
-  return results;
-}
-
-absl::StatusOr<std::vector<Database::Memo>> Database::GetAllMemos() {
-  auto stmt_or = Prepare("SELECT id, content, semantic_tags, created_at FROM llm_memos");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto& stmt = *stmt_or;
-
-  std::vector<Memo> results;
-  while (true) {
-    auto res = stmt->Step();
-    if (!res.ok()) return res.status();
-    if (!*res) break;
-
-    results.push_back({
-        stmt->ColumnInt(0),
-        stmt->ColumnText(1),
-        stmt->ColumnText(2),
-        stmt->ColumnText(3),
-    });
-  }
-  return results;
-}
-
 absl::StatusOr<std::string> Database::Query(const std::string& sql) { return Query(sql, {}); }
-
 absl::StatusOr<std::string> Database::Query(const std::string& sql, const std::vector<std::string>& params) {
   auto stmt_or = Prepare(sql);
   if (!stmt_or.ok()) {
     return stmt_or.status();
   }
   auto& stmt = *stmt_or;
-
   for (size_t i = 0; i < params.size(); ++i) {
     RETURN_IF_ERROR(stmt->BindText(i + 1, params[i]));
   }
-
   nlohmann::json results = nlohmann::json::array();
   while (true) {
     auto row_or = stmt->Step();
     if (!row_or.ok()) return row_or.status();
     if (!*row_or) break;
-
     nlohmann::json row = nlohmann::json::object();
     for (int i = 0; i < stmt->ColumnCount(); ++i) {
       std::string name = stmt->ColumnName(i);
@@ -1063,7 +789,6 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql, const std::v
   }
   return json_dump(results);
 }
-
 absl::Status Database::UpdateScratchpad(const std::string& session_id, const std::string& scratchpad) {
   auto stmt_or = Prepare(
       "INSERT INTO sessions (id, scratchpad) VALUES (?, ?) "
@@ -1074,7 +799,6 @@ absl::Status Database::UpdateScratchpad(const std::string& session_id, const std
   (void)stmt->BindText(2, scratchpad);
   return stmt->Run();
 }
-
 absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_id) {
   auto stmt_or = Prepare("SELECT scratchpad FROM sessions WHERE id = ?");
   if (!stmt_or.ok()) return stmt_or.status();
@@ -1085,7 +809,6 @@ absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_i
   if (!*res) return "";  // Return empty string if session not found
   return stmt->ColumnText(0);
 }
-
 absl::Status Database::SetPatchApproval(const std::string& branch_name, const std::string& hash) {
   auto stmt_or = Prepare(
       "INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, "
@@ -1096,7 +819,6 @@ absl::Status Database::SetPatchApproval(const std::string& branch_name, const st
   (void)stmt->BindText(2, hash);
   return stmt->Run();
 }
-
 absl::StatusOr<std::string> Database::GetPatchApproval(const std::string& branch_name) {
   auto stmt_or = Prepare("SELECT approved_hash FROM patch_approvals WHERE branch_name = ?");
   if (!stmt_or.ok()) return stmt_or.status();
@@ -1107,7 +829,6 @@ absl::StatusOr<std::string> Database::GetPatchApproval(const std::string& branch
   if (!*res) return absl::NotFoundError("No approval found for branch " + branch_name);
   return stmt->ColumnText(0);
 }
-
 absl::Status Database::ClearPatchApproval(const std::string& branch_name) {
   auto stmt_or = Prepare("DELETE FROM patch_approvals WHERE branch_name = ?");
   if (!stmt_or.ok()) return stmt_or.status();
@@ -1115,7 +836,6 @@ absl::Status Database::ClearPatchApproval(const std::string& branch_name) {
   (void)stmt->BindText(1, branch_name);
   return stmt->Run();
 }
-
 absl::StatusOr<bool> Database::SkillExists(const std::string& name_or_id) {
   std::string sql = "SELECT 1 FROM skills WHERE name = ? COLLATE NOCASE OR id = ? LIMIT 1";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
@@ -1123,5 +843,17 @@ absl::StatusOr<bool> Database::SkillExists(const std::string& name_or_id) {
   (void)stmt->BindText(2, name_or_id);
   return stmt->Step();
 }
-
+absl::Status Database::SetAgentMd(const std::string& path, const std::string& content) {
+  return Execute("INSERT OR REPLACE INTO agent_md (path, content, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP);", path, content);
+}
+absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
+  auto stmt_or = Prepare("SELECT content FROM agent_md WHERE path = ?;");
+  if (!stmt_or.ok()) return stmt_or.status();
+  auto& stmt = *stmt_or;
+  if (auto s = stmt->BindText(1, path); !s.ok()) return s;
+  auto row_or = stmt->Step();
+  if (!row_or.ok()) return row_or.status();
+  if (*row_or) return stmt->ColumnText(0);
+  return absl::NotFoundError("No context for: " + path);
+}
 }  // namespace slop
