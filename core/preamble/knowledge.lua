@@ -1,43 +1,3 @@
-function tools.save_memo(args)
-  if not session_id or session_id == "" then error("FAILED_PRECONDITION: No active session") end
-  local content = args.content
-  local tags = args.tags or {}
-  local tags_json = JSON.stringify(tags)
-  
-  local success, res = call_tool(tools.query_db, {
-    sql = "INSERT INTO llm_memos (content, semantic_tags) VALUES (?, ?)",
-    params = {content, tags_json}
-  })
-  if not success then
-    error("Failed to save memo: " .. tostring(res))
-  end
-  return "Memo saved."
-end
-
-function tools.retrieve_memos(args)
-  if not session_id or session_id == "" then error("FAILED_PRECONDITION: No active session") end
-  local tags = args.tags or {}
-  local query
-  local params = {}
-  if #tags == 0 then
-    query = "SELECT content, semantic_tags as tags, created_at FROM llm_memos ORDER BY created_at DESC LIMIT 20"
-  else
-    local tag_conditions = {}
-    for _, tag in ipairs(tags) do
-      table.insert(tag_conditions, "semantic_tags LIKE ?")
-      table.insert(params, "%" .. tag .. "%")
-    end
-    query = "SELECT content, semantic_tags as tags, created_at FROM llm_memos WHERE " .. 
-            table.concat(tag_conditions, " AND ") .. " ORDER BY created_at DESC LIMIT 20"
-  end
-  
-  local success, res = call_tool(tools.query_db, {sql = query, params = params})
-  if not success then
-    error("Failed to retrieve memos: " .. tostring(res))
-  end
-  return res
-end
-
 function tools.manage_scratchpad(args)
   if not session_id or session_id == "" then error("FAILED_PRECONDITION: No active session", 0) end
   local action = args.action
@@ -74,14 +34,12 @@ function tools.manage_scratchpad(args)
     error("Unknown action: " .. tostring(action))
   end
 end
-
 function tools.describe_db(args)
   local query = "SELECT name, sql FROM sqlite_master WHERE type='table'"
   local success, res = call_tool(tools.query_db, {sql = query})
   if not success then error("Failed to describe database: " .. tostring(res)) end
   return res
 end
-
 function tools.use_skill(args)
   if not session_id or session_id == "" then error("FAILED_PRECONDITION: No active session") end
   local name = args.name
@@ -102,12 +60,9 @@ function tools.use_skill(args)
   if skill_list_json and skill_list_json ~= "" and skill_list_json ~= "null" then
     skill_list = JSON.parse(skill_list_json)
   end
-
   local skill_map = {}
   for _, s in ipairs(skill_list) do skill_map[s] = true end
-
   local prompt_patch = ""
-
   if action == "activate" then
     if not skill_map[name] then
       table.insert(skill_list, name)
@@ -135,15 +90,12 @@ function tools.use_skill(args)
     end
     skill_list = new_list
   end
-
   -- 2. Persist back to session
   local ok2, res2 = call_tool(tools.query_db, {
     sql = "UPDATE sessions SET active_skills = ? WHERE id = ?",
     params = {JSON.stringify(skill_list), session_id}
   })
   if not ok2 then error("Failed to update active skills: " .. tostring(res2)) end
-
   return "Skill '" .. name .. "' " .. (action == "activate" and "activated" or "deactivated") .. "." .. prompt_patch
 end
-
 -- Search Tools
