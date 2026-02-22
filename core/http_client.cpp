@@ -107,7 +107,8 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
           LOG(INFO) << "  Request Header: " << header;
         }
       }
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+      // only enable when absolutely needed. commented in case it is.
+      //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     }
 
     for (const auto& header : headers) {
@@ -135,7 +136,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
     if (IsDebugHttpEnabled()) {
       if (res != CURLE_OK) {
-        LOG(ERROR) << "CURL error: " << curl_easy_strerror(res) << " (code " << res << ") for " << url;
+        LOG(INFO) << "CURL error: " << curl_easy_strerror(res) << " (code " << res << ") for " << url;
       } else {
         LOG(INFO) << "HTTP response: " << response_code << " for " << url;
         if (response_body.size() < 1000) {
@@ -193,11 +194,22 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 }
 
 bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {
-  if (response_code == 429 || response_code == 403) {
+  // Non-retryable client errors:
+  // 400 Bad Request: Request is invalid.
+  // 401 Unauthorized: API key missing or invalid.
+  // 403 Forbidden: Permission denied or invalid key.
+  // 404 Not Found: Model or endpoint not found.
+  if (response_code == 400 || response_code == 401 || response_code == 403 || response_code == 404) {
+    return true;
+  }
+
+  // 429 Too Many Requests: Only terminal if quota is strictly exhausted.
+  if (response_code == 429) {
     if (absl::StrContains(response_body, "QUOTA_EXHAUSTED")) {
       return true;
     }
   }
+
   return false;
 }
 
