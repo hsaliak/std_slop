@@ -1,6 +1,7 @@
 #include "core/orchestrator.h"
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <set>
@@ -64,6 +65,7 @@ absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
   }
   auto orchestrator = std::unique_ptr<Orchestrator>(new Orchestrator(db_, http_client_));
   (void)orchestrator->LoadAgentMd("./AGENTS.md");
+  (void)orchestrator->ReloadSkills("./skills");
   BuildInto(orchestrator.get());
   return orchestrator;
 }
@@ -142,6 +144,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   }
   std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
   InjectAgentMd(&system_instruction);
+  InjectSkillsSummary(&system_instruction);
   auto payload_or = strategy_->AssemblePayload(session_id, system_instruction, history);
   if (payload_or.ok() && std::getenv("SLOP_TOOL_DEBUG")) {
     LOG(INFO) << "--- ASSEMBLED PROMPT ---\n" << payload_or->dump(2) << "\n--- END PROMPT ---";
@@ -350,6 +353,84 @@ void Orchestrator::InjectAgentMd(std::string* system_instruction) {
   if (!content_or.ok() || content_or->empty()) return;
   absl::StrAppend(system_instruction, "\n\n## Project Context (from ", active_agent_md_path_, ")\n",
                   *content_or, "\n");
+}
+
+// ... (existing includes)
+
+// ...
+
+absl::Status Orchestrator::ReloadSkills(const std::string& directory) {
+  if (!std::filesystem::exists(directory)) {
+    // It's okay if it doesn't exist, just return OK (no skills loaded)
+    return absl::OkStatus();
+  }
+
+  for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+    if (!entry.is_directory()) continue;
+    
+    std::filesystem::path skill_file = entry.path() / "SKILL.md";
+    if (!std::filesystem::exists(skill_file)) continue;
+
+    std::ifstream file(skill_file);
+    std::string content((std::istreambuf_iterator<char>(file)),
+                        std::istreambuf_iterator<char>());
+
+    size_t first_dash = content.find("---");
+    if (first_dash == std::string::npos) continue;
+    
+    size_t second_dash = content.find("---", first_dash + 3);
+    if (second_dash == std::string::npos) continue;
+
+    std::string frontmatter = content.substr(first_dash + 3, second_dash - (first_dash + 3));
+    std::string body = content.substr(second_dash + 3);
+
+    std::string name_val, desc_val;
+    std::istringstream stream(frontmatter);
+    std::string line;
+    while (std::getline(stream, line)) {
+      size_t colon = line.find(':');
+      if (colon == std::string::npos) continue;
+      std::string key = std::string(absl::StripAsciiWhitespace(line.substr(0, colon)));
+      std::string val = std::string(absl::StripAsciiWhitespace(line.substr(colon + 1)));
+      if (key == "name") name_val = val;
+      if (key == "description") desc_val = val;
+    }
+
+    if (name_val.empty()) name_val = entry.path().filename().string();
+
+    Database::Skill skill;
+    skill.name = name_val;
+    skill.description = desc_val;
+    skill.system_prompt_patch = std::string(absl::StripAsciiWhitespace(body));
+    
+    auto exists_or = db_->SkillExists(skill.name);
+    if (exists_or.ok() && *exists_or) {
+      (void)(void)db_->UpdateSkill(skill);
+    } else {
+      (void)(void)db_->RegisterSkill(skill);
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> Orchestrator::ListSkills() const {
+  auto skills_or = db_->GetSkills();
+  if (!skills_or.ok()) return skills_or.status();
+  std::string out;
+  for (const auto& skill : *skills_or) {
+    absl::StrAppend(&out, "- ", skill.name, ": ", skill.description, "\n");
+  }
+  return out;
+}
+
+void Orchestrator::InjectSkillsSummary(std::string* system_instruction) {
+  auto skills_or = db_->GetSkills();
+  if (!skills_or.ok() || skills_or->empty()) return;
+  absl::StrAppend(system_instruction, "\n\n## Available Skills\n",
+                  "Use these skills by name when relevant:\n");
+  for (const auto& skill : *skills_or) {
+    absl::StrAppend(system_instruction, "- ", skill.name, ": ", skill.description, "\n");
+  }
 }
 
 }  // namespace slop

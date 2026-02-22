@@ -80,6 +80,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
   commands_["/agents_md"] = [this](CommandArgs& args) { return HandleAgentsMd(args); };
+  commands_["/skills"] = [this](CommandArgs& args) { return HandleSkills(args); };
   commands_["/review"] = [this](CommandArgs& args) { return HandleReview(args); };
   commands_["/feedback"] = [this](CommandArgs& args) { return HandleFeedback(args); };
   commands_["/mode"] = [this](CommandArgs& args) { return HandleMode(args); };
@@ -1107,6 +1108,35 @@ CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
       std::cout << "Error loading AGENTS.md: " << status.message() << std::endl;
     } else {
       std::cout << "Successfully loaded AGENTS.md from " << path << std::endl;
+    }
+  } else {
+    args.show_help_fn();
+  }
+  return Result::HANDLED;
+}
+
+
+CommandHandler::Result CommandHandler::HandleSkills(CommandArgs& args) {
+  std::vector<std::string> parts = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
+  if (parts.empty()) {
+    args.show_help_fn();
+    return Result::HANDLED;
+  }
+  std::string sub = parts[0];
+  if (sub == "list") {
+    auto list_or = orchestrator_->ListSkills();
+    if (!list_or.ok()) {
+      std::cout << "Error listing skills: " << list_or.status().message() << std::endl;
+    } else {
+      std::cout << *list_or << std::endl;
+    }
+  } else if (sub == "reload") {
+    std::string path = (parts.size() > 1) ? parts[1] : "./skills";
+    auto status = orchestrator_->ReloadSkills(path);
+    if (status.ok()) {
+      std::cout << "Successfully reloaded skills from " << path << std::endl;
+    } else {
+      std::cout << "Error reloading skills: " << status.message() << std::endl;
     }
   } else {
     args.show_help_fn();
