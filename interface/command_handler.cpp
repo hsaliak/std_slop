@@ -80,7 +80,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
   commands_["/agents_md"] = [this](CommandArgs& args) { return HandleAgentsMd(args); };
-  commands_["/skills"] = [this](CommandArgs& args) { return HandleSkills(args); };
+  commands_["/skills"] = [this](CommandArgs& args) { return HandleSkill(args); };
   commands_["/review"] = [this](CommandArgs& args) { return HandleReview(args); };
   commands_["/feedback"] = [this](CommandArgs& args) { return HandleFeedback(args); };
   commands_["/mode"] = [this](CommandArgs& args) { return HandleMode(args); };
@@ -411,6 +411,23 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       auto status = db_->RegisterSkill(s);
       HandleStatus(status);
       if (status.ok()) std::cout << "Skill added." << std::endl;
+  } else if (sub_cmd == "reload") {
+    absl::Status status;
+    std::string msg;
+    std::vector<std::string> parts = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
+    if (parts.size() > 1) {
+      status = orchestrator_->ReloadSkills(parts[1]);
+      msg = "from " + parts[1];
+    } else {
+      status = orchestrator_->ReloadAllSkills();
+      msg = "from default paths";
+    }
+
+    if (status.ok()) {
+      std::cout << "Successfully reloaded skills " << msg << std::endl;
+    } else {
+      std::cout << "Error reloading skills: " << status.message() << std::endl;
+    }
     }
   }
   return Result::HANDLED;
@@ -1116,40 +1133,5 @@ CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
 }
 
 
-CommandHandler::Result CommandHandler::HandleSkills(CommandArgs& args) {
-  std::vector<std::string> parts = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
-  if (parts.empty()) {
-    args.show_help_fn();
-    return Result::HANDLED;
-  }
-  std::string sub = parts[0];
-  if (sub == "list") {
-    auto list_or = orchestrator_->ListSkills();
-    if (!list_or.ok()) {
-      std::cout << "Error listing skills: " << list_or.status().message() << std::endl;
-    } else {
-      std::cout << *list_or << std::endl;
-    }
-  } else if (sub == "reload") {
-    absl::Status status;
-    std::string msg;
-    if (parts.size() > 1) {
-      status = orchestrator_->ReloadSkills(parts[1]);
-      msg = "from " + parts[1];
-    } else {
-      status = orchestrator_->ReloadAllSkills();
-      msg = "from default paths";
-    }
-
-    if (status.ok()) {
-      std::cout << "Successfully reloaded skills " << msg << std::endl;
-    } else {
-      std::cout << "Error reloading skills: " << status.message() << std::endl;
-    }
-  } else {
-    args.show_help_fn();
-  }
-  return Result::HANDLED;
-}
 
 }  // namespace slop
