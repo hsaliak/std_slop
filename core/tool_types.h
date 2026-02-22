@@ -4,6 +4,7 @@
 #include <string>
 
 #include "nlohmann/json.hpp"
+
 #include "json_utils.h"
 
 namespace slop {
@@ -21,4 +22,3 @@ inline void from_json(const nlohmann::json& j, RunLuaRequest& r) {
 }  // namespace slop
 
 #endif  // SLOP_SQL_TOOL_TYPES_H_
-

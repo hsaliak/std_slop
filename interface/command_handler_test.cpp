@@ -1,6 +1,9 @@
 #include "interface/command_handler.h"
+
 #include "absl/strings/match.h"
+
 #include "core/orchestrator.h"
+
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 namespace slop {
@@ -16,6 +19,7 @@ class TestableCommandHandler : public CommandHandler {
   bool editor_was_called = false;
   absl::flat_hash_map<std::string, absl::StatusOr<std::string>> command_responses;
   std::vector<std::string> executed_commands;
+
  protected:
   std::string TriggerEditor(const std::string& initial_content, const std::string& extension) override {
     editor_was_called = true;
@@ -611,7 +615,7 @@ TEST_F(CommandHandlerTest, ReviewPatchDiagnosticsOnBaseBranch) {
   // 1. Mock we are on main and comparing main..HEAD (empty)
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "main";
-  
+
   handler.command_responses["git rev-list --reverse main..HEAD"] = "";  // No patches
   testing::internal::CaptureStdout();
   std::string input = "/review mail";
@@ -626,7 +630,7 @@ TEST_F(CommandHandlerTest, ReviewMailEmptyStagingBranch) {
   std::vector<std::string> active_skills;
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
-  
+
   handler.command_responses["git rev-list --reverse main..HEAD"] = "";
   testing::internal::CaptureStdout();
   std::string input = "/review mail";
@@ -675,7 +679,7 @@ TEST_F(CommandHandlerTest, ReviewMailApproveProceedsToLLM) {
   std::vector<std::string> active_skills;
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
-  
+
   handler.command_responses["git rev-list --reverse main..HEAD"] = "commit_hash_123";
   handler.command_responses["git rev-parse HEAD"] = "abcd123";
   std::string input = "/review mail approve";
@@ -693,7 +697,7 @@ TEST_F(CommandHandlerTest, ReviewDashboard) {
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
   handler.command_responses["git status --porcelain"] = "M file.cpp";
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/feature";
-  
+
   handler.command_responses["git rev-list --count main..HEAD"] = "1";
   std::string input = "/review";
   std::string sid = "s1";
@@ -723,7 +727,8 @@ TEST_F(CommandHandlerTest, ModeMailResolvesCorrectBaseBranch) {
   }
   // Case 2: On 'slop/staging/fix' (staging)
   handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "slop/staging/fix";
-  (void)db.Execute("INSERT INTO staging_branches (branch_name, parent_branch) VALUES (?, ?);", "slop/staging/fix", "main");
+  (void)db.Execute("INSERT INTO staging_branches (branch_name, parent_branch) VALUES (?, ?);", "slop/staging/fix",
+                   "main");
   {
     testing::internal::CaptureStdout();
     std::string input = "/mode mail";

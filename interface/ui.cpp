@@ -30,8 +30,8 @@ inline constexpr std::string_view kTool = "tool";
 #include "absl/strings/substitute.h"
 #include "absl/synchronization/mutex.h"
 #include "nlohmann/json.hpp"
-#include "core/json_utils.h"
 
+#include "core/json_utils.h"
 #include "core/message_parser.h"
 #include "interface/color.h"
 #include "interface/command_definitions.h"
@@ -410,10 +410,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
   return ss.str();
 }
 
-
-void DisplayAssembledContext(const std::string& json_str) {
-  SmartDisplay(FormatAssembledContext(json_str), true);
-}
+void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatAssembledContext(json_str), true); }
 
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
   auto& parser = GetMarkdownParser();
@@ -643,7 +640,8 @@ std::string GetHelpText() {
       "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
       "- `--helpfull`: See all available command-line flags.\n\n"
       "## Hotwords\n"
-      "- `hey <skill> <query>`: Temporarily activate a skill for a single prompt. For example: `hey code_reviewer what do you think of this?`.\n\n"
+      "- `hey <skill> <query>`: Temporarily activate a skill for a single prompt. For example: `hey code_reviewer what "
+      "do you think of this?`.\n\n"
       "## Slash Commands\n\n";
   std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;
   std::vector<std::string> categories;

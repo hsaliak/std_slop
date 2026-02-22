@@ -1,13 +1,15 @@
-#include <cstdlib>
 #include "core/orchestrator.h"
+
 #include <algorithm>
-#include <fstream>
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <set>
 #include <sstream>
 #include <unordered_set>
+
 #include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -15,6 +17,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
+
 #include "core/constants.h"
 #include "core/orchestrator_gemini.h"
 #include "core/orchestrator_openai.h"
@@ -343,8 +346,7 @@ absl::Status Orchestrator::LoadAgentMd(const std::string& path) {
     if (path == "./AGENTS.md") return absl::OkStatus();
     return absl::NotFoundError("Could not open " + path);
   }
-  std::string content((std::istreambuf_iterator<char>(file)),
-                     std::istreambuf_iterator<char>());
+  std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
   active_agent_md_path_ = path;
   return db_->SetAgentMd(path, content);
 }
@@ -352,8 +354,7 @@ absl::Status Orchestrator::LoadAgentMd(const std::string& path) {
 void Orchestrator::InjectAgentMd(std::string* system_instruction) {
   auto content_or = db_->GetAgentMd(active_agent_md_path_);
   if (!content_or.ok() || content_or->empty()) return;
-  absl::StrAppend(system_instruction, "\n\n## Project Context (from ", active_agent_md_path_, ")\n",
-                  *content_or, "\n");
+  absl::StrAppend(system_instruction, "\n\n## Project Context (from ", active_agent_md_path_, ")\n", *content_or, "\n");
 }
 
 // ... (existing includes)
@@ -382,17 +383,16 @@ absl::Status Orchestrator::ReloadSkills(const std::string& directory) {
 
   for (const auto& entry : std::filesystem::directory_iterator(expanded)) {
     if (!entry.is_directory()) continue;
-    
+
     std::filesystem::path skill_file = entry.path() / "SKILL.md";
     if (!std::filesystem::exists(skill_file)) continue;
 
     std::ifstream file(skill_file);
-    std::string content((std::istreambuf_iterator<char>(file)),
-                        std::istreambuf_iterator<char>());
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
     size_t first_dash = content.find("---");
     if (first_dash == std::string::npos) continue;
-    
+
     size_t second_dash = content.find("---", first_dash + 3);
     if (second_dash == std::string::npos) continue;
 
@@ -417,7 +417,7 @@ absl::Status Orchestrator::ReloadSkills(const std::string& directory) {
     skill.name = name_val;
     skill.description = desc_val;
     skill.system_prompt_patch = std::string(absl::StripAsciiWhitespace(body));
-    
+
     auto exists_or = db_->SkillExists(skill.name);
     if (exists_or.ok() && *exists_or) {
       (void)(void)db_->UpdateSkill(skill);
@@ -441,17 +441,15 @@ absl::StatusOr<std::string> Orchestrator::ListSkills() const {
 void Orchestrator::InjectSkillsSummary(std::string* system_instruction) {
   auto skills_or = db_->GetSkills();
   if (!skills_or.ok() || skills_or->empty()) return;
-  absl::StrAppend(system_instruction, "\n\n## Available Skills\n",
-                  "Use these skills by name when relevant:\n");
+  absl::StrAppend(system_instruction, "\n\n## Available Skills\n", "Use these skills by name when relevant:\n");
   for (const auto& skill : *skills_or) {
     absl::StrAppend(system_instruction, "- ", skill.name, ": ", skill.description, "\n");
   }
 }
 
-
 absl::Status Orchestrator::ReloadAllSkills() {
   (void)ReloadSkills("./skills");
   (void)ReloadSkills("~/.config/slop/skills");
-  return absl::OkStatus(); 
+  return absl::OkStatus();
 }
 }  // namespace slop

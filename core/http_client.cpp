@@ -1,17 +1,17 @@
 #include "core/http_client.h"
 
-#include "absl/random/random.h"
 #include <chrono>
 #include <iostream>
 #include <sstream>
 #include <thread>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
+#include "absl/random/random.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
-#include "absl/strings/match.h"
-#include "absl/strings/ascii.h"
-#include "absl/cleanup/cleanup.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "nlohmann/json.hpp"
@@ -24,9 +24,7 @@ inline bool IsDebugHttpEnabled() {
   return enabled;
 }
 
-HttpClient::HttpClient() : max_retries_(3), initial_backoff_ms_(5000) {
-  curl_global_init(CURL_GLOBAL_ALL);
-}
+HttpClient::HttpClient() : max_retries_(3), initial_backoff_ms_(5000) { curl_global_init(CURL_GLOBAL_ALL); }
 
 HttpClient::HttpClient(int max_retries, int64_t initial_backoff_ms)
     : max_retries_(max_retries), initial_backoff_ms_(initial_backoff_ms) {
@@ -62,8 +60,8 @@ size_t HttpClient::HeaderCallback(char* buffer, size_t size, size_t nitems, void
   return total_size;
 }
 
-int HttpClient::ProgressCallback(void* clientp, curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
-                                 curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) {
+int HttpClient::ProgressCallback(void* clientp, curl_off_t /*dltotal*/, curl_off_t /*dlnow*/, curl_off_t /*ultotal*/,
+                                 curl_off_t /*ulnow*/) {
   auto* client = static_cast<HttpClient*>(clientp);
   if (client->IsAborted()) {
     return 1;
@@ -71,8 +69,7 @@ int HttpClient::ProgressCallback(void* clientp, curl_off_t /*dltotal*/, curl_off
   return 0;
 }
 
-absl::StatusOr<std::string> HttpClient::Get(const std::string& url,
-                                            const std::vector<std::string>& headers) {
+absl::StatusOr<std::string> HttpClient::Get(const std::string& url, const std::vector<std::string>& headers) {
   return ExecuteWithRetry(url, "GET", "", headers);
 }
 
@@ -96,7 +93,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
     std::string response_body;
     absl::flat_hash_map<std::string, std::string> response_headers;
-        struct curl_slist* chunk = nullptr;
+    struct curl_slist* chunk = nullptr;
     absl::Cleanup chunk_cleaner = [&chunk] { curl_slist_free_all(chunk); };
 
     if (IsDebugHttpEnabled()) {
@@ -109,7 +106,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
         }
       }
       // only enable when absolutely needed. commented in case it is.
-      //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+      // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     }
 
     for (const auto& header : headers) {
@@ -131,7 +128,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     }
 
-        CURLcode res = curl_easy_perform(curl);
+    CURLcode res = curl_easy_perform(curl);
     long response_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
@@ -148,20 +145,16 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       }
     }
 
-    
-    
-
     if (res == CURLE_OK) {
       if (response_code >= 200 && response_code < 300) {
         return response_body;
       }
 
-          if (IsTerminalError(response_code, response_body)) {
-      if (IsDebugHttpEnabled()) {
-        LOG(WARNING) << "Terminal HTTP error detected: " << response_code << " for " << url;
-      }
-        return absl::UnavailableError(
-            absl::StrCat("Terminal HTTP error: ", response_code, " Body: ", response_body));
+      if (IsTerminalError(response_code, response_body)) {
+        if (IsDebugHttpEnabled()) {
+          LOG(WARNING) << "Terminal HTTP error detected: " << response_code << " for " << url;
+        }
+        return absl::UnavailableError(absl::StrCat("Terminal HTTP error: ", response_code, " Body: ", response_body));
       }
     }
 
@@ -186,8 +179,8 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       wait_ms = std::max(wait_ms, header_delay);
     }
 
-    LOG(INFO) << "Request failed (code " << response_code << "), retrying in " << wait_ms
-              << "ms... (attempt " << (retry_count + 1) << "/" << max_retries_ << ")" << std::endl;
+    LOG(INFO) << "Request failed (code " << response_code << "), retrying in " << wait_ms << "ms... (attempt "
+              << (retry_count + 1) << "/" << max_retries_ << ")" << std::endl;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
 
@@ -262,21 +255,19 @@ int64_t HttpClient::ParseGoogleRetryDelay(const std::string& body) {
   auto j = nlohmann::json::parse(body, nullptr, false);
   if (j.is_discarded() || !j.contains("error") || !j["error"].is_object()) return -1;
   auto error = j["error"];
-  
+
   if (error.contains("details") && error["details"].is_array()) {
     for (const auto& detail : error["details"]) {
       if (!detail.is_object() || !detail.contains("@type")) continue;
-      
-      if (detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" &&
-          detail.contains("retryDelay")) {
+
+      if (detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" && detail.contains("retryDelay")) {
         std::string delay_str = detail["retryDelay"];
         if (!delay_str.empty() && delay_str.back() == 's') {
           char* end;
           double d = std::strtod(delay_str.substr(0, delay_str.size() - 1).c_str(), &end);
           return static_cast<int64_t>(d * 1000);
         }
-      } else if (detail["@type"] == "type.googleapis.com/google.rpc.ErrorInfo" &&
-                 detail.contains("metadata")) {
+      } else if (detail["@type"] == "type.googleapis.com/google.rpc.ErrorInfo" && detail.contains("metadata")) {
         auto metadata = detail["metadata"];
         if (metadata.is_object() && metadata.contains("quotaResetDelay")) {
           std::string delay_str = metadata["quotaResetDelay"];
@@ -289,7 +280,7 @@ int64_t HttpClient::ParseGoogleRetryDelay(const std::string& body) {
       }
     }
   }
-  
+
   if (error.contains("message") && error["message"].is_string()) {
     std::string message = error["message"];
     size_t after_pos = message.find("after ");
@@ -305,7 +296,7 @@ int64_t HttpClient::ParseGoogleRetryDelay(const std::string& body) {
       }
     }
   }
-  
+
   return -1;
 }
 

@@ -1,6 +1,4 @@
 #include "core/orchestrator_gemini.h"
-#include "core/constants.h"
-#include "json_utils.h"
 
 #include <iostream>
 
@@ -9,8 +7,10 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 
+#include "core/constants.h"
 #include "core/message_parser.h"
 #include "core/orchestrator.h"
+#include "json_utils.h"
 namespace slop {
 
 GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
@@ -117,7 +117,6 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
 
   if (!f_decls.empty()) payload["tools"] = {{{"function_declarations", f_decls}}};
 
-
   return payload;
 }
 absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
@@ -150,8 +149,8 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
         for (const auto& part : *parts) {
           if (const auto* fc = json_at(part, "functionCall")) {
             std::string name = json_get_or(*fc, "name", std::string{});
-            status = db_->AppendMessage(session_id, "assistant", json_dump(part), name, "tool_call", group_id, GetName(),
-                                        total_tokens);
+            status = db_->AppendMessage(session_id, "assistant", json_dump(part), name, "tool_call", group_id,
+                                        GetName(), total_tokens);
           } else if (auto text = json_get<std::string>(part, "text")) {
             status =
                 db_->AppendMessage(session_id, "assistant", *text, "", "completed", group_id, GetName(), total_tokens);
@@ -170,7 +169,6 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
   if (!status.ok()) return status;
   return total_tokens;
 }
-
 
 absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const Database::Message& msg) {
   return MessageParser::ExtractToolCalls(MessageContext(msg));

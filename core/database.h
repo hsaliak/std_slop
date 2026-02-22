@@ -3,17 +3,20 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+
 #include <sqlite3.h>
 namespace slop {
 class Database {
  public:
   absl::Status SetAgentMd(const std::string& path, const std::string& content);
   absl::StatusOr<std::string> GetAgentMd(const std::string& path);
+
  public:
   Database() : db_(nullptr) {}
   ~Database();
@@ -67,6 +70,7 @@ class Database {
     int ColumnType(int index);
     const char* ColumnName(int index);
     int ColumnCount();
+
    private:
     absl::Status BindRecursive(int /*index*/) { return absl::OkStatus(); }
     template <typename T, typename... Rest>
@@ -178,6 +182,7 @@ class Database {
   // Full Text Search
   absl::StatusOr<std::string> Query(const std::string& sql);
   absl::StatusOr<std::string> Query(const std::string& sql, const std::vector<std::string>& params);
+
  private:
   absl::Status RegisterDefaultTools();
   absl::Status RegisterDefaultSkills();

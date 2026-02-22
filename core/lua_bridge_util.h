@@ -5,8 +5,9 @@
 #include <string>
 #include <vector>
 
-#include <nlohmann/json.hpp>
 #include "json_utils.h"
+
+#include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 
 namespace slop {

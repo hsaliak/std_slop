@@ -4,7 +4,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 #include "absl/container/flat_hash_map.h"
+
 #include "core/database.h"
 #include "interface/ui.h"
 namespace slop {
@@ -43,6 +45,7 @@ class CommandHandler {
   std::vector<std::string> GetCommandNames() const;
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
   bool IsMailMode() const { return mail_mode_; }
+
  private:
   void RegisterCommands();
   // Individual command handlers
@@ -62,7 +65,7 @@ class CommandHandler {
   Result HandleModel(CommandArgs& args);
   Result HandleThrottle(CommandArgs& args);
   Result HandleAgentsMd(CommandArgs& args);
-  
+
   Result HandleReview(CommandArgs& args);
   Result HandleFeedback(CommandArgs& args);
   Result HandleMode(CommandArgs& args);
@@ -74,6 +77,7 @@ class CommandHandler {
   std::string openai_api_key_;
   absl::flat_hash_map<std::string, CommandFunc> commands_;
   absl::flat_hash_map<std::string, std::vector<std::string>> sub_commands_;
+
  protected:
   explicit CommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
                           OAuthHandler* oauth_handler = nullptr, std::string google_api_key = "",

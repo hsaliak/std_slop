@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
 #include "nlohmann/json.hpp"
 
 namespace slop {
@@ -40,17 +41,17 @@ struct json_getter {
 
   static std::optional<T> get(const nlohmann::json& j) {
     if (!is(j)) return std::nullopt;
-    if constexpr (std::is_same_v<T, nlohmann::json>) return j;
-    else return j.get<T>();
+    if constexpr (std::is_same_v<T, nlohmann::json>)
+      return j;
+    else
+      return j.get<T>();
   }
 };
 
 // Specialization for std::optional
 template <typename T>
 struct json_getter<std::optional<T>> {
-  static bool is(const nlohmann::json& j) {
-    return j.is_null() || json_getter<T>::is(j);
-  }
+  static bool is(const nlohmann::json& j) { return j.is_null() || json_getter<T>::is(j); }
   static std::optional<std::optional<T>> get(const nlohmann::json& j) {
     if (j.is_null()) return std::optional<T>(std::nullopt);
     auto val = json_getter<T>::get(j);
@@ -136,6 +137,6 @@ inline std::string json_dump(const nlohmann::json& j, int indent = -1) {
   return j.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
-} // namespace slop
+}  // namespace slop
 
-#endif // SLOP_CORE_JSON_UTILS_H_
+#endif  // SLOP_CORE_JSON_UTILS_H_

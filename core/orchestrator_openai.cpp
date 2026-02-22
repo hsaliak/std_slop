@@ -1,5 +1,4 @@
 #include "core/orchestrator_openai.h"
-#include "json_utils.h"
 
 #include <iostream>
 
@@ -10,6 +9,7 @@
 
 #include "core/message_parser.h"
 #include "core/orchestrator.h"
+#include "json_utils.h"
 namespace slop {
 
 OpenAiOrchestrator::OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
@@ -87,8 +87,8 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
     }
 
     if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") {
-      messages.back()["content"] =
-          json_get_or(messages.back(), "content", std::string{}) + "\n" + json_get_or(msg_obj, "content", std::string{});
+      messages.back()["content"] = json_get_or(messages.back(), "content", std::string{}) + "\n" +
+                                   json_get_or(msg_obj, "content", std::string{});
     } else {
       messages.push_back(msg_obj);
     }
@@ -162,7 +162,6 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
   if (!status.ok()) return status;
   return total_tokens;
 }
-
 
 absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const Database::Message& msg) {
   return MessageParser::ExtractToolCalls(MessageContext(msg));

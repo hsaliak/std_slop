@@ -1,4 +1,5 @@
 #include "core/json_utils.h"
+
 #include <gtest/gtest.h>
 
 namespace slop {
@@ -10,7 +11,7 @@ TEST(JsonUtilsTest, ParseValidJson) {
 }
 
 TEST(JsonUtilsTest, ParseInvalidJson) {
-  auto j = json_parse("{\"key\": \"value\""); // missing closing brace
+  auto j = json_parse("{\"key\": \"value\"");  // missing closing brace
   EXPECT_FALSE(j.has_value());
 }
 
@@ -59,7 +60,7 @@ TEST(JsonUtilsTest, GetOr) {
   auto j = nlohmann::json::parse("{\"key\": \"value\"}");
   EXPECT_EQ(json_get_or<std::string>(j, "key", "default"), "value");
   EXPECT_EQ(json_get_or<std::string>(j, "missing", "default"), "default");
-  EXPECT_EQ(json_get_or<int>(j, "key", 42), 42); // wrong type
+  EXPECT_EQ(json_get_or<int>(j, "key", 42), 42);  // wrong type
 }
 
-} // namespace slop
+}  // namespace slop

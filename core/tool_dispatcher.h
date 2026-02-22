@@ -87,7 +87,7 @@ class ToolDispatcher {
    * @return A ToolJob handle to monitor and wait for the result.
    */
   std::shared_ptr<ToolJob> Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation = nullptr,
-                                   int64_t delay_ms = 0);
+                                  int64_t delay_ms = 0);
 
   /**
    * @brief Executes a batch of tool calls in parallel.

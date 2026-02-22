@@ -44,7 +44,7 @@ void InitializeEnvironment(sol::state& lua, [[maybe_unused]] Database* db, ToolD
 
   // JSON library
   sol::table json_lib = lua.create_table();
-    json_lib["parse"] = [](const std::string& s, sol::this_state st) {
+  json_lib["parse"] = [](const std::string& s, sol::this_state st) {
     sol::state_view lua(st);
     auto j_opt = json_parse(s);
     if (!j_opt) {

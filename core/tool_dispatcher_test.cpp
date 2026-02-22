@@ -136,7 +136,8 @@ TEST(ToolDispatcherTest, NestedCancellation) {
       auto job = dispatcher_ptr->Submit(child_call, cancellation);
       auto res = job->Wait();
       return res;
-    } if (name == "child") {
+    }
+    if (name == "child") {
       // Child waits for cancellation
       for (int i = 0; i < 100; ++i) {
         if (cancellation && cancellation->IsCancelled()) {
@@ -202,7 +203,7 @@ TEST(ToolDispatcherTest, ManyJobsCancellation) {
 
   std::vector<std::shared_ptr<ToolJob>> jobs;
   jobs.reserve(50);
-for (int i = 0; i < 50; ++i) {
+  for (int i = 0; i < 50; ++i) {
     jobs.push_back(dispatcher.Submit({"id" + std::to_string(i), "test", {}}, cancellation));
   }
 
@@ -226,11 +227,11 @@ TEST(ToolDispatcherTest, DeeplyNestedCancellation) {
       nlohmann::json child_args = {{"depth", depth - 1}};
       auto job = dispatcher_ptr->Submit({"child_" + std::to_string(depth), "nested", child_args}, cancellation);
       return job->Wait();
-    }       while (!cancellation->IsCancelled()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
-      return absl::StatusOr<std::string>(absl::CancelledError("Leaf Cancelled"));
-   
+    }
+    while (!cancellation->IsCancelled()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return absl::StatusOr<std::string>(absl::CancelledError("Leaf Cancelled"));
   };
 
   ToolDispatcher dispatcher(executor_func);

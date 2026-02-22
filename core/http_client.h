@@ -8,6 +8,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+
 #include <curl/curl.h>
 
 namespace slop {
@@ -43,8 +44,7 @@ class HttpClient {
 
  private:
   absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,
-                                               const std::string& body,
-                                               const std::vector<std::string>& headers);
+                                               const std::string& body, const std::vector<std::string>& headers);
 
   std::atomic<bool> abort_requested_{false};
 

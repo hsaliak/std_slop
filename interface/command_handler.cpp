@@ -1,9 +1,12 @@
 #include "interface/command_handler.h"
+
 #include <unistd.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdio>
 #include <iostream>
+
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -14,6 +17,7 @@
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "nlohmann/json.hpp"
+
 #include "core/json_utils.h"
 #include "core/message_parser.h"
 #include "core/oauth_handler.h"
@@ -411,23 +415,23 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       auto status = db_->RegisterSkill(s);
       HandleStatus(status);
       if (status.ok()) std::cout << "Skill added." << std::endl;
-  } else if (sub_cmd == "reload") {
-    absl::Status status;
-    std::string msg;
-    std::vector<std::string> parts = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
-    if (parts.size() > 1) {
-      status = orchestrator_->ReloadSkills(parts[1]);
-      msg = "from " + parts[1];
-    } else {
-      status = orchestrator_->ReloadAllSkills();
-      msg = "from default paths";
-    }
+    } else if (sub_cmd == "reload") {
+      absl::Status status;
+      std::string msg;
+      std::vector<std::string> parts = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
+      if (parts.size() > 1) {
+        status = orchestrator_->ReloadSkills(parts[1]);
+        msg = "from " + parts[1];
+      } else {
+        status = orchestrator_->ReloadAllSkills();
+        msg = "from default paths";
+      }
 
-    if (status.ok()) {
-      std::cout << "Successfully reloaded skills " << msg << std::endl;
-    } else {
-      std::cout << "Error reloading skills: " << status.message() << std::endl;
-    }
+      if (status.ok()) {
+        std::cout << "Successfully reloaded skills " << msg << std::endl;
+      } else {
+        std::cout << "Error reloading skills: " << status.message() << std::endl;
+      }
     }
   }
   return Result::HANDLED;
@@ -604,8 +608,8 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
             if (!b.is_object()) continue;
             double fraction = json_get_or(b, "remainingFraction", 0.0);
             md += absl::Substitute("| `$0` | $1 | $2% | $3 | $4 |\n", json_get_or(b, "modelId", std::string{"N/A"}),
-                                   json_get_or(b, "remainingAmount", std::string{"N/A"}), static_cast<int>(fraction * 100),
-                                   json_get_or(b, "resetTime", std::string{"N/A"}),
+                                   json_get_or(b, "remainingAmount", std::string{"N/A"}),
+                                   static_cast<int>(fraction * 100), json_get_or(b, "resetTime", std::string{"N/A"}),
                                    json_get_or(b, "tokenType", std::string{"N/A"}));
           }
           PrintMarkdown(md);
@@ -1131,7 +1135,5 @@ CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
   }
   return Result::HANDLED;
 }
-
-
 
 }  // namespace slop

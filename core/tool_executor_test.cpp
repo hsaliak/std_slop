@@ -51,8 +51,7 @@ TEST(ToolExecutorTest, ReadFileGranular) {
   auto res1 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 2}, {"end_line", 4}});
   ASSERT_TRUE(res1.ok());
   EXPECT_TRUE(res1->find("Line 2\nLine 3\nLine 4\n") != std::string::npos);
-  
-  
+
   EXPECT_TRUE(res1->find("1: Line 1") == std::string::npos);
   EXPECT_TRUE(res1->find("5: Line 5") == std::string::npos);
 
@@ -60,14 +59,14 @@ TEST(ToolExecutorTest, ReadFileGranular) {
   auto res2 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 4}});
   ASSERT_TRUE(res2.ok());
   EXPECT_TRUE(res2->find("Line 4\nLine 5\n") != std::string::npos);
-  
+
   EXPECT_TRUE(res2->find("3: Line 3") == std::string::npos);
 
   // Test: End only
   auto res3 = executor.Execute("read_file", {{"path", test_file}, {"end_line", 2}});
   ASSERT_TRUE(res3.ok());
   EXPECT_TRUE(res3->find("Line 1\nLine 2\n") != std::string::npos);
-  
+
   EXPECT_TRUE(res3->find("3: Line 3") == std::string::npos);
 
   // Test: Out of bounds
@@ -96,8 +95,6 @@ TEST(ToolExecutorTest, ReadFileMetadata) {
 
   auto res = executor.Execute("read_file", {{"path", test_file}, {"start_line", 1}, {"end_line", 2}});
   ASSERT_TRUE(res.ok());
-  
-  
 
   std::filesystem::remove(test_file);
 }
@@ -552,8 +549,8 @@ TEST(ToolExecutorTest, GitGrepBooleanExpressions) {
 
   // Test: AND (on the same line)
   // Find lines in core/tool_executor.cpp that contain both "absl" and "StatusOr"
-  auto res1 = executor.Execute("grep_tool",
-                               {{"patterns", {"absl", "--and", "StatusOr"}}, {"path", "core/tool_executor.cpp"}});
+  auto res1 =
+      executor.Execute("grep_tool", {{"patterns", {"absl", "--and", "StatusOr"}}, {"path", "core/tool_executor.cpp"}});
   ASSERT_TRUE(res1.ok());
   EXPECT_TRUE(res1->find("absl::StatusOr") != std::string::npos);
 
@@ -571,7 +568,7 @@ TEST(ToolExecutorTest, GitGrepBooleanExpressions) {
   // ( "absl" AND "StatusOr" ) OR "RetrieveMemos"
   auto res3 =
       executor.Execute("grep_tool", {{"patterns", {"(", "absl", "--and", "StatusOr", ")", "--or", "RetrieveMemos"}},
-                                         {"path", "core/tool_executor.cpp"}});
+                                     {"path", "core/tool_executor.cpp"}});
   ASSERT_TRUE(res3.ok());
   EXPECT_TRUE(res3->find("absl::StatusOr") != std::string::npos);
   EXPECT_TRUE(res3->find("RetrieveMemos") != std::string::npos);

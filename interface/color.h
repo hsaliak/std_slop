@@ -38,7 +38,7 @@ constexpr const char* Gray = "\x1b[38;2;146;131;116m";
 constexpr const char* DarkGray = "\x1b[38;2;60;56;54m";
 constexpr const char* Bg = "\x1b[48;2;60;56;54m";
 constexpr const char* Purple = "\x1b[38;2;177;98;134m";
-} // namespace gruvbox
+}  // namespace gruvbox
 
 constexpr const char* Reset = "\033[0m";
 constexpr const char* Bold = "\033[1m";
@@ -49,14 +49,14 @@ constexpr const char* Reverse = "\033[7m";
 constexpr const char* Hidden = "\033[8m";
 
 // Standard Foreground (text) color - Mapped to Gruvbox
-constexpr const char* White = "\x1b[38;2;235;219;178m"; // Gruvbox light0
+constexpr const char* White = "\x1b[38;2;235;219;178m";  // Gruvbox light0
 constexpr const char* Black = gruvbox::DarkGray;
 constexpr const char* Blue = gruvbox::Blue;
 constexpr const char* Cyan = gruvbox::Aqua;
 constexpr const char* Grey = gruvbox::Gray;
-constexpr const char* LightGrey = "\x1b[38;2;168;153;132m"; // Gruvbox gray_245
+constexpr const char* LightGrey = "\x1b[38;2;168;153;132m";  // Gruvbox gray_245
 constexpr const char* MildGrey = gruvbox::Gray;
-constexpr const char* Green = gruvbox::Aqua; // Using Aqua for Green as requested
+constexpr const char* Green = gruvbox::Aqua;  // Using Aqua for Green as requested
 constexpr const char* Yellow = gruvbox::Yellow;
 constexpr const char* Magenta = gruvbox::Purple;
 constexpr const char* Red = gruvbox::Red;
@@ -77,19 +77,19 @@ constexpr const char* MailMode = Blue;
 
 namespace theme {
 namespace markdown {
-inline constexpr const char* Header = "\033[1m\x1b[38;2;142;192;124m";      // Bold Aqua
+inline constexpr const char* Header = "\033[1m\x1b[38;2;142;192;124m";  // Bold Aqua
 inline constexpr const char* HeaderMarker = gruvbox::Gray;
 inline constexpr const char* Bold = "\033[1m";
 inline constexpr const char* Italic = "\033[3m";
 inline constexpr const char* CodeInline = "\x1b[38;2;142;192;124m";  // Aqua
 inline constexpr const char* CodeBlock = LightGrey;
-inline constexpr const char* LinkText = "\x1b[38;2;69;133;136m\033[4m";      // Blue Underline
+inline constexpr const char* LinkText = "\x1b[38;2;69;133;136m\033[4m";  // Blue Underline
 inline constexpr const char* LinkUrl = gruvbox::Gray;
 inline constexpr const char* ListMarker = gruvbox::Yellow;
 inline constexpr const char* Quote = gruvbox::Purple;
 inline constexpr const char* HorizontalRule = gruvbox::Gray;
 inline constexpr const char* TableBorder = gruvbox::Gray;
-inline constexpr const char* TableHeader = "\033[1m\x1b[38;2;142;192;124m";   // Bold Aqua
+inline constexpr const char* TableHeader = "\033[1m\x1b[38;2;142;192;124m";  // Bold Aqua
 }  // namespace markdown
 
 namespace syntax {

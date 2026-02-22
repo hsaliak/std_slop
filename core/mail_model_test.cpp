@@ -223,7 +223,8 @@ TEST_F(MailModelTest, DynamicBaseBranchWorkflow) {
   ASSERT_TRUE(branch_res.ok()) << branch_res.status().message();
 
   // Verify database was populated
-  auto db_res = db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {"slop/staging/" + staging_name});
+  auto db_res =
+      db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {"slop/staging/" + staging_name});
   EXPECT_TRUE(db_res.ok() && db_res->find(base_branch) != std::string::npos);
 
   // 3. Work: Add a patch
@@ -254,7 +255,6 @@ TEST_F(MailModelTest, DynamicBaseBranchWorkflow) {
   // Verify content was merged and exists on the base branch
   EXPECT_TRUE(std::filesystem::exists("feature.txt"));
 
-  
   // Cleanup repo
   (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
   (void)executor_->Execute("execute_bash", {{"command", "git branch -D " + base_branch}});
@@ -298,7 +298,7 @@ TEST_F(MailModelTest, GetBaseBranchResolution) {
   // Case 2: Database lookup for staging branch
   std::string staging = "slop/staging/test-db-res";
   (void)db_.Execute("INSERT INTO staging_branches (branch_name, parent_branch) VALUES (?, ?);", staging, "main-parent");
-  
+
   // We need to mock the current branch
   // But ToolExecutor calls git.get_current_branch in Lua which calls __os_run("git rev-parse --abbrev-ref HEAD")
   // Since we can't easily mock __os_run here without complex Lua injection, we'll rely on the existing unit tests

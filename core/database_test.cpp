@@ -1,11 +1,15 @@
 #include "core/database.h"
-#include "absl/strings/str_cat.h"
-#include <gtest/gtest.h>
-#include <nlohmann/json.hpp>
-#include "json_utils.h"
+
 #include <atomic>
 #include <thread>
 #include <vector>
+
+#include "absl/strings/str_cat.h"
+
+#include "json_utils.h"
+
+#include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 
 TEST(DatabaseTest, InitWorks) {
   slop::Database db;
@@ -381,7 +385,7 @@ TEST(DatabaseTest, ConcurrentAccess) {
   std::atomic<int> success_count{0};
   std::vector<std::thread> threads;
   threads.reserve(num_threads);
-for (int i = 0; i < num_threads; ++i) {
+  for (int i = 0; i < num_threads; ++i) {
     threads.emplace_back([&db, &success_count, i]() {
       for (int j = 0; j < iterations; ++j) {
         std::string session = absl::StrCat("session_", i);

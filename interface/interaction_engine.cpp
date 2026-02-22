@@ -1,12 +1,15 @@
 #include "interface/interaction_engine.h"
+
 #include <atomic>
 #include <iostream>
 #include <thread>
+
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
+
 #include "core/cancellation.h"
 #include "core/constants.h"
 #include "core/shell_util.h"
@@ -81,20 +84,16 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         input = std::move(query);
       } else {
         slop::PrintMarkdown(absl::StrCat(
-            "### Skill Hotword: 'hey'\n",
-            "The 'hey' hotword allows you to activate a skill for a single prompt.\n\n",
-            "**Usage:** `hey <skill_name> <query>`\n",
-            "**Example:** `hey code_reviewer review this patchset.`\n\n",
+            "### Skill Hotword: 'hey'\n", "The 'hey' hotword allows you to activate a skill for a single prompt.\n\n",
+            "**Usage:** `hey <skill_name> <query>`\n", "**Example:** `hey code_reviewer review this patchset.`\n\n",
             (hey_skill_name.empty() ? "" : absl::StrCat("Error: Skill '**", hey_skill_name, "**' not found.\n\n")),
             "To see available skills, use `/skill list`."));
         return true;
       }
     } else {
       slop::PrintMarkdown(absl::StrCat(
-          "### Skill Hotword: 'hey'\n",
-          "The 'hey' hotword allows you to activate a skill for a single prompt.\n\n",
-          "**Usage:** `hey <skill_name> <query>`\n",
-          "**Example:** `hey code_reviewer review this patchset.`\n\n",
+          "### Skill Hotword: 'hey'\n", "The 'hey' hotword allows you to activate a skill for a single prompt.\n\n",
+          "**Usage:** `hey <skill_name> <query>`\n", "**Example:** `hey code_reviewer review this patchset.`\n\n",
           "To see available skills, use `/skill list`."));
       return true;
     }
@@ -187,8 +186,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           std::atomic<bool> done{false};
           std::vector<slop::ToolDispatcher::Result> results;
           std::thread t([&] {
-            results = dispatcher_.Dispatch(dispatcher_calls, cancellation,
-                                            orchestrator_.GetThrottle());
+            results = dispatcher_.Dispatch(dispatcher_calls, cancellation, orchestrator_.GetThrottle());
             done = true;
           });
           {
@@ -224,8 +222,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     }
     break;
   }
-  
-return true;
+
+  return true;
 }
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
                                                      const std::vector<std::string>& active_skills) {

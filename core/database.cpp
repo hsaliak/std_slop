@@ -1,13 +1,17 @@
 #include "core/database.h"
+
 #include <iostream>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
+
 #include "core/status_macros.h"
-#include <nlohmann/json.hpp>
 #include "json_utils.h"
+
+#include <nlohmann/json.hpp>
 #include <sqlite3.h>
 namespace slop {
 Database::Statement::~Statement() {
@@ -844,7 +848,8 @@ absl::StatusOr<bool> Database::SkillExists(const std::string& name_or_id) {
   return stmt->Step();
 }
 absl::Status Database::SetAgentMd(const std::string& path, const std::string& content) {
-  return Execute("INSERT OR REPLACE INTO agent_md (path, content, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP);", path, content);
+  return Execute("INSERT OR REPLACE INTO agent_md (path, content, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP);", path,
+                 content);
 }
 absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   auto stmt_or = Prepare("SELECT content FROM agent_md WHERE path = ?;");

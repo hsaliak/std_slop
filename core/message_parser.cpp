@@ -1,7 +1,8 @@
 #include "core/message_parser.h"
-#include "json_utils.h"
 
 #include "absl/status/status.h"
+
+#include "json_utils.h"
 
 #include <nlohmann/json.hpp>
 
@@ -88,7 +89,6 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
   return calls;
 }
 
-
 std::string MessageParser::ExtractAssistantText(const MessageContext& ctx) {
   const auto& msg = ctx.message();
   if (msg.status != "tool_call") return msg.content;
@@ -98,6 +98,5 @@ std::string MessageParser::ExtractAssistantText(const MessageContext& ctx) {
   const auto& j = ctx.json();
   return json_get_or(j, "content", std::string{});
 }
-
 
 }  // namespace slop

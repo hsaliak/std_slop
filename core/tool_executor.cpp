@@ -1,5 +1,4 @@
 #include "core/tool_executor.h"
-#include "json_utils.h"
 
 #include <algorithm>
 #include <memory>
@@ -15,6 +14,7 @@
 #include "core/lua_tool.h"
 #include "core/preamble_data.h"
 #include "core/tool_dispatcher.h"
+#include "json_utils.h"
 #include "lua-bridge/interpreter.h"
 
 namespace slop {
@@ -58,7 +58,6 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   return db_->Query(*sql, params);
 }
 
-
 absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& args,
                                                        std::shared_ptr<CancellationRequest> cancellation) {
   RunLuaRequest req;
@@ -72,7 +71,6 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& arg
   if (!res.ok()) return res.status();
   return res->FullOutput();
 }
-
 
 void ToolExecutor::RegisterTools() {
   RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });

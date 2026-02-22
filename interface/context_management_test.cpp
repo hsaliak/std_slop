@@ -120,7 +120,6 @@ TEST_F(ContextManagementTest, ReadFileWarning) {
   auto res2 = executor.Execute("read_file", {{"path", "large_file.txt"}, {"start_line", 1}, {"end_line", 10}});
   ASSERT_TRUE(res2.ok());
   EXPECT_TRUE(!res2->empty());
-  
 
   std::filesystem::remove("large_file.txt");
 }
