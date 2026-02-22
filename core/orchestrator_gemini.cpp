@@ -1,4 +1,5 @@
 #include "core/orchestrator_gemini.h"
+#include "core/constants.h"
 #include "json_utils.h"
 
 #include <iostream>
@@ -176,7 +177,17 @@ absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const D
 }
 
 absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key) {
-  std::string url = base_url_ + "/models?key=" + api_key;
+  std::string base = base_url_.empty() ? std::string(slop::kPublicGeminiBaseUrl) : base_url_;
+  // If the base URL contains a model name or generateContent suffix, strip it
+  // to get the base endpoint for model listing.
+  if (size_t pos = base.find("/models/"); pos != std::string::npos) {
+    base = base.substr(0, pos);
+  } else if (size_t pos = base.find("/models"); pos != std::string::npos) {
+    // Also handle cases where it might end with /models without a trailing slash
+    base = base.substr(0, pos);
+  }
+
+  std::string url = base + "/models?key=" + api_key;
   auto resp_or = http_client_->Get(url, {});
   if (!resp_or.ok()) return resp_or.status();
 
