@@ -61,6 +61,7 @@ class CommandHandler {
   Result HandleSchema(CommandArgs& args);
   Result HandleModel(CommandArgs& args);
   Result HandleThrottle(CommandArgs& args);
+  Result HandleAgentsMd(CommandArgs& args);
   Result HandleReview(CommandArgs& args);
   Result HandleFeedback(CommandArgs& args);
   Result HandleMode(CommandArgs& args);

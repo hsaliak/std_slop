@@ -79,6 +79,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/schema"] = [this](CommandArgs& args) { return HandleSchema(args); };
   commands_["/model"] = [this](CommandArgs& args) { return HandleModel(args); };
   commands_["/throttle"] = [this](CommandArgs& args) { return HandleThrottle(args); };
+  commands_["/agents_md"] = [this](CommandArgs& args) { return HandleAgentsMd(args); };
   commands_["/review"] = [this](CommandArgs& args) { return HandleReview(args); };
   commands_["/feedback"] = [this](CommandArgs& args) { return HandleFeedback(args); };
   commands_["/mode"] = [this](CommandArgs& args) { return HandleMode(args); };
