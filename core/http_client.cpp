@@ -5,6 +5,7 @@
 #include <sstream>
 #include <thread>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
@@ -138,7 +139,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
     int64_t wait_ms = (header_delay > 0) ? header_delay : backoff_ms;
 
-    std::cout << "Request failed (code " << response_code << "), retrying in " << wait_ms
+    LOG(INFO) << "Request failed (code " << response_code << "), retrying in " << wait_ms
               << "ms... (attempt " << (retry_count + 1) << "/" << max_retries_ << ")" << std::endl;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
