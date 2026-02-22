@@ -1084,4 +1084,34 @@ std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch)
   // Final fallback for non-staging or missing DB entry
   return "main";
 }
+CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
+  std::vector<std::string> parts = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
+  if (parts.empty()) {
+    args.show_help_fn();
+    return Result::HANDLED;
+  }
+  std::string sub = parts[0];
+  if (sub == "show") {
+    auto content_or = orchestrator_->GetDatabase()->GetAgentMd(orchestrator_->GetActiveAgentMdPath());
+    if (!content_or.ok() || content_or->empty()) {
+      std::cout << "No AGENTS.md context loaded." << std::endl;
+      return Result::HANDLED;
+    }
+    std::cout << "--- " << orchestrator_->GetActiveAgentMdPath() << " ---" << std::endl;
+    std::cout << *content_or << std::endl;
+    std::cout << "--- END ---" << std::endl;
+  } else if (sub == "reload") {
+    std::string path = (parts.size() > 1) ? parts[1] : "./AGENTS.md";
+    auto status = orchestrator_->LoadAgentMd(path);
+    if (!status.ok()) {
+      std::cout << "Error loading AGENTS.md: " << status.message() << std::endl;
+    } else {
+      std::cout << "Successfully loaded AGENTS.md from " << path << std::endl;
+    }
+  } else {
+    args.show_help_fn();
+  }
+  return Result::HANDLED;
+}
+
 }  // namespace slop

@@ -45,7 +45,7 @@ class Orchestrator {
     Builder& WithStripReasoning(bool enabled);
     Builder& WithDatabase(Database* db);
     absl::StatusOr<std::unique_ptr<Orchestrator>> Build();
-    void BuildInto(Orchestrator* orchestrator);
+  void BuildInto(Orchestrator* orchestrator);
    private:
     Database* db_;
     HttpClient* http_client_;
@@ -77,7 +77,12 @@ class Orchestrator {
   // Utility for truncating large tool results.
   static std::string SmarterTruncate(const std::string& content, size_t limit, int message_id = -1);
   // Extracts the ### STATE block from a message, terminating at the next header or EOF.
-  static std::optional<std::string> ExtractState(const std::string& text);
+    static std::optional<std::string> ExtractState(const std::string& text);
+  absl::Status LoadAgentMd(const std::string& path);
+  void InjectAgentMd(std::string* system_instruction);
+  std::string GetActiveAgentMdPath() const { return active_agent_md_path_; }
+  Database* GetDatabase() const { return db_; }
+
  private:
   friend class Builder;
   Database* db_;
@@ -88,9 +93,6 @@ class Orchestrator {
   std::unique_ptr<OrchestratorStrategy> strategy_;
   // Helper methods for AssemblePrompt
   std::string BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills);
-  absl::Status LoadAgentMd(const std::string& path);
-  void InjectAgentMd(std::string* system_instruction);
-  std::string GetActiveAgentMdPath() const { return active_agent_md_path_; }
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_

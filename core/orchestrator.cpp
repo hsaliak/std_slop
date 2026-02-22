@@ -63,6 +63,7 @@ absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
     return absl::InvalidArgumentError("HttpClient cannot be null");
   }
   auto orchestrator = std::unique_ptr<Orchestrator>(new Orchestrator(db_, http_client_));
+  (void)orchestrator->LoadAgentMd("./AGENTS.md");
   BuildInto(orchestrator.get());
   return orchestrator;
 }
@@ -331,4 +332,24 @@ std::optional<std::string> Orchestrator::ExtractState(const std::string& text) {
   }
   return std::string(absl::StripAsciiWhitespace(state_blob));
 }
+
+absl::Status Orchestrator::LoadAgentMd(const std::string& path) {
+  std::ifstream file(path);
+  if (!file.is_open()) {
+    if (path == "./AGENTS.md") return absl::OkStatus();
+    return absl::NotFoundError("Could not open " + path);
+  }
+  std::string content((std::istreambuf_iterator<char>(file)),
+                     std::istreambuf_iterator<char>());
+  active_agent_md_path_ = path;
+  return db_->SetAgentMd(path, content);
+}
+
+void Orchestrator::InjectAgentMd(std::string* system_instruction) {
+  auto content_or = db_->GetAgentMd(active_agent_md_path_);
+  if (!content_or.ok() || content_or->empty()) return;
+  absl::StrAppend(system_instruction, "\n\n## Project Context (from ", active_agent_md_path_, ")\n",
+                  *content_or, "\n");
+}
+
 }  // namespace slop

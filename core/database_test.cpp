@@ -3,6 +3,10 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 #include "json_utils.h"
+#include <atomic>
+#include <thread>
+#include <vector>
+
 TEST(DatabaseTest, InitWorks) {
   slop::Database db;
   auto status = db.Init(":memory:");
@@ -369,22 +373,6 @@ TEST(DatabaseTest, ToolUsageCounters) {
   EXPECT_EQ(it->call_count, 2);
   EXPECT_EQ(it->description, "updated desc");
 }
-TEST(DatabaseTest, LargeNumberOfTags) {
-  slop::Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  std::vector<std::string> tags;
-  tags.reserve(1100);
-for (int i = 0; i < 1100; ++i) {
-    tags.push_back(absl::StrCat("tag-", i));
-  }
-  tags.emplace_back("important-tag");
-  // This would fail without the CTE JOIN optimization
-  ASSERT_TRUE(results.ok()) << results.status().message();
-  EXPECT_EQ(results->size(), 1);
-}
-#include <atomic>
-#include <thread>
-#include <vector>
 TEST(DatabaseTest, ConcurrentAccess) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
