@@ -8,11 +8,20 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/match.h"
+#include "absl/strings/ascii.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "nlohmann/json.hpp"
 
 namespace slop {
+
+// Helper to check SLOP_DEBUG_HTTP environment variable
+inline bool IsDebugHttpEnabled() {
+  static bool enabled = (getenv("SLOP_DEBUG_HTTP") != nullptr);
+  return enabled;
+}
 
 HttpClient::HttpClient() : max_retries_(6), initial_backoff_ms_(5000) {
   curl_global_init(CURL_GLOBAL_ALL);
@@ -79,13 +88,27 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
   while (retry_count <= max_retries_) {
     CURL* curl = curl_easy_init();
+    absl::Cleanup curl_cleaner = [curl] { curl_easy_cleanup(curl); };
     if (!curl) {
       return absl::InternalError("Failed to initialize CURL");
     }
 
     std::string response_body;
     absl::flat_hash_map<std::string, std::string> response_headers;
-    struct curl_slist* chunk = nullptr;
+        struct curl_slist* chunk = nullptr;
+    absl::Cleanup chunk_cleaner = [&chunk] { curl_slist_free_all(chunk); };
+
+    if (IsDebugHttpEnabled()) {
+      LOG(INFO) << "HTTP " << method << " to " << url;
+      for (const auto& header : headers) {
+        if (absl::StartsWithIgnoreCase(header, "Authorization:")) {
+          LOG(INFO) << "  Request Header: Authorization: [REDACTED]";
+        } else {
+          LOG(INFO) << "  Request Header: " << header;
+        }
+      }
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    }
 
     for (const auto& header : headers) {
       chunk = curl_slist_append(chunk, header.c_str());
@@ -106,19 +129,35 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     }
 
-    CURLcode res = curl_easy_perform(curl);
+        CURLcode res = curl_easy_perform(curl);
     long response_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-    curl_slist_free_all(chunk);
-    curl_easy_cleanup(curl);
+    if (IsDebugHttpEnabled()) {
+      if (res != CURLE_OK) {
+        LOG(ERROR) << "CURL error: " << curl_easy_strerror(res) << " (code " << res << ") for " << url;
+      } else {
+        LOG(INFO) << "HTTP response: " << response_code << " for " << url;
+        if (response_body.size() < 1000) {
+          LOG(INFO) << "Response body: " << response_body;
+        } else {
+          LOG(INFO) << "Response body: " << response_body.substr(0, 1000) << "... [truncated]";
+        }
+      }
+    }
+
+    
+    
 
     if (res == CURLE_OK) {
       if (response_code >= 200 && response_code < 300) {
         return response_body;
       }
 
-      if (IsTerminalError(response_code, response_body)) {
+          if (IsTerminalError(response_code, response_body)) {
+      if (IsDebugHttpEnabled()) {
+        LOG(WARNING) << "Terminal HTTP error detected: " << response_code << " for " << url;
+      }
         return absl::UnavailableError(
             absl::StrCat("Terminal HTTP error: ", response_code, " Body: ", response_body));
       }
