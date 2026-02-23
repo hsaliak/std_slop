@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Handle running via 'bazel run'
+if [[ -n "$BUILD_WORKSPACE_DIRECTORY" ]]; then
+    cd "$BUILD_WORKSPACE_DIRECTORY"
+fi
+
 # Configuration
 COVERAGE_DIR="coverage_report"
 LCOV=$(which lcov || true)
@@ -18,18 +23,22 @@ if [[ -z "$GENHTML" || ! -x "$GENHTML" ]]; then
 fi
 
 echo "==> Running Bazel coverage..."
-$BAZEL coverage //...
+# --combined_report=lcov ensures Bazel aggregates coverage data into a single file.
+# We use //... to cover all targets.
+$BAZEL coverage --combined_report=lcov //...
 
-echo "==> Collecting coverage data..."
-# Collect all coverage.dat files
-TEMP_LCOV="coverage_all.info"
-rm -f "$TEMP_LCOV"
-find bazel-out/ -name "coverage.dat" -exec "$LCOV" -a {} -o "$TEMP_LCOV" \;
+COMBINED_LCOV="bazel-out/_coverage/_coverage_report.dat"
+
+if [[ ! -f "$COMBINED_LCOV" ]]; then
+    echo "Error: Coverage report not found at $COMBINED_LCOV"
+    exit 1
+fi
 
 echo "==> Filtering coverage data..."
-# Filter out external/third_party and generated code
+# Filter out external/third_party and generated code.
+# We ignore 'empty' and 'unused' errors which are common depending on the environment and tool version.
 FINAL_LCOV="coverage_filtered.info"
-"$LCOV" -r "$TEMP_LCOV" \
+"$LCOV" --ignore-errors empty,unused -r "$COMBINED_LCOV" \
     "/usr/*" \
     "external/*" \
     "*/_virtual_includes/*" \
@@ -38,7 +47,7 @@ FINAL_LCOV="coverage_filtered.info"
 
 echo "==> Generating HTML report..."
 rm -rf "$COVERAGE_DIR"
-"$GENHTML" "$FINAL_LCOV" --output-directory "$COVERAGE_DIR" --title "Project Coverage Report"
+"$GENHTML" --ignore-errors empty,unused "$FINAL_LCOV" --output-directory "$COVERAGE_DIR" --title "Project Coverage Report"
 
 echo "==> Done! Report generated in $COVERAGE_DIR/index.html"
-rm -f "$TEMP_LCOV" "$FINAL_LCOV"
+rm -f "$FINAL_LCOV"
