@@ -23,7 +23,7 @@ function tools.git_commit_patch(args)
   
   if #summary > 50 then error("Summary must be <= 50 characters") end
   
-  local full_msg = summary .. "\n\n" .. rationale
+  local full_msg = summary .. "\n\n" .. (rationale or "")
   local cmd = string.format("git commit -m %s", shell_escape(full_msg))
   local res = __os_run(cmd)
   if res.exit_code ~= 0 then error("Commit failed: " .. res.stdout .. res.stderr) end
