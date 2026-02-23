@@ -18,7 +18,7 @@ if [[ -z "$GENHTML" || ! -x "$GENHTML" ]]; then
 fi
 
 echo "==> Running Bazel coverage..."
-$BAZEL coverage //core/... //core/preamble/...
+$BAZEL coverage //...
 
 echo "==> Collecting coverage data..."
 # Collect all coverage.dat files
