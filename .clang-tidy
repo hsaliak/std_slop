@@ -39,6 +39,12 @@ Checks: >
   -readability-magic-numbers,
   -readability-make-member-function-const,
   -readability-todo
+  misc-const-correctness,
+  readability-make-member-function-const,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-avoid-magic-numbers,
+  modernize-use-nodiscard,
 WarningsAsErrors: '*'
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase

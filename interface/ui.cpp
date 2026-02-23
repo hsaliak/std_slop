@@ -323,7 +323,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
   // Handle Gemini format (system_instruction + contents)
   if (j.contains("system_instruction") || j.contains("contents")) {
-    if (auto sys_instr = json_at(j, "system_instruction")) {
+    if (const auto *sys_instr = json_at(j, "system_instruction")) {
       ss << "## " << icons::Robot << " System Instruction\n\n";
       if (auto parts = json_get<nlohmann::json::array_t>(*sys_instr, "parts")) {
         for (const auto& part : *parts) {
@@ -343,10 +343,10 @@ std::string FormatAssembledContext(const std::string& json_str) {
             if (auto text = json_get<std::string>(part, "text")) {
               ss << *text << "\n\n";
             }
-            if (auto fc = json_at(part, "functionCall")) {
+            if (const auto *fc = json_at(part, "functionCall")) {
               std::string name = json_get_or(*fc, "name", std::string("unknown"));
               ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
-              if (auto args = json_at(*fc, "args")) {
+              if (const auto *args = json_at(*fc, "args")) {
                 if (name == "run_lua") {
                   ss << "```lua\n" << json_get_or(*args, "script", std::string{}) << "\n```\n\n";
                 } else {
@@ -354,10 +354,10 @@ std::string FormatAssembledContext(const std::string& json_str) {
                 }
               }
             }
-            if (auto fr = json_at(part, "functionResponse")) {
+            if (const auto *fr = json_at(part, "functionResponse")) {
               std::string name = json_get_or(*fr, "name", std::string("unknown"));
               ss << "### " << icons::Tool << " Tool Result: " << name << "\n\n";
-              if (auto response = json_at(*fr, "response")) {
+              if (const auto *response = json_at(*fr, "response")) {
                 ss << "```\n" << response->dump(2) << "\n```\n\n";
               }
             }
@@ -379,7 +379,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
       if (auto tool_calls = json_get<nlohmann::json::array_t>(msg, "tool_calls")) {
         for (const auto& call : *tool_calls) {
-          if (auto fn = json_at(call, "function")) {
+          if (const auto *fn = json_at(call, "function")) {
             std::string name = json_get_or(*fn, "name", std::string("unknown"));
             ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
 

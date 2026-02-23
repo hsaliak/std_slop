@@ -5,25 +5,25 @@
 namespace slop {
 
 TEST(JsonUtilsTest, ParseValidJson) {
-  auto j = json_parse("{\"key\": \"value\"}");
+  auto j = json_parse(R"({"key": "value"})");
   ASSERT_TRUE(j.has_value());
   EXPECT_EQ((*j)["key"], "value");
 }
 
 TEST(JsonUtilsTest, ParseInvalidJson) {
-  auto j = json_parse("{\"key\": \"value\"");  // missing closing brace
+  auto j = json_parse(R"({"key": "value")");  // missing closing brace
   EXPECT_FALSE(j.has_value());
 }
 
 TEST(JsonUtilsTest, GetString) {
-  auto j = nlohmann::json::parse("{\"key\": \"value\"}");
+  auto j = nlohmann::json::parse(R"({"key": "value"})");
   auto val = json_get<std::string>(j, "key");
   ASSERT_TRUE(val.has_value());
   EXPECT_EQ(*val, "value");
 }
 
 TEST(JsonUtilsTest, GetMissingKey) {
-  auto j = nlohmann::json::parse("{\"key\": \"value\"}");
+  auto j = nlohmann::json::parse(R"({"key": "value"})");
   auto val = json_get<std::string>(j, "other_key");
   EXPECT_FALSE(val.has_value());
 }
@@ -51,13 +51,13 @@ TEST(JsonUtilsTest, GetVector) {
 }
 
 TEST(JsonUtilsTest, GetVectorWrongType) {
-  auto j = nlohmann::json::parse("{\"key\": [1, \"two\", 3]}");
+  auto j = nlohmann::json::parse(R"({"key": [1, "two", 3]})");
   auto val = json_get<std::vector<int>>(j, "key");
   EXPECT_FALSE(val.has_value());
 }
 
 TEST(JsonUtilsTest, GetOr) {
-  auto j = nlohmann::json::parse("{\"key\": \"value\"}");
+  auto j = nlohmann::json::parse(R"({"key": "value"})");
   EXPECT_EQ(json_get_or<std::string>(j, "key", "default"), "value");
   EXPECT_EQ(json_get_or<std::string>(j, "missing", "default"), "default");
   EXPECT_EQ(json_get_or<int>(j, "key", 42), 42);  // wrong type

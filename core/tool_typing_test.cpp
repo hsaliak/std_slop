@@ -1,5 +1,6 @@
 #include <fstream>
 
+#include "absl/strings/match.h"
 #include "nlohmann/json.hpp"
 
 #include "core/database.h"
@@ -104,7 +105,7 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 
   std::ifstream ifs("test_patch.txt");
   std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-  EXPECT_TRUE(content.find("new content") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(content, "new content"));
 
   std::filesystem::remove("test_patch.txt");
 }

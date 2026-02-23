@@ -67,7 +67,7 @@ std::vector<ToolDispatcher::Result> ToolDispatcher::Dispatch(const std::vector<C
   std::vector<std::shared_ptr<ToolJob>> jobs;
   jobs.reserve(calls.size());
   for (size_t i = 0; i < calls.size(); ++i) {
-    jobs.push_back(Submit(calls[i], cancellation, (int64_t)i * throttle_seconds * 1000));
+    jobs.push_back(Submit(calls[i], cancellation, static_cast<int64_t>(i) * throttle_seconds * 1000));
   }
 
   std::vector<Result> results;
