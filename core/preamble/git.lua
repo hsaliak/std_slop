@@ -134,6 +134,8 @@ end
 
 function tools.git_finalize_series(args)
   slop_guard()
+  git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before finalizing.")
+
 
   local current_branch = git.get_current_branch()
   local target_branch = git.resolve_base_branch(args.target_branch)
