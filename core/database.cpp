@@ -244,9 +244,10 @@ absl::Status Database::RegisterDefaultSkills() {
        "before operations. 2. Use transactions for complex updates. 3. Provide clear explanations for schema changes. "
        "4. Optimize for performance while ensuring clarity."},
       {0, "c++_expert",
-       "Enforces strict adherence to project C++ constraints: C++17, Google Style, no exceptions, RAII/unique_ptr, "
-       "and proactive use of Abseil (absl) for safety and performance. You strictly avoid any template "
-       "metaprogramming or deep inheritance. You ALWAYS run all tests. You ALWAYS ensure affected targets compile.",
+       "Enforces strict adherence to project C++ constraints.",  
+       "C++17, Google Style, no exceptions, RAII/unique_ptr and proactive use of Abseil (absl) for safety and performance."
+       "You strictly avoid complex template metaprogramming or deep inheritance."
+       "You ALWAYS run all tests. You ALWAYS ensure affected targets compile."
        "You are a C++ Expert specialized in the std::slop codebase.\nYou MUST adhere to these constraints in every "
        "code change:\n- Language: C++17.\n- Style: Google C++ Style Guide.\n- Exceptions: Strictly disabled "
        "raw new/delete. Use stack allocation where possible.\n- Error Handling: Use absl::Status and absl::StatusOr "

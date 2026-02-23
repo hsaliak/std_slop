@@ -441,7 +441,7 @@ absl::StatusOr<std::string> Orchestrator::ListSkills() const {
 void Orchestrator::InjectSkillsSummary(std::string* system_instruction) {
   auto skills_or = db_->GetSkills();
   if (!skills_or.ok() || skills_or->empty()) return;
-  absl::StrAppend(system_instruction, "\n\n## Available Skills\n", "Use these skills by name when relevant:\n");
+  absl::StrAppend(system_instruction, "\n\n## Available Skills\n", "Invoke these skills with tools.use_skill in the LCP when relevant to activate\n");
   for (const auto& skill : *skills_or) {
     absl::StrAppend(system_instruction, "- ", skill.name, ": ", skill.description, "\n");
   }
