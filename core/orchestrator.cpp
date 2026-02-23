@@ -69,7 +69,7 @@ absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
   }
   auto orchestrator = std::unique_ptr<Orchestrator>(new Orchestrator(db_, http_client_));
   (void)orchestrator->LoadAgentMd("./AGENTS.md");
-  (void)orchestrator->ReloadSkills("./.slop/skills");
+  (void)orchestrator->ReloadSkills("./.agents/skills");
   BuildInto(orchestrator.get());
   return orchestrator;
 }
@@ -448,7 +448,7 @@ void Orchestrator::InjectSkillsSummary(std::string* system_instruction) {
 }
 
 absl::Status Orchestrator::ReloadAllSkills() {
-  (void)ReloadSkills("./.slop/skills");
+  (void)ReloadSkills("./.agents/skills");
   (void)ReloadSkills("~/.config/slop/skills");
   return absl::OkStatus();
 }
