@@ -133,16 +133,21 @@ function tools.list_directory(args)
   local depth = args.depth or 1
   local git_only = args.git_only
   
-  if git_only then
-    local success_check, is_git = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree 2>/dev/null"})
-    if success_check and is_git:find("true") then
-       local cmd = "git ls-files --cached --others --exclude-standard"
-       if path ~= "." then cmd = cmd .. " " .. shell_escape(path) end
-       local success_git, res_git = call_tool(tools.execute_bash, {command = cmd})
-       if success_git then return res_git end
+  -- Default to git ls-files if we are in a git directory, unless git_only is explicitly false
+  local git_check_ok, git_check_res = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree 2>/dev/null"})
+  local is_git = git_check_ok and git_check_res:find("true")
+
+  if is_git and git_only ~= false then
+    local cmd = "git ls-files --cached --others --exclude-standard"
+    if path ~= "." then cmd = cmd .. " " .. shell_escape(path) end
+    local success_git, res_git = call_tool(tools.execute_bash, {command = cmd})
+    -- Return git results if successful and (not empty or git_only was requested)
+    if success_git and (res_git ~= "" or git_only) then
+      return res_git
     end
   end
 
+  -- Fallback to find (only if not in a git directory or git ls-files was empty/failed)
   local cmd = string.format("find %s -maxdepth %d -mindepth 1", shell_escape(path), depth)
   local success, res = call_tool(tools.execute_bash, {command = cmd})
   if not success then error("Failed to list directory: " .. tostring(res)) end
