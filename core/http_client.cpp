@@ -24,7 +24,7 @@ inline bool IsDebugHttpEnabled() {
   return enabled;
 }
 
-HttpClient::HttpClient() : max_retries_(3), initial_backoff_ms_(5000) { curl_global_init(CURL_GLOBAL_ALL); }
+HttpClient::HttpClient() : max_retries_(5), initial_backoff_ms_(5000) { curl_global_init(CURL_GLOBAL_ALL); }
 
 HttpClient::HttpClient(int max_retries, int64_t initial_backoff_ms)
     : max_retries_(max_retries), initial_backoff_ms_(initial_backoff_ms) {
