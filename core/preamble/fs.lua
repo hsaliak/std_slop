@@ -184,13 +184,19 @@ function tools.grep(args)
   local path = args.path or "."
   local paths = type(path) == "table" and path or {path}
 
-  local res = ""
-  -- Try git grep first
-  local git_check_ok, git_check_res = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree"})
-  local is_git = git_check_ok and git_check_res:find("true")
+  local res = nil
   
-  if is_git then
+  -- Try git grep first
+  local git_exists, _ = call_tool(tools.execute_bash, {command = "git --version"})
+  if git_exists then
+    local git_check_ok, git_check_res = call_tool(tools.execute_bash, {command = "git rev-parse --is-inside-work-tree"})
+    local is_git = git_check_ok and git_check_res:find("true")
+    
     local cmd = "git grep --line-number -I"
+    if not is_git then
+      cmd = cmd .. " --no-index"
+    end
+    
     if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
     if args.before and args.before > 0 then cmd = cmd .. " -B " .. args.before end
     if args.after and args.after > 0 then cmd = cmd .. " -A " .. args.after end
@@ -207,15 +213,18 @@ function tools.grep(args)
     for _, p in ipairs(paths) do cmd = cmd .. " " .. shell_escape(p) end
     
     local success, git_res = call_tool(tools.execute_bash, {command = cmd})
-    if success and git_res and git_res ~= "" then
+    -- git grep returns 0 on match, 1 if no matches found, >1 on error.
+    if success then
       res = git_res
-    elseif not success and not git_res:find("status 1") then
+    elseif git_res:find("status 1") then
+      res = "" 
+    else
       error(git_res)
     end
   end
   
-  -- Fallback to standard grep if git grep returned nothing
-  if res == "" then
+  -- Fallback to standard grep if git was not available
+  if res == nil then
     local cmd = "grep -rnE"
     if args.context and args.context > 0 then cmd = cmd .. " -C " .. args.context end
     if args.case_insensitive then cmd = cmd .. " -i" end
@@ -229,9 +238,12 @@ function tools.grep(args)
     end
     
     local success, grep_res = call_tool(tools.execute_bash, {command = cmd})
+    -- grep returns 0 on match, 1 if no matches found, >1 on error.
     if success then
       res = grep_res
-    elseif not grep_res:find("status 1") then
+    elseif grep_res:find("status 1") then
+      res = ""
+    else
       error(grep_res)
     end
   end
