@@ -29,9 +29,9 @@ The agent's core instructions and persona can be managed via the `AGENTS.md` fil
 - `/agent reload` - Reload the current `AGENTS.md` from disk.
 
 ### Modular Skills (SKILLS.md)
-Skills are modular instructions and tools located in the `.slop/skills/` directory.
+Skills are modular instructions and tools located in the `.agents/skills/` directory.
 
-- `/skill list` - List registered skills in the db. This includes built in skills and skills from .slop/skills
+- `/skill list` - List registered skills in the db. This includes built in skills and skills from .agents/skills
 - `/skill activate <name>` - Enable a skill for the current session.
 - `/skill deactivate <name>` - Disable an active skill.
 - `/skill reload` - Refresh the skill list from the filesystem.

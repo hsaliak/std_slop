@@ -3,9 +3,9 @@
 Skills are modular sets of instructions and tools that can be activated on-demand.
 
 ## Structure
-Each skill lives in its own directory under `.slop/skills/`:
+Each skill lives in its own directory under `.agents/skills/`:
 ```
-.slop/skills/
+.agents/skills/
   my-skill/
     SKILL.md
 ```
@@ -25,6 +25,6 @@ You can use standard Markdown here.
 ```
 
 ## Usage
-- Put your skill in `.slop/skills/my-skill/SKILL.md`.
+- Put your skill in `.agents/skills/my-skill/SKILL.md`.
 - Run `/skill reload` in the agent.
 - Run `/skill activate my-skill` to enable it.
