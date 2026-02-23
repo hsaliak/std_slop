@@ -1,3 +1,10 @@
+function git.assert_clean_workspace(msg)
+  local status_res = __os_run("git status --porcelain")
+  if status_res.stdout ~= "" then
+    error(msg or "Working tree is dirty. Please commit, stash, or discard changes.")
+  end
+end
+
 function tools.git_branch_staging(args)
   local name = args.name
   local base_branch = args.base_branch or git.get_current_branch()
@@ -67,6 +74,8 @@ end
 
 function tools.git_verify_series(args)
   slop_guard()
+  git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before running this command.")
+
   local command = args.command
   local base_branch = git.resolve_base_branch(args.base_branch)
   
@@ -82,7 +91,12 @@ function tools.git_verify_series(args)
   local all_passed = true
   
   for i, hash in ipairs(commits) do
-    __os_run("git checkout " .. hash)
+    local co_res = __os_run("git checkout " .. hash)
+    if co_res.exit_code ~= 0 then
+      table.insert(results, string.format("Patch [%d/%d] (%s): FAILED (Checkout failed)", i, #commits, hash:sub(1,7)))
+      all_passed = false
+      break
+    end
     local test_res = __os_run(command)
     local status = (test_res.exit_code == 0) and "PASSED" or "FAILED"
     table.insert(results, string.format("Patch [%d/%d] (%s...): %s", i, #commits, hash:sub(1,7), status))
