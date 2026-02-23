@@ -90,3 +90,9 @@ sh_binary(
         ":clang_tidy_test",
     ],
 )
+
+sh_binary(
+    name = "generate_coverage",
+    srcs = ["scripts/generate_coverage.sh"],
+    tags = ["local", "manual"],
+)
