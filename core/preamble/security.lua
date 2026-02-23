@@ -1,6 +1,10 @@
 function tools.help()
   return [[### Slop Orchestrator Help ###
 
+#### Workflow Constraints ####
+- **Code Editing & File IO:** Prefer `tools.file(path):read()` and `tools.file(path):write(content)` for file operations. Use `tools.files(glob)` for batch operations.
+- **Shell Commands:** Prefer Lua's native subprocess APIs (`os.execute`, `io.popen`) for running simple commands.
+
 #### Globals ####
 - tools: Table containing all available tools.
 - scratchpad: (table) Structured persistent storage across turns.
