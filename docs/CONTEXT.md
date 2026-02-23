@@ -11,7 +11,7 @@ The `AGENTS.md` file in the root directory defines the global instructions and p
 
 ## SKILLS.md (Modular Capabilities)
 This follows the specification at [https://agentskills.io/](https://agentskills.io/).
-Skills are located in the `skills/` directory. Each skill is defined by a directory containing a `SKILL.md` file.
+Skills are located in the `.slop/skills/` directory. Each skill is defined by a directory containing a `SKILL.md` file.
 - **On-Demand**: Skills must be explicitly activated using `/skill activate <name>`. The `hey` hotword can be used to activate a skill for a single turn.
 - **Automatic**: Skills can also be activated by the LLM using `tools.use_skill` in the Lua Control Plane.
 - **Structured**: Uses YAML frontmatter for metadata (name, description).
@@ -20,7 +20,7 @@ Skills are located in the `skills/` directory. Each skill is defined by a direct
 ## Differences
 | Feature | AGENTS.md | SKILLS.md |
 |---------|-----------|-----------|
-| **Scope** | Global (Root) | Modular (`skills/`) |
+| **Scope** | Global (Root) | Modular (`.slop/skills/`) |
 | **Activation** | Automatic (if loaded) | Explicit (`/skill activate`) |
 | **Format** | Verbatim Markdown | Markdown with Frontmatter |
 | **Purpose** | Core Persona | Specialized Expertise |
