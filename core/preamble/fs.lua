@@ -1,3 +1,4 @@
+-- [[ DEPRECATED for LLM usage: Prefer tools.file(path):read() ]]
 function tools.read_file(args)
   if type(args.path) ~= "string" then error("INVALID_ARGUMENT: Missing mandatory field: path", 0) end
   if args.start_line ~= nil and type(args.start_line) ~= "number" then error("INVALID_ARGUMENT: 'start_line' must be an integer", 0) end
@@ -52,6 +53,7 @@ function tools.read_file(args)
   return body
 end
 
+-- [[ DEPRECATED for LLM usage: Prefer tools.file(path):write() ]]
 function tools.write_file(args)
   slop_guard() -- Require staging branch for writing
   
@@ -99,6 +101,7 @@ function tools.write_file(args)
   return result
 end
 
+-- [[ WARNING for LLM: Prefer using Lua's native subprocess APIs (os.execute, io.popen) for running commands. ]]
 function tools.execute_bash(args)
   slop_guard()
   local command = args.command
