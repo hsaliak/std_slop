@@ -3,39 +3,42 @@ function tools.help()
 
 #### Globals ####
 - tools: Table containing all available tools.
-- state: (string) Current technical state/progress.
 - scratchpad: (table) Structured persistent storage across turns.
-- history: (table) Array of conversation messages: {role, content}.
+- state: (table) Current operational context (active files, branch, goal).
+- history: (table) Metadata about the conversation history.
 
 #### Core Tools ####
-- help(): (string) Shows this help message.
-
-#### File System & Expressive API ####
-- tools.file(path): Returns a File object with read(), write(content), and patch({find, replace}).
-- tools.files(glob): Returns a Collection of File objects; use :foreach(fn).
-- list_directory({path=".", depth=1, git_only=false}): Lists directory contents.
-- tools.grep({pattern, patterns, query, path, context, case_insensitive, word_regexp, ...}): Unified search using git grep or standard grep. Returns a Result object.
+- list_directory({path, depth}): Lists files and directories recursively.
+- grep({path, pattern}): Unified search using git grep or standard grep. Returns a Result object.
 - Result Objects: Structured output from tools. Use :lines(), :json(), or :filter(pattern).
 - query_db({sql, params}): Executes a SQLite query (returns Result).
 - describe_db({}): Schema of local database.
+- use_skill({name, action="activate"}): Activates/Deactivates a persona/skill.
+- manage_scratchpad({action, key, value}): Manages persistent storage. Actions: "read", "update", "delete", "clear".
+
+#### File System ####
+- tools.file(path): Returns a File object.
+- tools.files(glob): Returns a Collection of File objects; use :foreach(fn).
+- File Objects: Use :read() and :write(content).
 
 #### Shell & Systems ####
 - dispatch_async(tool_name, args): Runs any tool asynchronously. Returns a Job object.
 - tools.concurrent({task1, task2, ...}): Executes tools in parallel.
 - tools.wait_all(job1, job2, ...): Waits for multiple jobs.
 
-#### Patch Workflow (Mail Model) ####
-- git_branch_staging({name}): Creates a slop/staging/ branch.
-- git_commit_patch({summary, rationale}): Commits current changes as an atomic patch.
-- git_reroll_patch({index, summary, rationale}): Updates an existing patch in the series.
-- git_format_patch_series({base_branch}): Summarizes the current patchset.
-- git_verify_series({command, base_branch}): Verifies the entire series passes tests.
-- git_finalize_series({target_branch}): Merges the series and cleans up.
+#### Patch Workflow (Patcher) ####
+- git_branch_staging({name}): Creates slop/staging/<name> and switches to it.
+- git_commit_patch({summary, rationale}): Commits staged changes as a patch.
+- git_reroll_patch({index}): Updates an existing patch in the series.
+- git_verify_series({cmd}): Runs build/test on every patch in the series.
+- git_format_patch_series({}): Formats the series for review.
+- git_finalize_series({}): Merges the series and cleans up.
 
 ### Codebase Navigation Hierarchy ###
-- **Explore First:** You MUST use `grep_tool` as your primary method for locating function definitions, variables, classes, or keywords.
-- **Extract Second:** Use `tools.file(path):read()` **ONLY** after you have used `grep_tool` to confirm the exact file path.
-- **Never Guess:** Do not use `tools.file(path):read()` to "guess" where a symbol might be located.]]
+- **Explore First:** You MUST use `tools.grep` as your primary method for locating function definitions, variables, classes, or keywords.
+- **Extract Second:** Use `tools.file(path):read()` **ONLY** after you have located the target via grep.
+- **Context Hygiene:** Do NOT read large files (>500 lines) into context. Use `grep` or specific `sed` ranges.
+]]
 end
 
 -- Security Wrappers for Standard Library (Mail Mode Protection)
