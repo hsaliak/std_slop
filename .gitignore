@@ -22,4 +22,5 @@ bazel-*
 # IDEs
 .vscode/
 .idea/
+.agents/
 MODULE.bazel.lock
