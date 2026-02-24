@@ -182,7 +182,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     LOG(INFO) << "Request failed (code " << response_code << "), retrying in " << wait_ms << "ms... (attempt "
               << (retry_count + 1) << "/" << max_retries_ << ")" << std::endl;
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+    CancellableSleep(wait_ms);
 
     if (header_delay <= 0) {
       backoff_ms *= 2;
@@ -191,6 +191,21 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
   }
 
   return absl::UnavailableError("HTTP request failed");
+}
+
+
+void HttpClient::Abort() {
+  {
+    absl::MutexLock lock(&abort_mutex_);
+    abort_requested_.store(true);
+  }
+  abort_cv_.SignalAll();
+}
+
+void HttpClient::CancellableSleep(int64_t wait_ms) {
+  absl::MutexLock lock(&abort_mutex_);
+  if (abort_requested_.load()) return;
+  abort_cv_.WaitWithTimeout(&abort_mutex_, absl::Milliseconds(wait_ms));
 }
 
 bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {

@@ -2,6 +2,7 @@
 #define SLOP_SQL_HTTP_CLIENT_H_
 
 #include <atomic>
+#include "absl/synchronization/mutex.h"
 #include <string>
 #include <vector>
 
@@ -29,7 +30,7 @@ class HttpClient {
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
   static bool IsTerminalError(long response_code, const std::string& response_body);
 
-  void Abort() { abort_requested_.store(true); }
+  void Abort();
   bool IsAborted() const { return abort_requested_.load(); }
 
   // Callbacks and internal parsing (public for testing)
@@ -43,10 +44,15 @@ class HttpClient {
   int64_t ParseGoogleRetryDelay(const std::string& body);
 
  private:
+  void CancellableSleep(int64_t wait_ms);
+
   absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,
                                                const std::string& body, const std::vector<std::string>& headers);
 
   std::atomic<bool> abort_requested_{false};
+  absl::Mutex abort_mutex_;
+  absl::CondVar abort_cv_;
+
 
   int max_retries_;
   int64_t initial_backoff_ms_;
