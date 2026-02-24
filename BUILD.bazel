@@ -91,8 +91,3 @@ sh_binary(
     ],
 )
 
-sh_binary(
-    name = "generate_coverage",
-    srcs = ["scripts/generate_coverage.sh"],
-    tags = ["local", "manual"],
-)
