@@ -99,3 +99,51 @@ function tools.use_skill(args)
   return "Skill '" .. name .. "' " .. (action == "activate" and "activated" or "deactivated") .. "." .. prompt_patch
 end
 -- Search Tools
+
+function tools.persist_function(args)
+  local name = args.name
+  local code = args.code
+  local test_args = args.test_args or {}
+  local expected_result = args.expected_result
+
+  if type(name) ~= "string" or type(code) ~= "string" then
+    return false, "Invalid arguments: name and code must be strings"
+  end
+
+  local chunk, err = load(code, name)
+  if not chunk then
+    return false, "Syntax Error: " .. tostring(err)
+  end
+
+  local ok, func = pcall(chunk)
+  if not ok then
+    return false, "Evaluation Error: " .. tostring(func)
+  end
+  if type(func) ~= "function" then
+    return false, "Code must return a function (e.g., 'return function(...) ... end')"
+  end
+
+  local success, actual_result = pcall(func, table.unpack(test_args))
+  if not success then
+    return false, "Runtime Error: " .. tostring(actual_result)
+  end
+
+  -- Simple Verification: Primitive equality
+  if actual_result ~= expected_result then
+    return false, "Test Failed: Expected " .. tostring(expected_result) .. ", got " .. tostring(actual_result)
+  end
+
+  -- DB Storage
+  local insert_ok, insert_res = call_tool(tools.query_db, {
+    sql = "INSERT OR REPLACE INTO lua_functions (name, code) VALUES (?, ?)",
+    params = {name, code}
+  })
+  if not insert_ok then
+    return false, "DB Error: " .. tostring(insert_res)
+  end
+
+  -- Bind to global so it is immediately available
+  _G[name] = func
+
+  return true, "Function persisted successfully"
+end
