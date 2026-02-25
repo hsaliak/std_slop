@@ -31,7 +31,6 @@ class AsyncAnimator {
 
   std::thread thread_;
   std::atomic<bool> is_running_;
-  std::vector<int> heat_map_;
 };
 
 
