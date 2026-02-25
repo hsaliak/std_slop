@@ -123,8 +123,35 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       url = absl::StrCat(slop::kPublicGeminiBaseUrl, "/models/", orchestrator_.GetModel(),
                          ":generateContent?key=", config.google_api_key);
     }
-    auto resp_or =
-        http_client_.Post(url, prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
+    auto http_cancellation = std::make_shared<slop::CancellationRequest>();
+    http_cancellation->RegisterCallback([&]() { http_client_.Abort(); });
+
+    std::atomic<bool> http_done{false};
+    absl::StatusOr<std::string> resp_or;
+
+    std::string post_url = url;
+    std::string post_body = prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+    std::vector<std::string> post_headers = headers;
+
+    std::thread http_t([&]() {
+      resp_or = http_client_.Post(post_url, post_body, post_headers);
+      http_done = true;
+    });
+
+    {
+      std::unique_ptr<slop::ScopedRawMode> raw;
+      if (!config.silent) {
+        raw = std::make_unique<slop::ScopedRawMode>();
+      }
+      while (!http_done) {
+        if (!config.silent && slop::IsEscPressed()) {
+          http_cancellation->Cancel();
+          std::cout << "\n" << slop::Colorize("[Esc] Cancelling HTTP request...", "", slop::ansi::Red) << std::endl;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      }
+    }
+    http_t.join();
     if (!resp_or.ok()) {
       if (resp_or.status().code() == absl::StatusCode::kInvalidArgument) {
         LOG(WARNING) << "HTTP 400 error detected. Attempting to auto-fix history...";

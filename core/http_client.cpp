@@ -81,6 +81,10 @@ absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::
 absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url, const std::string& method,
                                                          const std::string& body,
                                                          const std::vector<std::string>& headers) {
+  {
+    absl::MutexLock lock(&abort_mutex_);
+    abort_requested_.store(false);
+  }
   int retry_count = 0;
   int64_t backoff_ms = initial_backoff_ms_;
 
@@ -204,8 +208,10 @@ void HttpClient::Abort() {
 
 void HttpClient::CancellableSleep(int64_t wait_ms) {
   absl::MutexLock lock(&abort_mutex_);
-  if (abort_requested_.load()) return;
-  abort_cv_.WaitWithTimeout(&abort_mutex_, absl::Milliseconds(wait_ms));
+  auto deadline = absl::Now() + absl::Milliseconds(wait_ms);
+  while (!abort_requested_.load() && absl::Now() < deadline) {
+    abort_cv_.WaitWithDeadline(&abort_mutex_, deadline);
+  }
 }
 
 bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {
