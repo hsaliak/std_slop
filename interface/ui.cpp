@@ -728,7 +728,8 @@ void AsyncAnimator::RenderLoop() {
              std::to_string(colors[color_idx].g) + ";" +
              std::to_string(colors[color_idx].b) + "m";
     frame += spinner[spinner_idx];
-    frame += " Thinking...\033[0m";
+    frame += " .....\033[0m";
+    frame += " Thinking";
     
     std::cout << frame << std::flush;
     
