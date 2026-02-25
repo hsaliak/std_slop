@@ -146,7 +146,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       while (!http_done) {
         if (!config.silent && slop::IsEscPressed()) {
           http_cancellation->Cancel();
-          std::cout << "\n" << slop::Colorize("[Esc] Cancelling HTTP request...", "", slop::ansi::Red) << std::endl;
+          std::cout << "\n" << slop::Colorize("[Esc] Cancelling HTTP request...", "", ansi::Red) << std::endl;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }

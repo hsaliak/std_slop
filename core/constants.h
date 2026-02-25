@@ -5,7 +5,6 @@ namespace slop {
 
 // Gemini / Google Cloud Endpoints
 constexpr char kPublicGeminiBaseUrl[] = "https://generativelanguage.googleapis.com/v1beta";
-constexpr char kPublicGeminiBaseUrl[] = "https://cloudcode-pa.googleapis.com";
 constexpr char kCloudCodeBaseUrl[] = "https://cloudcode-pa.googleapis.com";
 constexpr char kCloudCodeSandboxBaseUrl[] = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 constexpr char kCloudResourceManagerBaseUrl[] = "https://cloudresourcemanager.googleapis.com/v1";
