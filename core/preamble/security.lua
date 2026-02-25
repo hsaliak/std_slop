@@ -19,6 +19,7 @@ function tools.help()
 - describe_db({}): Schema of local database.
 - use_skill({name, action="activate"}): Activates/Deactivates a persona/skill.
 - manage_scratchpad({action, key, value}): Manages persistent storage. Actions: "read", "update", "delete", "clear".
+- persist_function({name, code, test_args, expected_result}): Validates and permanently saves a Lua function (primitive expected_result equality).
 
 #### File System ####
 - tools.file(path): Returns a File object.
