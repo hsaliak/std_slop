@@ -11,6 +11,10 @@
 #include "interface/color.h"
 #include <thread>
 #include <atomic>
+#include <vector>
+#include <string>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace slop {
 
@@ -27,8 +31,9 @@ class AsyncAnimator {
 
   std::thread thread_;
   std::atomic<bool> is_running_;
-  std::vector<std::vector<std::string>> frames_;
+  std::vector<int> heat_map_;
 };
+
 
 
 void SetupTerminal();

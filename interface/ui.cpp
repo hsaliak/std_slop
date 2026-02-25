@@ -1,3 +1,4 @@
+#include <cstring>
 #include "interface/ui.h"
 
 // Role constants for message handling
@@ -683,21 +684,23 @@ std::string GetHelpText() {
   return help;
 }
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
-AsyncAnimator::AsyncAnimator() : is_running_(false) {
-  frames_ = {
-      {"   (  .      ) ", "   )           ( ", "  (  (   .  )  ) "},
-      {"     )  .   (  ", "   (   (  .  )   ", "    )   )   (    "},
-      {"   (   .    )  ", "    )   (   (    ", "  (   )   .  )   "},
-  };
-}
+AsyncAnimator::AsyncAnimator() : is_running_(false) {}
 
 AsyncAnimator::~AsyncAnimator() { Stop(); }
 
 void AsyncAnimator::Start() {
   if (is_running_) return;
   is_running_ = true;
+  
+  struct winsize w;
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+  int width = (w.ws_col > 0) ? w.ws_col : 80;
+  heat_map_.assign(width, 0);
+
   std::cout << "\033[?25l";
-  std::cout << "\n\n\n\033[3A";
+  for(int i=0; i<6; ++i) std::cout << "\n";
+  std::cout << "\033[6A";
+  
   thread_ = std::thread(&AsyncAnimator::RenderLoop, this);
 }
 
@@ -706,20 +709,67 @@ void AsyncAnimator::Stop() {
   is_running_ = false;
   if (thread_.joinable()) thread_.join();
   
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < 6; ++i) {
     std::cout << "\r\033[2K\n";
   }
-  std::cout << "\033[3A";
+  std::cout << "\033[6A";
   std::cout << "\033[?25h" << std::flush;
 }
 
 void AsyncAnimator::RenderLoop() {
-  int frame_idx = 0;
   while (is_running_) {
-    const auto& frame = frames_[frame_idx % frames_.size()];
-    for (const auto& line : frame) {
-      std::cout << "\r\033[2K\033[38;5;208m" << line << "\033[0m\n";
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int width = (w.ws_col > 0) ? w.ws_col : 80;
+    if (heat_map_.size() != (size_t)width) heat_map_.resize(width, 0);
+
+    for (int i = 0; i < width; ++i) {
+      if (rand() % 10 < 3) {
+        heat_map_[i] = 40 + (rand() % 60);
+      } else {
+        heat_map_[i] = std::max(0, heat_map_[i] - (rand() % 20));
+      }
     }
+
+    std::vector<int> next_heat = heat_map_;
+    for (int i = 1; i < width - 1; ++i) {
+      next_heat[i] = (heat_map_[i-1] + heat_map_[i] + heat_map_[i+1]) / 3;
+    }
+    heat_map_ = next_heat;
+
+    const char* levels[] = {
+      " :. ",
+      "---= ",
+      "====-",
+      "=====",
+      "+++++==",
+      "+*#%@@"
+    };
+
+    std::string frame = "";
+    for (int l = 0; l < 6; ++l) {
+      frame += "\r\033[2K\033[38;5;208m";
+      const char* chars = levels[l];
+      int n_chars = strlen(chars);
+      for (int i = 0; i < width; ++i) {
+        int threshold = (5 - l) * 15; 
+        if (heat_map_[i] > threshold) {
+          int intensity = std::min(n_chars - 1, (heat_map_[i] - threshold) / 10);
+          frame += chars[intensity];
+        } else {
+          frame += " ";
+        }
+      }
+      frame += "\033[0m\n";
+    }
+    
+    std::cout << frame << "\033[6A" << std::flush;
+    for (int i = 0; i < 8 && is_running_; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+}
+
     std::cout << "\033[3A" << std::flush;
     frame_idx++;
     for (int i = 0; i < 15 && is_running_; ++i) {
