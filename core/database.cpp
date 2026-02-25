@@ -161,7 +161,12 @@ absl::Status Database::Init(const std::string& db_path) {
         session_id TEXT PRIMARY KEY,
         state_blob TEXT
     );
-    CREATE TABLE IF NOT EXISTS agent_md (path TEXT PRIMARY KEY, content TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS agent_md (path TEXT PRIMARY KEY, content TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE IF NOT EXISTS lua_functions (
+        name TEXT PRIMARY KEY,
+        code TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   )";
   rc = sqlite3_exec(raw_db, schema, nullptr, nullptr, nullptr);
   if (rc != SQLITE_OK) {
