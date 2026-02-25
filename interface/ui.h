@@ -9,7 +9,27 @@
 
 #include "core/database.h"
 #include "interface/color.h"
+#include <thread>
+#include <atomic>
+
 namespace slop {
+
+class AsyncAnimator {
+ public:
+  AsyncAnimator();
+  ~AsyncAnimator();
+
+  void Start();
+  void Stop();
+
+ private:
+  void RenderLoop();
+
+  std::thread thread_;
+  std::atomic<bool> is_running_;
+  std::vector<std::vector<std::string>> frames_;
+};
+
 
 void SetupTerminal();
 

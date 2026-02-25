@@ -683,4 +683,49 @@ std::string GetHelpText() {
   return help;
 }
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
+AsyncAnimator::AsyncAnimator() : is_running_(false) {
+  frames_ = {
+      {"   (  .      ) ", "   )           ( ", "  (  (   .  )  ) "},
+      {"     )  .   (  ", "   (   (  .  )   ", "    )   )   (    "},
+      {"   (   .    )  ", "    )   (   (    ", "  (   )   .  )   "},
+  };
+}
+
+AsyncAnimator::~AsyncAnimator() { Stop(); }
+
+void AsyncAnimator::Start() {
+  if (is_running_) return;
+  is_running_ = true;
+  std::cout << "\033[?25l";
+  std::cout << "\n\n\n\033[3A";
+  thread_ = std::thread(&AsyncAnimator::RenderLoop, this);
+}
+
+void AsyncAnimator::Stop() {
+  if (!is_running_) return;
+  is_running_ = false;
+  if (thread_.joinable()) thread_.join();
+  
+  for (int i = 0; i < 3; ++i) {
+    std::cout << "\r\033[2K\n";
+  }
+  std::cout << "\033[3A";
+  std::cout << "\033[?25h" << std::flush;
+}
+
+void AsyncAnimator::RenderLoop() {
+  int frame_idx = 0;
+  while (is_running_) {
+    const auto& frame = frames_[frame_idx % frames_.size()];
+    for (const auto& line : frame) {
+      std::cout << "\r\033[2K\033[38;5;208m" << line << "\033[0m\n";
+    }
+    std::cout << "\033[3A" << std::flush;
+    frame_idx++;
+    for (int i = 0; i < 15 && is_running_; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+}
+
 }  // namespace slop
