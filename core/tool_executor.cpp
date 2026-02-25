@@ -193,6 +193,40 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(const RunLuaRequest
     return absl::InternalError(absl::StrCat("Lua Preamble Error: ", err.what()));
   }
 
+  // Phase 2: Safe-Loading & Cruft Cleanup
+  if (db_) {
+    auto lua_funcs_res = db_->Query("SELECT name, code FROM lua_functions");
+    if (lua_funcs_res.ok() && !lua_funcs_res->empty()) {
+      auto funcs_json = slop::json_parse(*lua_funcs_res);
+      if (funcs_json && funcs_json->is_array()) {
+        for (const auto& row : *funcs_json) {
+          auto name_opt = slop::json_get<std::string>(row, "name");
+          auto code_opt = slop::json_get<std::string>(row, "code");
+          if (!name_opt || !code_opt) continue;
+          std::string name = *name_opt;
+          std::string code = *code_opt;
+
+          auto load_res = lua.load(code, name);
+          if (!load_res.valid()) {
+            (void)db_->Execute("DELETE FROM lua_functions WHERE name = ?", {name});
+            continue;
+          }
+
+          sol::protected_function pf = load_res;
+          auto exec_res = pf();
+          if (!exec_res.valid()) {
+            (void)db_->Execute("DELETE FROM lua_functions WHERE name = ?", {name});
+            continue;
+          }
+
+          if (exec_res.get_type() == sol::type::function) {
+            lua[name] = exec_res.get<sol::function>();
+          }
+        }
+      }
+    }
+  }
+
   auto result = lua.safe_script(req.script, sol::script_pass_on_error);
   if (!result.valid()) {
     sol::error err = result;
