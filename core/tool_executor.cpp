@@ -82,29 +82,30 @@ void ToolExecutor::RegisterTools() {
   RegisterTool("run_lua", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
     return HandleRunLua(args, cancellation);
   });
-  RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
+    RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
     std::string prompt_text = "Input required: ";
     if (auto p = json_get<std::string>(args, "prompt")) {
       prompt_text = *p;
     }
-    if (ask_user_handler_) {
-      auto response = ask_user_handler_(prompt_text);
-      // Reject /commands in Q&A mode - they don't work here
-      if (absl::StartsWith(response, "/")) {
-        return absl::InvalidArgumentError(
-          "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands.");
+
+    while (true) {
+      std::string response;
+      if (ask_user_handler_) {
+        response = ask_user_handler_(prompt_text);
+      } else {
+        std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
+        slop::Renderer::Get().PrintMarkdown(prompt_text);
+        response = slop::ReadLine("reply");
       }
-      return response;
+
+      if (!absl::StartsWith(response, "/")) {
+        return response;
+      }
+
+      std::cout << "\n" << ansi::Red << "Error: " << ansi::Reset
+                << "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands."
+                << std::endl;
     }
-    std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
-    slop::Renderer::Get().PrintMarkdown(prompt_text);
-    auto reply = slop::ReadLine("reply");
-    // Reject /commands in Q&A mode - they don't work here
-    if (absl::StartsWith(reply, "/")) {
-      return absl::InvalidArgumentError(
-        "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands.");
-    }
-    return reply;
   });
 }
 
