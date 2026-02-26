@@ -17,7 +17,7 @@ class Orchestrator {
   enum class Provider { GEMINI, OPENAI };
   struct TruncationSettings {
     // truncation character length for full fidelity
-    size_t active_full_fidelity_limit = 5000;
+    size_t active_full_fidelity_limit = 3000;
     // truncated character length for degraded
     size_t active_degraded_limit = 400;  // its very aggressive
     // truncated character length for inactive
