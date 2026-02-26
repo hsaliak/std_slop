@@ -2,7 +2,8 @@
 #include "interface/renderer.h"
 #include "interface/terminal.h"
 #include "interface/color.h"
-#include <atomic>
+#include "absl/synchronization/mutex.h"
+#include "absl/base/thread_annotations.h"
 #include <mutex>
 #include <condition_variable>
 
@@ -263,6 +264,22 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             dispatcher_calls.push_back({combined_id, call.name, call.args});
           }
           auto cancellation = std::make_shared<slop::CancellationRequest>();
+          struct AskState {
+            absl::Mutex mutex;
+            std::atomic<bool> asking_user{false};
+            std::string prompt ABSL_GUARDED_BY(mutex);
+            std::string response ABSL_GUARDED_BY(mutex);
+          } ask_state;
+          
+          tool_executor_.SetAskUserHandler([&](const std::string& prompt) -> std::string {
+            absl::MutexLock lock(&ask_state.mutex);
+            ask_state.prompt = prompt;
+            ask_state.asking_user = true;
+            auto cond = +[](std::atomic<bool>* au) { return !au->load(); };
+            ask_state.mutex.Await(absl::Condition(cond, &ask_state.asking_user));
+            return ask_state.response;
+          });
+
           std::atomic<bool> done{false};
           std::vector<slop::ToolDispatcher::Result> results;
           std::thread t([&] {
@@ -275,15 +292,47 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
               raw = std::make_unique<slop::ScopedRawMode>();
             }
             while (!done) {
-              if (!config.silent && slop::IsEscPressed()) {
-                cancellation->Cancel();
-                std::cerr << "\n"
-                          << "  " << slop::Colorize("[Esc] Cancellation requested...", "", ansi::Red) << std::endl;
+              if (ask_state.asking_user.load()) {
+                // Temporarily disable Raw Mode to allow ReadLine to work
+                raw.reset();
+                
+                std::string current_prompt;
+                {
+                  absl::MutexLock lock(&ask_state.mutex);
+                  current_prompt = ask_state.prompt;
+                }
+                
+                std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
+                slop::Renderer::Get().PrintMarkdown(current_prompt);
+                std::cout << "\n";
+                std::string res = slop::ReadLine("reply");
+                
+                if (absl::StartsWith(res, "/")) {
+                  // Forward commands to the main handler. The loop will repeat to ask again.
+                  cmd_handler_.Handle(
+                      res, session_id, active_skills, []() { ShowHelp(); }, orchestrator_.GetLastSelectedGroups());
+                } else {
+                  absl::MutexLock lock(&ask_state.mutex);
+                  ask_state.response = res;
+                  ask_state.asking_user = false;
+                }
+                
+                // Restore Raw Mode
+                if (!config.silent) {
+                  raw = std::make_unique<slop::ScopedRawMode>();
+                }
+              } else {
+                if (!config.silent && slop::IsEscPressed()) {
+                  cancellation->Cancel();
+                  std::cerr << "\n"
+                            << "  " << slop::Colorize("[Esc] Cancellation requested...", "", ansi::Red) << std::endl;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
               }
-              std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
           }
           t.join();
+          tool_executor_.SetAskUserHandler(nullptr);
           for (const auto& res : results) {
             std::string result_content =
                 res.output.ok() ? *res.output : absl::StrCat("Error: ", res.output.status().message());
