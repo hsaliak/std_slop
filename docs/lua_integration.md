@@ -46,11 +46,12 @@ These variables bridge the gap between individual turns and provide persistent c
 | `history` | Conversation metadata. | Used by the system to manage turn transitions. |
 
 ### The `tools` Table
-All system tools are available under the `tools` namespace. For example:
+All system tools are available under the `tools` namespace. Examples include:
 - `tools.read_file({path = "...", start_line = 1, end_line = 10, line_numbers = true})`: Reads a file with optional line range and `line_numbers`.
 - `tools.grep({pattern = "..."})`: **Preferred** for cross-file searching.
-- `tools.file(path)`: Provides an expressive API for file operations.
 - `tools.query_db({sql = "..."})`: Queries the project database.
+- `tools.ask_user({prompt = "..."})`: Prompts the human user for input. This is synchronous and will block script execution until the user responds.
+  - **Behavior**: If the user attempts to use a slash command in response, the system will display an error and re-prompt them. This ensures the agent receives a valid response to its question.
 
 ### Asynchronous Execution
 Most tools have an `_async` variant or can be used with `dispatch_async`.

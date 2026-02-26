@@ -145,6 +145,8 @@ For more details, see the **[Lua Integration Documentation](lua_integration.md)*
 
 ## Slash Commands
 
+> **Note**: Slash commands are unavailable while the agent is explicitly requesting input via a prompt (e.g., when it uses the `ask_user` tool). If you enter a slash command during such a prompt, the system will display an error and re-prompt you for a direct response.
+
 ### Session Management
 - `/exit` or `/quit`: Close the session.
 - `/session list`: List all existing sessions.
