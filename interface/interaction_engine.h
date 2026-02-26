@@ -1,5 +1,5 @@
-#ifndef INTERFACE_INTERACTION_ENGINE_H_
-#define INTERFACE_INTERACTION_ENGINE_H_
+#ifndef SLOP_INTERFACE_INTERACTION_ENGINE_H_
+#define SLOP_INTERFACE_INTERACTION_ENGINE_H_
 
 #include <memory>
 #include <string>
@@ -51,4 +51,4 @@ class InteractionEngine {
 
 }  // namespace slop
 
-#endif  // INTERFACE_INTERACTION_ENGINE_H_
+#endif  // SLOP_INTERFACE_INTERACTION_ENGINE_H_

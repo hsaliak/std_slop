@@ -1,5 +1,5 @@
-#ifndef SLOP_RENDERER_H_
-#define SLOP_RENDERER_H_
+#ifndef SLOP_INTERFACE_RENDERER_H_
+#define SLOP_INTERFACE_RENDERER_H_
 
 #include <string>
 #include "absl/base/no_destructor.h"
@@ -26,4 +26,4 @@ class Renderer {
 
 }  // namespace slop
 
-#endif  // SLOP_RENDERER_H_
+#endif  // SLOP_INTERFACE_RENDERER_H_

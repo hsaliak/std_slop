@@ -1,5 +1,5 @@
-#ifndef SLOP_TERMINAL_H_
-#define SLOP_TERMINAL_H_
+#ifndef SLOP_INTERFACE_TERMINAL_H_
+#define SLOP_INTERFACE_TERMINAL_H_
 
 #include "interface/color.h"
 
@@ -14,4 +14,4 @@ std::string ReadLine(const std::string& modeline);
 
 }  // namespace slop
 
-#endif  // SLOP_TERMINAL_H_
+#endif  // SLOP_INTERFACE_TERMINAL_H_

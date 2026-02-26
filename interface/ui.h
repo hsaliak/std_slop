@@ -1,5 +1,5 @@
-#ifndef SLOP_SQL_UI_H_
-#define SLOP_SQL_UI_H_
+#ifndef SLOP_INTERFACE_UI_H_
+#define SLOP_INTERFACE_UI_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -88,4 +88,4 @@ void ShowHelp();
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered);
 
 }  // namespace slop
-#endif  // SLOP_SQL_UI_H_
+#endif  // SLOP_INTERFACE_UI_H_

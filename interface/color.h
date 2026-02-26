@@ -1,5 +1,5 @@
-#ifndef COLOR_H_
-#define COLOR_H_
+#ifndef SLOP_INTERFACE_COLOR_H_
+#define SLOP_INTERFACE_COLOR_H_
 
 #include <string>
 
@@ -143,4 +143,4 @@ inline size_t VisibleLength(std::string_view s) {
 
 }  // namespace slop
 
-#endif  // COLOR_H_
+#endif  // SLOP_INTERFACE_COLOR_H_
