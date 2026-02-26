@@ -12,7 +12,7 @@ constexpr char kServiceUsageBaseUrl[] = "https://serviceusage.googleapis.com/v1"
 constexpr char kGoogleOAuthTokenUrl[] = "https://oauth2.googleapis.com/token";
 
 // GCA / Antigravity Headers
-constexpr char kGcaUserAgent[] = "std::slop/prerelease";
+constexpr char kUserAgent[] = "std::slop/prerelease";
 constexpr char kGcaApiClient[] = "std::slop/0.1";
 constexpr char kGcaClientMetadata[] =
     "{\"ideType\":\"IDE_UNSPECIFIED\",\"platform\":\"PLATFORM_UNSPECIFIED\",\"pluginType\":\"GEMINI\"}";

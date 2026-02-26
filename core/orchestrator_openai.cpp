@@ -1,4 +1,5 @@
 #include "core/orchestrator_openai.h"
+#include "core/constants.h"
 
 #include <iostream>
 
@@ -169,6 +170,8 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const D
 
 absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::string& api_key) {
   std::vector<std::string> headers = {"Authorization: Bearer " + api_key};
+  headers.push_back(std::string("User-Agent: ") + kUserAgent);
+
   std::string url = base_url_ + "/models";
   auto resp_or = http_client_->Get(url, headers);
   if (!resp_or.ok()) return resp_or.status();

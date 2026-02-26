@@ -110,6 +110,12 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       break;
     }
     std::vector<std::string> headers = {"Content-Type: application/json"};
+    headers.push_back(std::string("User-Agent: ") + kUserAgent);
+    if (orchestrator_.GetProvider() == slop::Orchestrator::Provider::GEMINI) {
+      headers.push_back(std::string("x-goog-api-client: ") + kGcaApiClient);
+      headers.push_back(std::string("x-goog-api-client-metadata: ") + kGcaClientMetadata);
+    }
+
     std::string url;
     if (orchestrator_.GetProvider() == slop::Orchestrator::Provider::OPENAI) {
       headers.push_back("Authorization: Bearer " + config.openai_api_key);

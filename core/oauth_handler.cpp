@@ -167,7 +167,7 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
 
   // GCA identification headers
   std::vector<std::string> headers = {"Authorization: Bearer " + access_token, "Content-Type: application/json",
-                                      absl::StrCat("User-Agent: ", kGcaUserAgent),
+                                      absl::StrCat("User-Agent: ", kUserAgent),
                                       absl::StrCat("X-Goog-Api-Client: ", kGcaApiClient),
                                       absl::StrCat("Client-Metadata: ", kGcaClientMetadata)};
 

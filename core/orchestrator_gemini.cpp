@@ -186,7 +186,7 @@ absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::
   }
 
   std::string url = base + "/models?key=" + api_key;
-  auto resp_or = http_client_->Get(url, {});
+  auto resp_or = http_client_->Get(url, {std::string("User-Agent: ") + kUserAgent});
   if (!resp_or.ok()) return resp_or.status();
 
   auto j_opt = json_parse(*resp_or);
@@ -246,7 +246,12 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::GetQuota(const std::string
   }
 
   std::string url = base_url_ + ":retrieveUserQuota";
-  std::vector<std::string> headers = {"Content-Type: application/json", "Authorization: Bearer " + oauth_token};
+  std::vector<std::string> headers = {"Content-Type: application/json",
+                                      "Authorization: Bearer " + oauth_token};
+  headers.push_back(std::string("User-Agent: ") + kUserAgent);
+  headers.push_back(std::string("x-goog-api-client: ") + kGcaApiClient);
+  headers.push_back(std::string("x-goog-api-client-metadata: ") + kGcaClientMetadata);
+
 
   nlohmann::json body;
   body["project"] = project_id_;
