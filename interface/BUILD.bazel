@@ -36,12 +36,37 @@ cc_library(
 )
 
 cc_library(
+    name = "terminal",
+    srcs = ["terminal.cpp"],
+    hdrs = ["terminal.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":color",
+    ],
+)
+
+cc_library(
+    name = "renderer",
+    srcs = ["renderer.cpp"],
+    hdrs = ["renderer.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":terminal",
+        "//markdown:parser",
+        "//markdown:renderer",
+        "@abseil-cpp//absl/base:no_destructor",
+    ],
+)
+
+cc_library(
     name = "ui",
     srcs = ["ui.cpp"],
     hdrs = ["ui.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":animator",
+        ":renderer",
+        ":terminal",
         ":color",
         ":completer",
         ":command_definitions",
@@ -77,6 +102,8 @@ cc_library(
     defines = ["HAVE_READLINE"],
     deps = [
         ":animator",
+        ":renderer",
+        ":terminal",
         ":color",
         ":completer",
         ":ui",

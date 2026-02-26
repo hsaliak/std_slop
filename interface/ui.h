@@ -6,6 +6,7 @@
 
 #include "core/database.h"
 #include "interface/color.h"
+#include "interface/renderer.h"
 #include "interface/animator.h"
 #include <vector>
 #include <string>
@@ -16,7 +17,7 @@ namespace slop {
 
 
 
-void SetupTerminal();
+
 
 void ShowBanner();
 
@@ -48,15 +49,14 @@ void HandleStatus(const absl::Status& status, const std::string& context = "");
 
 // Wraps text to a specific width, preserving newlines and being ANSI-aware.
 // Optionally prepends a prefix to each line.
-std::string WrapText(const std::string& text, size_t width = 0, const std::string& prefix = "",
-                     const std::string& first_line_prefix = "");
+
 
 // Flattens a JSON string into a human-readable key-value string.
 // e.g. {"a": 1, "b": "c"} -> a: 1 | b: "c"
 std::string FlattenJsonArgs(const std::string& json_str);
 
 // Returns terminal width or 80 if detection fails.
-size_t GetTerminalWidth();
+
 
 /**
  * @brief High-level methods for centralized UI message formatting.

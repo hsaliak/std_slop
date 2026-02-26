@@ -1,5 +1,7 @@
 #include <cstring>
 #include "interface/ui.h"
+#include "interface/terminal.h"
+#include "interface/renderer.h"
 #include "interface/animator.h"
 
 // Role constants for message handling
@@ -38,10 +40,7 @@ inline constexpr std::string_view kTool = "tool";
 #include "interface/color.h"
 #include "interface/command_definitions.h"
 #include "interface/completer.h"
-#include "markdown/parser.h"
-#include "markdown/renderer.h"
 
-#include <sys/ioctl.h>
 namespace slop {
 namespace {
 ABSL_CONST_INIT absl::Mutex g_ui_mu(absl::kConstInit);
@@ -110,23 +109,13 @@ void PrintStyledBlock(const std::string& body, const std::string& prefix, const 
   std::cout << std::endl;
 }
 }  // namespace
-size_t GetTerminalWidth() {
-  struct winsize w;
-  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
-    return w.ws_col > 0 ? w.ws_col : 80;
-  }
+
   return 80;
 }
 namespace {
 
-markdown::MarkdownParser& GetMarkdownParser() {
-  static absl::NoDestructor<markdown::MarkdownParser> parser;
-  return *parser;
-}
-markdown::MarkdownRenderer& GetMarkdownRenderer() {
-  static absl::NoDestructor<markdown::MarkdownRenderer> renderer;
-  return *renderer;
-}
+
+
 
 
 
@@ -139,15 +128,7 @@ std::string ExtractToolName(const std::string& tool_call_id) {
   return tool_call_id;
 }
 }  // namespace
-void SetupTerminal() {
-  // Ensure the terminal is not in "Application Cursor Keys" mode or "Keypad" mode.
-  // These modes often cause terminals to send arrow key sequences (like \033OA)
-  // on mouse scroll, which readline interprets as history navigation instead of
-  // allowing the terminal to scroll its buffer.
-  // \033[?1l: Disable Application Cursor Keys (DECCKM)
-  // \033>: Disable Keypad Mode (DECPNM)
-  std::cout << "\033[?1l\033>" << std::flush;
-}
+
 
 void ShowBanner() {
   std::string banner = R"(
@@ -179,21 +160,7 @@ std::string ReadLine(const std::string& modeline) {
   }
   return line;
 }
-std::string WrapText(const std::string& text, size_t width, const std::string& prefix,
-                     const std::string& first_line_prefix) {
-  if (width == 0) width = GetTerminalWidth();
-  size_t prefix_len = VisibleLength(prefix);
-  size_t first_prefix_len = first_line_prefix.empty() ? prefix_len : VisibleLength(first_line_prefix);
-  std::string result;
-  std::string current_line;
-  size_t current_line_visible_len = 0;
-  bool is_first_line = true;
-  auto finalize_line = [&]() {
-    if (!result.empty()) result += "\n";
-    if (is_first_line) {
-      result += (first_line_prefix.empty() ? prefix : first_line_prefix) + current_line;
-      is_first_line = false;
-    } else {
+ else {
       result += prefix + current_line;
     }
     current_line.clear();
@@ -398,7 +365,7 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 void PrintAssistantMessage(const std::string& content, const std::string& prefix, int tokens) {
   if (content.empty()) return;
   absl::MutexLock lock(&g_ui_mu);
-  auto parsed_or = GetMarkdownParser().Parse(content);
+  auto parsed_or = Renderer::Get().RenderMarkdown(content, "", &rendered);
   if (parsed_or.ok()) {
     std::string rendered;
     GetMarkdownRenderer().Render(**parsed_or, &rendered);
@@ -651,3 +618,10 @@ void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
 
 
 }  // namespace slop
+
+void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
+  Renderer::Get().RenderMarkdown(markdown, prefix, rendered);
+}
+void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
+  Renderer::Get().PrintMarkdown(markdown, prefix);
+}
