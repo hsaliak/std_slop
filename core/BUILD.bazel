@@ -143,6 +143,9 @@ cc_library(
  "@nlohmann_json//:json",
  "//lua-bridge:interpreter",
  "@abseil-cpp//absl/random",
+        "//interface:terminal",
+        "//interface:renderer",
+        "//interface:color",
  ],
 )
 

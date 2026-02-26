@@ -737,4 +737,29 @@ TEST(ToolExecutorTest, ToolOrchestrationScenario) {
   std::filesystem::remove("orchestra.txt");
 }
 
+
+TEST(ToolExecutorTest, AskUser) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  bool handler_called = false;
+  std::string received_prompt = "";
+
+  executor.SetAskUserHandler([&](const std::string& p) {
+    handler_called = true;
+    received_prompt = p;
+    return "User typed this";
+  });
+
+  auto res = executor.Execute("ask_user", {{"prompt", "Are you sure?"}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(handler_called);
+  EXPECT_EQ(received_prompt, "Are you sure?");
+  EXPECT_TRUE(res->find("User typed this") != std::string::npos);
+}
+
 }  // namespace slop
+

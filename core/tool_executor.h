@@ -37,6 +37,10 @@ class ToolExecutor {
   bool IsSkillActive(const std::string& name);
   std::vector<std::string> GetActiveSkills();
 
+  void SetAskUserHandler(std::function<std::string(const std::string&)> handler) {
+    ask_user_handler_ = std::move(handler);
+  }
+
   absl::StatusOr<std::string> Execute(const std::string& name, const nlohmann::json& args,
                                       std::shared_ptr<CancellationRequest> cancellation = nullptr);
 
@@ -55,6 +59,8 @@ class ToolExecutor {
 
  private:
   explicit ToolExecutor(Database* db);
+
+  std::function<std::string(const std::string&)> ask_user_handler_;
 
   Database* db_;
   std::string session_id_;

@@ -12,6 +12,7 @@ function tools.help()
 - history: (table) Metadata about the conversation history.
 
 #### Core Tools ####
+- ask_user({prompt}): Prompts the user synchronously in the terminal and returns their input. STRONGLY encouraged to ask the user for guidance or mid-task input.
 - list_directory({path, depth}): Lists files and directories recursively.
 - grep({path, pattern}): Unified search using git grep or standard grep. Returns a Result object.
 - Result Objects: Structured output from tools. Use :lines(), :json(), or :filter(pattern).

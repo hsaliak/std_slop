@@ -16,6 +16,10 @@
 #include "core/tool_dispatcher.h"
 #include "json_utils.h"
 #include "lua-bridge/interpreter.h"
+#include "interface/terminal.h"
+#include "interface/color.h"
+#include "interface/renderer.h"
+#include <iostream>
 
 namespace slop {
 
@@ -77,6 +81,18 @@ void ToolExecutor::RegisterTools() {
 
   RegisterTool("run_lua", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
     return HandleRunLua(args, cancellation);
+  });
+  RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
+    std::string prompt_text = "Input required: ";
+    if (auto p = json_get<std::string>(args, "prompt")) {
+      prompt_text = *p;
+    }
+    if (ask_user_handler_) {
+      return ask_user_handler_(prompt_text);
+    }
+    std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
+    slop::Renderer::Get().PrintMarkdown(prompt_text);
+    return slop::ReadLine("reply");
   });
 }
 
