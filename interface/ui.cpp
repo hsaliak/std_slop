@@ -40,8 +40,6 @@ inline constexpr std::string_view kTool = "tool";
 #include "interface/completer.h"
 #include "markdown/parser.h"
 #include "markdown/renderer.h"
-#include "readline/history.h"
-#include "readline/readline.h"
 
 #include <sys/ioctl.h>
 namespace slop {
@@ -120,7 +118,7 @@ size_t GetTerminalWidth() {
   return 80;
 }
 namespace {
-std::vector<std::string> g_completion_commands;
+
 markdown::MarkdownParser& GetMarkdownParser() {
   static absl::NoDestructor<markdown::MarkdownParser> parser;
   return *parser;
@@ -129,38 +127,10 @@ markdown::MarkdownRenderer& GetMarkdownRenderer() {
   static absl::NoDestructor<markdown::MarkdownRenderer> renderer;
   return *renderer;
 }
-absl::flat_hash_map<std::string, std::vector<std::string>> g_sub_commands;
-std::vector<std::string> g_active_completion_list;
-char* CommandGenerator(const char* text, int state) {
-  static size_t list_index;
-  static std::vector<std::string> matches;
-  if (!state) {
-    list_index = 0;
-    matches = FilterCommands(text, g_active_completion_list);
-  }
-  if (list_index < matches.size()) {
-    return strdup(matches[list_index++].c_str());
-  }
-  return nullptr;
-}
-char** CommandCompletionProvider(const char* text, int start, [[maybe_unused]] int end) {
-  if (start == 0 && text[0] == '/') {
-    g_active_completion_list = g_completion_commands;
-    return rl_completion_matches(text, CommandGenerator);
-  }
-  if (start > 0) {
-    std::string line(rl_line_buffer);
-    std::vector<std::string> parts = absl::StrSplit(line, absl::MaxSplits(' ', 1));
-    if (!parts.empty()) {
-      auto it = g_sub_commands.find(parts[0]);
-      if (it != g_sub_commands.end()) {
-        g_active_completion_list = it->second;
-        return rl_completion_matches(text, CommandGenerator);
-      }
-    }
-  }
-  return nullptr;
-}
+
+
+
+
 std::string ExtractToolName(const std::string& tool_call_id) {
   size_t pipe = tool_call_id.find('|');
   if (pipe != std::string::npos) {
@@ -178,14 +148,7 @@ void SetupTerminal() {
   // \033>: Disable Keypad Mode (DECPNM)
   std::cout << "\033[?1l\033>" << std::flush;
 }
-void SetCompletionCommands(const std::vector<std::string>& commands,
-                           const absl::flat_hash_map<std::string, std::vector<std::string>>& sub_commands) {
-  g_completion_commands = commands;
-  g_sub_commands = sub_commands;
-  rl_attempted_completion_function = CommandCompletionProvider;
-  // Ensure '/' is not a word break character so we can complete /commands
-  rl_basic_word_break_characters = const_cast<char*>(" \t\n\"\\'`@$><=;|&{(");
-}
+
 void ShowBanner() {
   std::string banner = R"(
 ███████╗████████╗██████╗       ███████╗██╗      ██████╗ ██████╗
