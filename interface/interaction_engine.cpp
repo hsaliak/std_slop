@@ -307,11 +307,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                 std::cout << "\n";
                 std::string res = slop::ReadLine("reply");
                 
-                if (absl::StartsWith(res, "/")) {
-                  // Forward commands to the main handler. The loop will repeat to ask again.
-                  cmd_handler_.Handle(
-                      res, session_id, active_skills, []() { ShowHelp(); }, orchestrator_.GetLastSelectedGroups());
-                } else {
+                {
                   absl::MutexLock lock(&ask_state.mutex);
                   ask_state.response = res;
                   ask_state.asking_user = false;
