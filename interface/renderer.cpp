@@ -1,5 +1,6 @@
 #include "interface/renderer.h"
 #include <iostream>
+#include "interface/color.h"
 #include "interface/terminal.h" // For GetTerminalWidth and VisibleLength
 
 namespace slop {

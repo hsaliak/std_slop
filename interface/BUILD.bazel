@@ -42,6 +42,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":color",
+        "@readline//:readline",
     ],
 )
 

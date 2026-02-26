@@ -41,6 +41,8 @@
 #include "interface/command_handler.h"
 #include "interface/interaction_engine.h"
 #include "interface/ui.h"
+#include "interface/terminal.h"
+#include "interface/completer.h"
 
 ABSL_FLAG(std::string, config, "", "Path to the configuration INI file");
 ABSL_FLAG(std::string, db, "", "Path to SQLite database (default: slop.db)");

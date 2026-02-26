@@ -55,28 +55,6 @@ bool IsNetworkError(const std::string& result) {
          absl::StrContains(lower, "quota");
 }
 /**
- * @brief Prints a horizontal separator line to the terminal.
- *
- * @param width The width of the line. If 0, uses the current terminal width.
- * @param color_fg The ANSI color code for the line.
- * @param header Optional text to display centered within the line.
- */
-void PrintHorizontalLine(size_t width, const char* color_fg = ansi::Metadata, const std::string& header = "",
-                         const std::string& prefix = "") {
-  if (width == 0) width = GetTerminalWidth();
-  size_t prefix_len = VisibleLength(prefix);
-  std::string bold_fg = std::string(ansi::Bold) + color_fg;
-  std::cout << prefix;
-  if (header.empty()) {
-    size_t line_width = (width > prefix_len) ? width - prefix_len : 0;
-    std::string line(line_width, '-');
-    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
-  } else {
-    std::string line = "[ " + header + " ]";
-    std::cout << Colorize(line, "", bold_fg.c_str()) << std::endl;
-  }
-}
-/**
  * @brief Renders text within a stylized section with a header.
  *
  * Automatically wraps the body text to fit within the terminal boundaries
@@ -109,9 +87,6 @@ void PrintStyledBlock(const std::string& body, const std::string& prefix, const 
   std::cout << std::endl;
 }
 }  // namespace
-
-  return 80;
-}
 namespace {
 
 
@@ -147,55 +122,6 @@ void ShowBanner() {
   std::cout << " Welcome to std::slop - The SQL-backed LLM CLI" << std::endl;
   std::cout << " Type /help for a list of commands." << std::endl;
   std::cout << std::endl;
-}
-std::string ReadLine(const std::string& modeline) {
-  SetupTerminal();
-  PrintHorizontalLine(0, ansi::Grey, modeline);
-  char* buf = readline("❯ ");
-  if (!buf) return "/exit";
-  std::string line(buf);
-  free(buf);
-  if (!line.empty()) {
-    add_history(line.c_str());
-  }
-  return line;
-}
- else {
-      result += prefix + current_line;
-    }
-    current_line.clear();
-    current_line_visible_len = 0;
-  };
-  size_t effective_width =
-      (width > std::max(prefix_len, first_prefix_len) + 5) ? width - std::max(prefix_len, first_prefix_len) : width;
-  std::stringstream ss(text);
-  std::string line;
-  while (std::getline(ss, line)) {
-    if (VisibleLength(line) <= effective_width) {
-      current_line = line;
-      finalize_line();
-      continue;
-    }
-    std::stringstream word_ss(line);
-    std::string word;
-    bool first_word = true;
-    while (word_ss >> word) {
-      size_t word_len = VisibleLength(word);
-      if (!first_word && current_line_visible_len + 1 + word_len > effective_width) {
-        finalize_line();
-        first_word = true;
-      }
-      if (!first_word) {
-        current_line += " ";
-        current_line_visible_len += 1;
-      }
-      current_line += word;
-      current_line_visible_len += word_len;
-      first_word = false;
-    }
-    finalize_line();
-  }
-  return result;
 }
 std::string OpenInEditor(const std::string& initial_content, const std::string& extension) {
   const char* editor = std::getenv("EDITOR");
@@ -344,35 +270,12 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
 void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatAssembledContext(json_str), true); }
 
-void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
-  auto& parser = GetMarkdownParser();
-  auto& renderer = GetMarkdownRenderer();
-  auto parsed_or = parser.Parse(markdown);
-  if (!parsed_or.ok()) {
-    std::cout << prefix << markdown << std::endl;
-    return;
-  }
-  size_t width = GetTerminalWidth();
-  size_t prefix_len = VisibleLength(prefix);
-  renderer.SetMaxWidth(width > prefix_len + 5 ? width - prefix_len : 0);
-  return renderer.Render(**parsed_or, rendered);
-}
-void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
-  std::string rendered;
-  RenderMarkdown(markdown, prefix, &rendered);
-  std::cout << rendered;
-}
 void PrintAssistantMessage(const std::string& content, const std::string& prefix, int tokens) {
   if (content.empty()) return;
   absl::MutexLock lock(&g_ui_mu);
-  auto parsed_or = Renderer::Get().RenderMarkdown(content, "", &rendered);
-  if (parsed_or.ok()) {
-    std::string rendered;
-    GetMarkdownRenderer().Render(**parsed_or, &rendered);
-    PrintStyledBlock(rendered, prefix + "    ", ansi::Assistant);
-  } else {
-    PrintStyledBlock(content, prefix + "    ", ansi::Assistant);
-  }
+  std::string rendered;
+  Renderer::Get().RenderMarkdown(content, "", &rendered);
+  PrintStyledBlock(rendered, prefix + "    ", ansi::Assistant);
   if (tokens > 0) {
     std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
   }
@@ -617,7 +520,8 @@ std::string GetHelpText() {
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
 
 
-}  // namespace slop
+
+
 
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
   Renderer::Get().RenderMarkdown(markdown, prefix, rendered);
@@ -625,3 +529,5 @@ void RenderMarkdown(const std::string& markdown, const std::string& prefix, std:
 void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
   Renderer::Get().PrintMarkdown(markdown, prefix);
 }
+
+}  // namespace slop

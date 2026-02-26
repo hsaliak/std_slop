@@ -1,4 +1,5 @@
 #include "interface/ui.h"
+#include "interface/terminal.h"
 
 #include <iostream>
 #include <sstream>
@@ -10,24 +11,24 @@
 #include "interface/color.h"
 namespace slop {
 TEST(UiTest, GetTerminalWidth) {
-  size_t width = GetTerminalWidth();
+  size_t width = slop::GetTerminalWidth();
   EXPECT_GT(width, 0);
 }
 TEST(UiTest, WrapTextBasic) {
   std::string text = "Hello world";
-  std::string wrapped = WrapText(text, 20);
+  std::string wrapped = slop::WrapText(text, 20);
   EXPECT_EQ(wrapped, "Hello world");
 }
 TEST(UiTest, WrapTextLong) {
   std::string text = "This is a longer string that should be wrapped.";
-  std::string wrapped = WrapText(text, 10);
+  std::string wrapped = slop::WrapText(text, 10);
   // Expect it to be wrapped into multiple lines
   EXPECT_TRUE(absl::StrContains(wrapped, "\n"));
 }
 TEST(UiTest, WrapTextWithPrefix) {
   std::string text = "Line one\nLine two";
   std::string prefix = "> ";
-  std::string wrapped = WrapText(text, 80, prefix);
+  std::string wrapped = slop::WrapText(text, 80, prefix);
   EXPECT_TRUE(absl::StrContains(wrapped, "> Line one"));
   EXPECT_TRUE(absl::StrContains(wrapped, "> Line two"));
 }
