@@ -1,5 +1,5 @@
-#ifndef SLOP_ANIMATOR_H_
-#define SLOP_ANIMATOR_H_
+#ifndef SLOP_INTERFACE_ANIMATOR_H_
+#define SLOP_INTERFACE_ANIMATOR_H_
 
 #include <atomic>
 #include <thread>
@@ -23,4 +23,4 @@ class AsyncAnimator {
 
 }  // namespace slop
 
-#endif  // SLOP_ANIMATOR_H_
+#endif  // SLOP_INTERFACE_ANIMATOR_H_
