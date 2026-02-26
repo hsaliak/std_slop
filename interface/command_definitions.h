@@ -1,5 +1,5 @@
-#ifndef SLOP_COMMAND_DEFINITIONS_H_
-#define SLOP_COMMAND_DEFINITIONS_H_
+#ifndef SLOP_INTERFACE_COMMAND_DEFINITIONS_H_
+#define SLOP_INTERFACE_COMMAND_DEFINITIONS_H_
 
 #include <string>
 #include <vector>
@@ -18,4 +18,4 @@ const std::vector<CommandDefinition>& GetCommandDefinitions();
 
 }  // namespace slop
 
-#endif  // SLOP_COMMAND_DEFINITIONS_H_
+#endif  // SLOP_INTERFACE_COMMAND_DEFINITIONS_H_
