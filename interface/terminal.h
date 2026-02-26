@@ -11,6 +11,7 @@ size_t GetTerminalWidth();
 std::string WrapText(const std::string& text, size_t width, const std::string& prefix = "", const std::string& first_line_prefix = "");
 void SetupTerminal();
 std::string ReadLine(const std::string& modeline);
+void PrintHorizontalLine(char c);
 
 }  // namespace slop
 

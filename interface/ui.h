@@ -10,8 +10,6 @@
 #include "interface/animator.h"
 #include <vector>
 #include <string>
-#include <sys/ioctl.h>
-#include <unistd.h>
 
 namespace slop {
 
@@ -21,7 +19,6 @@ namespace slop {
 
 void ShowBanner();
 
-std::string ReadLine(const std::string& modeline);
 std::string OpenInEditor(const std::string& initial_content = "", const std::string& extension = ".txt");
 absl::Status DisplayHistory(slop::Database& db, const std::string& session_id, int limit = 3);
 
