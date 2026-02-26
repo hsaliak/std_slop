@@ -1,16 +1,13 @@
 #ifndef SLOP_SQL_UI_H_
 #define SLOP_SQL_UI_H_
 
-#include <string>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 
 #include "core/database.h"
 #include "interface/color.h"
-#include <thread>
-#include <atomic>
+#include "interface/animator.h"
 #include <vector>
 #include <string>
 #include <sys/ioctl.h>
@@ -18,20 +15,7 @@
 
 namespace slop {
 
-class AsyncAnimator {
- public:
-  AsyncAnimator();
-  ~AsyncAnimator();
 
-  void Start();
-  void Stop();
-
- private:
-  void RenderLoop();
-
-  std::thread thread_;
-  std::atomic<bool> is_running_;
-};
 
 
 
