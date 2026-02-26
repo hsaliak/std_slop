@@ -30,7 +30,7 @@ void SetupTerminal() {
 }
 
 void PrintHorizontalLine(size_t width, const char* color_fg, const std::string& header, const char* color_header) {
-  if (width == 0) width = GetTerminalWidth();
+  if (width == 0) width = GetTerminalWidth() -1;
   
   std::string line;
   if (header.empty()) {
