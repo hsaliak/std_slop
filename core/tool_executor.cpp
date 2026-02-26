@@ -88,11 +88,23 @@ void ToolExecutor::RegisterTools() {
       prompt_text = *p;
     }
     if (ask_user_handler_) {
-      return ask_user_handler_(prompt_text);
+      auto response = ask_user_handler_(prompt_text);
+      // Reject /commands in Q&A mode - they don't work here
+      if (absl::StrHasPrefix(response, "/")) {
+        return absl::InvalidArgumentError(
+          "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands.");
+      }
+      return response;
     }
     std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
     slop::Renderer::Get().PrintMarkdown(prompt_text);
-    return slop::ReadLine("reply");
+    auto reply = slop::ReadLine("reply");
+    // Reject /commands in Q&A mode - they don't work here
+    if (absl::StrHasPrefix(reply, "/")) {
+      return absl::InvalidArgumentError(
+        "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands.");
+    }
+    return reply;
   });
 }
 
