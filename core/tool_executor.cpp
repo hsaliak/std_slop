@@ -90,7 +90,7 @@ void ToolExecutor::RegisterTools() {
     if (ask_user_handler_) {
       auto response = ask_user_handler_(prompt_text);
       // Reject /commands in Q&A mode - they don't work here
-      if (absl::StrHasPrefix(response, "/")) {
+      if (absl::StartsWith(response, "/")) {
         return absl::InvalidArgumentError(
           "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands.");
       }
@@ -100,7 +100,7 @@ void ToolExecutor::RegisterTools() {
     slop::Renderer::Get().PrintMarkdown(prompt_text);
     auto reply = slop::ReadLine("reply");
     // Reject /commands in Q&A mode - they don't work here
-    if (absl::StrHasPrefix(reply, "/")) {
+    if (absl::StartsWith(reply, "/")) {
       return absl::InvalidArgumentError(
         "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands.");
     }
