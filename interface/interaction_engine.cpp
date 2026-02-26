@@ -1,4 +1,10 @@
 #include "interface/interaction_engine.h"
+#include "interface/renderer.h"
+#include "interface/terminal.h"
+#include "interface/color.h"
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 #include <atomic>
 #include <iostream>
@@ -139,6 +145,20 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     std::string post_body = prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     std::vector<std::string> post_headers = headers;
 
+    std::atomic<bool> asking_user(false);
+    std::mutex ask_mutex;
+    std::condition_variable ask_cv;
+    std::string user_prompt;
+    std::string user_response;
+    
+    tool_executor_.SetAskUserHandler([&](const std::string& prompt) -> std::string {
+      std::unique_lock<std::mutex> lock(ask_mutex);
+      user_prompt = prompt;
+      asking_user = true;
+      ask_cv.wait(lock, [&]() { return !asking_user.load(); });
+      return user_response;
+    });
+
     std::thread http_t([&]() {
       resp_or = http_client_.Post(post_url, post_body, post_headers);
       http_done = true;
@@ -154,13 +174,33 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       if (!config.silent) animator.Start();
 
       while (!http_done) {
-        if (!config.silent && slop::IsEscPressed()) {
-          animator.Stop();
-          http_cancellation->Cancel();
-          std::cout << "\n" << slop::Colorize("[Esc] Cancelling HTTP request...", "", ansi::Red) << std::endl;
+        if (asking_user.load()) {
+          if (!config.silent) animator.Stop();
+          
+          std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
+          slop::Renderer::Get().PrintMarkdown(user_prompt);
+          std::string res = slop::ReadLine("reply");
+          
+          {
+            std::unique_lock<std::mutex> lock(ask_mutex);
+            user_response = res;
+            asking_user = false;
+          }
+          ask_cv.notify_one();
+          
+          if (!config.silent) animator.Start();
+        } else {
+          if (!config.silent && slop::IsEscPressed()) {
+            animator.Stop();
+            http_cancellation->Cancel();
+            std::cout << "\n" << slop::Colorize("[Esc] Cancelling HTTP request...", "", ansi::Red) << std::endl;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
+      
+      // Cleanup handler
+      tool_executor_.SetAskUserHandler(nullptr);
       
       if (!config.silent) animator.Stop();
     }
