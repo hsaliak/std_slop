@@ -27,6 +27,7 @@ void Renderer::PrintMarkdown(const std::string& markdown, const std::string& pre
   std::string rendered;
   RenderMarkdown(markdown, prefix, &rendered);
   std::cout << rendered;
+  std::cout << "\n";
 }
 
 }  // namespace slop

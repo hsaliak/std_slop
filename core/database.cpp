@@ -671,7 +671,7 @@ absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-  ContextSettings settings = {3};  // Default
+  ContextSettings settings = {5};  // Default
   if (*row_or) {
     settings.size = stmt->ColumnInt(0);
   }
