@@ -1,5 +1,5 @@
-#ifndef SLOP_SQL_COMMAND_HANDLER_H_
-#define SLOP_SQL_COMMAND_HANDLER_H_
+#ifndef SLOP_INTERFACE_COMMAND_HANDLER_H_
+#define SLOP_INTERFACE_COMMAND_HANDLER_H_
 #include <functional>
 #include <string>
 #include <utility>
@@ -92,4 +92,4 @@ class CommandHandler {
   static Database::Skill MarkdownToSkill(const std::string& md, int id);
 };
 }  // namespace slop
-#endif  // SLOP_SQL_COMMAND_HANDLER_H_
+#endif  // SLOP_INTERFACE_COMMAND_HANDLER_H_
