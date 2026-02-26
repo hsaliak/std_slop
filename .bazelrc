@@ -1,3 +1,4 @@
+check_direct_dependencies=off
 build --cxxopt=-std=c++17
 build --cxxopt=-fno-exceptions
 build --features=-use_header_modules
