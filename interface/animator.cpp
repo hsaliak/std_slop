@@ -15,6 +15,7 @@ AsyncAnimator::~AsyncAnimator() { Stop(); }
 void AsyncAnimator::Start() {
   if (is_running_) return;
   is_running_ = true;
+  start_time_ = std::chrono::steady_clock::now();
   std::cout << "\033[?25l";
   // Reserve space for 1 line
   std::cout << "\n\033[1A";
@@ -47,6 +48,13 @@ void AsyncAnimator::RenderLoop() {
   int num_colors = sizeof(colors) / sizeof(colors[0]);
 
   while (is_running_) {
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_).count();
+    double seconds = elapsed_ms / 1000.0;
+
+    char time_buf[32];
+    snprintf(time_buf, sizeof(time_buf), " (%.1fs)", seconds);
+
     std::string frame = "\r\033[2K\033[38;2;";
     frame += std::to_string(colors[color_idx].r) + ";" +
              std::to_string(colors[color_idx].g) + ";" +
@@ -54,6 +62,7 @@ void AsyncAnimator::RenderLoop() {
     frame += spinner[spinner_idx];
     frame += " .....\033[0m";
     frame += " Thinking";
+    frame += time_buf;
     
     std::cout << frame << std::flush;
     
