@@ -1,3 +1,4 @@
+#include "core/shell_util.h"
 #include "ini/ini_parser.h"
 
 #include "absl/strings/ascii.h"
@@ -31,7 +32,7 @@ IniConfig ParseIni(std::string_view content) {
         value_view = value_view.substr(0, comment_pos);
       }
 
-      std::string value = std::string(absl::StripAsciiWhitespace(value_view));
+      std::string value = ExpandEnvVars(std::string(absl::StripAsciiWhitespace(value_view)));
       if (!key.empty()) {
         config[current_section][key] = value;
       }

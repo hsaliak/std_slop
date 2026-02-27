@@ -45,6 +45,9 @@ bool IsEscPressed();
 // Returns the current user's home directory.
 std::string GetHomeDir();
 
+// Expands environment variables in the format ${VAR_NAME} or $VAR_NAME.
+std::string ExpandEnvVars(const std::string& input);
+
 }  // namespace slop
 
 #endif  // SLOP_SHELL_UTIL_H_

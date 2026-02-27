@@ -48,4 +48,22 @@ TEST(IniParserTest, EmptyAndGlobal) {
 }
 
 }  // namespace
+TEST(IniParserTest, EnvironmentVariableExpansion) {
+  setenv("TEST_VAR", "expanded_value", 1);
+  std::string ini = "key = ${TEST_VAR}\nkey2 = $TEST_VAR";
+  auto config = ParseIni(ini);
+  EXPECT_EQ(config[""]["key"], "expanded_value");
+  EXPECT_EQ(config[""]["key2"], "expanded_value");
+  unsetenv("TEST_VAR");
+}
+
+TEST(IniParserTest, MissingEnvironmentVariable) {
+  // Ensure the variable is NOT set
+  unsetenv("NON_EXISTENT_VAR");
+  std::string ini = "key = ${NON_EXISTENT_VAR}";
+  auto config = ParseIni(ini);
+  // Current implementation expands missing vars to empty strings
+  EXPECT_EQ(config[""]["key"], "");
+}
+
 }  // namespace slop
