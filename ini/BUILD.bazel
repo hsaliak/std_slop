@@ -6,6 +6,7 @@ cc_library(
     hdrs = ["ini_parser.h"],
     visibility = ["//visibility:public"],
     deps = [
+        "//core:shell_lib",
         "@abseil-cpp//absl/strings",
     ],
 )
