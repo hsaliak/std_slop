@@ -266,3 +266,32 @@ std::string GetHomeDir() {
 }
 
 }  // namespace slop
+
+#include <cstdlib>
+#include <regex>
+
+namespace slop {
+
+std::string ExpandEnvVars(const std::string& input) {
+  std::string result = input;
+  // Match ${VAR}
+  static const std::regex braced_regex(R"(\$\{([^}]+)\})");
+  std::smatch match;
+  while (std::regex_search(result, match, braced_regex)) {
+    const char* env_val = std::getenv(match[1].str().c_str());
+    std::string replacement = env_val ? env_val : "";
+    result.replace(match.position(), match.length(), replacement);
+  }
+  
+  // Match $VAR (alphanumeric and underscores)
+  static const std::regex simple_regex(R"(\$([a-zA-Z_][a-zA-Z0-9_]*))");
+  while (std::regex_search(result, match, simple_regex)) {
+    const char* env_val = std::getenv(match[1].str().c_str());
+    std::string replacement = env_val ? env_val : "";
+    result.replace(match.position(), match.length(), replacement);
+  }
+  
+  return result;
+}
+
+}  // namespace slop
