@@ -343,6 +343,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       }
     }
     if (has_tool_calls) {
+      if (orchestrator_.GetThrottle() > 0) {
+        std::this_thread::sleep_for(std::chrono::seconds(orchestrator_.GetThrottle()));
+      }
       continue;  // Loop for next LLM turn
     }
     break;

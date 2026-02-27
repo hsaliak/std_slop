@@ -14,6 +14,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "core/json_utils.h"
 #include "nlohmann/json.hpp"
 
 namespace slop {
@@ -45,13 +46,8 @@ size_t HttpClient::HeaderCallback(char* buffer, size_t size, size_t nitems, void
 
   size_t colon_pos = header.find(':');
   if (colon_pos != std::string::npos) {
-    std::string key = header.substr(0, colon_pos);
-    std::string value = header.substr(colon_pos + 1);
-
-    key.erase(0, key.find_first_not_of(" \t\r\n"));
-    key.erase(key.find_last_not_of(" \t\r\n") + 1);
-    value.erase(0, value.find_first_not_of(" \t\r\n"));
-    value.erase(value.find_last_not_of(" \t\r\n") + 1);
+    std::string key = std::string(absl::StripAsciiWhitespace(header.substr(0, colon_pos)));
+    std::string value = std::string(absl::StripAsciiWhitespace(header.substr(colon_pos + 1)));
 
     for (char& c : key) c = std::tolower(c);
     (*headers)[key] = value;
@@ -273,42 +269,53 @@ int64_t HttpClient::ParseXRateLimitReset(const absl::flat_hash_map<std::string, 
 }
 
 int64_t HttpClient::ParseGoogleRetryDelay(const std::string& body) {
-  auto j = nlohmann::json::parse(body, nullptr, false);
-  if (j.is_discarded() || !j.contains("error") || !j["error"].is_object()) return -1;
-  auto error = j["error"];
+  auto j_opt = json_parse(body);
+  if (!j_opt) return -1;
+  const auto& j = *j_opt;
 
-  if (error.contains("details") && error["details"].is_array()) {
-    for (const auto& detail : error["details"]) {
-      if (!detail.is_object() || !detail.contains("@type")) continue;
+  const nlohmann::json* error = json_at(j, "error");
+  if (!error) {
+    if (const auto* resp = json_at(j, "response")) {
+      error = json_at(*resp, "error");
+    }
+  }
 
-      if (detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" && detail.contains("retryDelay")) {
-        std::string delay_str = detail["retryDelay"];
-        if (!delay_str.empty() && delay_str.back() == 's') {
-          char* end;
-          double d = std::strtod(delay_str.substr(0, delay_str.size() - 1).c_str(), &end);
-          return static_cast<int64_t>(d * 1000);
-        }
-      } else if (detail["@type"] == "type.googleapis.com/google.rpc.ErrorInfo" && detail.contains("metadata")) {
-        auto metadata = detail["metadata"];
-        if (metadata.is_object() && metadata.contains("quotaResetDelay")) {
-          std::string delay_str = metadata["quotaResetDelay"];
-          if (!delay_str.empty() && delay_str.back() == 's') {
+  if (!error || !error->is_object()) return -1;
+
+  if (auto details = json_get<nlohmann::json::array_t>(*error, "details")) {
+    for (const auto& detail : *details) {
+      auto type = json_get<std::string>(detail, "@type");
+      if (!type) continue;
+
+      if (*type == "type.googleapis.com/google.rpc.RetryInfo") {
+        if (auto delay_str = json_get<std::string>(detail, "retryDelay")) {
+          if (!delay_str->empty() && delay_str->back() == 's') {
             char* end;
-            double d = std::strtod(delay_str.substr(0, delay_str.size() - 1).c_str(), &end);
+            double d = std::strtod(delay_str->substr(0, delay_str->size() - 1).c_str(), &end);
             return static_cast<int64_t>(d * 1000);
+          }
+        }
+      } else if (*type == "type.googleapis.com/google.rpc.ErrorInfo") {
+        if (const auto* metadata = json_at(detail, "metadata")) {
+          if (auto delay_str = json_get<std::string>(*metadata, "quotaResetDelay")) {
+            if (!delay_str->empty() && delay_str->back() == 's') {
+              char* end;
+              double d = std::strtod(delay_str->substr(0, delay_str->size() - 1).c_str(), &end);
+              return static_cast<int64_t>(d * 1000);
+            }
           }
         }
       }
     }
   }
 
-  if (error.contains("message") && error["message"].is_string()) {
-    std::string message = error["message"];
-    size_t after_pos = message.find("after ");
+  if (auto message = json_get<std::string>(*error, "message")) {
+    size_t after_pos = message->find("after ");
     if (after_pos != std::string::npos) {
-      size_t s_pos = message.find("s.", after_pos);
+      size_t search_start = after_pos + 6;
+      size_t s_pos = message->find("s", search_start);
       if (s_pos != std::string::npos) {
-        std::string delay_str = message.substr(after_pos + 6, s_pos - (after_pos + 6));
+        std::string delay_str = message->substr(search_start, s_pos - search_start);
         char* end;
         long long val = std::strtoll(delay_str.c_str(), &end, 10);
         if (end != delay_str.c_str()) {

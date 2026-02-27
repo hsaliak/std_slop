@@ -79,10 +79,12 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
   nlohmann::json prompt = *result;
   bool found_g1 = false;
   bool found_g2 = false;
-  for (const auto& content : prompt["contents"]) {
-    for (const auto& part : content["parts"]) {
+  for (const auto& content : prompt.value("contents", nlohmann::json::array())) {
+    for (const auto& part : content.value("parts", nlohmann::json::array())) {
       if (part.contains("functionResponse")) {
-        std::string tool_content = part["functionResponse"]["response"]["content"];
+        std::string tool_content = part.value("functionResponse", nlohmann::json::object())
+                                       .value("response", nlohmann::json::object())
+                                       .value("content", "");
         if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
           // Verify it's truncated to ~ts.inactive_limit
           EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);
@@ -118,10 +120,12 @@ TEST_F(OrchestratorTest, TruncateActiveToolResults) {
   nlohmann::json prompt = *result;
   int truncated_count = 0;
   int full_fidelity_count = 0;
-  for (const auto& content : prompt["contents"]) {
-    for (const auto& part : content["parts"]) {
+  for (const auto& content : prompt.value("contents", nlohmann::json::array())) {
+    for (const auto& part : content.value("parts", nlohmann::json::array())) {
       if (part.contains("functionResponse")) {
-        std::string tool_content = part["functionResponse"]["response"]["content"];
+        std::string tool_content = part.value("functionResponse", nlohmann::json::object())
+                                       .value("response", nlohmann::json::object())
+                                       .value("content", "");
         if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
           // Should be truncated to active_degraded_limit
           EXPECT_GT(tool_content.size(), ts.active_degraded_limit - 100);
@@ -173,9 +177,9 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
   // OpenAI payload structure: messages -> role: tool, content
   bool found_g1 = false;
   bool found_g2 = false;
-  for (const auto& msg : prompt["messages"]) {
-    if (msg["role"] == "tool") {
-      std::string tool_content = msg["content"];
+  for (const auto& msg : prompt.value("messages", nlohmann::json::array())) {
+    if (msg.value("role", "") == "tool") {
+      std::string tool_content = msg.value("content", "");
       if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
         // Verify it's truncated to ~ts.inactive_limit
         EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);

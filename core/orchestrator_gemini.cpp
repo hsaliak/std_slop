@@ -51,8 +51,8 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
       if (j_opt && !j_opt->is_discarded()) {
         auto& j = *j_opt;
         bool valid = true;
-        if (j.contains("functionCall")) {
-          std::string name = j["functionCall"]["name"];
+        if (const auto* fc = json_at(j, "functionCall")) {
+          std::string name = json_get_or(*fc, "name", std::string{});
           if (!enabled_tool_names.contains(name)) {
             LOG(WARNING) << "Filtering out invalid tool call: " << name;
             valid = false;
@@ -84,15 +84,22 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
       part = {{"text", display_content}};
     }
 
-    if (!contents.empty() && contents.back()["role"] == role)
-      contents.back()["parts"].push_back(part);
-    else
+    if (!contents.empty() && json_get_or(contents.back(), "role", std::string{}) == role) {
+      if (const auto* parts = json_at(contents.back(), "parts")) {
+        // Since we know it's our own constructed array, we can append to it.
+        // We use the mutable back() reference to avoid const issues.
+        contents.back()["parts"].push_back(part);
+      }
+    } else {
       contents.push_back({{"role", role}, {"parts", {part}}});
+    }
   }
 
   nlohmann::json valid_contents = nlohmann::json::array();
   for (const auto& c : contents) {
-    if (c["role"] == "function" && (valid_contents.empty() || valid_contents.back()["role"] != "model")) continue;
+    if (json_get_or(c, "role", std::string{}) == "function" &&
+        (valid_contents.empty() || json_get_or(valid_contents.back(), "role", std::string{}) != "model"))
+      continue;
     valid_contents.push_back(c);
   }
 

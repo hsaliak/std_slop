@@ -50,18 +50,23 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
       if (j_opt) {
         auto& j = *j_opt;
         bool valid = true;
-        if (j.contains("tool_calls")) {
-          for (auto& tc : j["tool_calls"]) {
-            std::string name = tc["function"]["name"];
-            if (!enabled_tool_names.contains(name)) {
-              LOG(WARNING) << "Filtering out invalid tool call: " << name;
-              valid = false;
-              break;
+        if (auto tool_calls = json_get<nlohmann::json::array_t>(j, "tool_calls")) {
+          for (auto& tc : *tool_calls) {
+            if (const auto* fn = json_at(tc, "function")) {
+              std::string name = json_get_or(*fn, "name", std::string{});
+              if (!enabled_tool_names.contains(name)) {
+                LOG(WARNING) << "Filtering out invalid tool call: " << name;
+                valid = false;
+                break;
+              }
             }
           }
         }
         if (valid) {
           msg_obj = j;
+          if (json_get_or(msg_obj, "role", std::string{}).empty()) {
+            msg_obj["role"] = "assistant";
+          }
         } else {
           msg_obj = {{"role", "assistant"}, {"content", "[Invalid tool call suppressed]"}};
         }
@@ -87,7 +92,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
       msg_obj = {{"role", msg.role}, {"content", display_content}};
     }
 
-    if (!messages.empty() && messages.back()["role"] == msg.role && msg.role == "user") {
+    if (!messages.empty() && json_get_or(messages.back(), "role", std::string{}) == msg.role && msg.role == "user") {
       messages.back()["content"] = json_get_or(messages.back(), "content", std::string{}) + "\n" +
                                    json_get_or(msg_obj, "content", std::string{});
     } else {
