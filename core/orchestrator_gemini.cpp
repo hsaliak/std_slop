@@ -122,7 +122,17 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
     }
   }
 
-  if (!f_decls.empty()) payload["tools"] = {{{"function_declarations", f_decls}}};
+  if (!f_decls.empty()) {
+    payload["tools"] = {{{"function_declarations", f_decls}}};
+    payload["tool_config"] = {{"function_calling_config", {{"mode", "AUTO"}}}};
+  }
+
+  payload["generation_config"] = {
+      {"temperature", temperature_},
+      {"topP", top_p_},
+      {"topK", top_k_},
+      {"maxOutputTokens", max_output_tokens_},
+  };
 
   return payload;
 }
