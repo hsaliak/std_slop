@@ -33,6 +33,12 @@ class GeminiOrchestrator : public OrchestratorStrategy {
   std::string model_;
   std::string base_url_;
   absl::flat_hash_map<std::string, nlohmann::json> tool_schema_cache_;
+
+  // Generation parameters
+  double temperature_ = 0.2;
+  double top_p_ = 0.95;
+  int top_k_ = 40;
+  int max_output_tokens_ = 8192;
 };
 
 class GeminiGcaOrchestrator : public GeminiOrchestrator {
