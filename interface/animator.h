@@ -2,6 +2,7 @@
 #define SLOP_INTERFACE_ANIMATOR_H_
 
 #include <atomic>
+#include <chrono>
 #include <thread>
 
 namespace slop {
@@ -19,6 +20,7 @@ class AsyncAnimator {
 
   std::thread thread_;
   std::atomic<bool> is_running_;
+  std::chrono::steady_clock::time_point start_time_;
 };
 
 }  // namespace slop
