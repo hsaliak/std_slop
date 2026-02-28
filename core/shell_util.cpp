@@ -40,7 +40,7 @@ ScopedRawMode::ScopedRawMode() {
   if (g_terminal_state.refcount++ == 0) {
     if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &g_terminal_state.oldt) == 0) {
       struct termios newt = g_terminal_state.oldt;
-      newt.c_lflag &= ~(ICANON | ECHO);
+      newt.c_lflag &= ~(ICANON | ECHO | ISIG);
       if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) == 0) {
         g_terminal_state.oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
         if (g_terminal_state.oldf != -1) {
@@ -216,7 +216,7 @@ std::string EscapeShellArg(std::string_view arg) {
   return escaped;
 }
 
-bool IsEscPressed() {
+bool IsInterruptPressed() {
   static auto last_check = std::chrono::steady_clock::now();
   auto now = std::chrono::steady_clock::now();
   if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check).count() < 100) {
@@ -230,7 +230,7 @@ bool IsEscPressed() {
 
   if (g_terminal_state.active) {
     int ch = getchar();
-    return ch == 27;
+    return ch == 27 || ch == 3;
   }
 
   struct termios oldt;
@@ -239,7 +239,7 @@ bool IsEscPressed() {
   absl::Cleanup cleanup = [&] { tcsetattr(STDIN_FILENO, TCSANOW, &oldt); };
 
   struct termios newt = oldt;
-  newt.c_lflag &= ~(ICANON | ECHO);
+  newt.c_lflag &= ~(ICANON | ECHO | ISIG);
   if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) != 0) return false;
 
   int oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
@@ -250,7 +250,7 @@ bool IsEscPressed() {
   if (fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK) == -1) return false;
 
   int ch = getchar();
-  return ch == 27;
+  return ch == 27 || ch == 3;
 }
 
 std::string GetHomeDir() {

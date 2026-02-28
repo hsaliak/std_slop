@@ -23,6 +23,7 @@ size_t GetTerminalWidth() {
 }
 
 void SetupTerminal() {
+  rl_catch_signals = 0;
   // Ensure the terminal doesn't echo weird codes
   // \033[?1l: Disable Application Cursor Keys (DECCKM)
   // \033>: Disable Keypad Mode (DECPNM)

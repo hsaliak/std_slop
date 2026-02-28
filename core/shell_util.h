@@ -40,7 +40,7 @@ class ScopedRawMode {
 // This function is non-blocking and throttled to once every 100ms.
 // If a ScopedRawMode is active, it uses the existing terminal state.
 // NOTE: Not thread-safe if called from multiple threads simultaneously.
-bool IsEscPressed();
+bool IsInterruptPressed();
 
 // Returns the current user's home directory.
 std::string GetHomeDir();

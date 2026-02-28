@@ -191,10 +191,10 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           
           if (!config.silent) animator.Start();
         } else {
-          if (!config.silent && slop::IsEscPressed()) {
+          if (!config.silent && slop::IsInterruptPressed()) {
             animator.Stop();
             http_cancellation->Cancel();
-            std::cout << "\n" << slop::Colorize("[Esc] Cancelling HTTP request...", "", ansi::Red) << std::endl;
+            std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
           }
           std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
@@ -318,10 +318,10 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                   raw = std::make_unique<slop::ScopedRawMode>();
                 }
               } else {
-                if (!config.silent && slop::IsEscPressed()) {
+                if (!config.silent && slop::IsInterruptPressed()) {
                   cancellation->Cancel();
                   std::cerr << "\n"
-                            << "  " << slop::Colorize("[Esc] Cancellation requested...", "", ansi::Red) << std::endl;
+                            << "  " << slop::Colorize("[Esc/Ctrl-C] Cancellation requested...", "", ansi::Red) << std::endl;
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
               }

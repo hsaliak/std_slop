@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <chrono>
+#include <csignal>
+#include <readline/readline.h>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -64,7 +66,17 @@ ABSL_FLAG(std::string, prompt_db, "",
 
 // Help text is now in interface/ui.h
 
+void SignalHandler(int signum) {
+  if (signum == SIGINT) {
+    std::cout << "\nUse /quit to quit." << std::endl;
+    rl_on_new_line();
+    rl_replace_line("", 0);
+    rl_redisplay();
+  }
+}
+
 namespace {
+
 
 class FileLogSink : public absl::LogSink {
  public:
@@ -120,6 +132,7 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  std::signal(SIGINT, SignalHandler);
   absl::InitializeSymbolizer(argv[0]);
   absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions{});
 
