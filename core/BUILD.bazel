@@ -48,8 +48,7 @@ cc_library(
  hdrs = ["cancellation.h"],
  visibility = ["//visibility:public"],
  deps = [
- "@abseil-cpp//absl/synchronization",
- ],
+ "@abseil-cpp//absl/synchronization",],
 )
 
 cc_library(
@@ -61,8 +60,7 @@ cc_library(
  ":cancellation",
  "@abseil-cpp//absl/log",
  "@abseil-cpp//absl/status",
- "@abseil-cpp//absl/status:statusor",
- ],
+ "@abseil-cpp//absl/status:statusor",],
 )
 
 cc_library(
@@ -76,8 +74,7 @@ cc_library(
  "@abseil-cpp//absl/status",
  "@abseil-cpp//absl/status:statusor",
  "@abseil-cpp//absl/synchronization",
- "@nlohmann_json//:json",
- ],
+ "@nlohmann_json//:json",],
 )
 
 cc_library(
@@ -122,6 +119,7 @@ cc_library(
  ],
  defines = ["HAVE_SYSTEM_PROMPT_H"],
  deps = [
+        "//js-bridge:js-bridge",
  ":cancellation",
  ":dispatcher",
  ":shell_lib",
@@ -144,8 +142,7 @@ cc_library(
  "@abseil-cpp//absl/random",
         "//interface:terminal",
         "//interface:renderer",
-        "//interface:color",
- ],
+        "//interface:color",],
 )
 
 [
@@ -169,8 +166,7 @@ cc_library(
  "@sqlite3//:sqlite3",
  "@googletest//:gtest_main",
  "@nlohmann_json//:json",
- "@abseil-cpp//absl/status",
- ],
+ "@abseil-cpp//absl/status",],
  )
  for test_name in [
  "database_test",
@@ -200,8 +196,7 @@ cc_test(
  deps = [
  ":core",
  "//interface",
- "@googletest//:gtest_main",
- ],
+ "@googletest//:gtest_main",],
 )
 
 cc_test(
@@ -212,8 +207,7 @@ cc_test(
  "@tree-sitter-bazel//:tree-sitter",
  "@tree-sitter-markdown//:tree-sitter-markdown",
  "@tree-sitter-markdown//:tree-sitter-markdown-inline",
- "@googletest//:gtest_main",
- ],
+ "@googletest//:gtest_main",],
 )
 
 cc_test(
@@ -223,8 +217,7 @@ cc_test(
  "@sqlite3//:sqlite3",
  "@abseil-cpp//absl/status",
  "@abseil-cpp//absl/status:statusor",
- "@googletest//:gtest_main",
- ],
+ "@googletest//:gtest_main",],
 )
 
 format_test(

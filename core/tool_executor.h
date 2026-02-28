@@ -78,8 +78,11 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleQueryDb(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleRunLua(const nlohmann::json& args,
                                            std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> HandleRunJs(const nlohmann::json& args,
+                                          std::shared_ptr<CancellationRequest> cancellation);
 
   absl::StatusOr<LuaResult> RunLua(const RunLuaRequest& req, std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<LuaResult> RunJs(const RunLuaRequest& req, std::shared_ptr<CancellationRequest> cancellation);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   std::unique_ptr<ToolDispatcher> dispatcher_;

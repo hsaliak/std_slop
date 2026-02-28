@@ -1,3 +1,5 @@
+#include <fstream>
+#include "js-bridge/interpreter.h"
 #include "core/tool_executor.h"
 
 #include <algorithm>
@@ -79,6 +81,9 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& arg
 void ToolExecutor::RegisterTools() {
   RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
 
+  RegisterTool("run_js", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+    return HandleRunJs(args, cancellation);
+  });
   RegisterTool("run_lua", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
     return HandleRunLua(args, cancellation);
   });
@@ -118,6 +123,19 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
       (void)db_->IncrementToolCallCount(name);
     }
     return res;
+  }
+
+  const char* use_js = std::getenv("SLOP_USE_JS");
+  if (use_js && std::string(use_js) == "1") {
+    RunLuaRequest req;
+    req.script = "return core.dispatch_tool(args.name, args.tool_args)";
+    req.args["name"] = name;
+    req.args["tool_args"] = args;
+
+    auto res = RunJs(req, cancellation);
+    if (!res.ok()) return res.status();
+    if (db_) (void)db_->IncrementToolCallCount(name);
+    return res->return_value;
   }
 
   // Use Lua orchestrator for all other tools.
@@ -278,6 +296,90 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
   auto res = RunLua(req, nullptr);
   if (!res.ok()) return res.status();
   return res->return_value;
+}
+
+absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args,
+                                                       std::shared_ptr<CancellationRequest> cancellation) {
+  RunLuaRequest req;
+  auto script = json_get<std::string>(args, "script");
+  if (!script) {
+    return absl::InvalidArgumentError("'script' must be a string");
+  }
+  req.script = *script;
+  if (const auto* lua_args = json_at(args, "args")) req.args = *lua_args;
+  auto res = RunJs(req, cancellation);
+  if (!res.ok()) return res.status();
+  return res->FullOutput();
+}
+
+absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest& req,
+                                                             std::shared_ptr<CancellationRequest> cancellation) {
+  slop::JsInterpreter interpreter;
+  std::stringstream stdout_buffer;
+  interpreter.InitializeEnvironment(db_, dispatcher_.get(), cancellation, dispatch_map_, stdout_buffer);
+
+  JSContext* ctx = interpreter.context();
+  JSValue global_obj = JS_GetGlobalObject(ctx);
+
+  JS_SetPropertyStr(ctx, global_obj, "session_id", JS_NewString(ctx, session_id_.c_str()));
+
+  // Inject scratchpad
+  auto scratchpad_res = db_->GetScratchpad(session_id_);
+  if (scratchpad_res.ok() && !scratchpad_res->empty()) {
+    JS_SetPropertyStr(ctx, global_obj, "scratchpad", JS_NewString(ctx, scratchpad_res->c_str()));
+  }
+
+  // Inject state
+  auto state_res = db_->GetSessionState(session_id_);
+  if (state_res.ok() && !state_res->empty()) {
+    JS_SetPropertyStr(ctx, global_obj, "state", JS_NewString(ctx, state_res->c_str()));
+  }
+
+  // Inject history
+  auto history_res = db_->GetConversationHistory(session_id_);
+  if (history_res.ok() && !history_res->empty()) {
+    JSValue history_array = JS_NewArray(ctx);
+    uint32_t i = 0;
+    for (const auto& msg : *history_res) {
+      JSValue msg_obj = JS_NewObject(ctx);
+      JS_SetPropertyStr(ctx, msg_obj, "role", JS_NewString(ctx, msg.role.c_str()));
+      JS_SetPropertyStr(ctx, msg_obj, "content", JS_NewString(ctx, msg.content.c_str()));
+      JS_SetPropertyUint32(ctx, history_array, i++, msg_obj);
+    }
+    JS_SetPropertyStr(ctx, global_obj, "history", history_array);
+  }
+
+  if (!req.args.is_null()) {
+    JS_SetPropertyStr(ctx, global_obj, "args", interpreter.JSONToJS(req.args));
+  }
+  JS_FreeValue(ctx, global_obj);
+
+  // Load preamble
+  std::ifstream t("js-bridge/preamble.js");
+  if (t.is_open()) {
+    std::stringstream buffer;
+    buffer << t.rdbuf();
+    interpreter.RunString(buffer.str(), "preamble.js");
+  }
+
+  JSValue result = interpreter.RunString(req.script, "input.js");
+  
+  LuaResult res;
+  res.stdout_out = stdout_buffer.str();
+  if (JS_IsException(result)) {
+      return absl::InternalError(absl::StrCat("JS Error\nOutput:\n", res.stdout_out));
+  }
+  
+  if (!JS_IsUndefined(result)) {
+      const char* str = JS_ToCString(ctx, result);
+      if (str) {
+          res.return_value = str;
+          JS_FreeCString(ctx, str);
+      }
+  }
+  JS_FreeValue(ctx, result);
+
+  return res;
 }
 
 }  // namespace slop
