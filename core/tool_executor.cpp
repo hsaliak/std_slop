@@ -207,9 +207,8 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
           auto code = json_get<std::string>(row, "code");
           if (name && code) {
             // Wrap the code to return the function closure and bind it to globalThis
-            std::string wrapped_code =
-                "globalThis['" + *name + "'] = (function() {\n" + *code + "\n})();";
-            JSValue func_res = interpreter.RunString(wrapped_code, "js_function_" + *name + ".js");
+            std::string wrapped_code = "globalThis['" + *name + "'] = (function() {\n" + *code + "\n})();";
+            JSValue func_res = interpreter.RunString(wrapped_code, "js_function_" + *name + ".js", false);
             JS_FreeValue(ctx, func_res);
           }
         }
@@ -218,12 +217,11 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
   }
 
   // Load preamble
-  JSValue preamble_res = interpreter.RunString(slop::kJsPreamble, "preamble.js");
+  JSValue preamble_res = interpreter.RunString(slop::kJsPreamble, "preamble.js", false);
   JS_FreeValue(ctx, preamble_res);
 
 
-  std::string wrapped_script = "(function() {\n" + req.script + "\n})();";
-  JSValue result = interpreter.RunString(wrapped_script, "input.js");
+  JSValue result = interpreter.RunString(req.script, "input.js");
   
   JsResult res;
   res.stdout_out = stdout_buffer.str();
@@ -274,3 +272,5 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+
+

@@ -6,6 +6,8 @@
 #include "core/shell_util.h"
 #include "core/tool_dispatcher.h"
 #include "absl/log/log.h"
+#include "absl/cleanup/cleanup.h"
+#include "absl/cleanup/cleanup.h"
 
 namespace slop {
 
@@ -15,6 +17,7 @@ struct ContextData {
   const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>* dispatch_map;
   JsInterpreter* interpreter;
   ToolDispatcher* dispatcher;
+  std::vector<std::shared_ptr<ToolJob>> active_jobs;
 };
 
 JsInterpreter::JsInterpreter() {
@@ -23,15 +26,73 @@ JsInterpreter::JsInterpreter() {
 }
 
 JsInterpreter::~JsInterpreter() {
-  ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx_));
-  delete data;
+  std::unique_ptr<ContextData> data(static_cast<ContextData*>(JS_GetContextOpaque(ctx_)));
   JS_FreeContext(ctx_);
   JS_FreeRuntime(rt_);
 }
 
-JSValue JsInterpreter::RunString(const std::string& code, const std::string& filename) {
-  JSValue val = JS_Eval(ctx_, code.c_str(), code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
-  return val;
+JSValue JsInterpreter::RunString(const std::string& code, const std::string& filename, bool wrap) {
+    if (!wrap) {
+        return JS_Eval(ctx_, code.c_str(), code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
+    }
+
+    // 1. Auto-wrap the user's code in a double async IIFE.
+    // The inner IIFE captures their `return`, the outer catches errors and saves the result.
+    std::string wrapped_code =
+        "globalThis.__agent_res = undefined;\n"
+        "globalThis.__agent_err = undefined;\n"
+        "(async () => {\n"
+        "  try {\n"
+        "    globalThis.__agent_res = await (async () => {\n"
+        "      " + code + "\n"
+        "    })();\n"
+        "  } catch (e) {\n"
+        "    globalThis.__agent_err = e;\n"
+        "  }\n"
+        "})();";
+
+    // 2. Evaluate the wrapped code (Keep JS_EVAL_TYPE_GLOBAL)
+    JSValue eval_res = JS_Eval(ctx_, wrapped_code.c_str(), wrapped_code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
+
+    // Check for immediate syntax errors (like missing brackets)
+    if (JS_IsException(eval_res)) {
+        return eval_res;
+    }
+    JS_FreeValue(ctx_, eval_res); // Free the unresolved Promise, we don't need it
+
+    // 3. Pump the QuickJS Event Loop!
+    // This is required for `await` to actually finish executing in QuickJS.
+    JSRuntime *rt = JS_GetRuntime(ctx_);
+    JSContext *pctx;
+    int err;
+    while ((err = JS_ExecutePendingJob(rt, &pctx)) > 0) {
+        // Loop runs until all microtasks (promises) are resolved
+    }
+
+    if (err < 0) {
+        // Event loop crashed (rare, usually out of memory)
+        return JS_GetException(pctx);
+    }
+
+    // 4. Extract the final resolved value from the global object
+    JSValue global_obj = JS_GetGlobalObject(ctx_);
+
+    absl::Cleanup free_global = [this, global_obj] { JS_FreeValue(ctx_, global_obj); };
+
+    // Did the script throw an error during execution?
+    JSValue err_val = JS_GetPropertyStr(ctx_, global_obj, "__agent_err");
+    if (!JS_IsUndefined(err_val)) {
+        JS_Throw(ctx_, err_val); // Move the error to the context's exception slot
+        // JS_Throw takes ownership of the value, so we don't free it
+        return JS_EXCEPTION; 
+    }
+    absl::Cleanup free_err = [this, err_val] { JS_FreeValue(ctx_, err_val); };
+
+    // Grab the successful return value
+    JSValue res_val = JS_GetPropertyStr(ctx_, global_obj, "__agent_res");
+
+    // Return the actual value your JS payload sent back!
+    return res_val;
 }
 
 JSValue JsInterpreter::RunFile(const std::string& path) {
@@ -52,10 +113,11 @@ JSValue JsInterpreter::JSONToJS(const nlohmann::json& j) {
 nlohmann::json JsInterpreter::JSToJSON(JSValue val) {
   JSValue str_val = JS_JSONStringify(ctx_, val, JS_UNDEFINED, JS_UNDEFINED);
   if (JS_IsException(str_val)) return nullptr;
+  absl::Cleanup free_str_val = [this, str_val] { JS_FreeValue(ctx_, str_val); };
   const char* str = JS_ToCString(ctx_, str_val);
+  if (!str) return nullptr;
+  absl::Cleanup free_str = [this, str] { JS_FreeCString(ctx_, str); };
   auto j_opt = slop::json_parse(str);
-  JS_FreeCString(ctx_, str);
-  JS_FreeValue(ctx_, str_val);
   return j_opt ? *j_opt : nlohmann::json();
 }
 
@@ -65,8 +127,8 @@ static JSValue js_print(JSContext* ctx, [[maybe_unused]] JSValueConst this_val, 
   for (int i = 0; i < argc; i++) {
     const char* str = JS_ToCString(ctx, argv[i]);
     if (str) {
+      absl::Cleanup free_str = [ctx, str] { JS_FreeCString(ctx, str); };
       ss << str << (i == argc - 1 ? "" : "\t");
-      JS_FreeCString(ctx, str);
     }
   }
   LOG(INFO) << "[JS] " << ss.str();
@@ -80,8 +142,9 @@ static JSValue js_os_run(JSContext* ctx, [[maybe_unused]] JSValueConst this_val,
   ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));
   if (argc < 1) return JS_EXCEPTION;
   const char* command = JS_ToCString(ctx, argv[0]);
+  if (!command) return JS_EXCEPTION;
+  absl::Cleanup free_command = [ctx, command] { JS_FreeCString(ctx, command); };
   auto res_or = RunCommand(command, data ? data->cancellation : nullptr);
-  JS_FreeCString(ctx, command);
 
   JSValue obj = JS_NewObject(ctx);
   if (!res_or.ok()) {
@@ -102,6 +165,8 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
   if (argc < 2) return JS_EXCEPTION;
 
   const char* name = JS_ToCString(ctx, argv[0]);
+  if (!name) return JS_EXCEPTION;
+  absl::Cleanup free_name = [ctx, name] { JS_FreeCString(ctx, name); };
   nlohmann::json args = data->interpreter->JSToJSON(argv[1]);
 
   ToolDispatcher::Call call;
@@ -110,10 +175,10 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
   call.args = args;
   
   auto job = data->dispatcher->Submit(call, data->cancellation);
-  JS_FreeCString(ctx, name);
+  data->active_jobs.push_back(job);
 
   JSValue obj = JS_NewObject(ctx);
-  JS_SetPropertyStr(ctx, obj, "_job_ptr", JS_NewInt64(ctx, (int64_t)job.get()));
+  JS_SetPropertyStr(ctx, obj, "_job_ptr", JS_NewInt64(ctx, reinterpret_cast<int64_t>(job.get())));
   
   auto is_ready = [](JSContext* ctx, JSValueConst this_val, [[maybe_unused]] int argc, [[maybe_unused]] JSValueConst* argv) -> JSValue {
     JSValue ptr_val = JS_GetPropertyStr(ctx, this_val, "_job_ptr");
@@ -147,8 +212,13 @@ void JsInterpreter::InitializeEnvironment(
     const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>& dispatch_map,
     std::stringstream& stdout_buffer) {
   
-  ContextData* data = new ContextData{&stdout_buffer, cancellation, &dispatch_map, this, dispatcher};
-  JS_SetContextOpaque(ctx_, data);
+  auto data = std::make_unique<ContextData>();
+  data->stdout_buffer = &stdout_buffer;
+  data->cancellation = cancellation;
+  data->dispatch_map = &dispatch_map;
+  data->interpreter = this;
+  data->dispatcher = dispatcher;
+  JS_SetContextOpaque(ctx_, data.release());
 
   JSValue global_obj = JS_GetGlobalObject(ctx_);
 
@@ -164,16 +234,16 @@ void JsInterpreter::InitializeEnvironment(
     auto tool_wrapper = [](JSContext* ctx, [[maybe_unused]] JSValueConst this_val, [[maybe_unused]] int argc, JSValueConst* argv, [[maybe_unused]] int magic, JSValue* func_data) -> JSValue {
       ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));
       const char* name = JS_ToCString(ctx, func_data[0]);
+      if (!name) return JS_EXCEPTION;
+      absl::Cleanup free_name = [ctx, name] { JS_FreeCString(ctx, name); };
       nlohmann::json args = data->interpreter->JSToJSON(argv[0]);
       
       auto it = data->dispatch_map->find(name);
       if (it == data->dispatch_map->end()) {
-          JS_FreeCString(ctx, name);
           return JS_ThrowReferenceError(ctx, "Tool not found: %s", name);
       }
       
       auto result = it->second(args, data->cancellation);
-      JS_FreeCString(ctx, name);
       
       if (!result.ok()) {
           return JS_ThrowInternalError(ctx, "Error: %s", result.status().ToString().c_str());
@@ -192,4 +262,9 @@ void JsInterpreter::InitializeEnvironment(
 }
 
 }  // namespace slop
+
+
+
+
+
 

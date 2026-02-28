@@ -23,7 +23,7 @@ class JsInterpreter {
   ~JsInterpreter();
 
   // Run a JS script from a string.
-  JSValue RunString(const std::string& code, const std::string& filename = "input.js");
+  JSValue RunString(const std::string& code, const std::string& filename = "input.js", bool wrap = true);
 
   // Run a JS script from a file.
   JSValue RunFile(const std::string& path);
@@ -48,5 +48,6 @@ class JsInterpreter {
 };
 
 }  // namespace slop
+
 
 

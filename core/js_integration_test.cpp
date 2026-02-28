@@ -92,5 +92,14 @@ TEST_F(JsIntegrationTest, UseSkill) {
   EXPECT_TRUE(absl::StrContains(*db_res, "test_skill"));
 }
 
+
+TEST_F(JsIntegrationTest, TopLevelAwait) {
+  nlohmann::json args;
+  args["script"] = "const res = await Promise.resolve(42); return res;";
+  auto res = executor_->Execute("run_js", args);
+  ASSERT_TRUE(res.ok()) << res.status().ToString();
+  EXPECT_TRUE(absl::StrContains(*res, "Return Value:\n 42"));
+}
+
 }  // namespace slop
 
