@@ -18,19 +18,19 @@ if (typeof scratchpad === "string") {
   } catch (e) {
     scratchpad = { notes: scratchpad };
   }
-} else if (scratchpad === undefined || scratchpad === null) {
+} else if (typeof scratchpad === 'undefined' || scratchpad === null) {
   scratchpad = {};
 }
 
-if (state === undefined || state === null) {
+if (typeof state === 'undefined' || state === null) {
   state = "";
 }
 
-if (history === undefined || history === null) {
+if (typeof history === 'undefined' || history === null) {
   history = [];
 }
 
-if (tools === undefined || tools === null) {
+if (typeof tools === 'undefined' || tools === null) {
   tools = {};
 }
 
@@ -293,4 +293,140 @@ tools.help = function() {
 - describe_db({}): Schema of local database.
 - help(): Displays this help.
 `;
+};
+
+// File System Tools
+tools.read_file = function(args) {
+  if (typeof args.path !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: path");
+  const path = args.path;
+  if (path.includes("..") || path.startsWith("/")) {
+    throw new Error("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
+  }
+
+  let cmd = "cat " + shell_escape(path);
+  const res = __os_run(cmd);
+  if (res.exit_code !== 0) {
+    throw new Error("Could not open file: " + res.stderr);
+  }
+
+  let lines = res.stdout.split("\n");
+  if (res.stdout.endsWith("\n")) lines.pop();
+
+  const start_line = args.start_line || 1;
+  const end_line = args.end_line || lines.length;
+
+  if (start_line > end_line) {
+    throw new Error("INVALID_ARGUMENT: start_line must be less than or equal to end_line");
+  }
+
+  let result_lines = lines.slice(start_line - 1, end_line);
+  if (args.line_numbers) {
+    result_lines = result_lines.map((line, i) => (start_line + i) + ": " + line);
+  }
+
+  let body = result_lines.join("\n");
+  if (body.length > 0) body += "\n";
+  return body;
+};
+
+tools.write_file = function(args) {
+  slop_guard();
+  if (typeof args.path !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: path");
+  if (typeof args.content !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: content");
+
+  const path = args.path;
+  if (path.includes("..") || path.startsWith("/")) {
+    throw new Error("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
+  }
+
+  // Use a temporary file and mv to be safer, or just use printf/redirect
+  // For simplicity, we'll use a heredoc-like approach with base64 to avoid escaping issues
+  // But wait, we don't have base64 easily. Let's just use a simple redirect for now.
+  // Actually, we can use a temporary file.
+  const tmp_file = ".tmp_write_" + Math.random().toString(36).substring(7);
+  
+  // We'll use a more robust way in the future.
+  const res = __os_run("cat > " + shell_escape(path) + " << 'EOF_SLOP'\n" + args.content + "\nEOF_SLOP\n");
+  
+  if (res.exit_code !== 0) {
+    throw new Error("IO_ERROR: Failed to write to file: " + res.stderr);
+  }
+
+  return "File written successfully:\nPath: " + path + "\nBytes written: " + args.content.length + "\n";
+};
+
+tools.execute_bash = function(args) {
+  slop_guard();
+  if (!args.command) throw new Error("command is required");
+
+  const res = __os_run(args.command);
+  let output = res.stdout;
+  if (res.stderr !== "") {
+    if (output !== "" && !output.endsWith("\n")) output += "\n";
+    output += "### STDERR\n" + res.stderr;
+  }
+
+  if (res.exit_code !== 0) {
+    throw new Error("INTERNAL: Command failed with status " + res.exit_code + ": " + output);
+  }
+
+  return output;
+};
+
+tools.execute_bash_async = function(args) {
+  slop_guard();
+  if (!args.command) throw new Error("Usage: execute_bash_async({command = '...'})");
+  return tools.dispatch_async("execute_bash", args);
+};
+
+tools.list_directory = function(args) {
+  const path = args.path || ".";
+  const depth = args.depth || 1;
+  
+  // Simplified version for now
+  const cmd = "find " + shell_escape(path) + " -maxdepth " + depth + " -mindepth 1";
+  const res = tools.execute_bash({command: cmd});
+  return res;
+};
+
+tools.grep = function(args) {
+  const pattern = args.pattern;
+  const path = args.path || ".";
+  if (!pattern) throw new Error("grep requires a pattern");
+  
+  const cmd = "grep -rnE " + shell_escape(pattern) + " " + shell_escape(path);
+  try {
+    return tools.execute_bash({command: cmd});
+  } catch (e) {
+    if (e.message.includes("status 1")) return "";
+    throw e;
+  }
+};
+
+tools.apply_patch = function(args) {
+  slop_guard();
+  if (typeof args.path !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: path");
+  if (!Array.isArray(args.patches)) throw new Error("INVALID_ARGUMENT: Missing mandatory field: patches");
+
+  const path = args.path;
+  let content = tools.read_file({path: path});
+
+  for (const patch of args.patches) {
+    const find = patch.find;
+    const replace = patch.replace;
+    
+    const idx = content.indexOf(find);
+    if (idx === -1) {
+      throw new Error("NOT_FOUND: Could not find exact match for the 'find' block in: " + path);
+    }
+    
+    if (content.indexOf(find, idx + 1) !== -1) {
+      throw new Error("FAILED_PRECONDITION: Multiple matches found for the 'find' block.");
+    }
+    
+    content = content.substring(0, idx) + replace + content.substring(idx + find.length);
+  }
+
+  tools.write_file({path: path, content: content});
+  return "File patched successfully: " + path;
 };
