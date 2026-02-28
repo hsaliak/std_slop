@@ -9,12 +9,12 @@
 
 namespace slop {
 
-struct RunLuaRequest {
+struct RunJsRequest {
   std::string script;
   nlohmann::json args;
 };
 
-inline void from_json(const nlohmann::json& j, RunLuaRequest& r) {
+inline void from_json(const nlohmann::json& j, RunJsRequest& r) {
   r.script = json_get_or(j, "script", std::string{});
   r.args = json_get_or(j, "args", nlohmann::json{});
 }

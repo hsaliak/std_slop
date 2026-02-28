@@ -24,9 +24,13 @@ class ToolTypingTest : public ::testing::Test {
 };
 
 TEST_F(ToolTypingTest, InvalidTypeHandling) {
+  std::ofstream f("test.txt");
+  f << "hello\n";
+  f.close();
   // read_file expects 'start_line' to be an int, pass a string
   auto res = executor_->Execute("read_file", {{"path", "test.txt"}, {"start_line", "invalid"}});
   ASSERT_TRUE(res.ok());
+  std::cerr << "RES: " << *res << std::endl;
   EXPECT_TRUE(res->find("Error: INVALID_ARGUMENT") != std::string::npos);
   EXPECT_TRUE(res->find("must be an integer") != std::string::npos);
 }

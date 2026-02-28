@@ -162,7 +162,7 @@ absl::Status Database::Init(const std::string& db_path) {
         state_blob TEXT
     );
         CREATE TABLE IF NOT EXISTS agent_md (path TEXT PRIMARY KEY, content TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
-    CREATE TABLE IF NOT EXISTS lua_functions (
+    CREATE TABLE IF NOT EXISTS js_functions (
         name TEXT PRIMARY KEY,
         code TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -220,11 +220,11 @@ absl::Status Database::RegisterDefaultTools() {
       {"query_db", "Query the local SQLite database using SQL.",
        R"({"type":"object","properties":{"sql":{"type":"string"},"params":{"type":"array","items":{"type":"string"}}},"required":["sql"]})",
        true},
-      {"run_lua",
-       "Execute a Lua 5.4 script acting as a high-level 'control plane' with access to the full standard library, a "
-       "'tools' table (supporting async variants), and global variables 'history', 'state', and "
+      {"run_js",
+       "Execute a JavaScript (ES2020+) script acting as a high-level 'control plane' with access to a "
+       "'tools' object (supporting async variants), and global variables 'history', 'state', and "
        "'scratchpad'. Output and return values are captured.",
-       R"({"type":"object","properties":{"script":{"type":"string","description":"The Lua script to execute."}},"required":["script"]})",
+       R"({"type":"object","properties":{"script":{"type":"string","description":"The JavaScript script to execute."}},"required":["script"]})",
        true}};
   // Automatically register all core tools defined in the default_tools list.
   // This ensures the agent always has access to the fundamental building blocks
@@ -271,20 +271,20 @@ absl::Status Database::RegisterDefaultSkills() {
        "can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, "
        "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
   default_skills.push_back(
-      {0, "lua_control_plane",
-       "Constrains the agent to only use the 'run_lua' control plane, and 'query_db' for all operations.",
-       "### Skill: lua_control_plane\n"
-       "DANGER: You are in **LUA CONTROL PLANE** mode.\n"
-       "- You MUST NOT use any tools directly EXCEPT for `run_lua` and `query_db`.\n"
+      {0, "js_control_plane",
+       "Constrains the agent to only use the 'run_js' control plane, and 'query_db' for all operations.",
+       "### Skill: js_control_plane\n"
+       "DANGER: You are in **JS CONTROL PLANE** mode.\n"
+       "- You MUST NOT use any tools directly EXCEPT for `run_js` and `query_db`.\n"
        "- All other operations (file manipulation, searching, bash execution, etc.) MUST be performed by writing and "
-       "executing a Lua script via `run_lua`.\n"
-       "- Use `query_db` only for reading schema or metadata when necessary to construct your Lua scripts.\n"
+       "executing a JavaScript script via `run_js`.\n"
+       "- Use `query_db` only for reading schema or metadata when necessary to construct your JavaScript scripts.\n"
        "- This mode ensures all actions are documented, reproducible, and orchestrated via the control plane.\n"
-       "- If you need to search, read files, or apply patches, write a Lua script that calls the appropriate `tools` "
+       "- If you need to search, read files, or apply patches, write a JavaScript script that calls the appropriate `tools` "
        "functions."});
-  default_skills.push_back({0, "run_lua",
-                            "Expert Lua scripter capable of orchestrating complex tasks using the Lua bridge.",
-                            "You are a Lua scripting expert. You use 'run_lua' to orchestrate complex tasks.\n"
+  default_skills.push_back({0, "run_js",
+                            "Expert JavaScript scripter capable of orchestrating complex tasks using the JavaScript bridge.",
+                            "You are a JavaScript scripting expert. You use 'run_js' to orchestrate complex tasks.\n"
                             "### ENVIRONMENT\n"
                             "- **'tools'**: Table of all tool functions. Every tool takes a SINGLE table argument "
                             "(e.g., `tools.read_file({path='foo.txt'})`).\n"
@@ -311,7 +311,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "patches.\n"
        "- **Narrative History**: The commit history should tell a clear story of how the feature was built.\n\n"
        "### 2. WORKFLOW LIFECYCLE\n"
-       "You MUST follow these stages in order and use `run_lua` in the Lua Control Plane:\n"
+       "You MUST follow these stages in order and use `run_js` in the JavaScript Control Plane:\n"
        "1. **Initiation**: Use `git_branch_staging` to create a dedicated branch (prefix: `slop/staging/`). NEVER work "
        "directly on `main`.\n"
        "2. **Incremental Development**: Perform a logical unit of work, then use `tools.git_commit_patch` immediately "
@@ -325,7 +325,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "ALWAYS re-verify after a reroll.\n"
        "6. **Finalization**: When the user provides an \"LGTM\", \"Looks Good\", or explicit approval, use "
        "`tools.git_finalize_series` to land the work.\n\n"
-       "### 3. PRECISE TOOL FUNCtiON  USAGE RULES  within the Lua control plane\n"
+       "### 3. PRECISE TOOL FUNCtiON  USAGE RULES  within the JavaScript control plane\n"
        "- **tools.git_branch_staging**: Use at the start of every new task.\n"
        "- **tools.git_commit_patch**: Use for every atomic step. Do NOT batch multiple logical changes. ALWAYS include "
        "the returned series summary in your response.\n"

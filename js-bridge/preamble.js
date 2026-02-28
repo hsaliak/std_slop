@@ -218,9 +218,15 @@ core.dispatch_tool = function(name, args) {
 const git = {};
 
 git.get_current_branch = function() {
+  const forced = __os_run("echo $SLOP_FORCE_BRANCH_NAME").stdout.trim();
+  if (forced !== "") return forced;
+  
   try {
-    const res = tools.execute_bash({command: "git rev-parse --abbrev-ref HEAD 2>/dev/null"});
-    return res.trim();
+    const res = __os_run("git rev-parse --abbrev-ref HEAD 2>/dev/null");
+    if (res.exit_code === 0) {
+      return res.stdout.trim();
+    }
+    return null;
   } catch (e) {
     return null;
   }
@@ -312,6 +318,12 @@ tools.read_file = function(args) {
   let lines = res.stdout.split("\n");
   if (res.stdout.endsWith("\n")) lines.pop();
 
+  if (args.start_line !== undefined && typeof args.start_line !== "number") {
+    throw new Error("INVALID_ARGUMENT: 'start_line' must be an integer");
+  }
+  if (args.end_line !== undefined && typeof args.end_line !== "number") {
+    throw new Error("INVALID_ARGUMENT: 'end_line' must be an integer");
+  }
   const start_line = args.start_line || 1;
   const end_line = args.end_line || lines.length;
 
@@ -383,10 +395,34 @@ tools.list_directory = function(args) {
   const path = args.path || ".";
   const depth = args.depth || 1;
   
-  // Simplified version for now
-  const cmd = "find " + shell_escape(path) + " -maxdepth " + depth + " -mindepth 1";
-  const res = tools.execute_bash({command: cmd});
-  return res;
+  const cmd = `find ${shell_escape(path)} -maxdepth ${depth} -mindepth 1`;
+  const res = __os_run(cmd);
+  if (res.exit_code !== 0) {
+    throw new Error("Failed to list directory: " + res.stderr);
+  }
+  
+  const lines = res.stdout.split("\n").filter(l => l.trim() !== "");
+  const output = [];
+  
+  for (const line of lines) {
+    let rel = line;
+    if (line.startsWith(path)) {
+      rel = line.substring(path.length);
+      if (rel.startsWith("/")) rel = rel.substring(1);
+    }
+    
+    if (rel !== "") {
+      const type_check_cmd = `if [ -d ${shell_escape(line)} ]; then echo Directory; else echo File; fi`;
+      const type_res = __os_run(type_check_cmd);
+      if (type_res.stdout.includes("Directory")) {
+        output.push(`Directory: ${rel}/`);
+      } else {
+        output.push(`File: ${rel}`);
+      }
+    }
+  }
+  
+  return output.join("\n");
 };
 
 tools.grep = function(args) {
@@ -394,13 +430,21 @@ tools.grep = function(args) {
   const path = args.path || ".";
   if (!pattern) throw new Error("grep requires a pattern");
   
-  const cmd = "grep -rnE " + shell_escape(pattern) + " " + shell_escape(path);
+  const cmd = `grep -rnE -e ${shell_escape(pattern)} ${shell_escape(path)}`;
+  let res = "";
   try {
-    return tools.execute_bash({command: cmd});
+    res = tools.execute_bash({command: cmd});
   } catch (e) {
     if (e.message.includes("status 1")) return "";
     throw e;
   }
+  
+  const limit = args.limit ? parseInt(args.limit) : 500;
+  const lines = res.split("\n");
+  if (lines.length > limit) {
+    return lines.slice(0, limit).join("\n") + "\n[TRUNCATED: Use a more specific pattern or path to narrow results]";
+  }
+  return res;
 };
 
 tools.apply_patch = function(args) {
@@ -745,7 +789,7 @@ tools.persist_function = function(args) {
 
   try {
     tools.query_db({
-      sql: "INSERT OR REPLACE INTO lua_functions (name, code) VALUES (?, ?)",
+      sql: "INSERT OR REPLACE INTO js_functions (name, code) VALUES (?, ?)",
       params: [name, code]
     });
   } catch (e) {
@@ -756,3 +800,6 @@ tools.persist_function = function(args) {
 
   return [true, "Function persisted successfully"];
 };
+
+
+

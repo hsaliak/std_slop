@@ -159,7 +159,7 @@ void JsInterpreter::InitializeEnvironment(
   JS_SetPropertyStr(ctx_, tools_obj, "dispatch_async", JS_NewCFunction(ctx_, js_dispatch_async, "dispatch_async", 2));
 
   for (auto const& [name, handler] : dispatch_map) {
-    if (name == "run_lua" || name == "run_js") continue;
+    if (name == "run_js") continue;
     
     auto tool_wrapper = [](JSContext* ctx, [[maybe_unused]] JSValueConst this_val, [[maybe_unused]] int argc, JSValueConst* argv, [[maybe_unused]] int magic, JSValue* func_data) -> JSValue {
       ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));

@@ -23,39 +23,9 @@ genrule(
           "echo '}' >> $@ ",
 )
 
-
-genrule(
- name = "generate_lua_preamble",
- srcs = [
- "preamble.lua",
- "preamble/base.lua",
- "preamble/fs.lua",
- "preamble/knowledge.lua",
- "preamble/git.lua",
- "preamble/security.lua",
- ],
- outs = ["preamble_data.h"],
- cmd = "echo 'namespace slop {' > $@ && " +
- "echo 'static const char* kLuaPreambleLib = R\"LUA(' >> $@ && " +
- "cat $(location preamble/base.lua) $(location preamble/fs.lua) $(location preamble/knowledge.lua) $(location preamble/git.lua) $(location preamble/security.lua) >> $@ && " +
- "echo ')LUA\";' >> $@ && " +
- "echo 'static const char* kLuaPreamble = R\"LUA(' >> $@ && " +
- "cat $(location preamble.lua) >> $@ && " +
- "echo ')LUA\";' >> $@ && " +
- "echo '}' >> $@ ",
-)
-
-filegroup(
- name = "core_srcs",
- srcs = glob([
- "**/*.cpp",
- "**/*.h",
- ]),
- visibility = ["//visibility:public"],
-)
-
 cc_library(
  name = "cancellation",
+
  srcs = ["cancellation.cpp"],
  hdrs = ["cancellation.h"],
  visibility = ["//visibility:public"],
@@ -111,7 +81,6 @@ cc_library(
  "orchestrator_gemini.cpp",
  "orchestrator_openai.cpp",
  "tool_executor.cpp",
- "lua_tool.cpp",
  ],
  hdrs = [
  "config.h",
@@ -125,12 +94,9 @@ cc_library(
  "orchestrator_strategy.h",
  "tool_executor.h",
  "tool_types.h",
-  "lua_tool.h",
- "lua_bridge_util.h",
  "constants.h",
  "status_macros.h",
  ":generate_system_prompt",
- ":generate_lua_preamble",
  ":generate_js_preamble",
  ],
  visibility = ["//visibility:public"],
@@ -161,7 +127,6 @@ cc_library(
  "@abseil-cpp//absl/log:check",
  "@curl//:curl",
  "@nlohmann_json//:json",
- "//lua-bridge:interpreter",
  "@abseil-cpp//absl/random",
         "//interface:terminal",
         "//interface:renderer",
@@ -205,9 +170,6 @@ cc_library(
  "tool_dispatcher_test",
  "ui_thread_safety_test",
  "mail_model_test",
- "lua_bridge_util_test",
- "lua_security_test",
- "lua_globals_test",
  "json_utils_test",
  "js_integration_test",
  ]

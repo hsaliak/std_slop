@@ -66,8 +66,6 @@
     "https://bcr.bazel.build/modules/jsoncpp/1.9.5/MODULE.bazel": "31271aedc59e815656f5736f282bb7509a97c7ecb43e927ac1a37966e0578075",
     "https://bcr.bazel.build/modules/jsoncpp/1.9.5/source.json": "4108ee5085dd2885a341c7fab149429db457b3169b86eb081fa245eadf69169d",
     "https://bcr.bazel.build/modules/libpfm/4.11.0/MODULE.bazel": "45061ff025b301940f1e30d2c16bea596c25b176c8b6b3087e92615adbd52902",
-    "https://bcr.bazel.build/modules/lua/5.4.6.bcr.1/MODULE.bazel": "8e3b950c34f8963eb57cca78fa4d37d81bc703aca155a9ca659f2643d38b8e94",
-    "https://bcr.bazel.build/modules/lua/5.4.6.bcr.1/source.json": "5b09c069b5837ba333df2aaa9f82ab987365f07b0845d4d1029216e23f3721cf",
     "https://bcr.bazel.build/modules/mbedtls/3.6.0/MODULE.bazel": "8e380e4698107c5f8766264d4df92e36766248447858db28187151d884995a09",
     "https://bcr.bazel.build/modules/mbedtls/3.6.0/source.json": "1dbe7eb5258050afcc3806b9d43050f71c6f539ce0175535c670df606790b30c",
     "https://bcr.bazel.build/modules/ncurses/6.4.20221231.bcr.5/MODULE.bazel": "9a946a5276f8585079a3a9c51ef66e1dabb99d487caf3cc4f81e588611e0ade2",
@@ -119,7 +117,6 @@
     "https://bcr.bazel.build/modules/rules_cc/0.2.14/MODULE.bazel": "353c99ed148887ee89c54a17d4100ae7e7e436593d104b668476019023b58df8",
     "https://bcr.bazel.build/modules/rules_cc/0.2.16/MODULE.bazel": "9242fa89f950c6ef7702801ab53922e99c69b02310c39fb6e62b2bd30df2a1d4",
     "https://bcr.bazel.build/modules/rules_cc/0.2.16/source.json": "d03d5cde49376d87e14ec14b666c56075e5e3926930327fd5d0484a1ff2ac1cc",
-    "https://bcr.bazel.build/modules/rules_cc/0.2.4/MODULE.bazel": "1ff1223dfd24f3ecf8f028446d4a27608aa43c3f41e346d22838a4223980b8cc",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.9.0/MODULE.bazel": "c9e8c682bf75b0e7c704166d79b599f93b72cfca5ad7477df596947891feeef6",
     "https://bcr.bazel.build/modules/rules_fuzzing/0.5.2/MODULE.bazel": "40c97d1144356f52905566c55811f13b299453a14ac7769dfba2ac38192337a8",
     "https://bcr.bazel.build/modules/rules_fuzzing/0.5.2/source.json": "c8b1e2c717646f1702290959a3302a178fb639d987ab61d548105019f11e527e",
@@ -207,35 +204,6 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
-    "//lua-bridge:extensions.bzl%sol2": {
-      "general": {
-        "bzlTransitiveDigest": "D+vLgaDEyXMdzxZqTPBlPuKtnQJZ+t7XTieY8LE1OOM=",
-        "usagesDigest": "AreuLSjc8jVzSIgd/F9JP+RmGnWD/VuWfQTEhpzYi0c=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "sol2": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
-            "attributes": {
-              "build_file": "@@//lua-bridge:sol2.BUILD",
-              "sha256": "b82c5de030e18cb2bcbcefcd5f45afd526920c517a96413f0b59b4332d752a1e",
-              "strip_prefix": "sol2-3.3.0",
-              "urls": [
-                "https://github.com/ThePhD/sol2/archive/refs/tags/v3.3.0.tar.gz"
-              ]
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "",
-            "bazel_tools",
-            "bazel_tools"
-          ]
-        ]
-      }
-    },
     "@@aspect_bazel_lib+//lib:extensions.bzl%toolchains": {
       "general": {
         "bzlTransitiveDigest": "VrB12udcP5ajwTmhewr93XVbVtgL6paojIz4B7LEnF4=",

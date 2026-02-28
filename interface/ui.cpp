@@ -193,8 +193,8 @@ std::string FormatAssembledContext(const std::string& json_str) {
               std::string name = json_get_or(*fc, "name", std::string("unknown"));
               ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
               if (const auto* args = json_at(*fc, "args")) {
-                if (name == "run_lua") {
-                  ss << "```lua\n" << json_get_or(*args, "script", std::string{}) << "\n```\n\n";
+                if (name == "run_js") {
+                  ss << "```javascript\n" << json_get_or(*args, "script", std::string{}) << "\n```\n\n";
                 } else {
                   ss << "```json\n" << args->dump(2) << "\n```\n\n";
                 }
@@ -231,8 +231,8 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
             std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
             auto args_opt = json_parse(args_str);
-            if (args_opt && name == "run_lua") {
-              ss << "```lua\n" << json_get_or(*args_opt, "script", std::string{}) << "\n```\n\n";
+            if (args_opt && name == "run_js") {
+              ss << "```javascript\n" << json_get_or(*args_opt, "script", std::string{}) << "\n```\n\n";
             } else if (args_opt) {
               ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
             } else {
@@ -286,7 +286,7 @@ std::string FlattenJsonArgs(const std::string& json_str) {
 }
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix, int tokens) {
   absl::MutexLock lock(&g_ui_mu);
-  if (name == "run_lua") {
+  if (name == "run_js") {
     auto j_opt = json_parse(args);
     if (!j_opt) return;
     auto& j = *j_opt;
@@ -314,15 +314,15 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
       }
       // Handle trailing backticks
       for (size_t i = 0; i < backtick_run; i++) escaped_script += '`';
-      // Wrap in markdown code fence with lua syntax highlighting
-      std::string markdown = absl::StrCat("```lua\n", escaped_script, "\n```");
+      // Wrap in markdown code fence with javascript syntax highlighting
+      std::string markdown = absl::StrCat("```javascript\n", escaped_script, "\n```");
       std::string summary = absl::StrCat(icons::Tool, " ", name, " (control plane)");
       std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
       if (tokens > 0) {
         std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
       }
       std::cout << std::endl;
-      // Render the markdown (which includes syntax-highlighted Lua code)
+      // Render the markdown (which includes syntax-highlighted JavaScript code)
       std::string rendered;
       RenderMarkdown(markdown, prefix, &rendered);
       // Split rendered output and print with prefix

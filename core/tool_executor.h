@@ -68,7 +68,7 @@ class ToolExecutor {
 
   void RegisterTools();
 
-  struct LuaResult {
+  struct JsResult {
     std::string stdout_out;
     std::string return_value;
 
@@ -81,8 +81,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleRunJs(const nlohmann::json& args,
                                           std::shared_ptr<CancellationRequest> cancellation);
 
-  absl::StatusOr<LuaResult> RunLua(const RunLuaRequest& req, std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<LuaResult> RunJs(const RunLuaRequest& req, std::shared_ptr<CancellationRequest> cancellation);
+    absl::StatusOr<JsResult> RunJs(const RunJsRequest& req, std::shared_ptr<CancellationRequest> cancellation);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   std::unique_ptr<ToolDispatcher> dispatcher_;

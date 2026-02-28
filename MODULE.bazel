@@ -17,7 +17,6 @@ bazel_dep(name = "aspect_rules_lint", version = "1.0.3")
 bazel_dep(name = "aspect_bazel_lib", version = "2.7.7")
 bazel_dep(name = "rules_multirun", version = "0.9.0")
 bazel_dep(name = "toolchains_llvm", version = "1.2.0")
-bazel_dep(name = "lua", version = "5.4.6.bcr.1")
 
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
 llvm.toolchain(
@@ -27,8 +26,6 @@ use_repo(llvm, "llvm_toolchain")
 
 register_toolchains("@llvm_toolchain//:all")
 
-sol2 = use_extension("//lua-bridge:extensions.bzl", "sol2")
-use_repo(sol2, "sol2")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

@@ -40,17 +40,17 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(found_code_reviewer);
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());
-  // Only query_db and run_lua should be registered and enabled
+  // Only query_db and run_js should be registered and enabled
   EXPECT_EQ(tools->size(), 2);
-  bool found_run_lua = false;
+  bool found_run_js = false;
   bool found_query_db = false;
   bool found_read_file = false;
   for (const auto& t : *tools) {
-    if (t.name == "run_lua") found_run_lua = true;
+    if (t.name == "run_js") found_run_js = true;
     if (t.name == "query_db") found_query_db = true;
     if (t.name == "read_file") found_read_file = true;
   }
-  EXPECT_TRUE(found_run_lua);
+  EXPECT_TRUE(found_run_js);
   EXPECT_TRUE(found_query_db);
   EXPECT_FALSE(found_read_file);
 }

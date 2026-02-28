@@ -12,13 +12,9 @@
 #include "absl/strings/str_cat.h"
 
 #include "core/database.h"
-#include "core/lua_bridge_util.h"
-#include "core/lua_tool.h"
-#include "core/preamble_data.h"
 #include "core/js_preamble_data.h"
 #include "core/tool_dispatcher.h"
 #include "json_utils.h"
-#include "lua-bridge/interpreter.h"
 #include "interface/terminal.h"
 #include "interface/color.h"
 #include "interface/renderer.h"
@@ -65,28 +61,12 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   return db_->Query(*sql, params);
 }
 
-absl::StatusOr<std::string> ToolExecutor::HandleRunLua(const nlohmann::json& args,
-                                                       std::shared_ptr<CancellationRequest> cancellation) {
-  RunLuaRequest req;
-  auto script = json_get<std::string>(args, "script");
-  if (!script) {
-    return absl::InvalidArgumentError("'script' must be a string");
-  }
-  req.script = *script;
-  if (const auto* lua_args = json_at(args, "args")) req.args = *lua_args;
-  auto res = RunLua(req, cancellation);
-  if (!res.ok()) return res.status();
-  return res->FullOutput();
-}
 
 void ToolExecutor::RegisterTools() {
   RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
 
   RegisterTool("run_js", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
     return HandleRunJs(args, cancellation);
-  });
-  RegisterTool("run_lua", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
-    return HandleRunLua(args, cancellation);
   });
     RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
     std::string prompt_text = "Input required: ";
@@ -126,27 +106,12 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     return res;
   }
 
-  const char* use_js = std::getenv("SLOP_USE_JS");
-  if (use_js && std::string(use_js) == "1") {
-    RunLuaRequest req;
-    req.script = "return core.dispatch_tool(args.name, args.tool_args)";
-    req.args["name"] = name;
-    req.args["tool_args"] = args;
-
-    auto res = RunJs(req, cancellation);
-    if (!res.ok()) return res.status();
-    if (db_) (void)db_->IncrementToolCallCount(name);
-    return res->return_value;
-  }
-
-  // Use Lua orchestrator for all other tools.
-  RunLuaRequest req;
+    RunJsRequest req;
   req.script = "return core.dispatch_tool(args.name, args.tool_args)";
   req.args["name"] = name;
   req.args["tool_args"] = args;
 
-  auto res = RunLua(req, cancellation);
-  if (!res.ok()) {
+  auto res = RunJs(req, cancellation);  if (!res.ok()) {
     std::string msg = std::string(res.status().message());
     if (absl::StrContains(msg, "NOT_FOUND:")) {
       return absl::NotFoundError(msg);
@@ -190,130 +155,7 @@ std::vector<std::string> ToolExecutor::GetActiveSkills() {
   return {};
 }
 
-absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunLua(const RunLuaRequest& req,
-                                                             std::shared_ptr<CancellationRequest> cancellation) {
-  slop::Interpreter interpreter;
-  sol::state& lua = interpreter.state();
-
-  std::stringstream stdout_buffer;
-  lua_tool::InitializeEnvironment(lua, db_, dispatcher_.get(), cancellation, dispatch_map_, stdout_buffer);
-
-  lua["session_id"] = session_id_;
-
-  // Inject scratchpad
-  auto scratchpad_res = db_->GetScratchpad(session_id_);
-  if (scratchpad_res.ok() && !scratchpad_res->empty()) {
-    lua["scratchpad"] = *scratchpad_res;
-  }
-
-  // Inject state
-  auto state_res = db_->GetSessionState(session_id_);
-  if (state_res.ok() && !state_res->empty()) {
-    lua["state"] = *state_res;
-  }
-
-  // Inject history
-  auto history_res = db_->GetConversationHistory(session_id_);
-  if (history_res.ok() && !history_res->empty()) {
-    sol::table history_table = lua.create_table();
-    int i = 1;
-    for (const auto& msg : *history_res) {
-      sol::table msg_table = lua.create_table();
-      msg_table["role"] = msg.role;
-      msg_table["content"] = msg.content;
-      history_table[i++] = msg_table;
-    }
-    lua["history"] = history_table;
-  }
-  if (!req.args.is_null()) {
-    lua["args"] = JSONToLua(lua, req.args);
-  }
-
-  auto lib_result = lua.safe_script(slop::kLuaPreambleLib, sol::script_pass_on_error);
-  if (!lib_result.valid()) {
-    sol::error err = lib_result;
-    return absl::InternalError(absl::StrCat("Lua Preamble Lib Error: ", err.what()));
-  }
-
-  auto preamble_result = lua.safe_script(slop::kLuaPreamble, sol::script_pass_on_error);
-  if (!preamble_result.valid()) {
-    sol::error err = preamble_result;
-    return absl::InternalError(absl::StrCat("Lua Preamble Error: ", err.what()));
-  }
-
-  // Phase 2: Safe-Loading & Cruft Cleanup
-  if (db_) {
-    auto lua_funcs_res = db_->Query("SELECT name, code FROM lua_functions");
-    if (lua_funcs_res.ok() && !lua_funcs_res->empty()) {
-      auto funcs_json = slop::json_parse(*lua_funcs_res);
-      if (funcs_json && funcs_json->is_array()) {
-        for (const auto& row : *funcs_json) {
-          auto name_opt = slop::json_get<std::string>(row, "name");
-          auto code_opt = slop::json_get<std::string>(row, "code");
-          if (!name_opt || !code_opt) continue;
-          std::string name = *name_opt;
-          std::string code = *code_opt;
-
-          auto load_res = lua.load(code, name);
-          if (!load_res.valid()) {
-            (void)db_->Execute("DELETE FROM lua_functions WHERE name = ?", {name});
-            continue;
-          }
-
-          sol::protected_function pf = load_res;
-          auto exec_res = pf();
-          if (!exec_res.valid()) {
-            (void)db_->Execute("DELETE FROM lua_functions WHERE name = ?", {name});
-            continue;
-          }
-
-          if (exec_res.get_type() == sol::type::function) {
-            lua[name] = exec_res.get<sol::function>();
-          }
-        }
-      }
-    }
-  }
-
-  auto result = lua.safe_script(req.script, sol::script_pass_on_error);
-  if (!result.valid()) {
-    sol::error err = result;
-    return absl::InternalError(absl::StrCat("Lua Error: ", err.what(), "\nOutput:\n", stdout_buffer.str()));
-  }
-
-  LuaResult res;
-  res.stdout_out = stdout_buffer.str();
-  if (result.return_count() > 0) {
-    res.return_value = result[0].as<std::string>();
-  }
-
-  return res;
-}
-
-absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& requested_base) {
-  RunLuaRequest req;
-  req.script = "return git.get_base_branch(args.requested_base)";
-  req.args["requested_base"] = requested_base;
-  auto res = RunLua(req, nullptr);
-  if (!res.ok()) return res.status();
-  return res->return_value;
-}
-
-absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args,
-                                                       std::shared_ptr<CancellationRequest> cancellation) {
-  RunLuaRequest req;
-  auto script = json_get<std::string>(args, "script");
-  if (!script) {
-    return absl::InvalidArgumentError("'script' must be a string");
-  }
-  req.script = *script;
-  if (const auto* lua_args = json_at(args, "args")) req.args = *lua_args;
-  auto res = RunJs(req, cancellation);
-  if (!res.ok()) return res.status();
-  return res->FullOutput();
-}
-
-absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest& req,
+absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& req,
                                                              std::shared_ptr<CancellationRequest> cancellation) {
   slop::JsInterpreter interpreter;
   std::stringstream stdout_buffer;
@@ -364,7 +206,7 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest&
   std::string wrapped_script = "(function() {\n" + req.script + "\n})();";
   JSValue result = interpreter.RunString(wrapped_script, "input.js");
   
-  LuaResult res;
+  JsResult res;
   res.stdout_out = stdout_buffer.str();
   if (JS_IsException(result)) {
       JSValue exception = JS_GetException(ctx);
@@ -390,5 +232,29 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest&
   return res;
 }
 
+absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args,
+                                                       std::shared_ptr<CancellationRequest> cancellation) {
+  RunJsRequest req;
+  auto script = json_get<std::string>(args, "script");
+  if (!script) {
+    return absl::InvalidArgumentError("'script' must be a string");
+  }
+  req.script = *script;
+  if (const auto* js_args = json_at(args, "args")) req.args = *js_args;
+  auto res = RunJs(req, cancellation);
+  if (!res.ok()) return res.status();
+  return res->FullOutput();
+}
+
+absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& requested_base) {
+  RunJsRequest req;
+  req.script = "return git.get_base_branch(args.requested_base)";
+  req.args["requested_base"] = requested_base;
+  auto res = RunJs(req, nullptr);
+  if (!res.ok()) return res.status();
+  return res->return_value;
+}
+
 }  // namespace slop
+
 
