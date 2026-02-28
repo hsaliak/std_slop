@@ -13,6 +13,18 @@ genrule(
 )
 
 genrule(
+    name = "generate_js_preamble",
+    srcs = ["//js-bridge:preamble.js"],
+    outs = ["js_preamble_data.h"],
+    cmd = "echo 'namespace slop {' > $@ && " +
+          "echo 'static const char* kJsPreamble = R\"JS(' >> $@ && " +
+          "cat $< >> $@ && " +
+          "echo ')JS\";' >> $@ && " +
+          "echo '}' >> $@ ",
+)
+
+
+genrule(
  name = "generate_lua_preamble",
  srcs = [
  "preamble.lua",
@@ -110,6 +122,7 @@ cc_library(
  "status_macros.h",
  ":generate_system_prompt",
  ":generate_lua_preamble",
+ ":generate_js_preamble",
  ],
  visibility = ["//visibility:public"],
 
@@ -186,6 +199,7 @@ cc_library(
  "lua_security_test",
  "lua_globals_test",
  "json_utils_test",
+ "js_integration_test",
  ]
 ]
 
