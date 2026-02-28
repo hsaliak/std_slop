@@ -161,6 +161,15 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
           db_->SetSessionState(session_id, *state).IgnoreError();
         }
       }
+
+      // Store reasoning as separate assistant message in DB
+      auto reasoning = json_get<std::string>(*msg, "reasoning_content");
+      if (reasoning && !reasoning->empty()) {
+        db_->AppendMessage(session_id, "assistant",
+                           absl::StrCat("🤔 **Reasoning:**\n", *reasoning),
+                           "", "completed", group_id, GetName(), 0).IgnoreError();
+      }
+
     } else {
       return absl::InternalError("OpenAI response choice missing 'message'");
     }
@@ -204,3 +213,6 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::GetQuota(const std::string& o
 }
 
 }  // namespace slop
+
+
+
