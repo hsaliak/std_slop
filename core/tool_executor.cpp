@@ -15,6 +15,7 @@
 #include "core/lua_bridge_util.h"
 #include "core/lua_tool.h"
 #include "core/preamble_data.h"
+#include "core/js_preamble_data.h"
 #include "core/tool_dispatcher.h"
 #include "json_utils.h"
 #include "lua-bridge/interpreter.h"
@@ -355,19 +356,26 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest&
   JS_FreeValue(ctx, global_obj);
 
   // Load preamble
-  std::ifstream t("js-bridge/preamble.js");
-  if (t.is_open()) {
-    std::stringstream buffer;
-    buffer << t.rdbuf();
-    interpreter.RunString(buffer.str(), "preamble.js");
-  }
+    // Load preamble
+  JSValue preamble_res = interpreter.RunString(slop::kJsPreamble, "preamble.js");
+  JS_FreeValue(ctx, preamble_res);
+
 
   JSValue result = interpreter.RunString(req.script, "input.js");
   
   LuaResult res;
   res.stdout_out = stdout_buffer.str();
   if (JS_IsException(result)) {
-      return absl::InternalError(absl::StrCat("JS Error\nOutput:\n", res.stdout_out));
+      JSValue exception = JS_GetException(ctx);
+      std::string err_msg = "JS Error";
+      const char* str = JS_ToCString(ctx, exception);
+      if (str) {
+          err_msg = str;
+          JS_FreeCString(ctx, str);
+      }
+      JS_FreeValue(ctx, exception);
+      JS_FreeValue(ctx, result);
+      return absl::InternalError(absl::StrCat(err_msg, "\nOutput:\n", res.stdout_out));
   }
   
   if (!JS_IsUndefined(result)) {

@@ -30,15 +30,6 @@ JsInterpreter::~JsInterpreter() {
 
 JSValue JsInterpreter::RunString(const std::string& code, const std::string& filename) {
   JSValue val = JS_Eval(ctx_, code.c_str(), code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
-  if (JS_IsException(val)) {
-    JSValue exception = JS_GetException(ctx_);
-    const char* str = JS_ToCString(ctx_, exception);
-    if (str) {
-      std::cerr << "JS Exception: " << str << std::endl;
-      JS_FreeCString(ctx_, str);
-    }
-    JS_FreeValue(ctx_, exception);
-  }
   return val;
 }
 
@@ -127,6 +118,7 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
     JSValue ptr_val = JS_GetPropertyStr(ctx, this_val, "_job_ptr");
     int64_t ptr;
     JS_ToInt64(ctx, &ptr, ptr_val);
+    JS_FreeValue(ctx, ptr_val);
     ToolJob* job = (ToolJob*)ptr;
     return JS_NewBool(ctx, job->IsReady());
   };
@@ -135,6 +127,7 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
     JSValue ptr_val = JS_GetPropertyStr(ctx, this_val, "_job_ptr");
     int64_t ptr;
     JS_ToInt64(ctx, &ptr, ptr_val);
+    JS_FreeValue(ctx, ptr_val);
     ToolJob* job = (ToolJob*)ptr;
     auto res = job->Wait();
     if (!res.ok()) return JS_ThrowInternalError(ctx, "Job failed: %s", res.status().ToString().c_str());
@@ -190,6 +183,7 @@ void JsInterpreter::InitializeEnvironment(
     JSValue name_val = JS_NewString(ctx_, name.c_str());
     JSValue func = JS_NewCFunctionData(ctx_, tool_wrapper, 1, 0, 1, &name_val);
     JS_SetPropertyStr(ctx_, tools_obj, name.c_str(), func);
+    JS_FreeValue(ctx_, name_val);
   }
   
   JS_SetPropertyStr(ctx_, global_obj, "tools", tools_obj);
