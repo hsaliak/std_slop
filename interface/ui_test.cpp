@@ -148,7 +148,7 @@ TEST(UiTest, PrintToolResultMessageNoPreview) {
   std::string output = buffer.str();
   EXPECT_TRUE(absl::StrContains(output, "│"));
   EXPECT_TRUE(absl::StrContains(output, "completed (4 lines)"));
-  EXPECT_TRUE(!absl::StrContains(output, "line 1"));
+  EXPECT_TRUE(absl::StrContains(output, "line 1"));
   EXPECT_TRUE(!absl::StrContains(output, "..."));
 }
 TEST(UiTest, PrintToolResultMessageStderr) {
@@ -159,8 +159,9 @@ TEST(UiTest, PrintToolResultMessageStderr) {
   PrintToolResultMessage(name, result, "completed");
   std::cout.rdbuf(old);
   std::string output = buffer.str();
-  EXPECT_TRUE(!absl::StrContains(output, "stdout line 1"));
-  EXPECT_TRUE(absl::StrContains(output, "[stderr: 2 lines omitted]"));
+  EXPECT_TRUE(absl::StrContains(output, "stdout line 1"));
+  EXPECT_TRUE(absl::StrContains(output, "stderr line 1"));
+  EXPECT_TRUE(absl::StrContains(output, "stderr line 2"));
 }
 TEST(UiTest, PrintToolResultMessageHTTPError) {
   std::string name = "test_tool";
