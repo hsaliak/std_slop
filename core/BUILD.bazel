@@ -17,7 +17,6 @@ genrule(
  srcs = [
  "preamble.lua",
  "preamble/base.lua",
- "preamble/expressive.lua",
  "preamble/fs.lua",
  "preamble/knowledge.lua",
  "preamble/git.lua",

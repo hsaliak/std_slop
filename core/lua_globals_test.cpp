@@ -51,8 +51,8 @@ TEST(ToolExecutorTest, HelpToolCheck) {
   ASSERT_TRUE(res.ok()) << res.status().message();
 
   EXPECT_TRUE(absl::StrContains(*res, "Slop Orchestrator Help")) << "Result: " << *res;
-  EXPECT_TRUE(absl::StrContains(*res, "tools.file(path)"));
-  EXPECT_TRUE(absl::StrContains(*res, "tools.grep"));
+  EXPECT_TRUE(absl::StrContains(*res, "tools.read_file({path})"));
+  EXPECT_TRUE(absl::StrContains(*res, "grep({path, pattern})"));
 }
 
 TEST(ToolExecutorTest, ScratchpadAutoConversionCheck) {
