@@ -430,3 +430,197 @@ tools.apply_patch = function(args) {
   tools.write_file({path: path, content: content});
   return "File patched successfully: " + path;
 };
+
+git.get_base_branch = function(requested_base) {
+  if (requested_base && requested_base !== "") return requested_base;
+  
+  const current = git.get_current_branch();
+  if (!current) return "main";
+  
+  const res_json = tools.query_db({
+    sql: "SELECT parent_branch FROM staging_branches WHERE branch_name = ?",
+    params: [current]
+  });
+  
+  if (res_json) {
+    try {
+      const rows = JSON.parse(res_json);
+      if (rows && rows.length > 0 && rows[0].parent_branch) {
+        return rows[0].parent_branch;
+      }
+    } catch (e) {}
+  }
+  
+  if (current.startsWith("slop/staging/")) {
+    throw new Error("Base branch not found in database for staging branch '" + current + "'.");
+  }
+  
+  return "main";
+};
+
+git.resolve_base_branch = function(requested) {
+  return git.get_base_branch(requested);
+};
+
+git.assert_clean_workspace = function(msg) {
+  const status_res = __os_run("git status --porcelain");
+  if (status_res.stdout !== "") {
+    throw new Error(msg || "Working tree is dirty. Please commit, stash, or discard changes.");
+  }
+};
+
+tools.git_commit_patch = function(args) {
+  slop_guard();
+  const summary = args.summary;
+  const rationale = args.rationale;
+  
+  if (!summary) throw new Error("Summary is required");
+  if (summary.length > 50) throw new Error("Summary must be <= 50 characters");
+  
+  const full_msg = summary + "\n\n" + (rationale || "");
+  const cmd = "git commit -m " + shell_escape(full_msg);
+  const res = __os_run(cmd);
+  if (res.exit_code !== 0) throw new Error("Commit failed: " + res.stdout + res.stderr);
+  
+  return tools.git_format_patch_series({});
+};
+
+tools.git_reroll_patch = function(args) {
+  slop_guard();
+  const index = parseInt(args.index, 10);
+  const base_branch = git.resolve_base_branch(args.base_branch);
+  
+  const log_cmd = "git log --reverse --format=%H " + shell_escape(base_branch) + "..HEAD";
+  const log_res = tools.execute_bash({command: log_cmd});
+  
+  const commits = log_res.trim().split(/\s+/).filter(h => h.length > 0);
+  
+  if (isNaN(index) || index < 1 || index > commits.length) {
+    throw new Error("Invalid patch index " + index + " (total patches: " + commits.length + ")");
+  }
+  
+  const target_hash = commits[index - 1];
+  
+  const commit_res = __os_run("git commit --fixup " + target_hash);
+  if (commit_res.exit_code !== 0) throw new Error("Failed to create fixup commit. Are there any changes staged?");
+  
+  const env_cmd = "GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash " + shell_escape(base_branch);
+  const rebase_res = __os_run(env_cmd);
+  if (rebase_res.exit_code !== 0) {
+    __os_run("git rebase --abort");
+    throw new Error("Rebase failed. You may have conflicts. Manual intervention required.\n" + rebase_res.stderr);
+  }
+  
+  return tools.git_format_patch_series({base_branch: base_branch});
+};
+
+tools.git_verify_series = function(args) {
+  slop_guard();
+  git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before running this command.");
+
+  const command = args.command;
+  if (!command) throw new Error("command is required");
+  const base_branch = git.resolve_base_branch(args.base_branch);
+  
+  const log_cmd = "git log --reverse --format=%H " + shell_escape(base_branch) + "..HEAD";
+  const log_res = tools.execute_bash({command: log_cmd});
+  
+  const commits = log_res.trim().split(/\s+/).filter(h => h.length > 0);
+  const current_branch = git.get_current_branch();
+  const results = [];
+  let all_passed = true;
+  
+  for (let i = 0; i < commits.length; i++) {
+    const hash = commits[i];
+    const co_res = __os_run("git checkout " + hash);
+    if (co_res.exit_code !== 0) {
+      results.push({status: "failed", message: "Checkout failed", hash: hash});
+      all_passed = false;
+      break;
+    }
+    const test_res = __os_run(command);
+    const status = (test_res.exit_code === 0) ? "passed" : "failed";
+    results.push({status: status, hash: hash});
+    if (test_res.exit_code !== 0) {
+      all_passed = false;
+      break;
+    }
+  }
+  
+  __os_run("git checkout " + shell_escape(current_branch));
+  
+  return JSON.stringify({
+    all_passed: all_passed,
+    report: results
+  });
+};
+
+tools.git_format_patch_series = function(args) {
+  slop_guard();
+  const base_branch = git.resolve_base_branch(args.base_branch);
+  
+  const log_cmd = "git log --reverse --format='### Patch [%n/%N] ###%ncommit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n    %s%n%n%b' " + shell_escape(base_branch) + "..HEAD";
+  const log_res = tools.execute_bash({command: log_cmd});
+  
+  const diff_cmd = "git diff " + shell_escape(base_branch) + "..HEAD";
+  const diff_res = tools.execute_bash({command: diff_cmd});
+  
+  return "--- MAIL SERIES ---\nBase: " + base_branch + "\n\n" + log_res + "\n\n--- FULL DIFF ---\n" + diff_res;
+};
+
+tools.git_finalize_series = function(args) {
+  slop_guard();
+  git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before finalizing.");
+
+  const current_branch = git.get_current_branch();
+  const target_branch = git.resolve_base_branch(args.target_branch);
+
+  const hash_res = tools.execute_bash({command: "git rev-parse HEAD"});
+  const hash = hash_res.trim();
+
+  const approval_res = tools.query_db({
+    sql: "SELECT approved_hash FROM patch_approvals WHERE branch_name = ?",
+    params: [current_branch]
+  });
+  
+  let approved = false;
+  if (approval_res) {
+    try {
+      const rows = JSON.parse(approval_res);
+      for (const row of rows) {
+        if (row.approved_hash === hash) {
+          approved = true;
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+  
+  if (!approved) {
+    throw new Error("Patch series not approved or hash mismatch. Please obtain approval for hash " + hash + " before finalizing.");
+  }
+
+  const res1 = __os_run("git checkout " + shell_escape(target_branch));
+  if (res1.exit_code !== 0) {
+    throw new Error("Failed to checkout target branch '" + target_branch + "': " + res1.stderr);
+  }
+
+  const res2 = __os_run("git merge --ff-only " + shell_escape(current_branch));
+  if (res2.exit_code !== 0) {
+    __os_run("git checkout " + shell_escape(current_branch));
+    throw new Error("Merge failed: " + res2.stderr);
+  }
+
+  __os_run("git branch -D " + shell_escape(current_branch));
+  
+  tools.query_db({
+    sql: "DELETE FROM staging_branches WHERE branch_name = ?",
+    params: [current_branch]
+  });
+  tools.query_db({
+    sql: "DELETE FROM patch_approvals WHERE branch_name = ?",
+    params: [current_branch]
+  });
+
+  return "Successfully finalized series and merged into " + target_branch;
+};
