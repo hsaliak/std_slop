@@ -367,10 +367,16 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   std::cout << prefix << "    " << Colorize("  │", "", ansi::Metadata) << " " << Colorize(summary, "", color)
             << std::endl;
 
+  // Render stdout in markdown
+  std::string rendered_stdout;
+  RenderMarkdown(stdout_part, "", &rendered_stdout);
+  std::vector<absl::string_view> rendered_out_lines =
+      absl::StrSplit(absl::StripAsciiWhitespace(rendered_stdout), '\n', absl::SkipEmpty());
+
   // Print up to 15 lines of output
   int printed = 0;
   const int kMaxLines = 15;
-  for (const auto& line : out_lines) {
+  for (const auto& line : rendered_out_lines) {
     if (printed >= kMaxLines) break;
     std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
     printed++;
@@ -381,7 +387,7 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
               << Colorize(std::string(line), "", ansi::Red) << std::endl;
     printed++;
   }
-  if (out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
+  if (rendered_out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
     std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
   }
 }
