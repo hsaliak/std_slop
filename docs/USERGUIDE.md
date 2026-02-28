@@ -3,12 +3,12 @@
 ## Overview
 `std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
 
-## The Lua Control Plane
+## The JavaScript Control Plane
 
-`std::slop` uses Lua 5.5 to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
+`std::slop` uses QuickJS to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
 
-### `run_lua`
-The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing Lua scripts. For detailed documentation on orchestration patterns, parallel execution, and the RLM paradigm, see [lua_integration.md](lua_integration.md).
+### `run_js`
+The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing Lua scripts. For detailed documentation on orchestration patterns, parallel execution, and the RLM paradigm, see [js_integration.md](js_integration.md).
 
 
 ## Installation
@@ -130,18 +130,18 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 
-## Orchestration & Lua Integration
+## Orchestration & JavaScript Integration
 
 `std::slop` makes the LLM do everything with Lua.This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
 
-### The `run_lua` Tool
+### The `run_js` Tool
 
-The `run_lua` tool allows the agent to execute orchestrated scripts. It has access to:
+The `run_js` tool allows the agent to execute orchestrated scripts. It has access to:
 - **`tools`**: A table containing all standard tools.
 - **`history`**: Session message history for programmatic context extraction.
 - **Async Execution**: `tools.execute_bash_async` allow for parallel execution (e.g., running multiple tests at once).
 
-For more details, see the **[Lua Integration Documentation](lua_integration.md)**.
+For more details, see the **[Lua Integration Documentation](js_integration.md)**.
 
 ## Slash Commands
 
@@ -350,3 +350,4 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
+

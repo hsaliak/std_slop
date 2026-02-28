@@ -3,8 +3,8 @@ This document outlines the context management strategy in `std::slop`. We focus 
 The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
 ## 1. Static Anchor (Global State & Scratchpad)
 To prevent the model from "losing the thread" during long sessions, the orchestrator injects two persistent blocks at the top of every prompt, immediately after the system instructions:
-1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. In the Lua Control Plane (RLM paradigm), this is accessible via the global `state` handle and is typically updated at the end of a response.
-2.  **Active Scratchpad**: A persistent markdown block stored in the `scratchpads` table. This serves as the agent's "Project Roadmap". In the Lua Control Plane, it is managed programmatically via the global `scratchpad` variable and the `tools.manage_scratchpad` tool.
+1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. In the JavaScript Control Plane (RLM paradigm), this is accessible via the global `state` handle and is typically updated at the end of a response.
+2.  **Active Scratchpad**: A persistent markdown block stored in the `scratchpads` table. This serves as the agent's "Project Roadmap". In the JavaScript Control Plane, it is managed programmatically via the global `scratchpad` variable and the `tools.manage_scratchpad` tool.
 Both the **Global State** and **Active Scratchpad** are stored in the SQLite database and persist indefinitely across history pruning or session restarts. The scratchpad is intended to be the "source of truth" for the current task and can be manually edited by the user to redirect the agent or refine the plan.
 ## 2. Sequential Rolling Window
 The system treats the conversation history as a linear timeline. This ensures that the narrative flow and the sequence of technical operations are preserved.
@@ -157,3 +157,4 @@ Every interaction with the LLM is stateless. To provide context, the orchestrato
 1.  **Model-Echo**: Model repeats state at the end of every message. Rejected as fragile; state is lost if the model forgets it once or hits token limits.
 2.  **Merged State/Scratchpad**: Single unified block for all persistent data. Rejected to avoid "context drift"; merging technical anchors (IPs, ports) with high-level roadmaps (checklists) confuses the model's focus.
 3.  **Dual-Track (Current)**: Separate blocks for "Short-Term Memory" (Technical Anchors in State) and "Long-Term Memory" (Project Roadmap in Scratchpad). This provides maximum robustness across history pruning. Both blocks are DB-backed and can be updated independently (e.g., by the `planner` skill) without disturbing the technical context.
+

@@ -15,7 +15,7 @@
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long-term memory.
-- **📜 [Lua Control Plane](docs/lua_integration.md)**: Programmatic orchestration via a Lua 5.4 bridge, allowing scripts, staging, and execution. std::slop uses this REPL to accomplish all it's tasks.
+- **📜 [JavaScript Control Plane](docs/js_integration.md)**: Programmatic orchestration via a QuickJS bridge, allowing scripts, staging, and execution. std::slop uses this REPL to accomplish all it's tasks.
 - **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval.  Use this if you want a clean, bisect-safe view of changes, and want to be 'in the loop'. You can, of course offload the reviews to a `code_reviewer` skill as well.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
 - **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax. Eg: "hey code_reviewer review these patches".
@@ -88,7 +88,7 @@ You can also use Google OAuth login if no keys are provided.
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
-- Concurrency: Parallel tool execution is managed through the Lua control plane using `_async` variants and a job-based wait system. This allows for granular control over concurrent operations. (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
+- Concurrency: Parallel tool execution is managed through the JavaScript control plane using `_async` variants and a job-based wait system. This allows for granular control over concurrent operations. (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
 - Asan and Tsan clean at all times.
 
 ## 📚 Documentation
@@ -99,7 +99,7 @@ You can also use Google OAuth login if no keys are provided.
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
-- **[Lua Integration](docs/lua_integration.md)**: high-level orchestration and task safety via the Lua bridge.
+- **[JavaScript Integration](docs/js_integration.md)**: high-level orchestration and task safety via the QuickJS bridge.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
 ## 🏗️ Architecture & Codebase Layout
@@ -114,13 +114,14 @@ The core logic is divided into modules:
 - **`shell_util.h`**: Executes shell commands in a separate process group, with support for live output polling and termination on cancellation.
 - **`http_client.h`**: A minimalist, cancellation-aware HTTP client used for all model API calls.
 
-### `lua-bridge/` - Orchestration Layer
-- **`lua_bridge.h`**: Implements the Lua 5.4 environment. Provides the `run_lua` tool and manages the injection of global context (`tools`, `history`, `state`).
-- **`preamble_lib.lua`**: The embedded standard library for the agent's Lua environment. Implements high-level helpers and the `slop_guard` safety mechanism.
+### `js-bridge/` - Orchestration Layer
+- **`interpreter.h`**: Implements the QuickJS environment. Provides the `run_js` tool and manages the injection of global context (`tools`, `history`, `state`).
+- **`preamble.js`**: The embedded standard library for the agent's JavaScript environment. Implements high-level helpers and the `slop_guard` safety mechanism.
 
 ### Interface & Display
 - **`interface/`**: Implements the terminal UI. The UI is minimal but clean, uses readline for user input, color codes and ASCII Codes.
 - **`markdown/`**: Uses `tree-sitter-markdown` to provide syntax highlighting (C++, Python, Go, JS, Rust, Bash) and structured rendering for agent responses. This is a stand alone Markdown  parser / renderer library in C++.
 - **`main.cpp`**: The primary event loop. Coordinates between the Orchestrator, ToolDispatcher, and UI.
+
 
 

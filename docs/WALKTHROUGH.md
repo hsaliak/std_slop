@@ -206,13 +206,13 @@ This workflow ensures bisect-safe history and high-quality rationale for every c
 ### Finishing Up
 Once you are done, you can exit the session with `/exit` or `/quit`. Happy development!
 
-### Example: Complex Orchestration via Lua
+### Example: Complex Orchestration via JavaScript
 
 In this example, the agent needs to find all instances of a deprecated function and replace them, but only after verifying the changes don't break the build.
 
 **Agent Command:**
-```lua
-run_lua({
+```javascript
+run_js({
   script = [[
     -- 1. Find occurrences
     local grep_res = tools.grep({pattern = 'old_func', path = 'core/'})
@@ -237,3 +237,4 @@ run_lua({
   ]]
 })
 ```
+
