@@ -22,7 +22,7 @@ JsInterpreter::JsInterpreter() {
 }
 
 JsInterpreter::~JsInterpreter() {
-  ContextData* data = (ContextData*)JS_GetContextOpaque(ctx_);
+  ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx_));
   delete data;
   JS_FreeContext(ctx_);
   JS_FreeRuntime(rt_);
@@ -52,14 +52,17 @@ nlohmann::json JsInterpreter::JSToJSON(JSValue val) {
   JSValue str_val = JS_JSONStringify(ctx_, val, JS_UNDEFINED, JS_UNDEFINED);
   if (JS_IsException(str_val)) return nullptr;
   const char* str = JS_ToCString(ctx_, str_val);
-  nlohmann::json j = nlohmann::json::parse(str);
+  nlohmann::json j = nlohmann::json::parse(str, nullptr, false);
+  if (j.is_discarded()) {
+    j = nlohmann::json();
+  }
   JS_FreeCString(ctx_, str);
   JS_FreeValue(ctx_, str_val);
   return j;
 }
 
 static JSValue js_print(JSContext* ctx, [[maybe_unused]] JSValueConst this_val, int argc, JSValueConst* argv) {
-  ContextData* data = (ContextData*)JS_GetContextOpaque(ctx);
+  ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));
   std::stringstream ss;
   for (int i = 0; i < argc; i++) {
     const char* str = JS_ToCString(ctx, argv[i]);
@@ -76,7 +79,7 @@ static JSValue js_print(JSContext* ctx, [[maybe_unused]] JSValueConst this_val, 
 }
 
 static JSValue js_os_run(JSContext* ctx, [[maybe_unused]] JSValueConst this_val, int argc, JSValueConst* argv) {
-  ContextData* data = (ContextData*)JS_GetContextOpaque(ctx);
+  ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));
   if (argc < 1) return JS_EXCEPTION;
   const char* command = JS_ToCString(ctx, argv[0]);
   auto res_or = RunCommand(command, data ? data->cancellation : nullptr);
@@ -96,7 +99,7 @@ static JSValue js_os_run(JSContext* ctx, [[maybe_unused]] JSValueConst this_val,
 }
 
 static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst this_val, int argc, JSValueConst* argv) {
-  ContextData* data = (ContextData*)JS_GetContextOpaque(ctx);
+  ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));
   if (!data || !data->dispatcher) return JS_ThrowReferenceError(ctx, "Dispatcher not available");
   if (argc < 2) return JS_EXCEPTION;
 
@@ -119,7 +122,7 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
     int64_t ptr;
     JS_ToInt64(ctx, &ptr, ptr_val);
     JS_FreeValue(ctx, ptr_val);
-    ToolJob* job = (ToolJob*)ptr;
+    ToolJob* job = reinterpret_cast<ToolJob*>(ptr);
     return JS_NewBool(ctx, job->IsReady());
   };
 
@@ -128,7 +131,7 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
     int64_t ptr;
     JS_ToInt64(ctx, &ptr, ptr_val);
     JS_FreeValue(ctx, ptr_val);
-    ToolJob* job = (ToolJob*)ptr;
+    ToolJob* job = reinterpret_cast<ToolJob*>(ptr);
     auto res = job->Wait();
     if (!res.ok()) return JS_ThrowInternalError(ctx, "Job failed: %s", res.status().ToString().c_str());
     return JS_NewString(ctx, res->c_str());
@@ -161,7 +164,7 @@ void JsInterpreter::InitializeEnvironment(
     if (name == "run_lua" || name == "run_js") continue;
     
     auto tool_wrapper = [](JSContext* ctx, [[maybe_unused]] JSValueConst this_val, [[maybe_unused]] int argc, JSValueConst* argv, [[maybe_unused]] int magic, JSValue* func_data) -> JSValue {
-      ContextData* data = (ContextData*)JS_GetContextOpaque(ctx);
+      ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));
       const char* name = JS_ToCString(ctx, func_data[0]);
       nlohmann::json args = data->interpreter->JSToJSON(argv[0]);
       
@@ -191,3 +194,4 @@ void JsInterpreter::InitializeEnvironment(
 }
 
 }  // namespace slop
+

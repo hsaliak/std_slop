@@ -15,6 +15,7 @@ namespace slop {
 
 class ToolDispatcher;
 class CancellationRequest;
+class Database;
 
 class JsInterpreter {
  public:
@@ -28,11 +29,11 @@ class JsInterpreter {
   JSValue RunFile(const std::string& path);
 
   // Access the underlying JSContext
-  JSContext* context() { return ctx_; }
+  JSContext* context() const { return ctx_; }
 
   // Initialize the environment with tools and globals
   void InitializeEnvironment(
-      class Database* db, ToolDispatcher* dispatcher,
+      Database* db, ToolDispatcher* dispatcher,
       std::shared_ptr<CancellationRequest> cancellation,
       const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>& dispatch_map,
       std::stringstream& stdout_buffer);
@@ -47,4 +48,5 @@ class JsInterpreter {
 };
 
 }  // namespace slop
+
 

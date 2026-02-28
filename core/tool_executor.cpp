@@ -367,15 +367,14 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest&
   res.stdout_out = stdout_buffer.str();
   if (JS_IsException(result)) {
       JSValue exception = JS_GetException(ctx);
-      std::string err_msg = "JS Error";
-      const char* str = JS_ToCString(ctx, exception);
-      if (str) {
-          err_msg = str;
+      absl::Status status = absl::InternalError(absl::StrCat("JS Error\nOutput:\n", res.stdout_out));
+      if (const char* str = JS_ToCString(ctx, exception)) {
+          status = absl::InternalError(absl::StrCat(str, "\nOutput:\n", res.stdout_out));
           JS_FreeCString(ctx, str);
       }
       JS_FreeValue(ctx, exception);
       JS_FreeValue(ctx, result);
-      return absl::InternalError(absl::StrCat(err_msg, "\nOutput:\n", res.stdout_out));
+      return status;
   }
   
   if (!JS_IsUndefined(result)) {
@@ -391,3 +390,4 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest&
 }
 
 }  // namespace slop
+

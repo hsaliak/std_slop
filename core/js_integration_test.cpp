@@ -2,6 +2,7 @@
 #include "core/tool_executor.h"
 #include "core/database.h"
 #include <cstdlib>
+#include "absl/strings/match.h"
 
 namespace slop {
 
@@ -27,7 +28,7 @@ TEST_F(JsIntegrationTest, RunJsBasic) {
   args["script"] = "1 + 1";
   auto res = executor_->Execute("run_js", args);
   ASSERT_TRUE(res.ok()) << res.status().ToString();
-  EXPECT_TRUE(res->find("Return Value: 2") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(*res, "Return Value: 2"));
 }
 
 TEST_F(JsIntegrationTest, JsPrint) {
@@ -35,7 +36,7 @@ TEST_F(JsIntegrationTest, JsPrint) {
   args["script"] = "print('Hello JS'); 'done'";
   auto res = executor_->Execute("run_js", args);
   ASSERT_TRUE(res.ok()) << res.status().ToString();
-  EXPECT_TRUE(res->find("Hello JS") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(*res, "Hello JS"));
 }
 
 TEST_F(JsIntegrationTest, JsToolCall) {
@@ -45,7 +46,7 @@ TEST_F(JsIntegrationTest, JsToolCall) {
   auto res = executor_->Execute("run_js", args);
   // Should fail with an error message from the tool
   ASSERT_FALSE(res.ok());
-  EXPECT_TRUE(res.status().message().find("Could not open file") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "Could not open file"));
 }
 
 TEST_F(JsIntegrationTest, JsPreamble) {
@@ -54,7 +55,8 @@ TEST_F(JsIntegrationTest, JsPreamble) {
   args["script"] = "core.dispatch_tool('query_db', {sql: 'SELECT 1'})";
   auto res = executor_->Execute("run_js", args);
   ASSERT_TRUE(res.ok()) << res.status().ToString();
-  EXPECT_TRUE(res->find("1") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(*res, "1"));
 }
 
 }  // namespace slop
+
