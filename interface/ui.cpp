@@ -46,14 +46,6 @@ namespace {
 ABSL_CONST_INIT absl::Mutex g_ui_mu(absl::kConstInit);
 }  // namespace
 namespace {
-bool IsNetworkError(const std::string& result) {
-  std::string lower = absl::AsciiStrToLower(result);
-  return absl::StrContains(result, "400") || absl::StrContains(result, "429") || absl::StrContains(result, "503") ||
-         absl::StrContains(lower, "http error") || absl::StrContains(lower, "too many requests") ||
-         absl::StrContains(lower, "rate limit") || absl::StrContains(lower, "rate_limit") ||
-         absl::StrContains(lower, "resource exhausted") || absl::StrContains(lower, "resource_exhausted") ||
-         absl::StrContains(lower, "quota");
-}
 /**
  * @brief Renders text within a stylized section with a header.
  *
@@ -374,29 +366,23 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
       absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success, status, out_lines.size());
   std::cout << prefix << "    " << Colorize("  │", "", ansi::Metadata) << " " << Colorize(summary, "", color)
             << std::endl;
-  if (is_error && IsNetworkError(result)) {
-    int printed = 0;
-    for (const auto& line : out_lines) {
-      if (printed >= 10) break;
-      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
-      printed++;
-    }
-    for (const auto& line : err_lines) {
-      if (printed >= 10) break;
-      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
-                << Colorize(std::string(line), "", ansi::Red) << std::endl;
-      printed++;
-    }
-    if (out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
-      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
-    }
-  } else {
-    // Print stderr summary if present
-    if (!err_lines.empty()) {
-      std::string err_summary = absl::Substitute("[stderr: $0 lines omitted]", err_lines.size());
-      std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
-                << Colorize(err_summary, "", ansi::Red) << std::endl;
-    }
+
+  // Print up to 15 lines of output
+  int printed = 0;
+  const int kMaxLines = 15;
+  for (const auto& line : out_lines) {
+    if (printed >= kMaxLines) break;
+    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
+    printed++;
+  }
+  for (const auto& line : err_lines) {
+    if (printed >= kMaxLines) break;
+    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
+              << Colorize(std::string(line), "", ansi::Red) << std::endl;
+    printed++;
+  }
+  if (out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
+    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
   }
 }
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {
