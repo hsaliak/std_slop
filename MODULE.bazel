@@ -95,3 +95,5 @@ http_archive(
     strip_prefix = "tree-sitter-lua-0.2.0",
     urls = ["https://github.com/tree-sitter-grammars/tree-sitter-lua/archive/refs/tags/v0.2.0.tar.gz"],
 )
+
+bazel_dep(name = "quickjs-ng", version = "0.11.0")
