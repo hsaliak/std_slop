@@ -1,3 +1,4 @@
+#include "core/json_utils.h"
 #include "js-bridge/interpreter.h"
 #include <fstream>
 #include <sstream>
@@ -52,13 +53,10 @@ nlohmann::json JsInterpreter::JSToJSON(JSValue val) {
   JSValue str_val = JS_JSONStringify(ctx_, val, JS_UNDEFINED, JS_UNDEFINED);
   if (JS_IsException(str_val)) return nullptr;
   const char* str = JS_ToCString(ctx_, str_val);
-  nlohmann::json j = nlohmann::json::parse(str, nullptr, false);
-  if (j.is_discarded()) {
-    j = nlohmann::json();
-  }
+  auto j_opt = slop::json_parse(str);
   JS_FreeCString(ctx_, str);
   JS_FreeValue(ctx_, str_val);
-  return j;
+  return j_opt ? *j_opt : nlohmann::json();
 }
 
 static JSValue js_print(JSContext* ctx, [[maybe_unused]] JSValueConst this_val, int argc, JSValueConst* argv) {

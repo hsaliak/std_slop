@@ -25,7 +25,7 @@ class JsIntegrationTest : public ::testing::Test {
 
 TEST_F(JsIntegrationTest, RunJsBasic) {
   nlohmann::json args;
-  args["script"] = "1 + 1";
+  args["script"] = "return 1 + 1;";
   auto res = executor_->Execute("run_js", args);
   ASSERT_TRUE(res.ok()) << res.status().ToString();
   EXPECT_TRUE(absl::StrContains(*res, "Return Value: 2"));
@@ -52,10 +52,44 @@ TEST_F(JsIntegrationTest, JsToolCall) {
 TEST_F(JsIntegrationTest, JsPreamble) {
   // Test that preamble is loaded and core helpers work
   nlohmann::json args;
-  args["script"] = "core.dispatch_tool('query_db', {sql: 'SELECT 1'})";
+  args["script"] = "return core.dispatch_tool('query_db', {sql: 'SELECT 1'});";
   auto res = executor_->Execute("run_js", args);
   ASSERT_TRUE(res.ok()) << res.status().ToString();
   EXPECT_TRUE(absl::StrContains(*res, "1"));
+}
+
+
+TEST_F(JsIntegrationTest, PersistFunction) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    const [success, msg] = tools.persist_function({
+      name: "add_two",
+      code: "return function(x) { return x + 2; }",
+      test_args: [3],
+      expected_result: 5
+    });
+    if (!success) throw new Error(msg);
+    return globalThis.add_two(10).toString();
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "12"));
+}
+
+TEST_F(JsIntegrationTest, UseSkill) {
+  // Setup a dummy skill in the DB
+    ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id, active_skills) VALUES ('test_session', '[]');").ok());
+  ASSERT_TRUE(db_.Execute("INSERT INTO skills (name, system_prompt_patch) VALUES ('test_skill', 'patch');").ok());
+
+  
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    return tools.use_skill({name: "test_skill", action: "activate"});
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "activated"));
+  
+  // Verify it was added to the session
+  auto db_res = db_.Query("SELECT active_skills FROM sessions WHERE id = ?;", {"test_session"});
+  ASSERT_TRUE(db_res.ok());
+  EXPECT_TRUE(absl::StrContains(*db_res, "test_skill"));
 }
 
 }  // namespace slop

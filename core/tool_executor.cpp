@@ -361,7 +361,8 @@ absl::StatusOr<ToolExecutor::LuaResult> ToolExecutor::RunJs(const RunLuaRequest&
   JS_FreeValue(ctx, preamble_res);
 
 
-  JSValue result = interpreter.RunString(req.script, "input.js");
+  std::string wrapped_script = "(function() {\n" + req.script + "\n})();";
+  JSValue result = interpreter.RunString(wrapped_script, "input.js");
   
   LuaResult res;
   res.stdout_out = stdout_buffer.str();

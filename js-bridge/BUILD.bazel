@@ -8,6 +8,7 @@ cc_library(
     hdrs = ["interpreter.h"],
     visibility = ["//visibility:public"],
     deps = [
+        "//core:json_utils",
         "@quickjs-ng//:quickjs",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/log",

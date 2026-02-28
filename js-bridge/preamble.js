@@ -183,7 +183,7 @@ function slop_guard() {
     if (res && res.includes('"standard"')) {
       return;
     }
-  } catch (e) {}
+  } catch (e) { print("Error parsing JSON from DB: " + e.message); }
 
   const branch = git.get_current_branch();
   if (!branch) return;
@@ -448,7 +448,7 @@ git.get_base_branch = function(requested_base) {
       if (rows && rows.length > 0 && rows[0].parent_branch) {
         return rows[0].parent_branch;
       }
-    } catch (e) {}
+    } catch (e) { print("Error parsing JSON from DB: " + e.message); }
   }
   
   if (current.startsWith("slop/staging/")) {
@@ -478,7 +478,7 @@ tools.git_commit_patch = function(args) {
   if (summary.length > 50) throw new Error("Summary must be <= 50 characters");
   
   const full_msg = summary + "\n\n" + (rationale || "");
-  const cmd = "git commit -m " + shell_escape(full_msg);
+  const cmd = `git commit -m ${shell_escape(full_msg)}`;
   const res = __os_run(cmd);
   if (res.exit_code !== 0) throw new Error("Commit failed: " + res.stdout + res.stderr);
   
@@ -490,7 +490,7 @@ tools.git_reroll_patch = function(args) {
   const index = parseInt(args.index, 10);
   const base_branch = git.resolve_base_branch(args.base_branch);
   
-  const log_cmd = "git log --reverse --format=%H " + shell_escape(base_branch) + "..HEAD";
+  const log_cmd = `git log --reverse --format=%H ${shell_escape(base_branch)}..HEAD`;
   const log_res = tools.execute_bash({command: log_cmd});
   
   const commits = log_res.trim().split(/\s+/).filter(h => h.length > 0);
@@ -501,10 +501,10 @@ tools.git_reroll_patch = function(args) {
   
   const target_hash = commits[index - 1];
   
-  const commit_res = __os_run("git commit --fixup " + target_hash);
+  const commit_res = __os_run(`git commit --fixup ${target_hash}`);
   if (commit_res.exit_code !== 0) throw new Error("Failed to create fixup commit. Are there any changes staged?");
   
-  const env_cmd = "GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash " + shell_escape(base_branch);
+  const env_cmd = `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash ${shell_escape(base_branch)}`;
   const rebase_res = __os_run(env_cmd);
   if (rebase_res.exit_code !== 0) {
     __os_run("git rebase --abort");
@@ -522,7 +522,7 @@ tools.git_verify_series = function(args) {
   if (!command) throw new Error("command is required");
   const base_branch = git.resolve_base_branch(args.base_branch);
   
-  const log_cmd = "git log --reverse --format=%H " + shell_escape(base_branch) + "..HEAD";
+  const log_cmd = `git log --reverse --format=%H ${shell_escape(base_branch)}..HEAD`;
   const log_res = tools.execute_bash({command: log_cmd});
   
   const commits = log_res.trim().split(/\s+/).filter(h => h.length > 0);
@@ -532,7 +532,7 @@ tools.git_verify_series = function(args) {
   
   for (let i = 0; i < commits.length; i++) {
     const hash = commits[i];
-    const co_res = __os_run("git checkout " + hash);
+    const co_res = __os_run(`git checkout ${hash}`);
     if (co_res.exit_code !== 0) {
       results.push({status: "failed", message: "Checkout failed", hash: hash});
       all_passed = false;
@@ -547,7 +547,7 @@ tools.git_verify_series = function(args) {
     }
   }
   
-  __os_run("git checkout " + shell_escape(current_branch));
+  __os_run(`git checkout ${shell_escape(current_branch)}`);
   
   return JSON.stringify({
     all_passed: all_passed,
@@ -562,7 +562,7 @@ tools.git_format_patch_series = function(args) {
   const log_cmd = "git log --reverse --format='### Patch [%n/%N] ###%ncommit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n    %s%n%n%b' " + shell_escape(base_branch) + "..HEAD";
   const log_res = tools.execute_bash({command: log_cmd});
   
-  const diff_cmd = "git diff " + shell_escape(base_branch) + "..HEAD";
+  const diff_cmd = `git diff ${shell_escape(base_branch)}..HEAD`;
   const diff_res = tools.execute_bash({command: diff_cmd});
   
   return "--- MAIL SERIES ---\nBase: " + base_branch + "\n\n" + log_res + "\n\n--- FULL DIFF ---\n" + diff_res;
@@ -593,25 +593,25 @@ tools.git_finalize_series = function(args) {
           break;
         }
       }
-    } catch (e) {}
+    } catch (e) { print("Error parsing JSON from DB: " + e.message); }
   }
   
   if (!approved) {
     throw new Error("Patch series not approved or hash mismatch. Please obtain approval for hash " + hash + " before finalizing.");
   }
 
-  const res1 = __os_run("git checkout " + shell_escape(target_branch));
+  const res1 = __os_run(`git checkout ${shell_escape(target_branch)}`);
   if (res1.exit_code !== 0) {
     throw new Error("Failed to checkout target branch '" + target_branch + "': " + res1.stderr);
   }
 
-  const res2 = __os_run("git merge --ff-only " + shell_escape(current_branch));
+  const res2 = __os_run(`git merge --ff-only ${shell_escape(current_branch)}`);
   if (res2.exit_code !== 0) {
-    __os_run("git checkout " + shell_escape(current_branch));
+    __os_run(`git checkout ${shell_escape(current_branch)}`);
     throw new Error("Merge failed: " + res2.stderr);
   }
 
-  __os_run("git branch -D " + shell_escape(current_branch));
+  __os_run(`git branch -D ${shell_escape(current_branch)}`);
   
   tools.query_db({
     sql: "DELETE FROM staging_branches WHERE branch_name = ?",
@@ -635,7 +635,7 @@ tools.git_branch_staging = function(args) {
   const base_branch = args.base_branch || git.get_current_branch();
   const staging_name = "slop/staging/" + name;
   
-  const cmd = "git checkout -b " + shell_escape(staging_name) + " " + shell_escape(base_branch);
+  const cmd = `git checkout -b ${shell_escape(staging_name)} ${shell_escape(base_branch)}`;
   const res = __os_run(cmd);
   if (res.exit_code !== 0) {
     throw new Error("Failed to create staging branch: " + res.stdout + res.stderr);
@@ -665,13 +665,13 @@ tools.use_skill = function(args) {
   
   let rows = [];
   if (res) {
-    try { rows = JSON.parse(res); } catch (e) {}
+    try { rows = JSON.parse(res); } catch (e) { print("Error parsing JSON from DB: " + e.message); }
   }
   if (rows.length === 0) throw new Error("Session not found: " + session_id);
   
   let skill_list = [];
   if (rows[0].active_skills && rows[0].active_skills !== "null") {
-    try { skill_list = JSON.parse(rows[0].active_skills); } catch (e) {}
+    try { skill_list = JSON.parse(rows[0].active_skills); } catch (e) { print("Error parsing JSON from DB: " + e.message); }
   }
   
   let prompt_patch = "";
@@ -693,7 +693,7 @@ tools.use_skill = function(args) {
         if (skill_rows.length > 0 && skill_rows[0].system_prompt_patch) {
           prompt_patch = "\n\n" + skill_rows[0].system_prompt_patch;
         }
-      } catch (e) {}
+      } catch (e) { print("Error parsing JSON from DB: " + e.message); }
     }
   } else if (action === "deactivate") {
     skill_list = skill_list.filter(s => s !== name);
