@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "js-bridge",
+    srcs = ["interpreter.cpp"],
+    hdrs = ["interpreter.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@quickjs-ng//:quickjs",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "//core:shell_lib",
+        "//core:dispatcher",
+        "@nlohmann_json//:json",
+    ],
+)
