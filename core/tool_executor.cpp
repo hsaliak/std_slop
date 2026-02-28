@@ -197,8 +197,27 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
   }
   JS_FreeValue(ctx, global_obj);
 
+  // Load persistent functions from the database
+  if (db_) {
+    auto functions_res = db_->Query("SELECT name, code FROM js_functions");
+    if (functions_res.ok()) {
+      if (auto functions_json = json_parse(*functions_res)) {
+        for (const auto& row : *functions_json) {
+          auto name = json_get<std::string>(row, "name");
+          auto code = json_get<std::string>(row, "code");
+          if (name && code) {
+            // Wrap the code to return the function closure and bind it to globalThis
+            std::string wrapped_code =
+                "globalThis['" + *name + "'] = (function() {\n" + *code + "\n})();";
+            JSValue func_res = interpreter.RunString(wrapped_code, "js_function_" + *name + ".js");
+            JS_FreeValue(ctx, func_res);
+          }
+        }
+      }
+    }
+  }
+
   // Load preamble
-    // Load preamble
   JSValue preamble_res = interpreter.RunString(slop::kJsPreamble, "preamble.js");
   JS_FreeValue(ctx, preamble_res);
 
@@ -228,7 +247,6 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
       }
   }
   JS_FreeValue(ctx, result);
-
   return res;
 }
 
@@ -256,5 +274,3 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
-
-

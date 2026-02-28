@@ -28,7 +28,7 @@ TEST_F(JsIntegrationTest, RunJsBasic) {
   args["script"] = "return 1 + 1;";
   auto res = executor_->Execute("run_js", args);
   ASSERT_TRUE(res.ok()) << res.status().ToString();
-  EXPECT_TRUE(absl::StrContains(*res, "Return Value: 2"));
+  EXPECT_TRUE(absl::StrContains(*res, "Return Value:\n 2"));
 }
 
 TEST_F(JsIntegrationTest, JsPrint) {

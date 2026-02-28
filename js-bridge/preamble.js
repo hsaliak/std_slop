@@ -276,7 +276,7 @@ tools.describe_db = function(args) {
 };
 
 tools.help = function() {
-  return `### Slop Orchestrator Help (JS) ###
+  let output = `### Slop Orchestrator Help (JS) ###
 
 #### Workflow Constraints ####
 - **Code Editing & File IO:** Use tools.read_file({path}) and tools.write_file({path, content}).
@@ -297,8 +297,24 @@ tools.help = function() {
 - manage_scratchpad({action, key, value}): Manages persistent storage.
 - query_db({sql, params}): Executes a SQLite query.
 - describe_db({}): Schema of local database.
+- persist_function({name, code, description, test_args, expected_result}): Persists a JS function.
 - help(): Displays this help.
 `;
+
+  try {
+    const res = tools.query_db({sql: "SELECT name, description FROM js_functions ORDER BY name"});
+    if (res) {
+      const rows = JSON.parse(res);
+      if (rows.length > 0) {
+        output += "\n#### Persistent Functions ####\n";
+        for (const row of rows) {
+          output += `- ${row.name}(): ${row.description || "No description provided."}\n`;
+        }
+      }
+    }
+  } catch (e) {}
+
+  return output;
 };
 
 // File System Tools
@@ -754,6 +770,7 @@ tools.use_skill = function(args) {
 tools.persist_function = function(args) {
   const name = args.name;
   const code = args.code;
+  const description = args.description || "";
   const test_args = args.test_args || [];
   const expected_result = args.expected_result;
 
@@ -789,8 +806,8 @@ tools.persist_function = function(args) {
 
   try {
     tools.query_db({
-      sql: "INSERT OR REPLACE INTO js_functions (name, code) VALUES (?, ?)",
-      params: [name, code]
+      sql: "INSERT OR REPLACE INTO js_functions (name, code, description) VALUES (?, ?, ?)",
+      params: [name, code, description]
     });
   } catch (e) {
     return [false, "DB Error: " + e.message];
@@ -800,6 +817,3 @@ tools.persist_function = function(args) {
 
   return [true, "Function persisted successfully"];
 };
-
-
-

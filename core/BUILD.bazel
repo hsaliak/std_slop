@@ -211,3 +211,15 @@ format_test(
  cc = "//:clang_format_hermetic", # Point back to your root tool
  srcs = glob(["*.cpp", "*.h"]),
 )
+
+
+cc_test(
+    name = "auto_load_test",
+    srcs = ["auto_load_test.cpp"],
+    deps = [
+        ":core",
+        "@googletest//:gtest_main",
+    ],
+)
+
+

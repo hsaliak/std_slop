@@ -72,7 +72,7 @@ class ToolExecutor {
     std::string stdout_out;
     std::string return_value;
 
-    std::string FullOutput() const { return stdout_out + "\nReturn Value: " + return_value; }
+    std::string FullOutput() const { return stdout_out + "\nReturn Value:\n " + return_value; }
   };
 
   absl::StatusOr<std::string> HandleQueryDb(const nlohmann::json& args);

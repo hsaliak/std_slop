@@ -591,7 +591,7 @@ TEST(ToolExecutorTest, RunJsBasic) {
   auto res = executor.Execute("run_js", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_TRUE(res->find("hello from js") != std::string::npos);
-  EXPECT_TRUE(res->find("Return Value: js_done") != std::string::npos);
+  EXPECT_TRUE(res->find("Return Value:\n js_done") != std::string::npos);
 }
 
 TEST(ToolExecutorTest, RunJsFullSpectrum) {
@@ -634,7 +634,7 @@ TEST(ToolExecutorTest, RunJsPreamble) {
 
   auto res = executor.Execute("run_js", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
-  EXPECT_TRUE(res->find("Return Value: preamble_ok") != std::string::npos);
+  EXPECT_TRUE(res->find("Return Value:\n preamble_ok") != std::string::npos);
 }
 
 TEST(ToolExecutorTest, AsyncJobExecution) {

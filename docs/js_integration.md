@@ -114,3 +114,40 @@ for (let i = 0; i < jobs.length; i++) {
 2.  **Filter Aggressively**: Use Lua's string manipulation or `grep` to filter data before returning it from `run_js`.
 4.  **No Uncommitted State**: In the Mail Model workflow, ensure all logical units of work are committed via `tools.git_commit_patch` before ending the script.
 
+
+## Persistent Functions
+
+The `tools.persist_function` tool allows you to save JavaScript functions to the local database. These functions are automatically loaded into the global scope (`globalThis`) of every `run_js` execution, making them available as first-class utilities.
+
+### Usage
+
+```javascript
+tools.persist_function({
+  name: "string",           // The name of the function in the global scope
+  code: "string",           // The JS code that returns the function closure
+  description: "string",    // (Optional) A description for tools.help()
+  test_args: [any],         // (Optional) Arguments to test the function
+  expected_result: any      // (Optional) Expected result of the test
+});
+```
+
+### Example
+
+```javascript
+tools.persist_function({
+  name: "grep_git_log",
+  code: `
+    return function(pattern) {
+      const logs = tools.execute_bash({command: "git log --oneline"});
+      return logs.split("\\n").filter(line => line.includes(pattern));
+    }
+  `,
+  description: "Searches git commit messages for a specific pattern.",
+  test_args: ["fix"],
+  expected_result: [] // Assuming no 'fix' commits in a fresh repo
+});
+```
+
+### Discoverability
+
+All persistent functions are automatically listed in the output of `tools.help()` under the "#### Persistent Functions ####" section, along with their descriptions.

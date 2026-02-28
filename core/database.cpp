@@ -165,6 +165,7 @@ absl::Status Database::Init(const std::string& db_path) {
     CREATE TABLE IF NOT EXISTS js_functions (
         name TEXT PRIMARY KEY,
         code TEXT,
+        description TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   )";
@@ -184,6 +185,7 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE js_functions ADD COLUMN description TEXT;", nullptr, nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (

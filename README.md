@@ -125,3 +125,16 @@ The core logic is divided into modules:
 
 
 
+
+### Persistent JavaScript Functions
+You can persist custom JavaScript functions to the database using `tools.persist_function`. These functions are automatically loaded into the global scope of every `run_js` execution and are discoverable via `tools.help()`.
+
+```javascript
+tools.persist_function({
+  name: "calculate_tax",
+  code: "return function(amount) { return amount * 0.15; }",
+  description: "Calculates a 15% tax on the given amount.",
+  test_args: [100],
+  expected_result: 15
+});
+```
