@@ -624,3 +624,135 @@ tools.git_finalize_series = function(args) {
 
   return "Successfully finalized series and merged into " + target_branch;
 };
+
+git.is_staging_branch = function() {
+  const branch = git.get_current_branch();
+  return branch && branch.startsWith("slop/staging/");
+};
+
+tools.git_branch_staging = function(args) {
+  const name = args.name;
+  const base_branch = args.base_branch || git.get_current_branch();
+  const staging_name = "slop/staging/" + name;
+  
+  const cmd = "git checkout -b " + shell_escape(staging_name) + " " + shell_escape(base_branch);
+  const res = __os_run(cmd);
+  if (res.exit_code !== 0) {
+    throw new Error("Failed to create staging branch: " + res.stdout + res.stderr);
+  }
+
+  tools.query_db({
+    sql: "INSERT OR REPLACE INTO staging_branches (branch_name, parent_branch) VALUES (?, ?)",
+    params: [staging_name, base_branch]
+  });
+  
+  return "Created and checked out staging branch: " + staging_name + " (base: " + base_branch + ")";
+};
+
+tools.grep_tool = function(args) {
+  return tools.grep(args);
+};
+
+tools.use_skill = function(args) {
+  if (!session_id || session_id === "") throw new Error("FAILED_PRECONDITION: No active session");
+  const name = args.name;
+  const action = args.action || "activate";
+  
+  const res = tools.query_db({
+    sql: "SELECT active_skills FROM sessions WHERE id = ?",
+    params: [session_id]
+  });
+  
+  let rows = [];
+  if (res) {
+    try { rows = JSON.parse(res); } catch (e) {}
+  }
+  if (rows.length === 0) throw new Error("Session not found: " + session_id);
+  
+  let skill_list = [];
+  if (rows[0].active_skills && rows[0].active_skills !== "null") {
+    try { skill_list = JSON.parse(rows[0].active_skills); } catch (e) {}
+  }
+  
+  let prompt_patch = "";
+  if (action === "activate") {
+    if (!skill_list.includes(name)) {
+      skill_list.push(name);
+      tools.query_db({
+        sql: "UPDATE skills SET activation_count = activation_count + 1 WHERE name = ?",
+        params: [name]
+      });
+    }
+    const res_skill = tools.query_db({
+      sql: "SELECT system_prompt_patch FROM skills WHERE name = ?",
+      params: [name]
+    });
+    if (res_skill) {
+      try {
+        const skill_rows = JSON.parse(res_skill);
+        if (skill_rows.length > 0 && skill_rows[0].system_prompt_patch) {
+          prompt_patch = "\n\n" + skill_rows[0].system_prompt_patch;
+        }
+      } catch (e) {}
+    }
+  } else if (action === "deactivate") {
+    skill_list = skill_list.filter(s => s !== name);
+  }
+  
+  tools.query_db({
+    sql: "UPDATE sessions SET active_skills = ? WHERE id = ?",
+    params: [JSON.stringify(skill_list), session_id]
+  });
+  
+  return "Skill '" + name + "' " + (action === "activate" ? "activated" : "deactivated") + "." + prompt_patch;
+};
+
+tools.persist_function = function(args) {
+  const name = args.name;
+  const code = args.code;
+  const test_args = args.test_args || [];
+  const expected_result = args.expected_result;
+
+  if (typeof name !== "string" || typeof code !== "string") {
+    return [false, "Invalid arguments: name and code must be strings"];
+  }
+
+  let func;
+  try {
+    let eval_code = code;
+    if (eval_code.trim().startsWith("return ")) {
+      eval_code = "(function() { " + eval_code + " })()";
+    }
+    func = eval(eval_code);
+  } catch (e) {
+    return [false, "Syntax/Evaluation Error: " + e.message];
+  }
+
+  if (typeof func !== "function") {
+    return [false, "Code must return a function"];
+  }
+
+  let actual_result;
+  try {
+    actual_result = func.apply(null, test_args);
+  } catch (e) {
+    return [false, "Runtime Error: " + e.message];
+  }
+
+  if (actual_result !== expected_result) {
+    return [false, "Test Failed: Expected " + expected_result + ", got " + actual_result];
+  }
+
+  try {
+    tools.query_db({
+      sql: "INSERT OR REPLACE INTO lua_functions (name, code) VALUES (?, ?)",
+      params: [name, code]
+    });
+  } catch (e) {
+    return [false, "DB Error: " + e.message];
+  }
+
+  globalThis[name] = func;
+
+  return [true, "Function persisted successfully"];
+};
