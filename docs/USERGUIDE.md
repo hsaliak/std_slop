@@ -8,7 +8,7 @@
 `std::slop` uses QuickJS to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
 
 ### `run_js`
-The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing Lua scripts. For detailed documentation on orchestration patterns, parallel execution, and the RLM paradigm, see [js_integration.md](js_integration.md).
+The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing JavaScript scripts. For detailed documentation on orchestration patterns, parallel execution, and the RLM paradigm, see [js_integration.md](js_integration.md).
 
 
 ## Installation
@@ -81,6 +81,13 @@ Example `config.ini`:
 [slop]
 model = gemini-2.0-flash-exp
 google_api_key = AIza...
+# OR OpenAI API key mode
+# openai_api_key = sk-...
+# openai_base_url = https://openrouter.ai/api/v1
+# use_responses = true
+# OR OpenAI OAuth mode (forces Responses API)
+# openai_oauth = true
+# openai_oauth_token_path = /custom/path/chatgpt_plus_token.json
 ```
 
 See [example_config.ini](example_config.ini) for a template with all supported options.
@@ -90,12 +97,27 @@ For debugging purposes, you can use the following environment variable:
 
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
-#### Recommended Settings for OpenRouter:
-When using newer models via OpenRouter, it is highly recommended to use the `strip_reasoning = true` in your `config.ini` or the `--strip_reasoning` flag. This improves response focus and can reduce latency by preventing the reasoning chain from being included in the final output.
+## Authentication Modes
 
-```bash
-bazel run //:std_slop -- --strip_reasoning
-```
+### Google OAuth
+1. Run `./slop_auth.sh google`.
+2. Start `std_slop --google_oauth`.
+3. Token file: `~/.config/slop/token.json`.
+
+### OpenAI API Key
+- Set `openai_api_key` (and optional `openai_base_url`).
+- Default OpenAI path is Chat Completions.
+- Set `use_responses = true` (or `--use_responses`) to use the Responses API.
+
+### OpenAI OAuth (Responses API)
+1. Run `./slop_auth.sh chatgpt-plus` (or `chatgpt-plus-device`).
+2. Start `std_slop --openai_oauth`.
+3. Token file: `~/.config/slop/chatgpt_plus_token.json`.
+4. Optional override: `--openai_oauth_token_path=/path/to/token.json`.
+
+Notes:
+- `--google_oauth` and `--openai_oauth` are mutually exclusive.
+- In `--openai_oauth` mode, `openai_base_url` is ignored and `https://api.openai.com/v1` is used.
 
 ## Running
 Start a session by running the executable via Bazel. You can provide a session name to resume or categorize your work:
@@ -125,14 +147,14 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 - **Context**: The window of past messages sent to the LLM. It can be a rolling window of the last `N` interactions or the full history.
 - **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. While conversational text is preserved across models, tool calls and results are isolated by provider (e.g., Gemini vs. OpenAI) to ensure reliable parsing and execution. Switching providers will hide previous tool interactions from the new model's immediate context.
 - **State**: The persistent "Long-term RAM" for each session.
-- **Scratchpad**: A persistent markdown workspace for evolving plans and task tracking. It is the agent's primary source of truth for task progress.
+- **Scratchpad**: A persistent internal workspace for evolving plans and task tracking. It is internal working memory and should not replace user-facing summaries.
 - **Skills**: Persona patches that inject specific instructions into the system prompt. These can be manually activated or automatically orchestrated by the agent.
 - **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 
 ## Orchestration & JavaScript Integration
 
-`std::slop` makes the LLM do everything with Lua.This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
+`std::slop` makes the LLM orchestrate work through JavaScript in the JCP. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
 
 ### The `run_js` Tool
 
@@ -140,8 +162,9 @@ The `run_js` tool allows the agent to execute orchestrated scripts. It has acces
 - **`tools`**: A table containing all standard tools.
 - **`history`**: Session message history for programmatic context extraction.
 - **Async Execution**: `tools.execute_bash_async` allow for parallel execution (e.g., running multiple tests at once).
+- **Tool Manifest**: `tools.help({})` returns JSON with canonical tool names, aliases, and contracts.
 
-For more details, see the **[Lua Integration Documentation](js_integration.md)**.
+For more details, see the **[JavaScript Integration Documentation](js_integration.md)**.
 
 ## Slash Commands
 
@@ -329,7 +352,7 @@ When enabled, the final assembled prompt will be logged via `absl::LOG(INFO)`. T
 ### Parallel Tool Execution
 `std::slop` executes tool calls in parallel by spawning a new thread for each tool call. This allows the agent to perform multiple searches or file reads simultaneously, significantly reducing turn-around time for complex tasks. 
 
-All concurrent tasks are managed via the Lua Control Plane and can be cancelled individually or as a group.
+All concurrent tasks are managed via the JavaScript Control Plane and can be cancelled individually or as a group.
 
 ### Mail Mode (Patch-Based Workflow)
 For complex features that require multiple iterations and commit history, use **Mail Mode**.
@@ -350,4 +373,3 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
-

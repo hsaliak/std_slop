@@ -142,25 +142,33 @@ core.maybe_persist_state = function() {
   }
 };
 
-core.wrap_result = function(name, result) {
-  if (name === "manage_scratchpad") {
-    if (result === null || result === "" || (typeof result === "object" && Object.keys(result).length === 0)) {
-      return `### TOOL_RESULT: ${name}\nScratchpad is empty\n---`;
+const TOOL_ALIASES = Object.freeze({
+  list_dir: "list_directory",
+  ls: "list_directory",
+  dir_list: "list_directory",
+  read: "read_file",
+  write: "write_file",
+  shell: "execute_bash",
+  run_shell: "execute_bash",
+  bash: "execute_bash",
+  grep: "grep_tool"
+});
+
+core.resolve_tool_name = function(name) {
+  if (typeof name !== "string") {
+    return "";
+  }
+  return TOOL_ALIASES[name] || name;
+};
+
+core.aliases_for = function(canonical_name) {
+  const aliases = [];
+  for (const alias in TOOL_ALIASES) {
+    if (TOOL_ALIASES[alias] === canonical_name) {
+      aliases.push(alias);
     }
   }
-  if (typeof result === "object") {
-    try {
-      const res_str = JSON.stringify(result);
-      return `### TOOL_RESULT: ${name}\n${res_str}\n---`;
-    } catch (e) {
-      let items = [];
-      for (let k in result) {
-        items.push(k + ": " + result[k]);
-      }
-      return `### TOOL_RESULT: ${name}\n${items.join("\n")}\n---`;
-    }
-  }
-  return `### TOOL_RESULT: ${name}\n${result}\n---`;
+  return aliases.sort();
 };
 
 const MM_TOOLS = {
@@ -195,22 +203,48 @@ function slop_guard() {
 
 core.dispatch_tool = function(name, args) {
   core.load_session_state();
-  
-  if (MM_TOOLS[name] || MOD_TOOLS[name]) {
+
+  const canonical_name = core.resolve_tool_name(name);
+
+  if (MM_TOOLS[canonical_name] || MOD_TOOLS[canonical_name]) {
     slop_guard();
   }
-  
-  const tool_func = tools[name];
+
+  const tool_func = tools[canonical_name];
   if (!tool_func) {
-    throw new Error("NOT_FOUND: Tool not found: " + name);
+    return JSON.stringify({
+      ok: false,
+      tool: canonical_name || name,
+      requested_tool: name,
+      alias_used: canonical_name !== name,
+      error: {
+        type: "NOT_FOUND",
+        message: "NOT_FOUND: Tool not found: " + name
+      }
+    });
   }
-  
+
   try {
     const result = tool_func(args);
     core.maybe_persist_state();
-    return core.wrap_result(name, result);
+    return JSON.stringify({
+      ok: true,
+      tool: canonical_name,
+      requested_tool: name,
+      alias_used: canonical_name !== name,
+      result: result
+    });
   } catch (e) {
-    return core.wrap_result(name, "Error: " + e.toString());
+    return JSON.stringify({
+      ok: false,
+      tool: canonical_name,
+      requested_tool: name,
+      alias_used: canonical_name !== name,
+      error: {
+        type: "TOOL_ERROR",
+        message: "Error: " + e.toString()
+      }
+    });
   }
 };
 
@@ -276,45 +310,122 @@ tools.describe_db = function(args) {
 };
 
 tools.help = function() {
-  let output = `### Slop Orchestrator Help (JS) ###
+  const builtin_tool_docs = {
+    read_file: {
+      description: "Reads file content with optional line range and line numbers.",
+      args_schema: {path: "string", start_line: "number (optional)", end_line: "number (optional)", line_numbers: "boolean (optional)"},
+      returns: "string"
+    },
+    write_file: {
+      description: "Writes file content (guarded in mail mode).",
+      args_schema: {path: "string", content: "string"},
+      returns: "string"
+    },
+    list_directory: {
+      description: "Lists files and directories.",
+      args_schema: {path: "string (optional, default '.')", depth: "number (optional, default 1)"},
+      returns: "string (one entry per line: 'Directory: <name>/' or 'File: <name>')"
+    },
+    grep_tool: {
+      description: "Searches code with git-grep semantics.",
+      args_schema: {pattern: "string", path: "string|array (optional)", context: "number (optional)"},
+      returns: "string"
+    },
+    execute_bash: {
+      description: "Executes shell command (guarded in mail mode).",
+      args_schema: {command: "string"},
+      returns: "{stdout, stderr, exit_code, exitCode, output}"
+    },
+    apply_patch: {
+      description: "Applies exact-match text patches to file content.",
+      args_schema: {path: "string", patches: "array<{find:string,replace:string}>"},
+      returns: "string"
+    },
+    query_db: {
+      description: "Executes SQLite query from inside JCP scripts.",
+      args_schema: {sql: "string", params: "array (optional)"},
+      returns: "string (JSON rows)"
+    },
+    ask_user: {
+      description: "Asks the human user a blocking clarification question.",
+      args_schema: {prompt: "string"},
+      returns: "string"
+    },
+    manage_scratchpad: {
+      description: "Reads/writes optional task TODO notes (scratchpad).",
+      args_schema: {action: "read|update|append", key: "string (optional)", value: "any (optional)", content: "string (optional)"},
+      returns: "object|string"
+    },
+    describe_db: {
+      description: "Lists SQLite schema details.",
+      args_schema: {},
+      returns: "string (JSON rows)"
+    },
+    help: {
+      description: "Returns this JSON help manifest.",
+      args_schema: {},
+      returns: "object"
+    }
+  };
 
-#### Workflow Constraints ####
-- **Code Editing & File IO:** Use tools.read_file({path}) and tools.write_file({path, content}).
-- **Shell Commands:** Use tools.execute_bash({command = "..."}).
+  const manifest = {
+    version: "2",
+    model_entrypoints: ["run_js"],
+    rules: {
+      scratchpad_is_internal_only: true,
+      user_response_required_each_turn: true,
+      guidance: [
+        "Use scratchpad as optional task TODO memory; do not ask user to inspect scratchpad.",
+        "run_js output is plain text: return text or print text in every script.",
+        "Return user-facing conclusions directly in this turn.",
+        "For independent operations, prefer dispatch_async and wait().",
+        "Use tools.ask_user when user clarification is required."
+      ]
+    },
+    globals: {
+      tools: "tool registry object",
+      scratchpad: "persistent internal memory",
+      state: "current technical context",
+      history: "conversation history metadata"
+    },
+    tool_return_envelope: {
+      success: {ok: true, tool: "<canonical>", requested_tool: "<input>", alias_used: false, result: "<tool result>"},
+      error: {ok: false, tool: "<canonical>", requested_tool: "<input>", alias_used: false, error: {type: "TOOL_ERROR", message: "Error: ..."}}
+    },
+    tools: []
+  };
 
-#### Globals ####
-- tools: Object containing all available tools.
-- scratchpad: (object) Structured persistent storage across turns.
-- state: (string) Current operational context.
-
-#### Core Tools ####
-- read_file({path}): Reads file content.
-- write_file({path, content}): Writes file content (guarded).
-- list_directory({path, depth}): Lists files and directories.
-- grep({path, pattern}): Unified search.
-- execute_bash({command}): Executes a bash command (guarded).
-- apply_patch({patch}): Applies a unified diff.
-- manage_scratchpad({action, key, value}): Manages persistent storage.
-- query_db({sql, params}): Executes a SQLite query.
-- describe_db({}): Schema of local database.
-- persist_function({name, code, description, test_args, expected_result}): Persists a JS function.
-- help(): Displays this help.
-`;
+  const tool_names = [];
+  for (const k in tools) {
+    if (typeof tools[k] === "function") {
+      tool_names.push(k);
+    }
+  }
+  tool_names.sort();
+  for (const name of tool_names) {
+    const docs = builtin_tool_docs[name] || {};
+    manifest.tools.push({
+      name: name,
+      aliases: core.aliases_for(name),
+      description: docs.description || "No description available.",
+      args_schema: docs.args_schema || {},
+      returns: docs.returns || "unknown"
+    });
+  }
 
   try {
     const res = tools.query_db({sql: "SELECT name, description FROM js_functions ORDER BY name"});
-    if (res) {
-      const rows = JSON.parse(res);
-      if (rows.length > 0) {
-        output += "\n#### Persistent Functions ####\n";
-        for (const row of rows) {
-          output += `- ${row.name}(): ${row.description || "No description provided."}\n`;
-        }
-      }
-    }
-  } catch (e) {}
+    const rows = JSON.parse(res || "[]");
+    manifest.persistent_functions = rows.map(row => ({
+      name: row.name,
+      description: row.description || "No description provided."
+    }));
+  } catch (e) {
+    manifest.persistent_functions = [];
+  }
 
-  return output;
+  manifest.aliases = TOOL_ALIASES;
+  return manifest;
 };
 
 // File System Tools
@@ -398,7 +509,15 @@ tools.execute_bash = function(args) {
     throw new Error("INTERNAL: Command failed with status " + res.exit_code + ": " + output);
   }
 
-  return output;
+  return {
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.exit_code,
+    exitCode: res.exit_code,
+    output: output,
+    toString: function() { return this.output; },
+    valueOf: function() { return this.output; }
+  };
 };
 
 tools.execute_bash_async = function(args) {
@@ -456,11 +575,11 @@ tools.grep = function(args) {
   }
   
   const limit = args.limit ? parseInt(args.limit) : 500;
-  const lines = res.split("\n");
+  const lines = res.output.split("\n");
   if (lines.length > limit) {
     return lines.slice(0, limit).join("\n") + "\n[TRUNCATED: Use a more specific pattern or path to narrow results]";
   }
-  return res;
+  return res.output;
 };
 
 tools.apply_patch = function(args) {
@@ -553,7 +672,7 @@ tools.git_reroll_patch = function(args) {
   const log_cmd = `git log --reverse --format=%H ${shell_escape(base_branch)}..HEAD`;
   const log_res = tools.execute_bash({command: log_cmd});
   
-  const commits = log_res.trim().split(/\s+/).filter(h => h.length > 0);
+  const commits = log_res.stdout.trim().split(/\s+/).filter(h => h.length > 0);
   
   if (isNaN(index) || index < 1 || index > commits.length) {
     throw new Error("Invalid patch index " + index + " (total patches: " + commits.length + ")");
@@ -585,7 +704,7 @@ tools.git_verify_series = function(args) {
   const log_cmd = `git log --reverse --format=%H ${shell_escape(base_branch)}..HEAD`;
   const log_res = tools.execute_bash({command: log_cmd});
   
-  const commits = log_res.trim().split(/\s+/).filter(h => h.length > 0);
+  const commits = log_res.stdout.trim().split(/\s+/).filter(h => h.length > 0);
   const current_branch = git.get_current_branch();
   const results = [];
   let all_passed = true;
@@ -625,7 +744,7 @@ tools.git_format_patch_series = function(args) {
   const diff_cmd = `git diff ${shell_escape(base_branch)}..HEAD`;
   const diff_res = tools.execute_bash({command: diff_cmd});
   
-  return "--- MAIL SERIES ---\nBase: " + base_branch + "\n\n" + log_res + "\n\n--- FULL DIFF ---\n" + diff_res;
+  return "--- MAIL SERIES ---\nBase: " + base_branch + "\n\n" + log_res.output + "\n\n--- FULL DIFF ---\n" + diff_res.output;
 };
 
 tools.git_finalize_series = function(args) {
@@ -636,7 +755,7 @@ tools.git_finalize_series = function(args) {
   const target_branch = git.resolve_base_branch(args.target_branch);
 
   const hash_res = tools.execute_bash({command: "git rev-parse HEAD"});
-  const hash = hash_res.trim();
+  const hash = hash_res.stdout.trim();
 
   const approval_res = tools.query_db({
     sql: "SELECT approved_hash FROM patch_approvals WHERE branch_name = ?",

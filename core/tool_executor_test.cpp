@@ -12,6 +12,40 @@
 #include <gtest/gtest.h>
 
 namespace slop {
+namespace {
+
+nlohmann::json ParseEnvelope(const std::string& raw) {
+  auto parsed = nlohmann::json::parse(raw, nullptr, false);
+  if (parsed.is_discarded()) {
+    return nlohmann::json();
+  }
+  return parsed;
+}
+
+std::string EnvelopeResultText(const std::string& raw) {
+  const auto env = ParseEnvelope(raw);
+  if (!env.is_object()) {
+    return raw;
+  }
+  if (env.contains("result")) {
+    if (env["result"].is_string()) {
+      return env["result"].get<std::string>();
+    }
+    return env["result"].dump();
+  }
+  if (env.contains("error")) {
+    if (env["error"].is_object() && env["error"].contains("message") && env["error"]["message"].is_string()) {
+      return env["error"]["message"].get<std::string>();
+    }
+    if (env["error"].is_string()) {
+      return env["error"].get<std::string>();
+    }
+    return env["error"].dump();
+  }
+  return raw;
+}
+
+}  // namespace
 
 TEST(ToolExecutorTest, ReadWriteFile) {
   Database db;
@@ -25,13 +59,20 @@ TEST(ToolExecutorTest, ReadWriteFile) {
 
   auto write_res = executor.Execute("write_file", {{"path", test_file}, {"content", content}});
   ASSERT_TRUE(write_res.ok());
-  EXPECT_TRUE(write_res->find("### TOOL_RESULT: write_file") != std::string::npos);
+  auto write_env = ParseEnvelope(*write_res);
+  ASSERT_TRUE(write_env.is_object());
+  EXPECT_EQ(write_env.value("ok", false), true);
+  EXPECT_EQ(write_env.value("tool", std::string{}), "write_file");
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(read_res->find("### TOOL_RESULT: read_file") != std::string::npos);
-  EXPECT_TRUE(read_res->find(content) != std::string::npos);
-  EXPECT_TRUE(read_res->find("1: ") == std::string::npos);
+  auto read_env = ParseEnvelope(*read_res);
+  ASSERT_TRUE(read_env.is_object());
+  EXPECT_EQ(read_env.value("ok", false), true);
+  EXPECT_EQ(read_env.value("tool", std::string{}), "read_file");
+  const std::string read_text = EnvelopeResultText(*read_res);
+  EXPECT_TRUE(read_text.find(content) != std::string::npos);
+  EXPECT_TRUE(read_text.find("1: ") == std::string::npos);
 
   std::filesystem::remove(test_file);
 }
@@ -50,34 +91,34 @@ TEST(ToolExecutorTest, ReadFileGranular) {
   // Test: Specific range
   auto res1 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 2}, {"end_line", 4}});
   ASSERT_TRUE(res1.ok());
-  EXPECT_TRUE(res1->find("Line 2\nLine 3\nLine 4\n") != std::string::npos);
-
-  EXPECT_TRUE(res1->find("1: Line 1") == std::string::npos);
-  EXPECT_TRUE(res1->find("5: Line 5") == std::string::npos);
+  const std::string text1 = EnvelopeResultText(*res1);
+  EXPECT_TRUE(text1.find("Line 2\nLine 3\nLine 4\n") != std::string::npos);
+  EXPECT_TRUE(text1.find("1: Line 1") == std::string::npos);
+  EXPECT_TRUE(text1.find("5: Line 5") == std::string::npos);
 
   // Test: Start only
   auto res2 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 4}});
   ASSERT_TRUE(res2.ok());
-  EXPECT_TRUE(res2->find("Line 4\nLine 5\n") != std::string::npos);
-
-  EXPECT_TRUE(res2->find("3: Line 3") == std::string::npos);
+  const std::string text2 = EnvelopeResultText(*res2);
+  EXPECT_TRUE(text2.find("Line 4\nLine 5\n") != std::string::npos);
+  EXPECT_TRUE(text2.find("3: Line 3") == std::string::npos);
 
   // Test: End only
   auto res3 = executor.Execute("read_file", {{"path", test_file}, {"end_line", 2}});
   ASSERT_TRUE(res3.ok());
-  EXPECT_TRUE(res3->find("Line 1\nLine 2\n") != std::string::npos);
-
-  EXPECT_TRUE(res3->find("3: Line 3") == std::string::npos);
+  const std::string text3 = EnvelopeResultText(*res3);
+  EXPECT_TRUE(text3.find("Line 1\nLine 2\n") != std::string::npos);
+  EXPECT_TRUE(text3.find("3: Line 3") == std::string::npos);
 
   // Test: Out of bounds
   auto res4 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 10}});
   ASSERT_TRUE(res4.ok());
-  EXPECT_TRUE(res4->find("10: ") == std::string::npos);
+  EXPECT_TRUE(EnvelopeResultText(*res4).find("10: ") == std::string::npos);
 
   // Test: Invalid range
   auto res5 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 5}, {"end_line", 2}});
   ASSERT_TRUE(res5.ok());
-  EXPECT_TRUE(res5->find("Error: INVALID_ARGUMENT") != std::string::npos);
+  EXPECT_TRUE(EnvelopeResultText(*res5).find("Error: INVALID_ARGUMENT") != std::string::npos);
 
   std::filesystem::remove(test_file);
 }
@@ -175,7 +216,10 @@ TEST(ToolExecutorTest, ExecuteBash) {
 
   auto res = executor.Execute("execute_bash", {{"command", "echo 'slop'"}});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("### TOOL_RESULT: execute_bash") != std::string::npos);
+  auto env = ParseEnvelope(*res);
+  ASSERT_TRUE(env.is_object());
+  EXPECT_EQ(env.value("ok", false), true);
+  EXPECT_EQ(env.value("tool", std::string{}), "execute_bash");
   EXPECT_TRUE(res->find("slop") != std::string::npos);
 }
 
@@ -187,8 +231,31 @@ TEST(ToolExecutorTest, ToolNotFound) {
   auto& executor = **executor_or;
 
   auto res = executor.Execute("non_existent", {});
-  EXPECT_FALSE(res.ok());
-  EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
+  ASSERT_TRUE(res.ok());
+  auto env = ParseEnvelope(*res);
+  ASSERT_TRUE(env.is_object());
+  EXPECT_EQ(env.value("ok", true), false);
+  EXPECT_EQ(env.value("tool", std::string{}), "non_existent");
+  ASSERT_TRUE(env.contains("error"));
+  EXPECT_TRUE(EnvelopeResultText(*res).find("NOT_FOUND") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, AliasToolNameResolvesToCanonical) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("list_dir", {{"path", "."}, {"depth", 1}});
+  ASSERT_TRUE(res.ok());
+
+  auto env = ParseEnvelope(*res);
+  ASSERT_TRUE(env.is_object());
+  EXPECT_EQ(env.value("ok", false), true);
+  EXPECT_EQ(env.value("tool", std::string{}), "list_directory");
+  EXPECT_EQ(env.value("requested_tool", std::string{}), "list_dir");
+  EXPECT_EQ(env.value("alias_used", false), true);
 }
 
 TEST(ToolExecutorTest, QueryDb) {
@@ -201,6 +268,22 @@ TEST(ToolExecutorTest, QueryDb) {
   auto res = executor.Execute("query_db", {{"sql", "SELECT 1 as val"}});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(res->find("\"val\":1") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, RunJsAcceptsNestedScriptField) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+  executor.SetSessionId("nested_run_js_test");
+
+  nlohmann::json args = {
+      {"args", {{"script", "return args.value;"}, {"value", "ok"}}},
+  };
+  auto res = executor.Execute("run_js", args);
+  ASSERT_TRUE(res.ok()) << res.status().ToString();
+  EXPECT_TRUE(absl::StrContains(*res, "ok"));
 }
 
 TEST(ToolExecutorTest, GrepToolWorks) {
@@ -234,8 +317,11 @@ TEST(ToolExecutorTest, GrepToolNoMatches) {
   auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN"}, {"path", "grep_empty.txt"}});
   ASSERT_TRUE(grep_res.ok());
   // Should be ok (exit code 1), and NOT contain "Error:"
-  EXPECT_TRUE(grep_res->find("### TOOL_RESULT: grep_tool") != std::string::npos);
-  EXPECT_TRUE(grep_res->find("Error:") == std::string::npos);
+  auto grep_env = ParseEnvelope(*grep_res);
+  ASSERT_TRUE(grep_env.is_object());
+  EXPECT_EQ(grep_env.value("ok", false), true);
+  EXPECT_EQ(grep_env.value("tool", std::string{}), "grep_tool");
+  EXPECT_TRUE(EnvelopeResultText(*grep_res).find("Error:") == std::string::npos);
 
   std::filesystem::remove("grep_empty.txt");
 }
@@ -302,8 +388,11 @@ TEST(ToolExecutorTest, GitGrepToolNoMatches) {
   auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN_XYZ_123"}, {"path", "."}});
   ASSERT_TRUE(grep_res.ok());
   // Should be ok (exit code 1), and NOT contain "Error:"
-  EXPECT_TRUE(grep_res->find("### TOOL_RESULT: grep_tool") != std::string::npos);
-  EXPECT_TRUE(grep_res->find("Error:") == std::string::npos);
+  auto grep_env = ParseEnvelope(*grep_res);
+  ASSERT_TRUE(grep_env.is_object());
+  EXPECT_EQ(grep_env.value("ok", false), true);
+  EXPECT_EQ(grep_env.value("tool", std::string{}), "grep_tool");
+  EXPECT_TRUE(EnvelopeResultText(*grep_res).find("Error:") == std::string::npos);
 }
 
 TEST(ToolExecutorTest, ApplyPatch_Success) {
@@ -505,7 +594,7 @@ TEST(ToolExecutorTest, GrepToolEscaping) {
   // Test: Double quote
   auto res4 = executor.Execute("grep_tool", {{"pattern", "\"baz\""}, {"path", test_file}});
   ASSERT_TRUE(res4.ok());
-  EXPECT_TRUE(res4->find("Double-quote: \"baz\"") != std::string::npos);
+  EXPECT_TRUE(EnvelopeResultText(*res4).find("Double-quote: \"baz\"") != std::string::npos);
 
   std::filesystem::remove(test_file);
 }
@@ -591,7 +680,77 @@ TEST(ToolExecutorTest, RunJsBasic) {
   auto res = executor.Execute("run_js", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_TRUE(res->find("hello from js") != std::string::npos);
-  EXPECT_TRUE(res->find("Return Value:\n js_done") != std::string::npos);
+  EXPECT_TRUE(res->find("js_done") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, RunJsExecuteBashProvidesStructuredFields) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string script = R"(
+    const res = tools.execute_bash({command: "echo 'structured shell output'"});
+    return res;
+  )";
+
+  auto res = executor.Execute("run_js", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "\"stdout\":\"structured shell output\\n\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"stderr\":\"\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"exit_code\":0"));
+}
+
+TEST(ToolExecutorTest, RunJsExecuteBashExposesMetadataAndStringBehavior) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string script = R"(
+    const res = tools.execute_bash({command: "echo 'hybrid shell output'"});
+    return {
+      stdout: res.stdout,
+      stderr: res.stderr,
+      exit_code: res.exit_code,
+      exitCode: res.exitCode,
+      split_head: res.output.split("\n")[0],
+      has_output: res.output.includes("hybrid shell output")
+    };
+  )";
+
+  auto res = executor.Execute("run_js", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "\"stdout\":\"hybrid shell output\\n\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"exit_code\":0"));
+  EXPECT_TRUE(absl::StrContains(*res, "\"exitCode\":0"));
+  EXPECT_TRUE(absl::StrContains(*res, "\"split_head\":\"hybrid shell output\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"has_output\":true"));
+}
+
+TEST(ToolExecutorTest, RunJsReturnsJsonForObjects) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string script = R"(
+    return {
+      ok: true,
+      count: 2,
+      nested: { value: "x" },
+      list: [1, 2]
+    };
+  )";
+
+  auto res = executor.Execute("run_js", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "\"ok\":true"));
+  EXPECT_TRUE(absl::StrContains(*res, "\"nested\":{\"value\":\"x\"}"));
+  EXPECT_TRUE(absl::StrContains(*res, "\"list\":[1,2]"));
 }
 
 TEST(ToolExecutorTest, RunJsFullSpectrum) {
@@ -628,13 +787,29 @@ TEST(ToolExecutorTest, RunJsPreamble) {
   std::string script = R"(
     const manifest = tools.help({});
     if (!manifest) throw new Error("manifest is null");
-    if (!manifest.includes("execute_bash")) throw new Error("execute_bash not found");
+    if (!manifest.tools || !Array.isArray(manifest.tools)) throw new Error("manifest.tools missing");
+    const names = manifest.tools.map(t => t.name);
+    if (!names.includes("execute_bash")) throw new Error("execute_bash not found");
+    if (!manifest.aliases || typeof manifest.aliases !== "object") throw new Error("aliases missing");
     return "preamble_ok";
   )";
 
   auto res = executor.Execute("run_js", {{"script", script}});
   ASSERT_TRUE(res.ok()) << res.status().message();
-  EXPECT_TRUE(res->find("Return Value:\n preamble_ok") != std::string::npos);
+  EXPECT_TRUE(res->find("preamble_ok") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, RunJsFailsWhenNoOutputProduced) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("run_js", {{"script", "const value = 1 + 1;"}});
+  ASSERT_FALSE(res.ok());
+  EXPECT_TRUE(absl::StrContains(res.status().message(),
+                                "run_js produced no output: script must return a value or print output"));
 }
 
 TEST(ToolExecutorTest, AsyncJobExecution) {
@@ -738,8 +913,3 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
-
-
-
-
-

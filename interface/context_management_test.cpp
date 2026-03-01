@@ -2,12 +2,47 @@
 #include <fstream>
 
 #include "absl/strings/match.h"
+#include "nlohmann/json.hpp"
 
 #include "core/tool_executor.h"
 
 #include <gtest/gtest.h>
 
 namespace slop {
+namespace {
+
+nlohmann::json ParseEnvelope(const std::string& raw) {
+  auto parsed = nlohmann::json::parse(raw, nullptr, false);
+  if (parsed.is_discarded() || !parsed.is_object()) {
+    return nlohmann::json();
+  }
+  return parsed;
+}
+
+std::string EnvelopeResultText(const std::string& raw) {
+  const auto env = ParseEnvelope(raw);
+  if (!env.is_object()) {
+    return raw;
+  }
+  if (env.contains("result")) {
+    if (env["result"].is_string()) {
+      return env["result"].get<std::string>();
+    }
+    return env["result"].dump();
+  }
+  if (env.contains("error")) {
+    if (env["error"].is_object() && env["error"].contains("message") && env["error"]["message"].is_string()) {
+      return env["error"]["message"].get<std::string>();
+    }
+    if (env["error"].is_string()) {
+      return env["error"].get<std::string>();
+    }
+    return env["error"].dump();
+  }
+  return raw;
+}
+
+}  // namespace
 
 class ContextManagementTest : public ::testing::Test {
  protected:
@@ -34,9 +69,10 @@ TEST_F(ContextManagementTest, ListDirectoryBasic) {
 
   auto res = executor.Execute("list_directory", {{"path", "test_dir"}, {"depth", 1}});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("File: file1.txt") != std::string::npos);
-  EXPECT_TRUE(res->find("File: file2.txt") != std::string::npos);
-  EXPECT_TRUE(res->find("Directory: subdir/") != std::string::npos);
+  const std::string output = EnvelopeResultText(*res);
+  EXPECT_TRUE(output.find("File: file1.txt") != std::string::npos);
+  EXPECT_TRUE(output.find("File: file2.txt") != std::string::npos);
+  EXPECT_TRUE(output.find("Directory: subdir/") != std::string::npos);
 
   std::filesystem::remove_all("test_dir");
 }
@@ -52,7 +88,7 @@ TEST_F(ContextManagementTest, ListDirectoryRecursive) {
 
   auto res = executor.Execute("list_directory", {{"path", "test_dir_rec"}, {"depth", 2}});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("subdir/subfile.txt") != std::string::npos);
+  EXPECT_TRUE(EnvelopeResultText(*res).find("subdir/subfile.txt") != std::string::npos);
 
   std::filesystem::remove_all("test_dir_rec");
 }
@@ -66,7 +102,11 @@ TEST_F(ContextManagementTest, ScratchpadBasic) {
   // Read empty scratchpad
   auto res_read1 = executor.Execute("manage_scratchpad", {{"action", "read"}});
   ASSERT_TRUE(res_read1.ok());
-  EXPECT_TRUE(res_read1->find("Scratchpad is empty") != std::string::npos);
+  const auto read1_env = ParseEnvelope(*res_read1);
+  ASSERT_TRUE(read1_env.is_object());
+  ASSERT_TRUE(read1_env.contains("result"));
+  EXPECT_TRUE(read1_env["result"].is_object());
+  EXPECT_TRUE(read1_env["result"].empty());
 
   // Update scratchpad
   auto res_update = executor.Execute("manage_scratchpad", {{"action", "update"}, {"content", "# My Notes\n- Task 1"}});
@@ -75,8 +115,12 @@ TEST_F(ContextManagementTest, ScratchpadBasic) {
   // Read updated scratchpad
   auto res_read2 = executor.Execute("manage_scratchpad", {{"action", "read"}});
   ASSERT_TRUE(res_read2.ok());
-  EXPECT_TRUE(res_read2->find("# My Notes") != std::string::npos);
-  EXPECT_TRUE(res_read2->find("- Task 1") != std::string::npos);
+  const auto read2_env = ParseEnvelope(*res_read2);
+  ASSERT_TRUE(read2_env.is_object());
+  ASSERT_TRUE(read2_env.contains("result"));
+  EXPECT_TRUE(read2_env["result"].is_object());
+  EXPECT_TRUE(absl::StrContains(read2_env["result"].dump(), "# My Notes"));
+  EXPECT_TRUE(absl::StrContains(read2_env["result"].dump(), "- Task 1"));
 
   // Append to scratchpad
   auto res_append = executor.Execute("manage_scratchpad", {{"action", "append"}, {"content", "\n- Task 2"}});
@@ -85,8 +129,11 @@ TEST_F(ContextManagementTest, ScratchpadBasic) {
   // Read appended scratchpad
   auto res_read3 = executor.Execute("manage_scratchpad", {{"action", "read"}});
   ASSERT_TRUE(res_read3.ok());
-  EXPECT_TRUE(res_read3->find("- Task 1") != std::string::npos);
-  EXPECT_TRUE(res_read3->find("- Task 2") != std::string::npos);
+  const auto read3_env = ParseEnvelope(*res_read3);
+  ASSERT_TRUE(read3_env.is_object());
+  ASSERT_TRUE(read3_env.contains("result"));
+  EXPECT_TRUE(absl::StrContains(read3_env["result"].dump(), "- Task 1"));
+  EXPECT_TRUE(absl::StrContains(read3_env["result"].dump(), "- Task 2"));
 }
 
 TEST_F(ContextManagementTest, DescribeDb) {
@@ -96,8 +143,9 @@ TEST_F(ContextManagementTest, DescribeDb) {
 
   auto res = executor.Execute("describe_db", {});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("\"name\":\"messages\"") != std::string::npos);
-  EXPECT_TRUE(res->find("\"name\":\"tools\"") != std::string::npos);
+  const std::string output = EnvelopeResultText(*res);
+  EXPECT_TRUE(output.find("\"name\":\"messages\"") != std::string::npos);
+  EXPECT_TRUE(output.find("\"name\":\"tools\"") != std::string::npos);
 }
 
 TEST_F(ContextManagementTest, ReadFileWarning) {
@@ -114,12 +162,12 @@ TEST_F(ContextManagementTest, ReadFileWarning) {
   // Read whole file
   auto res1 = executor.Execute("read_file", {{"path", "large_file.txt"}});
   ASSERT_TRUE(res1.ok());
-  EXPECT_TRUE(!res1->empty());
+  EXPECT_TRUE(!EnvelopeResultText(*res1).empty());
 
   // Read with range
   auto res2 = executor.Execute("read_file", {{"path", "large_file.txt"}, {"start_line", 1}, {"end_line", 10}});
   ASSERT_TRUE(res2.ok());
-  EXPECT_TRUE(!res2->empty());
+  EXPECT_TRUE(!EnvelopeResultText(*res2).empty());
 
   std::filesystem::remove("large_file.txt");
 }
@@ -137,7 +185,7 @@ TEST_F(ContextManagementTest, GrepTruncation) {
 
   auto res = executor.Execute("grep_tool", {{"pattern", "match"}, {"path", "large_grep.txt"}, {"limit", 50}});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("[TRUNCATED") != std::string::npos);
+  EXPECT_TRUE(EnvelopeResultText(*res).find("[TRUNCATED") != std::string::npos);
 
   std::filesystem::remove("large_grep.txt");
 }

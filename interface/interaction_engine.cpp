@@ -125,8 +125,26 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
     std::string url;
     if (orchestrator_.GetProvider() == slop::Orchestrator::Provider::OPENAI) {
-      headers.push_back("Authorization: Bearer " + config.openai_api_key);
-      url = (!config.openai_base_url.empty() ? config.openai_base_url : slop::kOpenAIBaseUrl) + "/chat/completions";
+      std::string bearer_token = config.openai_api_key;
+      if (config.openai_oauth && oauth_handler_) {
+        auto token_or = oauth_handler_->GetValidToken();
+        if (!token_or.ok()) {
+          slop::HandleStatus(token_or.status(), "OpenAI OAuth Error");
+          break;
+        }
+        bearer_token = *token_or;
+        auto account_id_or = oauth_handler_->GetOpenAiAccountId();
+        if (account_id_or.ok() && !account_id_or->empty()) {
+          headers.push_back("ChatGPT-Account-Id: " + *account_id_or);
+        }
+      }
+      headers.push_back("Authorization: Bearer " + bearer_token);
+      const std::string default_openai_base_url =
+          config.openai_oauth ? std::string(slop::kOpenAiChatGptCodexBaseUrl) : std::string(slop::kOpenAIBaseUrl);
+      const std::string resolved_openai_base_url =
+          !config.openai_base_url.empty() ? config.openai_base_url : default_openai_base_url;
+      const std::string openai_endpoint = config.use_responses ? "/responses" : "/chat/completions";
+      url = resolved_openai_base_url + openai_endpoint;
     } else if (config.google_oauth && oauth_handler_) {
       auto token_or = oauth_handler_->GetValidToken();
       if (token_or.ok()) headers.push_back("Authorization: Bearer " + *token_or);
@@ -228,7 +246,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       }
       if (!resp_or.ok()) {
         slop::HandleStatus(resp_or.status(), "HTTP Error");
-        if (config.google_oauth && oauth_handler_ &&
+        if ((config.google_oauth || config.openai_oauth) && oauth_handler_ &&
             (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
           std::cout << "Refreshing OAuth token..." << std::endl;
           (void)oauth_handler_->GetValidToken();

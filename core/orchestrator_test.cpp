@@ -536,8 +536,7 @@ TEST_F(OrchestratorTest, ProcessResponseExtractsUsageOpenAI) {
   EXPECT_EQ(usage_or->completion_tokens, 10);
 }
 TEST_F(OrchestratorTest, GeminiDoesNotIncludeTransforms) {
-  auto orchestrator_or =
-      Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).WithStripReasoning(true).Build();
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
   auto result = orchestrator->AssemblePrompt("s1");

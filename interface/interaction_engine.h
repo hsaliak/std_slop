@@ -23,6 +23,8 @@ class InteractionEngine {
     std::string openai_api_key;
     std::string openai_base_url;
     bool google_oauth = false;
+    bool openai_oauth = false;
+    bool use_responses = false;
     bool silent = false;
   };
 

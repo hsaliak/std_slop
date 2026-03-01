@@ -57,6 +57,10 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 
 Read the [User Guide](docs/USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](docs/WALKTHROUGH.md) to start with something simple.
 
+### Authentication Quick Notes
+- Google OAuth: `./slop_auth.sh google` then run with `--google_oauth`.
+- OpenAI OAuth (Responses API): `./slop_auth.sh chatgpt-plus` then run with `--openai_oauth`.
+
 ### ⚙️ Configuration
 You can configure `std::slop` using environment variables or a configuration file.
 
@@ -72,6 +76,9 @@ google_api_key = AIza...
 # OR
 openai_api_key = sk-...
 openai_base_url = https://api.openai.com/v1
+# use_responses = true   # optional: use OpenAI Responses API with API key mode
+# openai_oauth = true    # optional: use OpenAI OAuth token + Responses API
+# openai_oauth_token_path = /custom/path/chatgpt_plus_token.json
 ```
 
 See [docs/example_config.ini](docs/example_config.ini) for a full list of options.
@@ -79,7 +86,7 @@ See [docs/example_config.ini](docs/example_config.ini) for a full list of option
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
-You can also use Google OAuth login if no keys are provided.
+If no keys are provided, std::slop defaults to Google OAuth mode.
 
 ## 💻 Code
 
@@ -127,7 +134,7 @@ The core logic is divided into modules:
 
 
 ### Persistent JavaScript Functions
-You can persist custom JavaScript functions to the database using `tools.persist_function`. These functions are automatically loaded into the global scope of every `run_js` execution and are discoverable via `tools.help()`.
+You can persist custom JavaScript functions to the database using `tools.persist_function`. These functions are automatically loaded into the global scope of every `run_js` execution and are discoverable via `tools.help()` (JSON manifest with tool aliases and contracts).
 
 ```javascript
 tools.persist_function({

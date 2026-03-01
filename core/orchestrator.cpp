@@ -21,6 +21,7 @@
 #include "core/constants.h"
 #include "core/orchestrator_gemini.h"
 #include "core/orchestrator_openai.h"
+#include "core/orchestrator_openai_responses.h"
 #include "core/system_prompt_data.h"
 #ifdef HAVE_SYSTEM_PROMPT_H
 #endif
@@ -52,8 +53,8 @@ Orchestrator::Builder& Orchestrator::Builder::WithThrottle(int seconds) {
   config_.throttle = seconds;
   return *this;
 }
-Orchestrator::Builder& Orchestrator::Builder::WithStripReasoning(bool enabled) {
-  config_.strip_reasoning = enabled;
+Orchestrator::Builder& Orchestrator::Builder::WithOpenAiApiStyle(OpenAiApiStyle style) {
+  config_.openai_api_style = style;
   return *this;
 }
 Orchestrator::Builder& Orchestrator::Builder::WithDatabase(Database* db) {
@@ -87,9 +88,11 @@ void Orchestrator::UpdateStrategy() {
       strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
     }
   } else {
-    auto openai = std::make_unique<OpenAiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
-    openai->SetStripReasoning(config_.strip_reasoning);
-    strategy_ = std::move(openai);
+    if (config_.openai_api_style == OpenAiApiStyle::RESPONSES) {
+      strategy_ = std::make_unique<OpenAiResponsesOrchestrator>(db_, http_client_, config_.model, config_.base_url);
+    } else {
+      strategy_ = std::make_unique<OpenAiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
+    }
   }
 }
 /**
@@ -162,8 +165,9 @@ absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id,
 absl::StatusOr<std::vector<ToolCall>> Orchestrator::ParseToolCalls(const Database::Message& msg) {
   return strategy_->ParseToolCalls(msg);
 }
-absl::StatusOr<std::vector<ModelInfo>> Orchestrator::GetModels(const std::string& api_key) {
-  return strategy_->GetModels(api_key);
+absl::StatusOr<std::vector<ModelInfo>> Orchestrator::GetModels(const std::string& api_key,
+                                                               const std::string& account_id) {
+  return strategy_->GetModels(api_key, account_id);
 }
 absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_token) {
   return strategy_->GetQuota(oauth_token);

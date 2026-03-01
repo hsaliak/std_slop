@@ -2,13 +2,16 @@
 
 #include <unistd.h>
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <system_error>
+#include <cstdlib>
 
 #include "absl/log/log.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -37,10 +40,13 @@ absl::Status MaybeCreateDirectory(const std::string& dir_path) {
   return absl::OkStatus();
 }
 
-OAuthHandler::OAuthHandler(HttpClient* http_client) : http_client_(http_client) {
+OAuthHandler::OAuthHandler(HttpClient* http_client) : OAuthHandler(http_client, Provider::kGoogle) {}
+
+OAuthHandler::OAuthHandler(HttpClient* http_client, Provider provider) : http_client_(http_client), provider_(provider) {
   std::string home = GetHomeDir();
   if (!home.empty()) {
-    token_path_ = home + "/.config/slop/token.json";
+    token_path_ = provider_ == Provider::kGoogle ? home + "/.config/slop/token.json"
+                                                  : home + "/.config/slop/chatgpt_plus_token.json";
   }
 }
 
@@ -56,15 +62,16 @@ absl::Status OAuthHandler::LoadTokens() {
   std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   auto j_opt = json_parse(content);
   if (!j_opt) return absl::InternalError("Failed to parse tokens");
-  auto& j = *j_opt;
-  if (j.is_discarded()) {
-    return absl::InternalError("Failed to parse tokens");
-  }
+  const auto& j = *j_opt;
 
-  tokens_.access_token = j.value("access_token", "");
-  tokens_.refresh_token = j.value("refresh_token", "");
-  tokens_.expiry_time = j.value("expiry_time", 0LL);
-  tokens_.project_id = j.value("project_id", "");
+  tokens_.access_token = json_get_or(j, "access_token", std::string{});
+  tokens_.refresh_token = json_get_or(j, "refresh_token", std::string{});
+  tokens_.expiry_time = json_get_or(j, "expiry_time", 0LL);
+  tokens_.project_id = json_get_or(j, "project_id", std::string{});
+  tokens_.account_id = json_get_or(j, "account_id", std::string{});
+  if (provider_ == Provider::kOpenAi && tokens_.account_id.empty()) {
+    tokens_.account_id = ExtractOpenAiAccountIdFromJwt(tokens_.access_token);
+  }
   return absl::OkStatus();
 }
 
@@ -80,6 +87,7 @@ absl::Status OAuthHandler::SaveTokens(const OAuthTokens& tokens) {
   j["refresh_token"] = tokens.refresh_token;
   j["expiry_time"] = tokens.expiry_time;
   j["project_id"] = tokens.project_id;
+  j["account_id"] = tokens.account_id;
 
   std::ofstream f(token_path_);
   if (!f.is_open()) return absl::InternalError("Failed to open token file for writing");
@@ -106,33 +114,74 @@ absl::StatusOr<std::string> OAuthHandler::GetValidToken() {
 absl::Status OAuthHandler::RefreshToken() {
   if (tokens_.refresh_token.empty()) {
     LOG(ERROR) << "No refresh token available";
-    return absl::UnauthenticatedError("No refresh token available. Please run ./slop_auth.sh");
+    return absl::UnauthenticatedError(provider_ == Provider::kGoogle
+                                          ? "No refresh token available. Please run ./slop_auth.sh google"
+                                          : "No refresh token available. Please run ./slop_auth.sh chatgpt-plus");
   }
 
   LOG(INFO) << "Refreshing OAuth token...";
-  std::string token_url = kGoogleOAuthTokenUrl;
-  std::string body = "refresh_token=" + tokens_.refresh_token + "&client_id=" + std::string(kGeminiClientId) +
-                     "&client_secret=" + std::string(kGeminiClientSecret) + "&grant_type=refresh_token";
+  std::string token_url;
+  std::string body;
+  if (provider_ == Provider::kGoogle) {
+    token_url = kGoogleOAuthTokenUrl;
+    body = absl::StrCat("refresh_token=", tokens_.refresh_token, "&client_id=", kGeminiClientId,
+                        "&client_secret=", kGeminiClientSecret, "&grant_type=refresh_token");
+  } else {
+    token_url = kOpenAiOAuthTokenUrl;
+    const char* client_secret = std::getenv("CHATGPT_CLIENT_SECRET");
+    body = absl::StrCat("refresh_token=", tokens_.refresh_token, "&client_id=", kOpenAiOAuthClientId,
+                        "&grant_type=refresh_token");
+    if (client_secret != nullptr && *client_secret != '\0') {
+      absl::StrAppend(&body, "&client_secret=", client_secret);
+    }
+  }
 
   auto res = http_client_->Post(token_url, body, {"Content-Type: application/x-www-form-urlencoded"});
   if (!res.ok()) {
     LOG(ERROR) << "Token refresh failed: " << res.status().ToString();
-    return absl::UnauthenticatedError("Token refresh failed. Please run ./slop_auth.sh");
+    return absl::UnauthenticatedError(provider_ == Provider::kGoogle
+                                          ? "Token refresh failed. Please run ./slop_auth.sh google"
+                                          : "Token refresh failed. Please run ./slop_auth.sh chatgpt-plus");
   }
   LOG(INFO) << "Token refreshed successfully.";
 
   auto j_opt = json_parse(*res);
   if (!j_opt) return absl::InternalError("Failed to parse refresh response");
-  auto& j = *j_opt;
-  if (j.is_discarded()) return absl::InternalError("Failed to parse refresh response");
+  const auto& j = *j_opt;
 
-  tokens_.access_token = j.value("access_token", "");
-  tokens_.expiry_time = absl::ToUnixSeconds(absl::Now()) + j.value("expires_in", 3600);
+  tokens_.access_token = json_get_or(j, "access_token", std::string{});
+  tokens_.expiry_time = absl::ToUnixSeconds(absl::Now()) + json_get_or(j, "expires_in", 3600);
+  if (provider_ == Provider::kOpenAi) {
+    tokens_.account_id = ExtractOpenAiAccountIdFromJwt(tokens_.access_token);
+  }
 
   return SaveTokens(tokens_);
 }
 
+absl::StatusOr<std::string> OAuthHandler::GetOpenAiAccountId() {
+  if (provider_ != Provider::kOpenAi) {
+    return absl::FailedPreconditionError("Account ID is only available for OpenAI OAuth");
+  }
+  auto token_or = GetValidToken();
+  if (!token_or.ok()) {
+    return token_or.status();
+  }
+  if (tokens_.account_id.empty()) {
+    tokens_.account_id = ExtractOpenAiAccountIdFromJwt(*token_or);
+    if (!tokens_.account_id.empty()) {
+      (void)SaveTokens(tokens_);
+    }
+  }
+  if (tokens_.account_id.empty()) {
+    return absl::NotFoundError("OpenAI account ID not found in token");
+  }
+  return tokens_.account_id;
+}
+
 absl::StatusOr<std::string> OAuthHandler::GetProjectId() {
+  if (provider_ != Provider::kGoogle) {
+    return absl::FailedPreconditionError("Project ID is only available for Google OAuth");
+  }
   if (!manual_project_id_.empty()) return manual_project_id_;
   if (!tokens_.project_id.empty()) return tokens_.project_id;
 
@@ -185,15 +234,17 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
       http_client_->Post(gca_url, gca_req.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
   if (gca_res.ok()) {
     auto j_opt = json_parse(*gca_res);
-    if (j_opt && (*j_opt).contains("cloudaicompanionProject") && !(*j_opt)["cloudaicompanionProject"].is_null()) {
-      auto& proj = (*j_opt)["cloudaicompanionProject"];
-      if (proj.is_string()) {
-        std::string pid = json_getter<std::string>::get(proj).value_or("");
-        if (!pid.empty()) return pid;
-      }
-      if (proj.is_object() && proj.contains("id")) {
-        std::string pid = json_get_or(proj, "id", std::string{});
-        if (!pid.empty()) return pid;
+    if (j_opt) {
+      const auto* proj = json_at(*j_opt, "cloudaicompanionProject");
+      if (proj != nullptr && !proj->is_null()) {
+        if (proj->is_string()) {
+          std::string pid = json_getter<std::string>::get(*proj).value_or("");
+          if (!pid.empty()) return pid;
+        }
+        if (proj->is_object()) {
+          std::string pid = json_get_or(*proj, "id", std::string{});
+          if (!pid.empty()) return pid;
+        }
       }
     }
   }
@@ -210,12 +261,54 @@ absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& a
   auto res = http_client_->Get(url, {"Authorization: Bearer " + access_token});
   if (res.ok()) {
     auto j_opt = json_parse(*res);
-    if (j_opt && (*j_opt).contains("projects") && (*j_opt)["projects"].is_array() && !(*j_opt)["projects"].empty()) {
-      return json_get_or((*j_opt)["projects"][0], "projectId", std::string{});
+    if (j_opt) {
+      auto projects = json_get<nlohmann::json::array_t>(*j_opt, "projects");
+      if (projects && !projects->empty()) {
+        return json_get_or((*projects)[0], "projectId", std::string{});
+      }
     }
   }
 
   return absl::NotFoundError("Could not discover project ID");
+}
+
+std::string OAuthHandler::ExtractOpenAiAccountIdFromJwt(const std::string& jwt) {
+  if (jwt.empty()) {
+    return "";
+  }
+  const std::vector<std::string> parts = absl::StrSplit(jwt, '.');
+  if (parts.size() != 3 || parts[1].empty()) {
+    return "";
+  }
+
+  std::string payload_json;
+  if (!absl::WebSafeBase64Unescape(parts[1], &payload_json)) {
+    return "";
+  }
+  auto payload_opt = json_parse(payload_json);
+  if (!payload_opt) {
+    return "";
+  }
+
+  const auto& payload = *payload_opt;
+  const auto* auth_claims = json_at(payload, "https://api.openai.com/auth");
+  if (auth_claims != nullptr) {
+    const std::string account_id = json_get_or(*auth_claims, "chatgpt_account_id", std::string{});
+    if (!account_id.empty()) {
+      return account_id;
+    }
+  }
+
+  std::string direct_account_id = json_get_or(payload, "chatgpt_account_id", std::string{});
+  if (!direct_account_id.empty()) {
+    return direct_account_id;
+  }
+
+  const auto organizations = json_get<nlohmann::json::array_t>(payload, "organizations");
+  if (organizations && !organizations->empty()) {
+    return json_get_or((*organizations)[0], "id", std::string{});
+  }
+  return "";
 }
 
 }  // namespace slop

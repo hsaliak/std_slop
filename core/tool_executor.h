@@ -71,8 +71,17 @@ class ToolExecutor {
   struct JsResult {
     std::string stdout_out;
     std::string return_value;
+    bool has_js_return_value = false;
 
-    std::string FullOutput() const { return stdout_out + "\nReturn Value:\n " + return_value; }
+    std::string FullOutput() const {
+      if (stdout_out.empty()) {
+        return return_value;
+      }
+      if (return_value.empty()) {
+        return stdout_out;
+      }
+      return stdout_out + "\n" + return_value;
+    }
   };
 
   absl::StatusOr<std::string> HandleQueryDb(const nlohmann::json& args);

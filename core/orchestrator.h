@@ -15,6 +15,7 @@ namespace slop {
 class Orchestrator {
  public:
   enum class Provider { GEMINI, OPENAI };
+  enum class OpenAiApiStyle { CHAT_COMPLETIONS, RESPONSES };
   struct TruncationSettings {
     // truncation character length for full fidelity
     size_t active_full_fidelity_limit = 50000;
@@ -32,7 +33,7 @@ class Orchestrator {
     std::string project_id;
     std::string base_url;
     int throttle = 1;
-    bool strip_reasoning = false;
+    OpenAiApiStyle openai_api_style = OpenAiApiStyle::CHAT_COMPLETIONS;
     TruncationSettings truncation = {};
   };
   class Builder {
@@ -45,7 +46,7 @@ class Orchestrator {
     Builder& WithProjectId(const std::string& project_id);
     Builder& WithBaseUrl(const std::string& url);
     Builder& WithThrottle(int seconds);
-    Builder& WithStripReasoning(bool enabled);
+    Builder& WithOpenAiApiStyle(OpenAiApiStyle style);
     Builder& WithDatabase(Database* db);
     absl::StatusOr<std::unique_ptr<Orchestrator>> Build();
     void BuildInto(Orchestrator* orchestrator);
@@ -71,7 +72,7 @@ class Orchestrator {
   // Rebuilds the session state (### STATE anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
-  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key);
+  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id = "");
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
   std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
   // Exposed for rebuilding and testing

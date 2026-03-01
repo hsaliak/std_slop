@@ -1,5 +1,5 @@
-#ifndef SLOP_SQL_ORCHESTRATOR_OPENAI_H_
-#define SLOP_SQL_ORCHESTRATOR_OPENAI_H_
+#ifndef SLOP_SQL_ORCHESTRATOR_OPENAI_RESPONSES_H_
+#define SLOP_SQL_ORCHESTRATOR_OPENAI_RESPONSES_H_
 
 #include "core/database.h"
 #include "core/http_client.h"
@@ -7,9 +7,9 @@
 
 namespace slop {
 
-class OpenAiOrchestrator : public OrchestratorStrategy {
+class OpenAiResponsesOrchestrator : public OrchestratorStrategy {
  public:
-  OpenAiOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url);
+  OpenAiResponsesOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url);
 
   std::string GetName() const override { return "openai"; }
 
@@ -34,4 +34,4 @@ class OpenAiOrchestrator : public OrchestratorStrategy {
 
 }  // namespace slop
 
-#endif  // SLOP_SQL_ORCHESTRATOR_OPENAI_H_
+#endif  // SLOP_SQL_ORCHESTRATOR_OPENAI_RESPONSES_H_

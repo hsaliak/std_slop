@@ -1,14 +1,13 @@
 #include "core/orchestrator_openai.h"
-#include "core/constants.h"
 
 #include <iostream>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/substitute.h"
+#include "absl/strings/str_cat.h"
 
 #include "core/message_parser.h"
+#include "core/openai_utils.h"
 #include "core/orchestrator.h"
 #include "json_utils.h"
 namespace slop {
@@ -24,13 +23,7 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
   nlohmann::json messages = nlohmann::json::array();
   if (!system_instruction.empty()) messages.push_back({{"role", "system"}, {"content", system_instruction}});
 
-  absl::flat_hash_set<std::string> enabled_tool_names;
-  auto tools_or = db_->GetEnabledTools();
-  if (tools_or.ok()) {
-    for (const auto& t : *tools_or) {
-      enabled_tool_names.insert(t.name);
-    }
-  }
+  const absl::flat_hash_set<std::string> enabled_tool_names = GetEnabledToolNames(db_);
 
   for (size_t i = 0; i < history.size(); ++i) {
     const auto& msg = history[i];
@@ -102,22 +95,8 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::AssemblePayload(const std::st
 
   nlohmann::json payload = {{"model", model_}, {"messages", messages}};
 
-  nlohmann::json tools = nlohmann::json::array();
-  if (tools_or.ok()) {
-    for (const auto& t : *tools_or) {
-      auto schema_opt = json_parse(t.json_schema);
-      if (schema_opt) {
-        auto& schema = *schema_opt;
-        tools.push_back({{"type", "function"},
-                         {"function", {{"name", t.name}, {"description", t.description}, {"parameters", schema}}}});
-      }
-    }
-  }
+  nlohmann::json tools = BuildOpenAiChatTools(db_);
   if (!tools.empty()) payload["tools"] = tools;
-
-  if (strip_reasoning_) {
-    payload["transforms"] = {"strip_reasoning"};
-  }
 
   return payload;
 }
@@ -131,13 +110,7 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
   }
   auto& j = *j_opt;
 
-  int total_tokens = 0;
-  if (const auto* usage = json_at(j, "usage")) {
-    int prompt = json_get_or(*usage, "prompt_tokens", 0);
-    int completion = json_get_or(*usage, "completion_tokens", 0);
-    total_tokens = prompt + completion;
-    (void)db_->RecordUsage(session_id, model_, prompt, completion);
-  }
+  int total_tokens = RecordOpenAiChatUsage(db_, session_id, model_, j);
 
   absl::Status status = absl::InternalError("No choices in response");
   if (auto choices = json_get<nlohmann::json::array_t>(j, "choices"); choices && !choices->empty()) {
@@ -182,29 +155,9 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const D
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 
-absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::string& api_key) {
-  std::vector<std::string> headers = {"Authorization: Bearer " + api_key};
-  headers.push_back(std::string("User-Agent: ") + kUserAgent);
-
-  std::string url = base_url_ + "/models";
-  auto resp_or = http_client_->Get(url, headers);
-  if (!resp_or.ok()) return resp_or.status();
-
-  auto j_opt = json_parse(*resp_or);
-  if (!j_opt) return absl::InternalError("Failed to parse models response");
-  auto& j = *j_opt;
-
-  std::vector<ModelInfo> models;
-  if (auto data = json_get<nlohmann::json::array_t>(j, "data")) {
-    for (const auto& m : *data) {
-      ModelInfo info;
-      info.id = json_get_or(m, "id", std::string{});
-      info.name = json_get_or(m, "id", std::string{});
-      models.push_back(info);
-    }
-  }
-
-  return models;
+absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::string& api_key,
+                                                                     const std::string& account_id) {
+  return GetOpenAiModels(http_client_, base_url_, api_key, account_id);
 }
 
 absl::StatusOr<nlohmann::json> OpenAiOrchestrator::GetQuota(const std::string& oauth_token) {
@@ -213,6 +166,3 @@ absl::StatusOr<nlohmann::json> OpenAiOrchestrator::GetQuota(const std::string& o
 }
 
 }  // namespace slop
-
-
-

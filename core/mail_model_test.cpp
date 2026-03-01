@@ -1,8 +1,6 @@
 #include <filesystem>
 #include <fstream>
 
-#include "absl/strings/match.h"
-
 #include "core/tool_executor.h"
 
 #include <gtest/gtest.h>
@@ -24,12 +22,6 @@ class MailModelTest : public ::testing::Test {
     // Get current branch to restore later
     auto branch_res = executor_->Execute("execute_bash", {{"command", "git rev-parse --abbrev-ref HEAD"}});
     original_branch_ = *branch_res;
-    // Strip TOOL_RESULT header if present (though execute_bash doesn't add it in internal call usually)
-    if (absl::StrContains(original_branch_, "### TOOL_RESULT")) {
-      // simplified
-    }
-    // Actually, let's just use a temporary directory for git tests if possible,
-    // but for now we'll just be careful.
   }
 
   void TearDown() override {

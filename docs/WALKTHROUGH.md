@@ -8,8 +8,8 @@
 2.  **Ensure [Bazel](https://bazel.build/) is installed.**
 
     ```bash
-    bazel test ...
-    bazel build ...
+    bazel test //...
+    bazel build //...
     ```
 
 Copy the `std_slop` executable to your path (e.g., `~/bin/`). Ensure `~/bin` is in your shell's `PATH` environment variable.
@@ -21,7 +21,7 @@ cp bazel-bin/std_slop $HOME/bin/std_slop
 Create and save an OAuth token with Gemini (it comes with high quotas):
 
 ```bash
-./slop_auth.sh
+./slop_auth.sh google
 ```
 
 Create an example folder:
@@ -35,6 +35,12 @@ Run `std_slop`. I recommend starting with Gemini and using your own OAuth. You c
 ```bash
 std_slop --google_oauth
 /model gemini-3-flash-preview
+```
+
+If you want OpenAI OAuth instead, use:
+```bash
+./slop_auth.sh chatgpt-plus
+std_slop --openai_oauth
 ```
 
 This model defaults to `gemini-2.5-flash`. It does not support the `/models` command, but `/stats` should show usage stats in a second table. You may need to run at least one query with the LLM before doing so.
@@ -237,4 +243,3 @@ run_js({
   ]]
 })
 ```
-

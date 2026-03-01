@@ -197,6 +197,39 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
     ToolJob* job = reinterpret_cast<ToolJob*>(ptr);
     auto res = job->Wait();
     if (!res.ok()) return JS_ThrowInternalError(ctx, "Job failed: %s", res.status().ToString().c_str());
+    auto envelope = nlohmann::json::parse(*res, nullptr, false);
+    if (!envelope.is_discarded() && envelope.is_object()) {
+      auto ok_it = envelope.find("ok");
+      if (ok_it != envelope.end() && ok_it->is_boolean()) {
+        if (!ok_it->get<bool>()) {
+          std::string err = "Tool failed";
+          auto error_it = envelope.find("error");
+          if (error_it != envelope.end()) {
+            if (error_it->is_object()) {
+              auto msg_it = error_it->find("message");
+              if (msg_it != error_it->end() && msg_it->is_string()) {
+                err = msg_it->get<std::string>();
+              } else {
+                err = error_it->dump();
+              }
+            } else if (error_it->is_string()) {
+              err = error_it->get<std::string>();
+            }
+          }
+          return JS_ThrowInternalError(ctx, "%s", err.c_str());
+        }
+        auto result_it = envelope.find("result");
+        if (result_it == envelope.end() || result_it->is_null()) {
+          return JS_NewString(ctx, "");
+        }
+        if (result_it->is_string()) {
+          const std::string s = result_it->get<std::string>();
+          return JS_NewString(ctx, s.c_str());
+        }
+        const std::string s = result_it->dump();
+        return JS_NewString(ctx, s.c_str());
+      }
+    }
     return JS_NewString(ctx, res->c_str());
   };
 
@@ -262,7 +295,6 @@ void JsInterpreter::InitializeEnvironment(
 }
 
 }  // namespace slop
-
 
 
 

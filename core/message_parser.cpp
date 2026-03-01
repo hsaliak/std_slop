@@ -1,5 +1,6 @@
 #include "core/message_parser.h"
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 
 #include "json_utils.h"
@@ -50,8 +51,30 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
         tc.id = json_get_or(call, "id", std::string{});
         if (const auto* fn = json_at(call, "function")) {
           tc.name = json_get_or(*fn, "name", std::string("unknown"));
-          std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
-          tc.args = json_parse(args_str).value_or(nlohmann::json::object());
+          if (const auto* arguments = json_at(*fn, "arguments")) {
+            if (arguments->is_string()) {
+              std::string args_str = json_getter<std::string>::get(*arguments).value_or("{}");
+              tc.args = json_parse(args_str).value_or(nlohmann::json::object());
+            } else if (arguments->is_object() || arguments->is_array()) {
+              tc.args = *arguments;
+            } else {
+              tc.args = nlohmann::json::object();
+            }
+            if (tc.name == "run_js" && (arguments->is_string() || arguments->is_object())) {
+              const auto script = json_get<std::string>(tc.args, "script");
+              if (!script || script->empty()) {
+                std::string arg_shape = arguments->is_string() ? json_getter<std::string>::get(*arguments).value_or("")
+                                                               : json_dump(*arguments);
+                if (arg_shape.size() > 256) {
+                  arg_shape = arg_shape.substr(0, 256) + "...";
+                }
+                LOG(WARNING) << "run_js tool call missing script field. call_id=" << tc.id
+                             << " raw_arguments=" << arg_shape;
+              }
+            }
+          } else {
+            tc.args = nlohmann::json::object();
+          }
         }
         calls.push_back(tc);
       }

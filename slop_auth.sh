@@ -9,6 +9,7 @@ CHATGPT_CLIENT_SECRET="${CHATGPT_CLIENT_SECRET:-}"
 CHATGPT_ISSUER="${CHATGPT_ISSUER:-https://auth.openai.com}"
 CHATGPT_REDIRECT_URI="${CHATGPT_REDIRECT_URI:-http://localhost:1455/auth/callback}"
 CHATGPT_SCOPE="${CHATGPT_SCOPE:-openid profile email offline_access}"
+CHATGPT_EXTRA_SCOPES="${CHATGPT_EXTRA_SCOPES:-}"
 CHATGPT_TOKEN_FILE="${CHATGPT_TOKEN_FILE:-$HOME/.config/slop/chatgpt_plus_token.json}"
 CHATGPT_AUTH_BASE_URL="${CHATGPT_AUTH_BASE_URL:-$CHATGPT_ISSUER/oauth/authorize}"
 CHATGPT_TOKEN_URL="${CHATGPT_TOKEN_URL:-$CHATGPT_ISSUER/oauth/token}"
@@ -34,6 +35,7 @@ Optional env vars:
   CHATGPT_TOKEN_URL                     (default: \$CHATGPT_ISSUER/oauth/token)
   CHATGPT_REDIRECT_URI                  (default: http://localhost:1455/auth/callback)
   CHATGPT_SCOPE                         (default: openid profile email offline_access)
+  CHATGPT_EXTRA_SCOPES                  (default: empty; optional extra scopes if your client allows them)
   CHATGPT_ORIGINATOR                    (default: codex_cli_rs)
   CHATGPT_TOKEN_FILE                    (default: ~/.config/slop/chatgpt_plus_token.json)
   CHATGPT_DEVICE_INTERVAL_SAFETY_SECONDS (default: 3)
@@ -122,6 +124,31 @@ decode_error_payload_json() {
     echo -n "$b64" | base64 -d 2>/dev/null || true
 }
 
+join_scopes() {
+    local primary="$1"
+    local extra="$2"
+    local all="$primary $extra"
+    # Normalize whitespace
+    echo "$all" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'
+}
+
+decode_jwt_payload_json() {
+    local jwt="$1"
+    local payload_b64url
+    payload_b64url=$(echo "$jwt" | cut -d'.' -f2)
+    if [ -z "$payload_b64url" ]; then
+        return 0
+    fi
+    decode_error_payload_json "$payload_b64url"
+}
+
+warn_if_missing_api_scopes() {
+    local access_token="$1"
+    # ChatGPT OAuth mode uses chatgpt.com backend endpoints and does not require
+    # OpenAI API platform scopes like api.model.read/api.responses.write.
+    : "$access_token"
+}
+
 save_tokens() {
     local access_token="$1"
     local refresh_token="$2"
@@ -153,6 +180,7 @@ EOF
 
     chmod 600 "$token_file"
     echo "Authentication successful. Tokens saved to $token_file"
+    warn_if_missing_api_scopes "$access_token"
 }
 
 exchange_code_for_tokens() {
@@ -203,11 +231,18 @@ exchange_code_for_tokens() {
 }
 
 run_device_flow() {
+    local requested_scope
+    requested_scope=$(join_scopes "$CHATGPT_SCOPE" "$CHATGPT_EXTRA_SCOPES")
     local device_usercode_url="${CHATGPT_ISSUER%/}/api/accounts/deviceauth/usercode"
     local device_poll_url="${CHATGPT_ISSUER%/}/api/accounts/deviceauth/token"
     local device_verify_url="${CHATGPT_ISSUER%/}/codex/device"
     local device_redirect_uri="${CHATGPT_ISSUER%/}/deviceauth/callback"
-    local device_req_body="{\"client_id\":\"$CHATGPT_CLIENT_ID\"}"
+    local device_req_body
+    if [ -n "$requested_scope" ]; then
+        device_req_body="{\"client_id\":\"$CHATGPT_CLIENT_ID\",\"scope\":\"$requested_scope\"}"
+    else
+        device_req_body="{\"client_id\":\"$CHATGPT_CLIENT_ID\"}"
+    fi
 
     local usercode_with_status
     if ! usercode_with_status=$(curl -sS -X POST "$device_usercode_url" \
@@ -413,6 +448,8 @@ run_google_flow() {
 }
 
 run_manual_flow() {
+    local requested_scope
+    requested_scope=$(join_scopes "$CHATGPT_SCOPE" "$CHATGPT_EXTRA_SCOPES")
     local code_verifier
     code_verifier=$(gen_base64url)
     local code_challenge
@@ -425,7 +462,7 @@ run_manual_flow() {
         --data-urlencode "response_type=code" \
         --data-urlencode "client_id=$CHATGPT_CLIENT_ID" \
         --data-urlencode "redirect_uri=$CHATGPT_REDIRECT_URI" \
-        --data-urlencode "scope=$CHATGPT_SCOPE" \
+        --data-urlencode "scope=$requested_scope" \
         --data-urlencode "code_challenge=$code_challenge" \
         --data-urlencode "code_challenge_method=S256" \
         --data-urlencode "id_token_add_organizations=true" \
@@ -465,6 +502,11 @@ run_manual_flow() {
         echo "Error: OAuth authorization failed."
         [ -n "$error_from_url" ] && echo "  error: $error_from_url"
         [ -n "$error_description_from_url" ] && echo "  error_description: $error_description_from_url"
+        if [ "$error_from_url" = "invalid_scope" ]; then
+            echo "Hint: The configured OAuth client may not be allowed to request API scopes."
+            echo "Try with default scopes only:"
+            echo "  CHATGPT_EXTRA_SCOPES='' ./slop_auth.sh chatgpt-plus"
+        fi
         exit 1
     fi
 

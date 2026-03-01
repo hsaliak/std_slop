@@ -1,8 +1,14 @@
 #include "interface/interaction_engine.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 
+#include <fstream>
+#include <unistd.h>
+
+#include "core/constants.h"
 #include "core/database.h"
+#include "core/oauth_handler.h"
 #include "core/orchestrator.h"
 #include "core/tool_executor.h"
 #include "interface/command_handler.h"
@@ -116,6 +122,67 @@ TEST_F(InteractionEngineTest, ErrorHandlingTest) {
 
   auto result = engine.Query("This will fail", config);
   EXPECT_FALSE(result.ok());
+}
+
+TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
+  char temp_path[] = "/tmp/slop_openai_token_ie_XXXXXX";
+  int fd = mkstemp(temp_path);
+  close(fd);
+
+  {
+    std::ofstream f(temp_path);
+    f << R"({
+  "access_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoib3JnX3Rlc3RfMTIzIn19.c2ln",
+  "refresh_token": "fake_refresh",
+  "expiry_time": 9999999999
+})";
+  }
+
+  auto orch_or = Orchestrator::Builder(&db, &mock_http)
+                     .WithProvider(Orchestrator::Provider::OPENAI)
+                     .WithModel("gpt-5.3-codex")
+                     .WithBaseUrl(kOpenAiChatGptCodexBaseUrl)
+                     .WithOpenAiApiStyle(Orchestrator::OpenAiApiStyle::RESPONSES)
+                     .Build();
+  ASSERT_TRUE(orch_or.ok());
+  orchestrator = std::move(*orch_or);
+
+  auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "", "");
+  ASSERT_TRUE(cmd_or.ok());
+  cmd_handler = std::move(*cmd_or);
+
+  auto oauth_handler = std::make_shared<OAuthHandler>(&mock_http, OAuthHandler::Provider::kOpenAi);
+  oauth_handler->SetTokenPath(temp_path);
+  oauth_handler->SetEnabled(true);
+
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           oauth_handler);
+
+  InteractionEngine::Config config;
+  config.silent = true;
+  config.openai_oauth = true;
+  config.use_responses = true;
+  config.openai_base_url = kOpenAiChatGptCodexBaseUrl;
+
+  EXPECT_CALL(mock_http, Post(testing::Eq("https://chatgpt.com/backend-api/codex/responses"), testing::_, testing::_))
+      .WillOnce(testing::DoAll(
+          testing::WithArg<2>([](const std::vector<std::string>& headers) {
+            bool has_auth = false;
+            bool has_account = false;
+            for (const auto& header : headers) {
+              has_auth = has_auth || absl::StartsWith(header, "Authorization: Bearer ");
+              has_account = has_account || header == "ChatGPT-Account-Id: org_test_123";
+            }
+            EXPECT_TRUE(has_auth);
+            EXPECT_TRUE(has_account);
+          }),
+          testing::Return(R"({"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]})")));
+
+  auto result = engine.Query("ping", config);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(*result, "ok");
+
+  unlink(temp_path);
 }
 
 }  // namespace slop

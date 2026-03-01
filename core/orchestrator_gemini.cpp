@@ -191,7 +191,9 @@ absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const D
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 
-absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key) {
+absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key,
+                                                                     const std::string& account_id) {
+  (void)account_id;
   std::string base = base_url_.empty() ? std::string(slop::kPublicGeminiBaseUrl) : base_url_;
   // If the base URL contains a model name or generateContent suffix, strip it
   // to get the base endpoint for model listing.
@@ -253,7 +255,9 @@ absl::StatusOr<int> GeminiGcaOrchestrator::ProcessResponse(const std::string& se
   return GeminiOrchestrator::ProcessResponse(session_id, response_json, group_id);
 }
 
-absl::StatusOr<std::vector<ModelInfo>> GeminiGcaOrchestrator::GetModels([[maybe_unused]] const std::string& api_key) {
+absl::StatusOr<std::vector<ModelInfo>> GeminiGcaOrchestrator::GetModels([[maybe_unused]] const std::string& api_key,
+                                                                         const std::string& account_id) {
+  (void)account_id;
   return absl::UnimplementedError("Model listing not implemented for Gemini OAuth logins yet");
 }
 

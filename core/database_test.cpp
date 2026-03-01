@@ -40,8 +40,8 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(found_code_reviewer);
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());
-  // Only query_db and run_js should be registered and enabled
-  EXPECT_EQ(tools->size(), 2);
+  // Only run_js should be registered and enabled by default.
+  EXPECT_EQ(tools->size(), 1);
   bool found_run_js = false;
   bool found_query_db = false;
   bool found_read_file = false;
@@ -51,7 +51,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
     if (t.name == "read_file") found_read_file = true;
   }
   EXPECT_TRUE(found_run_js);
-  EXPECT_TRUE(found_query_db);
+  EXPECT_FALSE(found_query_db);
   EXPECT_FALSE(found_read_file);
 }
 TEST(DatabaseTest, MessagePersistence) {

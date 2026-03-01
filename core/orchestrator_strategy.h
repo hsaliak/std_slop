@@ -46,7 +46,8 @@ class OrchestratorStrategy {
   virtual absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) = 0;
 
   // Provider-specific API interactions.
-  virtual absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key) = 0;
+  virtual absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key,
+                                                           const std::string& account_id) = 0;
   virtual absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) = 0;
 };
 

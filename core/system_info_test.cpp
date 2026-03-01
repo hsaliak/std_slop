@@ -29,12 +29,12 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   ASSERT_TRUE(prompt.contains("system_instruction"));
   std::string instr = prompt["system_instruction"]["parts"][0]["text"];
 
-  // Check for core content from system_prompt.md
+  // Check for core content from system_prompt.md.
   // Since kBuiltinSystemPrompt is baked in at compile time from system_prompt.md,
-  // we check for high-level strings we know are there.
-  EXPECT_TRUE(absl::StrContains(instr, "Orchestration")) << "Missing workflow definition";
-  EXPECT_TRUE(absl::StrContains(instr, "manage_scratchpad")) << "Missing scratchpad instruction";
-  EXPECT_TRUE(absl::StrContains(instr, "### STATE")) << "Missing state block mandate";
+  // verify key contract guidance is present.
+  EXPECT_TRUE(absl::StrContains(instr, "run_js")) << "Missing run_js entrypoint guidance";
+  EXPECT_TRUE(absl::StrContains(instr, "scratchpad")) << "Missing scratchpad guidance";
+  EXPECT_TRUE(absl::StrContains(instr, "dispatch_async")) << "Missing async guidance";
 }
 
 }  // namespace slop

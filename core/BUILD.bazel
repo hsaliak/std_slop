@@ -77,9 +77,11 @@ cc_library(
  "http_client.cpp",
  "message_parser.cpp",
  "oauth_handler.cpp",
+ "openai_utils.cpp",
  "orchestrator.cpp",
  "orchestrator_gemini.cpp",
  "orchestrator_openai.cpp",
+ "orchestrator_openai_responses.cpp",
  "tool_executor.cpp",
  ],
  hdrs = [
@@ -88,9 +90,11 @@ cc_library(
  "http_client.h",
  "message_parser.h",
  "oauth_handler.h",
+ "openai_utils.h",
  "orchestrator.h",
  "orchestrator_gemini.h",
  "orchestrator_openai.h",
+ "orchestrator_openai_responses.h",
  "orchestrator_strategy.h",
  "tool_executor.h",
  "tool_types.h",
@@ -159,8 +163,10 @@ cc_library(
  for test_name in [
  "database_test",
  "http_client_test",
+ "openai_utils_test",
  "orchestrator_test",
  "orchestrator_openai_test",
+ "orchestrator_openai_responses_test",
  "tool_executor_test",
  "tool_typing_test",
  "oauth_handler_test",
@@ -221,5 +227,3 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
-
-

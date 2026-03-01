@@ -40,4 +40,6 @@ This document outlines the implementation plan for adding INI configuration supp
 4.  **Hardcoded Defaults**: Built-in `absl` flag defaults.
 
 ## Exclusive Flags Management
-Settings like `google_api_key` vs `openai_api_key` are managed by the existing logic in `core/orchestrator.cpp` and `main.cpp`. The INI loader simply populates the flags; the existing priority logic (OpenAI > Gemini) remains the source of truth for conflict resolution.
+Settings like `google_api_key`, `openai_api_key`, `google_oauth`, `openai_oauth`, and `use_responses` are managed by
+the runtime selection logic in `main.cpp` and `core/orchestrator.cpp`. The INI loader only populates flags; conflict
+resolution (including OAuth mode exclusivity) remains in runtime logic.

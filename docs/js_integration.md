@@ -9,30 +9,30 @@ The primary reason for the JavaScript Control Plane (JCP) is to solve the **Cont
 ### Code as a Scalpel
 Traditional agents often ingest raw, massive datasets into their context window (e.g., reading a 2000-line file just to find one function). This leads to "context rot" where the model's reasoning is degraded by irrelevant information.
 In `std::slop`, the JCP allows the agent to  pass the context programatically into a sub-query and evaluate the provided results, avoiding rot.
-- Instead of reading a whole file, a Lua script can grep for a pattern, process the result in-memory, and only return the relevant snippets.
+- Instead of reading a whole file, a JavaScript script can grep for a pattern, process the result in-memory, and only return the relevant snippets.
 - Data filtering happens *within* the JCP, not the LLM's context window.
 
 ### Parallelism and Efficiency
 The JCP supports asynchronous execution. An agent can initiate multiple file reads, code searches, or even sub-LLM queries simultaneously using `_async` tool variants, drastically reducing the latency of complex investigative tasks.
 
 ### Persistence and State Continuity
-The JCP provides a persistent environment across turns. By using the `scratchpad` and `state` globals, the agent maintains a "Source of Truth" that is programmatically accessible, reducing the need to re-summarize or re-search for the same information in every turn. These globals are saved in sqlite at the end of a turn, and injected into the environment in the next.
+The JCP provides a persistent environment across turns. By using the `scratchpad` and `state` globals, the agent maintains internal continuity without bloating user-facing output. These globals are saved in sqlite at the end of a turn, and injected into the environment in the next.
 
 ---
 
 ## 2. The Recursive Language Model (RLM) Paradigm
 
-The JCP implements the **Recursive Language Model (RLM)** paradigm. In this model, the agent processes arbitrarily long contexts by treating the codebase, history, and scratchpad as external variables in a persistent Lua environment.
+The JCP implements the **Recursive Language Model (RLM)** paradigm. In this model, the agent processes arbitrarily long contexts by treating the codebase, history, and scratchpad as external variables in a persistent JavaScript environment.
 
 The JCP acts as the "inner loop" of the agent's cognition:
 1.  **Analyze**: The LLM analyzes the current state and goal.
-2.  **Orchestrate**: The LLM writes a Lua script to perform the next logical step.
+2.  **Orchestrate**: The LLM writes a JavaScript script to perform the next logical step.
 3.  **Execute**: The JCP executes the script, interacting with the filesystem, database, and sub-LLMs.
 4.  **Refine**: The results are returned to the LLM to refine the next step.
 
 ---
 
-## 3. The Lua Environment
+## 3. The JavaScript Environment
 
 Scripts executed via `run_js` have access to a rich environment tailored for software engineering.
 
@@ -52,6 +52,7 @@ All system tools are available under the `tools` namespace. Examples include:
 - `tools.query_db({sql = "..."})`: Queries the project database.
 - `tools.ask_user({prompt = "..."})`: Prompts the human user for input. This is synchronous and will block script execution until the user responds.
   - **Behavior**: If the user attempts to use a slash command in response, the system will display an error and re-prompt them. This ensures the agent receives a valid response to its question.
+- `tools.help({})`: Returns a JSON manifest with tool contracts, canonical names, and aliases.
 
 ### Asynchronous Execution
 Most tools have an `_async` variant or can be used with `dispatch_async`.
@@ -69,7 +70,7 @@ const res2 = job2.wait();
 ## 4. Persistence Mechanisms
 
 ### Scratchpad (`tools.manage_scratchpad`)
-The scratchpad is the agent's primary "working memory." It should be used to track progress through a plan.
+The scratchpad is the agent's primary internal "working memory." It should be used to track progress through a plan, not as user-facing output.
 **Mandatory Pattern:**
 ```javascript
 // 1. READ scratchpad at start
@@ -111,7 +112,8 @@ for (let i = 0; i < jobs.length; i++) {
 ## 6. Best Practices
 
 1.  **Read Before Writing**: Always read the `scratchpad` at the beginning of a script to maintain continuity.
-2.  **Filter Aggressively**: Use Lua's string manipulation or `grep` to filter data before returning it from `run_js`.
+2.  **Filter Aggressively**: Use JavaScript processing or `grep` to filter data before returning it from `run_js`.
+3.  **Return User Conclusions**: Keep large intermediate artifacts in scratchpad, but return a concise user-facing conclusion in the same turn.
 4.  **No Uncommitted State**: In the Mail Model workflow, ensure all logical units of work are committed via `tools.git_commit_patch` before ending the script.
 
 
@@ -150,4 +152,4 @@ tools.persist_function({
 
 ### Discoverability
 
-All persistent functions are automatically listed in the output of `tools.help()` under the "#### Persistent Functions ####" section, along with their descriptions.
+All persistent functions are automatically listed in the JSON output of `tools.help()` under `persistent_functions`.
