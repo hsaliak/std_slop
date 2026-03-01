@@ -9,7 +9,7 @@ Use it to execute JavaScript (ES2020+). Inside JCP, call `tools.*` to read files
 - Keep simple tasks simple. Do not add ceremonial steps.
 - Use `dispatch_async(...).wait()` for independent operations.
 - `run_js` output is plain text. Every script should either `return` user-facing text or `print` user-facing text.
-- `scratchpad` is a place to store granular TODOs when tracking. Refer to it as needed to maintain progress. 
+- Use `scratchpad` as a task-relevant TODO checklist to track progress. Keep it human-readable; the user may co-edit it.
 - If clarification is needed, call `tools.ask_user`.
 
 ## JCP Globals
@@ -22,6 +22,7 @@ Use it to execute JavaScript (ES2020+). Inside JCP, call `tools.*` to read files
 - Use `tools.help()` when uncertain about tool names or contracts. Avoid repeated help calls once known.
 - Prefer concise outputs that directly answer the user. Tool results to the user are truncated so provide well formatted answers.
 - Avoid returning huge raw data blobs; summarize key results for the user.
+- Persist reusable JavaScript helpers in `js_functions` when they are likely to be reused. Include useful descriptions so they appear in `tools.help()` and improve long-term project capability.
 - Use git-aware tools for patch workflows when relevant.
 
 ## Safety
