@@ -10,6 +10,7 @@
 
 #include "core/status_macros.h"
 #include "json_utils.h"
+#include "core/default_js_functions.h"
 
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
@@ -165,6 +166,7 @@ absl::Status Database::Init(const std::string& db_path) {
         name TEXT PRIMARY KEY,
         code TEXT,
         description TEXT,
+        json_schema TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   )";
@@ -185,6 +187,7 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE js_functions ADD COLUMN description TEXT;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE js_functions ADD COLUMN json_schema TEXT;", nullptr, nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (
@@ -210,6 +213,16 @@ absl::Status Database::Init(const std::string& db_path) {
     absl::MutexLock lock(&mu_);
     db_.reset(raw_db);
   }
+  
+  // Insert default JS functions into js_functions table
+  for (const auto& func : GetDefaultJsFunctions()) {
+    std::string sql = "INSERT OR IGNORE INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?)";
+    auto stmt_or = Prepare(sql);
+    if (stmt_or.ok()) {
+      (void)(*stmt_or)->Execute(func.name, func.code, func.description, func.json_schema);
+    }
+  }
+
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
   s = RegisterDefaultSkills();
@@ -231,6 +244,24 @@ absl::Status Database::RegisterDefaultTools() {
     absl::Status s = RegisterTool(t);
     if (!s.ok()) return s;
   }
+
+  // Register all functions from js_functions table as tools
+  auto functions_res = Query("SELECT name, description, json_schema FROM js_functions");
+  if (functions_res.ok()) {
+    if (auto functions_json = json_parse(*functions_res)) {
+      for (const auto& row : *functions_json) {
+        auto name = json_get<std::string>(row, "name");
+        auto description = json_get<std::string>(row, "description");
+        auto json_schema = json_get<std::string>(row, "json_schema");
+        if (name && description && json_schema) {
+          Tool t{*name, *description, *json_schema, true};
+          absl::Status s = RegisterTool(t);
+          if (!s.ok()) return s;
+        }
+      }
+    }
+  }
+
   return absl::OkStatus();
 }
 absl::Status Database::RegisterDefaultSkills() {
@@ -848,6 +879,7 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
 
 
 

@@ -234,8 +234,8 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
           auto name = json_get<std::string>(row, "name");
           auto code = json_get<std::string>(row, "code");
           if (name && code) {
-            // Wrap the code to return the function closure and bind it to globalThis
-            std::string wrapped_code = "globalThis['" + *name + "'] = (function() {\n" + *code + "\n})();";
+            // Wrap the code to return the function closure and bind it to tools object
+            std::string wrapped_code = "tools['" + *name + "'] = (function() {\n" + *code + "\n})();";
             JSValue func_res = interpreter.RunString(wrapped_code, "js_function_" + *name + ".js", false);
             JS_FreeValue(ctx, func_res);
           }
@@ -362,5 +362,6 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+
 
 
