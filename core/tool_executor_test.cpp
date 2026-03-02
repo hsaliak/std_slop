@@ -174,39 +174,24 @@ TEST(ToolExecutorTest, MailModelEnforcement) {
   setenv("SLOP_SKIP_STAGING_CHECK", "1", 1);  // Restore for other tests if they run in same process
 }
 
-TEST(ToolExecutorTest, GitGrepSummary) {
+TEST(ToolExecutorTest, GrepSummary) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
   auto executor_or = ToolExecutor::Create(&db);
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  // Check if we are in a git repo
-  auto git_res = executor.Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
-  if (!git_res.ok() || git_res->find("true") == std::string::npos) {
-    GTEST_SKIP() << "Not in a git repository, skipping GitGrepSummary test";
-  }
-
   std::string test_file = "many_matches.txt";
   std::string content;
   for (int i = 0; i < 30; ++i) content += "match_this_string\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
-  // We need to add the file to git to grep it if it's a new file, or use --no-index
-  // Actually grep_tool uses git grep. If we want it to work on untracked files, we'd need --no-index.
-  // Our grep_tool doesn't seem to support --no-index in its args yet.
-
-  // Let's just use an existing file that we know has many matches, or git add it.
-  (void)executor.Execute("execute_bash", {{"command", "git add " + test_file}});
-
-  auto res = executor.Execute("grep_tool", {{"pattern", "match_this_string"}});
+  auto res = executor.Execute("grep_tool", {{"pattern", "match_this_string"}, {"path", test_file}});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(absl::StrContains(*res, "### SEARCH_SUMMARY:"));
-  EXPECT_TRUE(absl::StrContains(*res, "many_matches.txt: 30"));
+  EXPECT_TRUE(res->find("match_this_string") != std::string::npos);
 
-  (void)executor.Execute("execute_bash", {{"command", "git rm -f " + test_file}});
+  std::filesystem::remove(test_file);
 }
-
 TEST(ToolExecutorTest, ExecuteBash) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -293,17 +278,16 @@ TEST(ToolExecutorTest, GrepToolWorks) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  auto write_res =
-      executor.Execute("write_file", {{"path", "grep_test.txt"}, {"content", "line 1\npattern here\nline 3"}});
-  ASSERT_TRUE(write_res.ok());
+  std::string test_file = "grep_repo.txt";
+  std::string content = "needle\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
-  auto grep_res = executor.Execute("grep_tool", {{"pattern", "pattern"}, {"path", "grep_test.txt"}, {"context", 1}});
+  auto grep_res = executor.Execute("grep_tool", {{"pattern", "needle"}, {"path", test_file}});
   ASSERT_TRUE(grep_res.ok());
-  EXPECT_TRUE(grep_res->find("pattern here") != std::string::npos);
+  EXPECT_TRUE(grep_res->find("needle") != std::string::npos);
 
-  std::filesystem::remove("grep_test.txt");
+  std::filesystem::remove(test_file);
 }
-
 TEST(ToolExecutorTest, GrepToolNoMatches) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -311,21 +295,60 @@ TEST(ToolExecutorTest, GrepToolNoMatches) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  auto write_res = executor.Execute("write_file", {{"path", "grep_empty.txt"}, {"content", "nothing here"}});
-  ASSERT_TRUE(write_res.ok());
+  std::string test_file = "grep_repo_empty.txt";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "haystack"}}).ok());
 
-  auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN"}, {"path", "grep_empty.txt"}});
+  auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN_XYZ_123"}, {"path", test_file}});
   ASSERT_TRUE(grep_res.ok());
-  // Should be ok (exit code 1), and NOT contain "Error:"
   auto grep_env = ParseEnvelope(*grep_res);
   ASSERT_TRUE(grep_env.is_object());
   EXPECT_EQ(grep_env.value("ok", false), true);
   EXPECT_EQ(grep_env.value("tool", std::string{}), "grep_tool");
   EXPECT_TRUE(EnvelopeResultText(*grep_res).find("Error:") == std::string::npos);
 
-  std::filesystem::remove("grep_empty.txt");
+  std::filesystem::remove(test_file);
 }
 
+TEST(ToolExecutorTest, GrepToolSimplifiedArguments) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string test_file = "grep_multi.txt";
+  std::string content = "alpha\nbeta\nalpha beta\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
+
+  auto res1 = executor.Execute("grep_tool", {{"pattern", "alpha"}, {"path", test_file}});
+  ASSERT_TRUE(res1.ok());
+  EXPECT_TRUE(res1->find("alpha") != std::string::npos);
+
+  auto res2 = executor.Execute("grep_tool", {{"pattern", "beta"}, {"path", test_file}});
+  ASSERT_TRUE(res2.ok());
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, GrepToolContextWorks) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string test_file = "grep_context.txt";
+  std::string content = "line1\nmatch\nline3\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
+
+  auto res = executor.Execute("grep_tool", {{"pattern", "match"}, {"path", test_file}, {"context", 1}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(res->find("line1") != std::string::npos);
+  EXPECT_TRUE(res->find("match") != std::string::npos);
+  EXPECT_TRUE(res->find("line3") != std::string::npos);
+
+  std::filesystem::remove(test_file);
+}
 TEST(ToolExecutorTest, ExecuteBashFailure) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -351,48 +374,6 @@ TEST(ToolExecutorTest, ExecuteBashStderr) {
   EXPECT_TRUE(res->find("hello stdout") != std::string::npos);
   EXPECT_TRUE(res->find("### STDERR") != std::string::npos);
   EXPECT_TRUE(res->find("hello stderr") != std::string::npos);
-}
-
-TEST(ToolExecutorTest, GitGrepToolWorks) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  auto git_repo_check = executor.Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
-  if (!git_repo_check.ok() || git_repo_check->find("true") == std::string::npos) {
-    GTEST_SKIP() << "Not in a git repository, skipping GitGrepToolWorks test";
-  }
-
-  // grep_tool should work for tracked files in this repo.
-  // We search for "GitGrep" which we know is in tool_executor.cpp
-  auto grep_res = executor.Execute("grep_tool", {{"pattern", "GitGrep"}, {"path", "."}});
-  ASSERT_TRUE(grep_res.ok());
-  EXPECT_TRUE(grep_res->find("GitGrep") != std::string::npos);
-  EXPECT_TRUE(grep_res->find("tool_executor.cpp") != std::string::npos);
-}
-
-TEST(ToolExecutorTest, GitGrepToolNoMatches) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  auto git_repo_check = executor.Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
-  if (!git_repo_check.ok() || git_repo_check->find("true") == std::string::npos) {
-    GTEST_SKIP() << "Not in a git repository, skipping GitGrepToolNoMatches test";
-  }
-
-  auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN_XYZ_123"}, {"path", "."}});
-  ASSERT_TRUE(grep_res.ok());
-  // Should be ok (exit code 1), and NOT contain "Error:"
-  auto grep_env = ParseEnvelope(*grep_res);
-  ASSERT_TRUE(grep_env.is_object());
-  EXPECT_EQ(grep_env.value("ok", false), true);
-  EXPECT_EQ(grep_env.value("tool", std::string{}), "grep_tool");
-  EXPECT_TRUE(EnvelopeResultText(*grep_res).find("Error:") == std::string::npos);
 }
 
 TEST(ToolExecutorTest, ApplyPatch_Success) {
@@ -564,6 +545,7 @@ TEST(ToolExecutorTest, UseSkill) {
   EXPECT_EQ((*skills)[skills->size() - 1].activation_count, 1);
 }
 
+
 TEST(ToolExecutorTest, GrepToolEscaping) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -597,70 +579,6 @@ TEST(ToolExecutorTest, GrepToolEscaping) {
   EXPECT_TRUE(EnvelopeResultText(*res4).find("Double-quote: \"baz\"") != std::string::npos);
 
   std::filesystem::remove(test_file);
-}
-
-TEST(ToolExecutorTest, GitGrepAdvancedFeatures) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  // This test assumes it's running in a git repo
-  auto git_repo_check = executor.Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
-  if (!git_repo_check.ok() || git_repo_check->find("true") == std::string::npos) {
-    GTEST_SKIP() << "Not in a git repository, skipping GitGrepAdvancedFeatures test";
-  }
-
-  // Test: Multiple patterns
-  auto res1 = executor.Execute("grep_tool", {{"patterns", {"ToolExecutor", "GitGrep"}}, {"all_match", true}});
-  ASSERT_TRUE(res1.ok());
-  EXPECT_TRUE(res1->find("core/tool_executor.cpp") != std::string::npos);
-
-  // Test: Multiple pathspecs
-  auto res2 = executor.Execute("grep_tool", {{"pattern", "TEST"}, {"path", {"core/*.cpp", "interface/*.cpp"}}});
-  ASSERT_TRUE(res2.ok());
-  EXPECT_TRUE(res2->find("core/tool_executor_test.cpp") != std::string::npos);
-  EXPECT_TRUE(res2->find("interface/ui_test.cpp") != std::string::npos);
-}
-
-TEST(ToolExecutorTest, GitGrepBooleanExpressions) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  auto git_repo_check = executor.Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
-  if (!git_repo_check.ok() || git_repo_check->find("true") == std::string::npos) {
-    GTEST_SKIP() << "Not in a git repository, skipping GitGrepBooleanExpressions test";
-  }
-
-  // Test: AND (on the same line)
-  // Find lines in core/tool_executor.cpp that contain both "absl" and "StatusOr"
-  auto res1 =
-      executor.Execute("grep_tool", {{"patterns", {"absl", "--and", "StatusOr"}}, {"path", "core/tool_executor.cpp"}});
-  ASSERT_TRUE(res1.ok());
-  EXPECT_TRUE(res1->find("absl::StatusOr") != std::string::npos);
-
-  // Test: OR
-  // Find lines that contain "ToolExecutor" OR "RetrieveMemos"
-  auto res2 = executor.Execute(
-      "grep_tool", {{"patterns", {"ToolExecutor", "--or", "RetrieveMemos"}}, {"path", "core/tool_executor.cpp"}});
-  ASSERT_TRUE(res2.ok());
-  // "class ToolExecutor" is in tool_executor.h, not .cpp.
-  // In .cpp we have "ToolExecutor::Execute" etc.
-  EXPECT_TRUE(res2->find("ToolExecutor::") != std::string::npos);
-  EXPECT_TRUE(res2->find("RetrieveMemos") != std::string::npos);
-
-  // Test: Grouping with ( )
-  // ( "absl" AND "StatusOr" ) OR "RetrieveMemos"
-  auto res3 =
-      executor.Execute("grep_tool", {{"patterns", {"(", "absl", "--and", "StatusOr", ")", "--or", "RetrieveMemos"}},
-                                     {"path", "core/tool_executor.cpp"}});
-  ASSERT_TRUE(res3.ok());
-  EXPECT_TRUE(res3->find("absl::StatusOr") != std::string::npos);
-  EXPECT_TRUE(res3->find("RetrieveMemos") != std::string::npos);
 }
 
 TEST(ToolExecutorTest, RunJsBasic) {
@@ -913,3 +831,4 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+

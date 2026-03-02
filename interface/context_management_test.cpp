@@ -148,6 +148,3 @@ TEST_F(ContextManagementTest, GrepTruncation) {
 
 }  // namespace slop
 
-
-
-

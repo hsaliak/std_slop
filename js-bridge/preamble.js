@@ -2,12 +2,13 @@
 // SLOP JS ENVIRONMENT
 // ============================================================================
 // This environment provides direct access to the orchestrator state and tools.
-// 
+//
 // GLOBALS:
 //   session_id (string): The unique ID for the current interaction.
 //   state      (string): The technical state summary (Goal/Context/Resolved).
 //   history    (array):  The full conversation history as a list of message objects.
 //   tools      (object): The registry of available tools.
+// NOTE: state/history/tools globals are deprecated. Prefer explicit tool calls.
 // ============================================================================
 
 if (typeof state === 'undefined' || state === null) {
@@ -22,10 +23,16 @@ if (typeof tools === 'undefined' || tools === null) {
   tools = {};
 }
 
+// Deprecated globals (legacy compatibility)
+globalThis.__deprecated_globals__ = {
+  state: true,
+  history: true,
+  tools: true
+};
 // Helper to escape shell arguments
 function shell_escape(s) {
   if (typeof s !== "string") s = String(s);
-  return "'" + s.replace(/'/g, "'\\''") + "'";
+  return "'" + s.replace(/'/g, "'\''") + "'";
 }
 
 // Helper to call tools safely
@@ -99,7 +106,7 @@ core.load_session_state = function() {
 
 core.maybe_persist_state = function() {
   if (!session_id || session_id === "") return;
-  
+
   if (state !== _initial_state) {
     tools.query_db({
       sql: "INSERT INTO session_state (session_id, state_blob) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET state_blob = excluded.state_blob",
@@ -143,7 +150,8 @@ const MM_TOOLS = {
   git_reroll_patch: true,
   git_verify_series: true,
   git_format_patch_series: true,
-  git_finalize_series: true
+  git_finalize_series: true,
+  git_create_staging_branch: false
 };
 
 const MOD_TOOLS = {
@@ -257,8 +265,8 @@ tools.help = function() {
       returns: "string (one entry per line: 'Directory: <name>/' or 'File: <name>')"
     },
     grep_tool: {
-      description: "Searches code with git-grep semantics.",
-      args_schema: {pattern: "string", path: "string|array (optional)", context: "number (optional)"},
+      description: "Searches code with grep semantics.",
+      args_schema: {pattern: "string", path: "string (optional)", context: "number (optional)", limit: "number (optional)"},
       returns: "string"
     },
     execute_bash: {
@@ -286,6 +294,12 @@ tools.help = function() {
       args_schema: {},
       returns: "string (JSON rows)"
     },
+    
+    git_create_staging_branch: {
+      description: "Creates or reuses a staging branch (unguarded).",
+      args_schema: {name: "string", base_branch: "string (optional)"},
+      returns: "string"
+    },
     help: {
       description: "Returns this JSON help manifest.",
       args_schema: {},
@@ -306,9 +320,9 @@ tools.help = function() {
       ]
     },
     globals: {
-      tools: "tool registry object",
-      state: "current technical context",
-      history: "conversation history metadata"
+      tools: "tool registry object (deprecated)",
+      state: "current technical context (deprecated)",
+      history: "conversation history metadata (deprecated)"
     },
     tool_return_envelope: {
       success: {ok: true, tool: "<canonical>", requested_tool: "<input>", alias_used: false, result: "<tool result>"},
@@ -483,11 +497,24 @@ tools.list_directory = function(args) {
 };
 
 tools.grep = function(args) {
+  if (!args || typeof args.pattern !== "string" || args.pattern === "") {
+    throw new Error("INVALID_ARGUMENT: Missing mandatory field: pattern");
+  }
+
   const pattern = args.pattern;
   const path = args.path || ".";
-  if (!pattern) throw new Error("grep requires a pattern");
-  
-  const cmd = `grep -rnE -e ${shell_escape(pattern)} ${shell_escape(path)}`;
+  const context = args.context;
+  const limit = args.limit ? parseInt(args.limit, 10) : 500;
+
+  let context_arg = "";
+  if (context !== undefined && context !== null) {
+    const ctx = parseInt(context, 10);
+    if (!Number.isNaN(ctx) && ctx >= 0) {
+      context_arg = " -C " + ctx;
+    }
+  }
+
+  const cmd = "grep -rnE" + context_arg + " -e " + shell_escape(pattern) + " " + shell_escape(path);
   let res = "";
   try {
     res = tools.execute_bash({command: cmd});
@@ -495,15 +522,14 @@ tools.grep = function(args) {
     if (e.message.includes("status 1")) return "";
     throw e;
   }
-  
-  const limit = args.limit ? parseInt(args.limit) : 500;
+
   const lines = res.output.split("\n");
   if (lines.length > limit) {
-    return lines.slice(0, limit).join("\n") + "\n[TRUNCATED: Use a more specific pattern or path to narrow results]";
+    return lines.slice(0, limit).join("\n") +
+      "\n[TRUNCATED: Use a more specific pattern or path to narrow results]";
   }
   return res.output;
 };
-
 tools.apply_patch = function(args) {
   slop_guard();
   if (typeof args.path !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: path");
@@ -750,10 +776,40 @@ tools.git_branch_staging = function(args) {
   return "Created and checked out staging branch: " + staging_name + " (base: " + base_branch + ")";
 };
 
-tools.grep_tool = function(args) {
-  return tools.grep(args);
+tools.git_create_staging_branch = function(args) {
+  const name = args.name;
+  const base_branch = args.base_branch || git.get_current_branch();
+  const staging_name = "slop/staging/" + name;
+  if (!name) throw new Error("name is required");
+
+  let res = __os_run(`git checkout -b ${shell_escape(staging_name)} ${shell_escape(base_branch)}`);
+  if (res.exit_code !== 0 && (res.stdout + res.stderr).includes('already exists')) {
+    res = __os_run(`git checkout ${shell_escape(staging_name)}`);
+  }
+  if (res.exit_code !== 0) {
+    throw new Error("Failed to create staging branch: " + res.stdout + res.stderr);
+  }
+
+  tools.query_db({
+    sql: "INSERT OR REPLACE INTO staging_branches (branch_name, parent_branch) VALUES (?, ?)",
+    params: [staging_name, base_branch]
+  });
+
+  return "Created and checked out staging branch: " + staging_name + " (base: " + base_branch + ")";
 };
 
+tools.grep_tool = function(args) {
+  if (!args || typeof args.pattern !== "string") {
+    throw new Error("INVALID_ARGUMENT: Missing mandatory field: pattern");
+  }
+  const simplified = {
+    pattern: args.pattern,
+    path: args.path || args.paths,
+    context: args.context,
+    limit: args.limit
+  };
+  return tools.grep(simplified);
+};
 tools.use_skill = function(args) {
   if (!session_id || session_id === "") throw new Error("FAILED_PRECONDITION: No active session");
   const name = args.name;
@@ -858,4 +914,5 @@ tools.persist_function = function(args) {
 
   return [true, "Function persisted successfully"];
 };
+
 
