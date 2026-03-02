@@ -58,7 +58,7 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 Read the [User Guide](docs/USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](docs/WALKTHROUGH.md) to start with something simple.
 
 ### Authentication Quick Notes
-- Google OAuth: `./slop_auth.sh google` then run with `--google_oauth`.
+- Google OAuth: `./slop_auth.sh google` then run with `--google_oauth`. [ Do not use - soon to be deprecated].
 - OpenAI OAuth (Responses API): `./slop_auth.sh chatgpt-plus` then run with `--openai_oauth`.
 
 ### ⚙️ Configuration
