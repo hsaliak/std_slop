@@ -427,7 +427,7 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
     {
       "persist_function",
       R"SLOP(Validates and persists a helper function in the JS environment.)SLOP",
-      R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "code": {"type": "string", "description": "string"}, "description": {"type": "string", "description": "string (optional)"}, "test_args": {"type": "array", "description": "array (optional)"}, "expected_result": {"type": "string", "description": "any (optional)"}}, "required": ["name", "code"]})SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "code": {"type": "string", "description": "string"}, "description": {"type": "string", "description": "string (optional)"}, "test_args": {"type": "array", "description": "array (optional)", "items": {"type": "string"}}, "expected_result": {"type": "string", "description": "any (optional)"}}, "required": ["name", "code"]})SLOP",
       R"SLOP(return function(args) {
   const name = args.name;
   const code = args.code;
@@ -613,7 +613,7 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
     {
       "persist_function",
       R"SLOP(Validates and persists a helper function in the JS environment.)SLOP",
-      R"SLOP({"type": "object", "properties": {"name": {"type": "string"}, "code": {"type": "string"}, "description": {"type": "string"}, "test_args": {"type": "array"}, "expected_result": {"type": "string"}}, "required": ["name", "code"]})SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string"}, "code": {"type": "string"}, "description": {"type": "string"}, "test_args": {"type": "array", "items": {"type": "string"}}, "expected_result": {"type": "string"}}, "required": ["name", "code"]})SLOP",
       R"SLOP(return function(args) {
   const name = args.name;
   const code = args.code;
@@ -835,5 +835,6 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
 }
 
 }  // namespace slop
+
 
 
