@@ -23,7 +23,7 @@ TEST(AutoLoadTest, PersistentFunctionsAreAutoLoaded) {
   auto& executor = **executor_or;
 
   // 2. Execute run_js and call the function directly
-  std::string script = "return test_auto_load();";
+  std::string script = "return tools.test_auto_load();";
   auto res = executor.Execute("run_js", {{"script", script}});
   
   ASSERT_TRUE(res.ok()) << res.status().message();
@@ -31,4 +31,5 @@ TEST(AutoLoadTest, PersistentFunctionsAreAutoLoaded) {
 }
 
 }  // namespace slop
+
 

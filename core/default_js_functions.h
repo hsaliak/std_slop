@@ -16,9 +16,9 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   static const std::vector<DefaultJsFunction> functions = {
     {
       "apply_patch",
-      R"(Applies exact-match text patches to file content.)",
-      R"({"type": "object", "properties": {"path": {"type": "string", "description": "string"}}, "required": ["path"]})",
-      R"(return function(args) {
+      R"SLOP(Applies exact-match text patches to file content.)SLOP",
+      R"SLOP({"type": "object", "properties": {"path": {"type": "string", "description": "string"}, "patches": {"type": "array", "items": {"type": "object", "properties": {"find": {"type": "string"}, "replace": {"type": "string"}}, "required": ["find", "replace"]}}}, "required": ["path", "patches"]})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   if (typeof args.path !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: path");
   if (!Array.isArray(args.patches)) throw new Error("INVALID_ARGUMENT: Missing mandatory field: patches");
@@ -44,23 +44,23 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
 
   tools.write_file({path: path, content: content});
   return "File patched successfully: " + path;
-};)"
+};)SLOP"
     },
     {
       "describe_db",
-      R"(Lists SQLite schema details.)",
-      R"({"type": "object", "properties": {}, "required": []})",
-      R"(return function(args) {
+      R"SLOP(Lists SQLite schema details.)SLOP",
+      R"SLOP({"type": "object", "properties": {}, "required": []})SLOP",
+      R"SLOP(return function(args) {
   const query = "SELECT name, sql FROM sqlite_master WHERE type='table'";
   const res = tools.query_db({sql: query});
   return res;
-};)"
+};)SLOP"
     },
     {
       "execute_bash",
-      R"(Executes shell command (guarded in mail mode).)",
-      R"({"type": "object", "properties": {"command": {"type": "string", "description": "string"}}, "required": ["command"]})",
-      R"(return function(args) {
+      R"SLOP(Executes shell command (guarded in mail mode).)SLOP",
+      R"SLOP({"type": "object", "properties": {"command": {"type": "string", "description": "string"}}, "required": ["command"]})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   if (!args.command) throw new Error("command is required");
 
@@ -84,23 +84,23 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
     toString: function() { return this.output; },
     valueOf: function() { return this.output; }
   };
-};)"
+};)SLOP"
     },
     {
       "execute_bash_async",
-      R"(Runs execute_bash asynchronously.)",
-      R"({"type": "object", "properties": {"command": {"type": "string", "description": "string"}}, "required": ["command"]})",
-      R"(return function(args) {
+      R"SLOP(Runs execute_bash asynchronously.)SLOP",
+      R"SLOP({"type": "object", "properties": {"command": {"type": "string", "description": "string"}}, "required": ["command"]})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   if (!args.command) throw new Error("Usage: execute_bash_async({command = '...'})");
   return tools.dispatch_async("execute_bash", args);
-};)"
+};)SLOP"
     },
     {
       "git_branch_staging",
-      R"(Creates and checks out a new staging branch.)",
-      R"({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["name"]})",
-      R"(return function(args) {
+      R"SLOP(Creates and checks out a new staging branch.)SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["name"]})SLOP",
+      R"SLOP(return function(args) {
   const name = args.name;
   const base_branch = args.base_branch || git.get_current_branch();
   const staging_name = "slop/staging/" + name;
@@ -117,13 +117,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   });
   
   return "Created and checked out staging branch: " + staging_name + " (base: " + base_branch + ")";
-};)"
+};)SLOP"
     },
     {
       "git_commit_patch",
-      R"(Commits staged changes with a summary and optional rationale.)",
-      R"({"type": "object", "properties": {"summary": {"type": "string", "description": "string (<=50 characters)"}, "rationale": {"type": "string", "description": "string (optional)"}}, "required": ["summary"]})",
-      R"(return function(args) {
+      R"SLOP(Commits staged changes with a summary and optional rationale.)SLOP",
+      R"SLOP({"type": "object", "properties": {"summary": {"type": "string", "description": "string (<=50 characters)"}, "rationale": {"type": "string", "description": "string (optional)"}}, "required": ["summary"]})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   const summary = args.summary;
   const rationale = args.rationale;
@@ -137,13 +137,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   if (res.exit_code !== 0) throw new Error("Commit failed: " + res.stdout + res.stderr);
   
   return tools.git_format_patch_series({});
-};)"
+};)SLOP"
     },
     {
       "git_create_staging_branch",
-      R"(Creates or reuses a staging branch (unguarded).)",
-      R"({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["name"]})",
-      R"(return function(args) {
+      R"SLOP(Creates or reuses a staging branch (unguarded).)SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["name"]})SLOP",
+      R"SLOP(return function(args) {
   const name = args.name;
   const base_branch = args.base_branch || git.get_current_branch();
   const staging_name = "slop/staging/" + name;
@@ -163,13 +163,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   });
 
   return "Created and checked out staging branch: " + staging_name + " (base: " + base_branch + ")";
-};)"
+};)SLOP"
     },
     {
       "git_finalize_series",
-      R"(Finalizes the patch series by merging the staged branch after approval.)",
-      R"({"type": "object", "properties": {"target_branch": {"type": "string", "description": "string (optional)"}}, "required": []})",
-      R"(return function(args) {
+      R"SLOP(Finalizes the patch series by merging the staged branch after approval.)SLOP",
+      R"SLOP({"type": "object", "properties": {"target_branch": {"type": "string", "description": "string (optional)"}}, "required": []})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before finalizing.");
 
@@ -224,13 +224,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   });
 
   return "Successfully finalized series and merged into " + target_branch;
-};)"
+};)SLOP"
     },
     {
       "git_format_patch_series",
-      R"(Formats the patch series as a mail-thread style summary.)",
-      R"({"type": "object", "properties": {"base_branch": {"type": "string", "description": "string (optional)"}}, "required": []})",
-      R"(return function(args) {
+      R"SLOP(Formats the patch series as a mail-thread style summary.)SLOP",
+      R"SLOP({"type": "object", "properties": {"base_branch": {"type": "string", "description": "string (optional)"}}, "required": []})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   const base_branch = git.resolve_base_branch(args.base_branch);
   
@@ -241,13 +241,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   const diff_res = tools.execute_bash({command: diff_cmd});
   
   return "--- MAIL SERIES ---\nBase: " + base_branch + "\n\n" + log_res.output + "\n\n--- FULL DIFF ---\n" + diff_res.output;
-};)"
+};)SLOP"
     },
     {
       "git_reroll_patch",
-      R"(Creates a fixup and rebases to reroll the specified patch.)",
-      R"({"type": "object", "properties": {"index": {"type": "string", "description": "number (1-based chunk index)"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["index"]})",
-      R"(return function(args) {
+      R"SLOP(Creates a fixup and rebases to reroll the specified patch.)SLOP",
+      R"SLOP({"type": "object", "properties": {"index": {"type": "string", "description": "number (1-based chunk index)"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["index"]})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   const index = parseInt(args.index, 10);
   const base_branch = git.resolve_base_branch(args.base_branch);
@@ -274,13 +274,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   }
   
   return tools.git_format_patch_series({base_branch: base_branch});
-};)"
+};)SLOP"
     },
     {
       "git_verify_series",
-      R"(Runs a command against every patch in the series.)",
-      R"({"type": "object", "properties": {"command": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["command"]})",
-      R"(return function(args) {
+      R"SLOP(Runs a command against every patch in the series.)SLOP",
+      R"SLOP({"type": "object", "properties": {"command": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["command"]})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before running this command.");
 
@@ -319,13 +319,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
     all_passed: all_passed,
     report: results
   });
-};)"
+};)SLOP"
     },
     {
       "grep",
-      R"(Low-level grep helper used by grep_tool.)",
-      R"({"type": "object", "properties": {"pattern": {"type": "string", "description": "string"}, "path": {"type": "string", "description": "string (optional)"}, "context": {"type": "string", "description": "number (optional)"}, "limit": {"type": "string", "description": "number (optional)"}}, "required": ["pattern"]})",
-      R"(return function(args) {
+      R"SLOP(Low-level grep helper used by grep_tool.)SLOP",
+      R"SLOP({"type": "object", "properties": {"pattern": {"type": "string", "description": "string"}, "path": {"type": "string", "description": "string (optional)"}, "context": {"type": "string", "description": "number (optional)"}, "limit": {"type": "string", "description": "number (optional)"}}, "required": ["pattern"]})SLOP",
+      R"SLOP(return function(args) {
   if (!args || typeof args.pattern !== "string" || args.pattern === "") {
     throw new Error("INVALID_ARGUMENT: Missing mandatory field: pattern");
   }
@@ -358,13 +358,13 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
       "\n[TRUNCATED: Use a more specific pattern or path to narrow results]";
   }
   return res.output;
-};)"
+};)SLOP"
     },
     {
       "grep_tool",
-      R"(Searches code with grep semantics.)",
-      R"({"type": "object", "properties": {"pattern": {"type": "string", "description": "string"}, "path": {"type": "string", "description": "string (optional)"}, "context": {"type": "string", "description": "number (optional)"}, "limit": {"type": "string", "description": "number (optional)"}}, "required": ["pattern"]})",
-      R"(return function(args) {
+      R"SLOP(Searches code with grep semantics.)SLOP",
+      R"SLOP({"type": "object", "properties": {"pattern": {"type": "string", "description": "string"}, "path": {"type": "string", "description": "string (optional)"}, "context": {"type": "string", "description": "number (optional)"}, "limit": {"type": "string", "description": "number (optional)"}}, "required": ["pattern"]})SLOP",
+      R"SLOP(return function(args) {
   if (!args || typeof args.pattern !== "string") {
     throw new Error("INVALID_ARGUMENT: Missing mandatory field: pattern");
   }
@@ -375,187 +375,22 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
     limit: args.limit
   };
   return tools.grep(simplified);
-};)"
+};)SLOP"
     },
     {
       "help",
-      R"(Returns this JSON help manifest.)",
-      R"({"type": "object", "properties": {}, "required": []})",
-      R"(return function(args) {
-  const builtin_tool_docs = {
-  apply_patch: {
-    description: "Applies exact-match text patches to file content.",
-    args_schema: {path: "string", patches: "array<{find:string,replace:string}>"},
-    returns: "string"
-  },
-  ask_user: {
-    description: "Asks the human user a blocking clarification question.",
-    args_schema: {prompt: "string"},
-    returns: "string"
-  },
-  describe_db: {
-    description: "Lists SQLite schema details.",
-    args_schema: {},
-    returns: "string (JSON rows)"
-  },
-  dispatch_async: {
-    description: "Dispatches another tool asynchronously, returning a job handle.",
-    args_schema: {name: "string", args: "object (optional)"},
-    returns: "object (job handle with is_ready() and wait())"
-  },
-  execute_bash: {
-    description: "Executes shell command (guarded in mail mode).",
-    args_schema: {command: "string"},
-    returns: "{stdout, stderr, exit_code, exitCode, output}"
-  },
-  execute_bash_async: {
-    description: "Runs execute_bash asynchronously.",
-    args_schema: {command: "string"},
-    returns: "object (job handle with is_ready() and wait())"
-  },
-  git_branch_staging: {
-    description: "Creates and checks out a new staging branch.",
-    args_schema: {name: "string", base_branch: "string (optional)"},
-    returns: "string"
-  },
-  git_commit_patch: {
-    description: "Commits staged changes with a summary and optional rationale.",
-    args_schema: {summary: "string (<=50 characters)", rationale: "string (optional)"},
-    returns: "string"
-  },
-  git_create_staging_branch: {
-    description: "Creates or reuses a staging branch (unguarded).",
-    args_schema: {name: "string", base_branch: "string (optional)"},
-    returns: "string"
-  },
-  git_finalize_series: {
-    description: "Finalizes the patch series by merging the staged branch after approval.",
-    args_schema: {target_branch: "string (optional)"},
-    returns: "string"
-  },
-  git_format_patch_series: {
-    description: "Formats the patch series as a mail-thread style summary.",
-    args_schema: {base_branch: "string (optional)"},
-    returns: "string"
-  },
-  git_reroll_patch: {
-    description: "Creates a fixup and rebases to reroll the specified patch.",
-    args_schema: {index: "number (1-based chunk index)", base_branch: "string (optional)"},
-    returns: "string"
-  },
-  git_verify_series: {
-    description: "Runs a command against every patch in the series.",
-    args_schema: {command: "string", base_branch: "string (optional)"},
-    returns: "string (JSON report)"
-  },
-  grep: {
-    description: "Low-level grep helper used by grep_tool.",
-    args_schema: {pattern: "string", path: "string (optional)", context: "number (optional)", limit: "number (optional)"},
-    returns: "string"
-  },
-  grep_tool: {
-    description: "Searches code with grep semantics.",
-    args_schema: {pattern: "string", path: "string (optional)", context: "number (optional)", limit: "number (optional)"},
-    returns: "string"
-  },
-  help: {
-    description: "Returns this JSON help manifest.",
-    args_schema: {},
-    returns: "object"
-  },
-  list_directory: {
-    description: "Lists files and directories.",
-    args_schema: {path: "string (optional, default '.')", depth: "number (optional, default 1)"},
-    returns: "string (one entry per line: 'Directory: <name>/' or 'File: <name>')"
-  },
-  persist_function: {
-    description: "Validates and persists a helper function in the JS environment.",
-    args_schema: {name: "string", code: "string", description: "string (optional)", test_args: "array (optional)", expected_result: "any (optional)"},
-    returns: "array [bool, message]"
-  },
-  query_db: {
-    description: "Executes SQLite query from inside JCP scripts.",
-    args_schema: {sql: "string", params: "array (optional)"},
-    returns: "string (JSON rows)"
-  },
-  read_file: {
-    description: "Reads file content with optional line range and line numbers.",
-    args_schema: {path: "string", start_line: "number (optional)", end_line: "number (optional)", line_numbers: "boolean (optional)"},
-    returns: "string"
-  },
-  use_skill: {
-    description: "Activates or deactivates a named skill for the current session.",
-    args_schema: {name: "string", action: "string (optional, 'activate' or 'deactivate')"},
-    returns: "string"
-  },
-  write_file: {
-    description: "Writes file content (guarded in mail mode).",
-    args_schema: {path: "string", content: "string"},
-    returns: "string"
-  }
-};
-
-const manifest = {
-    version: "2",
-    model_entrypoints: ["run_js"],
-    rules: {
-      user_response_required_each_turn: true,
-      guidance: [
-        "run_js output is plain text: return text or print text in every script.",
-        "Return user-facing conclusions directly in this turn.",
-        "For independent operations, prefer dispatch_async and wait().",
-        "Use tools.ask_user when user clarification is required."
-      ]
-    },
-    globals: {
-      tools: "tool registry object",
-      state: "current technical context"
-    },
-    tool_return_envelope: {
-      success: {ok: true, tool: "<canonical>", requested_tool: "<input>", alias_used: false, result: "<tool result>"},
-      error: {ok: false, tool: "<canonical>", requested_tool: "<input>", alias_used: false, error: {type: "TOOL_ERROR", message: "Error: ..."}}
-    },
-    tools: []
-  };
-
-  const tool_names = [];
-  for (const k in tools) {
-    if (typeof tools[k] === "function") {
-      tool_names.push(k);
-    }
-  }
-  tool_names.sort();
-  for (const name of tool_names) {
-    const docs = builtin_tool_docs[name] || {};
-    manifest.tools.push({
-      name: name,
-      aliases: core.aliases_for(name),
-      description: docs.description || "No description available.",
-      args_schema: docs.args_schema || {},
-      returns: docs.returns || "unknown"
-    });
-  }
-
-  try {
-    const res = tools.query_db({sql: "SELECT name, description FROM js_functions ORDER BY name"});
-    const rows = JSON.parse(res || "[]");
-    manifest.persistent_functions = rows.map(row => ({
-      name: row.name,
-      description: row.description || "No description provided."
-    }));
-  } catch (e) {
-    manifest.persistent_functions = [];
-  }
-
-  manifest.aliases = TOOL_ALIASES;
-  return manifest;
-};)"
+      R"SLOP(Returns this JSON help manifest.)SLOP",
+      R"SLOP({"type": "object", "properties": {}, "required": []})SLOP",
+      R"SLOP(return function(args) {
+  const res = tools.query_db({sql: "SELECT name, description, json_schema FROM tools WHERE is_enabled = 1"});
+  return res;
+};)SLOP"
     },
     {
       "list_directory",
-      R"(Lists files and directories.)",
-      R"({"type": "object", "properties": {"path": {"type": "string", "description": "string (optional, default '.')"}, "depth": {"type": "string", "description": "number (optional, default 1)"}}, "required": []})",
-      R"(return function(args) {
+      R"SLOP(Lists files and directories.)SLOP",
+      R"SLOP({"type": "object", "properties": {"path": {"type": "string", "description": "string (optional, default '.')"}, "depth": {"type": "string", "description": "number (optional, default 1)"}}, "required": []})SLOP",
+      R"SLOP(return function(args) {
   const path = args.path || ".";
   const depth = args.depth || 1;
   
@@ -587,13 +422,13 @@ const manifest = {
   }
   
   return output.join("\n");
-};)"
+};)SLOP"
     },
     {
       "persist_function",
-      R"(Validates and persists a helper function in the JS environment.)",
-      R"({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "code": {"type": "string", "description": "string"}, "description": {"type": "string", "description": "string (optional)"}, "test_args": {"type": "array", "description": "array (optional)"}, "expected_result": {"type": "string", "description": "any (optional)"}}, "required": ["name", "code"]})",
-      R"(return function(args) {
+      R"SLOP(Validates and persists a helper function in the JS environment.)SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "code": {"type": "string", "description": "string"}, "description": {"type": "string", "description": "string (optional)"}, "test_args": {"type": "array", "description": "array (optional)"}, "expected_result": {"type": "string", "description": "any (optional)"}}, "required": ["name", "code"]})SLOP",
+      R"SLOP(return function(args) {
   const name = args.name;
   const code = args.code;
   const description = args.description || "";
@@ -642,13 +477,13 @@ const manifest = {
   globalThis[name] = func;
 
   return [true, "Function persisted successfully"];
-};)"
+};)SLOP"
     },
     {
       "read_file",
-      R"(Reads file content with optional line range and line numbers.)",
-      R"({"type": "object", "properties": {"path": {"type": "string", "description": "string"}, "start_line": {"type": "string", "description": "number (optional)"}, "end_line": {"type": "string", "description": "number (optional)"}, "line_numbers": {"type": "string", "description": "boolean (optional)"}}, "required": ["path"]})",
-      R"(return function(args) {
+      R"SLOP(Reads file content with optional line range and line numbers.)SLOP",
+      R"SLOP({"type": "object", "properties": {"path": {"type": "string", "description": "string"}, "start_line": {"type": "string", "description": "number (optional)"}, "end_line": {"type": "string", "description": "number (optional)"}, "line_numbers": {"type": "string", "description": "boolean (optional)"}}, "required": ["path"]})SLOP",
+      R"SLOP(return function(args) {
   if (typeof args.path !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: path");
   const path = args.path;
   if (path.includes("..") || path.startsWith("/")) {
@@ -685,13 +520,13 @@ const manifest = {
   let body = result_lines.join("\n");
   if (body.length > 0) body += "\n";
   return body;
-};)"
+};)SLOP"
     },
     {
       "use_skill",
-      R"(Activates or deactivates a named skill for the current session.)",
-      R"({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "action": {"type": "string", "description": "string (optional, 'activate' or 'deactivate')"}}, "required": ["name"]})",
-      R"(return function(args) {
+      R"SLOP(Activates or deactivates a named skill for the current session.)SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "action": {"type": "string", "description": "string (optional, 'activate' or 'deactivate')"}}, "required": ["name"]})SLOP",
+      R"SLOP(return function(args) {
   if (!session_id || session_id === "") throw new Error("FAILED_PRECONDITION: No active session");
   const name = args.name;
   const action = args.action || "activate";
@@ -743,13 +578,13 @@ const manifest = {
   });
   
   return "Skill '" + name + "' " + (action === "activate" ? "activated" : "deactivated") + "." + prompt_patch;
-};)"
+};)SLOP"
     },
     {
       "write_file",
-      R"(Writes file content (guarded in mail mode).)",
-      R"({"type": "object", "properties": {"path": {"type": "string", "description": "string"}, "content": {"type": "string", "description": "string"}}, "required": ["path", "content"]})",
-      R"(return function(args) {
+      R"SLOP(Writes file content (guarded in mail mode).)SLOP",
+      R"SLOP({"type": "object", "properties": {"path": {"type": "string", "description": "string"}, "content": {"type": "string", "description": "string"}}, "required": ["path", "content"]})SLOP",
+      R"SLOP(return function(args) {
   slop_guard();
   if (typeof args.path !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: path");
   if (typeof args.content !== "string") throw new Error("INVALID_ARGUMENT: Missing mandatory field: content");
@@ -773,13 +608,13 @@ const manifest = {
   }
 
   return "File written successfully:\nPath: " + path + "\nBytes written: " + args.content.length + "\n";
-};)"
+};)SLOP"
     },
     {
       "persist_function",
-      R"(Validates and persists a helper function in the JS environment.)",
-      R"({"type": "object", "properties": {"name": {"type": "string"}, "code": {"type": "string"}, "description": {"type": "string"}, "test_args": {"type": "array"}, "expected_result": {"type": "string"}}, "required": ["name", "code"]})",
-      R"(return function(args) {
+      R"SLOP(Validates and persists a helper function in the JS environment.)SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string"}, "code": {"type": "string"}, "description": {"type": "string"}, "test_args": {"type": "array"}, "expected_result": {"type": "string"}}, "required": ["name", "code"]})SLOP",
+      R"SLOP(return function(args) {
   const name = args.name;
   const code = args.code;
   const description = args.description || "";
@@ -828,13 +663,13 @@ const manifest = {
   globalThis[name] = func;
 
   return [true, "Function persisted successfully"];
-};)"
+};)SLOP"
     },
     {
       "use_skill",
-      R"(Activates or deactivates a skill.)",
-      R"({"type": "object", "properties": {"name": {"type": "string"}, "action": {"type": "string", "description": "activate or deactivate"}}, "required": ["name"]})",
-      R"(return function(args) {
+      R"SLOP(Activates or deactivates a skill.)SLOP",
+      R"SLOP({"type": "object", "properties": {"name": {"type": "string"}, "action": {"type": "string", "description": "activate or deactivate"}}, "required": ["name"]})SLOP",
+      R"SLOP(return function(args) {
   if (!session_id || session_id === "") throw new Error("FAILED_PRECONDITION: No active session");
   const name = args.name;
   const action = args.action || "activate";
@@ -886,11 +721,12 @@ const manifest = {
   });
   
   return "Skill '" + name + "' " + (action === "activate" ? "activated" : "deactivated") + "." + prompt_patch;
-};)"
+};)SLOP"
     },
   };
   return functions;
 }
 
 }  // namespace slop
+
 

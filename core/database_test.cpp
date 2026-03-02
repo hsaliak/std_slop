@@ -30,6 +30,26 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   ASSERT_TRUE(skills.ok());
   // We expect at least the 4 default skills we added
   EXPECT_GE(skills->size(), 4);
+
+  auto tools = db.GetEnabledTools();
+  ASSERT_TRUE(tools.ok());
+  bool found_execute_bash = false;
+  bool found_read_file = false;
+  bool found_persist_function = false;
+  for (const auto& t : *tools) {
+    if (t.name == "execute_bash") found_execute_bash = true;
+    if (t.name == "read_file") found_read_file = true;
+    if (t.name == "persist_function") found_persist_function = true;
+  }
+  EXPECT_TRUE(found_execute_bash);
+  EXPECT_TRUE(found_read_file);
+  EXPECT_TRUE(found_persist_function);
+
+  auto js_functions_res = db.Query("SELECT name FROM js_functions");
+  ASSERT_TRUE(js_functions_res.ok());
+  EXPECT_TRUE(js_functions_res->find("execute_bash") != std::string::npos);
+  EXPECT_TRUE(js_functions_res->find("read_file") != std::string::npos);
+  EXPECT_TRUE(js_functions_res->find("persist_function") != std::string::npos);
   bool found_planner = false;
   bool found_code_reviewer = false;
   for (const auto& s : *skills) {
@@ -38,21 +58,6 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   }
   EXPECT_TRUE(found_planner);
   EXPECT_TRUE(found_code_reviewer);
-  auto tools = db.GetEnabledTools();
-  ASSERT_TRUE(tools.ok());
-  // Only run_js should be registered and enabled by default.
-  EXPECT_EQ(tools->size(), 1);
-  bool found_run_js = false;
-  bool found_query_db = false;
-  bool found_read_file = false;
-  for (const auto& t : *tools) {
-    if (t.name == "run_js") found_run_js = true;
-    if (t.name == "query_db") found_query_db = true;
-    if (t.name == "read_file") found_read_file = true;
-  }
-  EXPECT_TRUE(found_run_js);
-  EXPECT_FALSE(found_query_db);
-  EXPECT_FALSE(found_read_file);
 }
 TEST(DatabaseTest, MessagePersistence) {
   slop::Database db;
@@ -340,7 +345,7 @@ TEST(DatabaseTest, ApplyPatchToolSchema) {
       EXPECT_TRUE(item_props.contains("replace"));
     }
   }
-  EXPECT_FALSE(found) << "apply_patch found in enabled tools";
+  EXPECT_TRUE(found) << "apply_patch not found in enabled tools";
 }
 TEST(DatabaseTest, ToolUsageCounters) {
   slop::Database db;
@@ -397,4 +402,7 @@ TEST(DatabaseTest, ConcurrentAccess) {
   }
   EXPECT_EQ(success_count, num_threads * iterations * 2);
 }
+
+
+
 

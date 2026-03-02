@@ -703,12 +703,9 @@ TEST(ToolExecutorTest, RunJsPreamble) {
   auto& executor = **executor_or;
 
   std::string script = R"(
-    const manifest = tools.help({});
-    if (!manifest) throw new Error("manifest is null");
-    if (!manifest.tools || !Array.isArray(manifest.tools)) throw new Error("manifest.tools missing");
-    const names = manifest.tools.map(t => t.name);
-    if (!names.includes("execute_bash")) throw new Error("execute_bash not found");
-    if (!manifest.aliases || typeof manifest.aliases !== "object") throw new Error("aliases missing");
+    if (typeof tools.execute_bash !== "function") throw new Error("execute_bash not found");
+    if (typeof core.resolve_tool_name !== "function") throw new Error("core.resolve_tool_name not found");
+    if (core.resolve_tool_name("shell") !== "execute_bash") throw new Error("alias resolution failed");
     return "preamble_ok";
   )";
 
@@ -831,4 +828,5 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+
 

@@ -74,6 +74,7 @@ cc_library(
  srcs = [
  "config.cpp",
  "database.cpp",
+ "default_js_functions.h",
  "http_client.cpp",
  "message_parser.cpp",
  "oauth_handler.cpp",
@@ -227,3 +228,4 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
