@@ -1,17 +1,13 @@
 #include "interface/interaction_engine.h"
 #include "interface/renderer.h"
 #include "interface/terminal.h"
-#include "interface/color.h"
-#include "absl/synchronization/mutex.h"
-#include "absl/base/thread_annotations.h"
-#include <mutex>
-#include <condition_variable>
-
 #include <atomic>
 #include <iostream>
 #include <thread>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -110,6 +106,51 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   // Execute interaction
   std::string group_id = std::to_string(absl::ToUnixNanos(absl::Now()));
   (void)db_.AppendMessage(session_id, "user", input, "", "completed", group_id, orchestrator_.GetName());
+
+  struct AskState {
+    absl::Mutex mutex;
+    bool asking_user ABSL_GUARDED_BY(mutex) = false;
+    std::string prompt ABSL_GUARDED_BY(mutex);
+    std::string response ABSL_GUARDED_BY(mutex);
+  };
+
+  auto install_ask_user_handler = [&](AskState& ask_state) {
+    tool_executor_.SetAskUserHandler([&ask_state](const std::string& prompt) -> std::string {
+      absl::MutexLock lock(&ask_state.mutex);
+      ask_state.prompt = prompt;
+      ask_state.asking_user = true;
+      ask_state.mutex.Await(absl::Condition(
+          +[](AskState* state) ABSL_EXCLUSIVE_LOCKS_REQUIRED(state->mutex) { return !state->asking_user; },
+          &ask_state));
+      return ask_state.response;
+    });
+  };
+
+  auto maybe_handle_ask_user_prompt = [&](AskState& ask_state) -> bool {
+    std::string current_prompt;
+    {
+      absl::MutexLock lock(&ask_state.mutex);
+      if (!ask_state.asking_user) {
+        return false;
+      }
+      current_prompt = ask_state.prompt;
+    }
+
+    std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
+    slop::Renderer::Get().PrintMarkdown(current_prompt);
+    if (!absl::EndsWith(current_prompt, "\n")) {
+      std::cout << "\n";
+    }
+    std::string response = slop::ReadLine("reply");
+
+    {
+      absl::MutexLock lock(&ask_state.mutex);
+      ask_state.response = response;
+      ask_state.asking_user = false;
+    }
+    return true;
+  };
+
   while (true) {
     auto prompt_or = orchestrator_.AssemblePrompt(session_id, active_skills);
     if (!prompt_or.ok()) {
@@ -164,19 +205,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     std::string post_body = prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     std::vector<std::string> post_headers = headers;
 
-    std::atomic<bool> asking_user(false);
-    std::mutex ask_mutex;
-    std::condition_variable ask_cv;
-    std::string user_prompt;
-    std::string user_response;
-    
-    tool_executor_.SetAskUserHandler([&](const std::string& prompt) -> std::string {
-      std::unique_lock<std::mutex> lock(ask_mutex);
-      user_prompt = prompt;
-      asking_user = true;
-      ask_cv.wait(lock, [&]() { return !asking_user.load(); });
-      return user_response;
-    });
+    AskState ask_state;
+    install_ask_user_handler(ask_state);
 
     std::thread http_t([&]() {
       resp_or = http_client_.Post(post_url, post_body, post_headers);
@@ -193,26 +223,20 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       if (!config.silent) animator.Start();
 
       while (!http_done) {
-        if (asking_user.load()) {
-          if (!config.silent) animator.Stop();
-          
-          std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
-          slop::Renderer::Get().PrintMarkdown(user_prompt);
-          std::string res = slop::ReadLine("reply");
-          
-          {
-            std::unique_lock<std::mutex> lock(ask_mutex);
-            user_response = res;
-            asking_user = false;
+        if (maybe_handle_ask_user_prompt(ask_state)) {
+          if (!config.silent) {
+            animator.Stop();
+            raw.reset();
+            raw = std::make_unique<slop::ScopedRawMode>();
+            animator.Start();
           }
-          ask_cv.notify_one();
-          
-          if (!config.silent) animator.Start();
+          continue;
         } else {
           if (!config.silent && slop::IsInterruptPressed()) {
             animator.Stop();
             http_cancellation->Cancel();
-            std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
+            std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red)
+                      << std::endl;
           }
           std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
@@ -282,21 +306,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             dispatcher_calls.push_back({combined_id, call.name, call.args});
           }
           auto cancellation = std::make_shared<slop::CancellationRequest>();
-          struct AskState {
-            absl::Mutex mutex;
-            std::atomic<bool> asking_user{false};
-            std::string prompt ABSL_GUARDED_BY(mutex);
-            std::string response ABSL_GUARDED_BY(mutex);
-          } ask_state;
-          
-          tool_executor_.SetAskUserHandler([&](const std::string& prompt) -> std::string {
-            absl::MutexLock lock(&ask_state.mutex);
-            ask_state.prompt = prompt;
-            ask_state.asking_user = true;
-            auto cond = +[](std::atomic<bool>* au) { return !au->load(); };
-            ask_state.mutex.Await(absl::Condition(cond, &ask_state.asking_user));
-            return ask_state.response;
-          });
+          AskState ask_state;
+          install_ask_user_handler(ask_state);
 
           std::atomic<bool> done{false};
           std::vector<slop::ToolDispatcher::Result> results;
@@ -310,27 +321,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
               raw = std::make_unique<slop::ScopedRawMode>();
             }
             while (!done) {
-              if (ask_state.asking_user.load()) {
+              if (maybe_handle_ask_user_prompt(ask_state)) {
                 // Temporarily disable Raw Mode to allow ReadLine to work
                 raw.reset();
-                
-                std::string current_prompt;
-                {
-                  absl::MutexLock lock(&ask_state.mutex);
-                  current_prompt = ask_state.prompt;
-                }
-                
-                std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
-                slop::Renderer::Get().PrintMarkdown(current_prompt);
-                std::cout << "\n";
-                std::string res = slop::ReadLine("reply");
-                
-                {
-                  absl::MutexLock lock(&ask_state.mutex);
-                  ask_state.response = res;
-                  ask_state.asking_user = false;
-                }
-                
                 // Restore Raw Mode
                 if (!config.silent) {
                   raw = std::make_unique<slop::ScopedRawMode>();
@@ -339,7 +332,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                 if (!config.silent && slop::IsInterruptPressed()) {
                   cancellation->Cancel();
                   std::cerr << "\n"
-                            << "  " << slop::Colorize("[Esc/Ctrl-C] Cancellation requested...", "", ansi::Red) << std::endl;
+                            << "  " << slop::Colorize("[Esc/Ctrl-C] Cancellation requested...", "", ansi::Red)
+                            << std::endl;
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
               }
@@ -394,3 +388,4 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop
+
