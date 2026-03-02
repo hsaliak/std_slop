@@ -108,4 +108,47 @@ TEST_F(OAuthHandlerTest, OpenAiAccountIdFromJwtClaims) {
   unlink(temp_path);
 }
 
+
+TEST_F(OAuthHandlerTest, OpenAiRefreshRequestFormValuesAreUrlEncoded) {
+  char temp_path[] = "/tmp/slop_openai_refresh_token_XXXXXX";
+  int fd = mkstemp(temp_path);
+  close(fd);
+
+  {
+    std::ofstream f(temp_path);
+    f << R"({
+  "access_token": "stale_token",
+  "refresh_token": "refresh+tok&en=1 /",
+  "expiry_time": 1
+})";
+  }
+
+  class TestOAuthHandler : public OAuthHandler {
+   public:
+    using OAuthHandler::OAuthHandler;
+    void SetTokenPath(const std::string& path) { token_path_ = path; }
+  };
+
+  setenv("CHATGPT_CLIENT_SECRET", "sec+ret&x=y /", 1);
+
+  TestOAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  handler.SetTokenPath(temp_path);
+  handler.SetEnabled(true);
+
+  EXPECT_CALL(mock_http,
+              Post(HasSubstr("oauth/token"),
+                   AllOf(HasSubstr("refresh_token=refresh%2Btok%26en%3D1%20%2F"),
+                         HasSubstr("client_secret=sec%2Bret%26x%3Dy%20%2F"),
+                         HasSubstr("client_id="), HasSubstr("grant_type=refresh_token")),
+                   Contains("Content-Type: application/x-www-form-urlencoded")))
+      .WillOnce(Return(R"({"access_token":"new_token","expires_in":3600})"));
+
+  auto token_or = handler.GetValidToken();
+  ASSERT_TRUE(token_or.ok());
+  EXPECT_EQ(*token_or, "new_token");
+
+  unsetenv("CHATGPT_CLIENT_SECRET");
+  unlink(temp_path);
+}
+
 }  // namespace slop

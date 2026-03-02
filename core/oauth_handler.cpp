@@ -3,7 +3,9 @@
 #include <unistd.h>
 
 #include <array>
+#include <cctype>
 #include <filesystem>
+#include <iomanip>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -30,6 +32,19 @@ namespace slop {
 namespace {
 const char* kGeminiClientId = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
 const char* kGeminiClientSecret = "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";
+
+std::string UrlEncodeFormValue(const std::string& value) {
+  std::ostringstream encoded;
+  encoded << std::uppercase << std::hex;
+  for (unsigned char c : value) {
+    if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+      encoded << static_cast<char>(c);
+    } else {
+      encoded << '%' << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+    }
+  }
+  return encoded.str();
+}
 }  // namespace
 absl::Status MaybeCreateDirectory(const std::string& dir_path) {
   std::error_code ec;
@@ -124,15 +139,16 @@ absl::Status OAuthHandler::RefreshToken() {
   std::string body;
   if (provider_ == Provider::kGoogle) {
     token_url = kGoogleOAuthTokenUrl;
-    body = absl::StrCat("refresh_token=", tokens_.refresh_token, "&client_id=", kGeminiClientId,
-                        "&client_secret=", kGeminiClientSecret, "&grant_type=refresh_token");
+    body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token), "&client_id=",
+                        UrlEncodeFormValue(kGeminiClientId), "&client_secret=",
+                        UrlEncodeFormValue(kGeminiClientSecret), "&grant_type=refresh_token");
   } else {
     token_url = kOpenAiOAuthTokenUrl;
     const char* client_secret = std::getenv("CHATGPT_CLIENT_SECRET");
-    body = absl::StrCat("refresh_token=", tokens_.refresh_token, "&client_id=", kOpenAiOAuthClientId,
-                        "&grant_type=refresh_token");
+    body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token), "&client_id=",
+                        UrlEncodeFormValue(kOpenAiOAuthClientId), "&grant_type=refresh_token");
     if (client_secret != nullptr && *client_secret != '\0') {
-      absl::StrAppend(&body, "&client_secret=", client_secret);
+      absl::StrAppend(&body, "&client_secret=", UrlEncodeFormValue(client_secret));
     }
   }
 
