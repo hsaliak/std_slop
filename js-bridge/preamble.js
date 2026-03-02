@@ -17,7 +17,6 @@ if (typeof tools === 'undefined' || tools === null) {
   tools = {};
 }
 
-
 // Helper to call tools safely
 function call_tool(tool_func, args) {
   try {
@@ -121,7 +120,6 @@ const MOD_TOOLS = {
   apply_patch: true,
   execute_bash: true
 };
-
 
 core.dispatch_tool = function(name, args) {
   core.load_session_state();
