@@ -49,4 +49,13 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsParsesCodexModelsShapeAndSetsAccountHeader)
   EXPECT_EQ((*models_or)[0].name, "GPT-5.3 Codex");
 }
 
+TEST(OpenAiUtilsTest, GetOpenAiModelsFailsForUnrecognizedSchema) {
+  MockHttpClient mock_http;
+  EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models", _)).WillOnce(Return(R"({"unexpected":true})"));
+
+  auto models_or = GetOpenAiModels(&mock_http, "https://api.openai.com/v1", "test_key");
+  ASSERT_FALSE(models_or.ok());
+  EXPECT_TRUE(absl::StrContains(models_or.status().message(), "Unrecognized models response schema"));
+}
+
 }  // namespace slop

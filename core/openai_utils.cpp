@@ -111,7 +111,7 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
 
   auto codex_models = json_get<nlohmann::json::array_t>(*j_opt, "models");
   if (!codex_models) {
-    return models;
+    return absl::InternalError("Unrecognized models response schema (expected 'data' or 'models')");
   }
   for (const auto& m : *codex_models) {
     ModelInfo info;
