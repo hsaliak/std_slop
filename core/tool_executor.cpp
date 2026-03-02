@@ -227,17 +227,20 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
 
   // Load persistent functions from the database
   if (db_) {
-    auto functions_res = db_->Query("SELECT name, code FROM js_functions");
+    auto functions_res = db_->Query("SELECT name, code, json_schema FROM js_functions");
     if (functions_res.ok()) {
       if (auto functions_json = json_parse(*functions_res)) {
-        for (const auto& row : *functions_json) {
-          auto name = json_get<std::string>(row, "name");
-          auto code = json_get<std::string>(row, "code");
-          if (name && code) {
-            // Wrap the code to return the function closure and bind it to tools object
-            std::string wrapped_code = "tools['" + *name + "'] = (function() {\n" + *code + "\n})();";
-            JSValue func_res = interpreter.RunString(wrapped_code, "js_function_" + *name + ".js", false);
-            JS_FreeValue(ctx, func_res);
+        if (auto rows = json_getter<std::vector<nlohmann::json>>::get(*functions_json)) {
+          for (const auto& row : *rows) {
+            auto name = json_get<std::string>(row, "name");
+            auto code = json_get<std::string>(row, "code");
+            auto json_schema = json_get<std::string>(row, "json_schema");
+            if (name && code) {
+              std::string target = (json_schema && !json_schema->empty()) ? "tools" : "globalThis";
+              std::string wrapped_code = target + "['" + *name + "'] = (function() {\n" + *code + "\n})();";
+              JSValue func_res = interpreter.RunString(wrapped_code, "js_function_" + *name + ".js", false);
+              JS_FreeValue(ctx, func_res);
+            }
           }
         }
       }
@@ -362,6 +365,7 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+
 
 
 

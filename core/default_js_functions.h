@@ -102,7 +102,7 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
       R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["name"]})SLOP",
       R"SLOP(return function(args) {
   const name = args.name;
-  const base_branch = args.base_branch || git.get_current_branch();
+  const base_branch = args.base_branch || git_get_current_branch();
   const staging_name = "slop/staging/" + name;
   
   const cmd = `git checkout -b ${shell_escape(staging_name)} ${shell_escape(base_branch)}`;
@@ -145,7 +145,7 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
       R"SLOP({"type": "object", "properties": {"name": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["name"]})SLOP",
       R"SLOP(return function(args) {
   const name = args.name;
-  const base_branch = args.base_branch || git.get_current_branch();
+  const base_branch = args.base_branch || git_get_current_branch();
   const staging_name = "slop/staging/" + name;
   if (!name) throw new Error("name is required");
 
@@ -171,10 +171,10 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
       R"SLOP({"type": "object", "properties": {"target_branch": {"type": "string", "description": "string (optional)"}}, "required": []})SLOP",
       R"SLOP(return function(args) {
   slop_guard();
-  git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before finalizing.");
+  git_assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before finalizing.");
 
-  const current_branch = git.get_current_branch();
-  const target_branch = git.resolve_base_branch(args.target_branch);
+  const current_branch = git_get_current_branch();
+  const target_branch = git_resolve_base_branch(args.target_branch);
 
   const hash_res = tools.execute_bash({command: "git rev-parse HEAD"});
   const hash = hash_res.stdout.trim();
@@ -232,7 +232,7 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
       R"SLOP({"type": "object", "properties": {"base_branch": {"type": "string", "description": "string (optional)"}}, "required": []})SLOP",
       R"SLOP(return function(args) {
   slop_guard();
-  const base_branch = git.resolve_base_branch(args.base_branch);
+  const base_branch = git_resolve_base_branch(args.base_branch);
   
   const log_cmd = "git log --reverse --format='### Patch [%n/%N] ###%ncommit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n    %s%n%n%b' " + shell_escape(base_branch) + "..HEAD";
   const log_res = tools.execute_bash({command: log_cmd});
@@ -250,7 +250,7 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
       R"SLOP(return function(args) {
   slop_guard();
   const index = parseInt(args.index, 10);
-  const base_branch = git.resolve_base_branch(args.base_branch);
+  const base_branch = git_resolve_base_branch(args.base_branch);
   
   const log_cmd = `git log --reverse --format=%H ${shell_escape(base_branch)}..HEAD`;
   const log_res = tools.execute_bash({command: log_cmd});
@@ -282,17 +282,17 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
       R"SLOP({"type": "object", "properties": {"command": {"type": "string", "description": "string"}, "base_branch": {"type": "string", "description": "string (optional)"}}, "required": ["command"]})SLOP",
       R"SLOP(return function(args) {
   slop_guard();
-  git.assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before running this command.");
+  git_assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before running this command.");
 
   const command = args.command;
   if (!command) throw new Error("command is required");
-  const base_branch = git.resolve_base_branch(args.base_branch);
+  const base_branch = git_resolve_base_branch(args.base_branch);
   
   const log_cmd = `git log --reverse --format=%H ${shell_escape(base_branch)}..HEAD`;
   const log_res = tools.execute_bash({command: log_cmd});
   
   const commits = log_res.stdout.trim().split(/\s+/).filter(h => h.length > 0);
-  const current_branch = git.get_current_branch();
+  const current_branch = git_get_current_branch();
   const results = [];
   let all_passed = true;
   
@@ -721,6 +721,113 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
   });
   
   return "Skill '" + name + "' " + (action === "activate" ? "activated" : "deactivated") + "." + prompt_patch;
+};)SLOP"
+    },
+    {
+      "shell_escape",
+      R"SLOP(Helper to escape shell arguments)SLOP",
+      "",
+      R"SLOP(return function(s) {
+  if (typeof s !== "string") s = String(s);
+  return "'" + s.replace(/'/g, "'\''") + "'";
+};)SLOP"
+    },
+    {
+      "slop_guard",
+      R"SLOP(Guard for destructive operations)SLOP",
+      "",
+      R"SLOP(return function() {
+  try {
+    const res = tools.query_db({sql: "SELECT mode FROM settings WHERE id = 1"});
+    if (res && res.includes('"standard"')) {
+      return;
+    }
+  } catch (e) { print("Error parsing JSON from DB: " + e.message); }
+
+  const branch = git_get_current_branch();
+  if (!branch) return;
+
+  if (!branch.startsWith("slop/staging/") && branch !== "HEAD") {
+    throw new Error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " + branch);
+  }
+};)SLOP"
+    },
+    {
+      "git_get_current_branch",
+      R"SLOP(Gets the current git branch)SLOP",
+      "",
+      R"SLOP(return function() {
+  const forced = __os_run("echo $SLOP_FORCE_BRANCH_NAME").stdout.trim();
+  if (forced !== "") return forced;
+  
+  try {
+    const res = __os_run("git rev-parse --abbrev-ref HEAD 2>/dev/null");
+    if (res.exit_code === 0) {
+      return res.stdout.trim();
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+};)SLOP"
+    },
+    {
+      "git_get_base_branch",
+      R"SLOP(Gets the base branch for a staging branch)SLOP",
+      "",
+      R"SLOP(return function(requested_base) {
+  if (requested_base && requested_base !== "") return requested_base;
+  
+  const current = git_get_current_branch();
+  if (!current) return "main";
+  
+  const res_json = tools.query_db({
+    sql: "SELECT parent_branch FROM staging_branches WHERE branch_name = ?",
+    params: [current]
+  });
+  
+  if (res_json) {
+    try {
+      const rows = JSON.parse(res_json);
+      if (rows && rows.length > 0 && rows[0].parent_branch) {
+        return rows[0].parent_branch;
+      }
+    } catch (e) { print("Error parsing JSON from DB: " + e.message); }
+  }
+  
+  if (current.startsWith("slop/staging/")) {
+    throw new Error("Base branch not found in database for staging branch '" + current + "'.");
+  }
+  
+  return "main";
+};)SLOP"
+    },
+    {
+      "git_resolve_base_branch",
+      R"SLOP(Resolves the base branch)SLOP",
+      "",
+      R"SLOP(return function(requested) {
+  return git_get_base_branch(requested);
+};)SLOP"
+    },
+    {
+      "git_assert_clean_workspace",
+      R"SLOP(Asserts that the git workspace is clean)SLOP",
+      "",
+      R"SLOP(return function(msg) {
+  const status_res = __os_run("git status --porcelain");
+  if (status_res.stdout !== "") {
+    throw new Error(msg || "Working tree is dirty. Please commit, stash, or discard changes.");
+  }
+};)SLOP"
+    },
+    {
+      "git_is_staging_branch",
+      R"SLOP(Checks if current branch is a staging branch)SLOP",
+      "",
+      R"SLOP(return function() {
+  const branch = git_get_current_branch();
+  return branch && branch.startsWith("slop/staging/");
 };)SLOP"
     },
   };

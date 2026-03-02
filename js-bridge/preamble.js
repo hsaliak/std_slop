@@ -17,11 +17,6 @@ if (typeof tools === 'undefined' || tools === null) {
   tools = {};
 }
 
-// Helper to escape shell arguments
-function shell_escape(s) {
-  if (typeof s !== "string") s = String(s);
-  return "'" + s.replace(/'/g, "'\''") + "'";
-}
 
 // Helper to call tools safely
 function call_tool(tool_func, args) {
@@ -127,21 +122,6 @@ const MOD_TOOLS = {
   execute_bash: true
 };
 
-function slop_guard() {
-  try {
-    const res = tools.query_db({sql: "SELECT mode FROM settings WHERE id = 1"});
-    if (res && res.includes('"standard"')) {
-      return;
-    }
-  } catch (e) { print("Error parsing JSON from DB: " + e.message); }
-
-  const branch = git.get_current_branch();
-  if (!branch) return;
-
-  if (!branch.startsWith("slop/staging/") && branch !== "HEAD") {
-    throw new Error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " + branch);
-  }
-}
 
 core.dispatch_tool = function(name, args) {
   core.load_session_state();
@@ -189,93 +169,4 @@ core.dispatch_tool = function(name, args) {
     });
   }
 };
-
-// Git Helpers
-const git = {};
-
-git.get_current_branch = function() {
-  const forced = __os_run("echo $SLOP_FORCE_BRANCH_NAME").stdout.trim();
-  if (forced !== "") return forced;
-  
-  try {
-    const res = __os_run("git rev-parse --abbrev-ref HEAD 2>/dev/null");
-    if (res.exit_code === 0) {
-      return res.stdout.trim();
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-};
-
-
-
-// File System Tools
-
-
-
-
-
-
-git.get_base_branch = function(requested_base) {
-  if (requested_base && requested_base !== "") return requested_base;
-  
-  const current = git.get_current_branch();
-  if (!current) return "main";
-  
-  const res_json = tools.query_db({
-    sql: "SELECT parent_branch FROM staging_branches WHERE branch_name = ?",
-    params: [current]
-  });
-  
-  if (res_json) {
-    try {
-      const rows = JSON.parse(res_json);
-      if (rows && rows.length > 0 && rows[0].parent_branch) {
-        return rows[0].parent_branch;
-      }
-    } catch (e) { print("Error parsing JSON from DB: " + e.message); }
-  }
-  
-  if (current.startsWith("slop/staging/")) {
-    throw new Error("Base branch not found in database for staging branch '" + current + "'.");
-  }
-  
-  return "main";
-};
-
-git.resolve_base_branch = function(requested) {
-  return git.get_base_branch(requested);
-};
-
-git.assert_clean_workspace = function(msg) {
-  const status_res = __os_run("git status --porcelain");
-  if (status_res.stdout !== "") {
-    throw new Error(msg || "Working tree is dirty. Please commit, stash, or discard changes.");
-  }
-};
-
-
-
-
-
-
-git.is_staging_branch = function() {
-  const branch = git.get_current_branch();
-  return branch && branch.startsWith("slop/staging/");
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

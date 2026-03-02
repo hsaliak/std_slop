@@ -217,10 +217,7 @@ absl::Status Database::Init(const std::string& db_path) {
   // Insert default JS functions into js_functions table
   for (const auto& func : GetDefaultJsFunctions()) {
     std::string sql = "INSERT OR IGNORE INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?)";
-    auto stmt_or = Prepare(sql);
-    if (stmt_or.ok()) {
-      (void)(*stmt_or)->Execute(func.name, func.code, func.description, func.json_schema);
-    }
+    (void)Execute(sql, func.name, func.code, func.description, func.json_schema);
   }
 
   absl::Status s = RegisterDefaultTools();
@@ -249,14 +246,16 @@ absl::Status Database::RegisterDefaultTools() {
   auto functions_res = Query("SELECT name, description, json_schema FROM js_functions");
   if (functions_res.ok()) {
     if (auto functions_json = json_parse(*functions_res)) {
-      for (const auto& row : *functions_json) {
-        auto name = json_get<std::string>(row, "name");
-        auto description = json_get<std::string>(row, "description");
-        auto json_schema = json_get<std::string>(row, "json_schema");
-        if (name && description && json_schema) {
-          Tool t{*name, *description, *json_schema, true};
-          absl::Status s = RegisterTool(t);
-          if (!s.ok()) return s;
+      if (auto rows = json_getter<std::vector<nlohmann::json>>::get(*functions_json)) {
+        for (const auto& row : *rows) {
+          auto name = json_get<std::string>(row, "name");
+          auto description = json_get<std::string>(row, "description");
+          auto json_schema = json_get<std::string>(row, "json_schema");
+          if (name && description && json_schema && !json_schema->empty()) {
+            Tool t{*name, *description, *json_schema, true};
+            absl::Status s = RegisterTool(t);
+            if (!s.ok()) return s;
+          }
         }
       }
     }
@@ -879,6 +878,8 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
+
 
 
 
