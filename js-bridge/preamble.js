@@ -6,29 +6,17 @@
 // GLOBALS:
 //   session_id (string): The unique ID for the current interaction.
 //   state      (string): The technical state summary (Goal/Context/Resolved).
-//   history    (array):  The full conversation history as a list of message objects.
 //   tools      (object): The registry of available tools.
-// NOTE: state/history/tools globals are deprecated. Prefer explicit tool calls.
 // ============================================================================
 
 if (typeof state === 'undefined' || state === null) {
   state = "";
 }
 
-if (typeof history === 'undefined' || history === null) {
-  history = [];
-}
-
 if (typeof tools === 'undefined' || tools === null) {
   tools = {};
 }
 
-// Deprecated globals (legacy compatibility)
-globalThis.__deprecated_globals__ = {
-  state: true,
-  history: true,
-  tools: true
-};
 // Helper to escape shell arguments
 function shell_escape(s) {
   if (typeof s !== "string") s = String(s);
@@ -53,9 +41,6 @@ let _initial_state = null;
 
 core.load_session_state = function() {
   // Skip if already loaded
-  if (history && history.length > 0) {
-    return;
-  }
   if (!session_id || session_id === "") return;
   if (_loaded_session === session_id) return;
 
@@ -82,24 +67,6 @@ core.load_session_state = function() {
     state = "";
   }
   _initial_state = state;
-
-  // Load history
-  let hist_sql = "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id DESC";
-  if (window_size > 0) {
-    hist_sql += " LIMIT " + window_size;
-  }
-  const hist_json = tools.query_db({
-    sql: hist_sql,
-    params: [session_id]
-  });
-  const h_rows = JSON.parse(hist_json);
-  history = [];
-  if (h_rows) {
-    // Reverse DESC order to get chronological history
-    for (let i = h_rows.length - 1; i >= 0; i--) {
-      history.push({role: h_rows[i].role, content: h_rows[i].content});
-    }
-  }
 
   _loaded_session = session_id;
 };
@@ -320,9 +287,8 @@ tools.help = function() {
       ]
     },
     globals: {
-      tools: "tool registry object (deprecated)",
-      state: "current technical context (deprecated)",
-      history: "conversation history metadata (deprecated)"
+      tools: "tool registry object",
+      state: "current technical context"
     },
     tool_return_envelope: {
       success: {ok: true, tool: "<canonical>", requested_tool: "<input>", alias_used: false, result: "<tool result>"},
@@ -914,5 +880,13 @@ tools.persist_function = function(args) {
 
   return [true, "Function persisted successfully"];
 };
+
+
+
+
+
+
+
+
 
 

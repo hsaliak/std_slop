@@ -220,20 +220,6 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
     JS_SetPropertyStr(ctx, global_obj, "state", JS_NewString(ctx, state_res->c_str()));
   }
 
-  // Inject history
-  auto history_res = db_->GetConversationHistory(session_id_);
-  if (history_res.ok() && !history_res->empty()) {
-    JSValue history_array = JS_NewArray(ctx);
-    uint32_t i = 0;
-    for (const auto& msg : *history_res) {
-      JSValue msg_obj = JS_NewObject(ctx);
-      JS_SetPropertyStr(ctx, msg_obj, "role", JS_NewString(ctx, msg.role.c_str()));
-      JS_SetPropertyStr(ctx, msg_obj, "content", JS_NewString(ctx, msg.content.c_str()));
-      JS_SetPropertyUint32(ctx, history_array, i++, msg_obj);
-    }
-    JS_SetPropertyStr(ctx, global_obj, "history", history_array);
-  }
-
   if (!req.args.is_null()) {
     JS_SetPropertyStr(ctx, global_obj, "args", interpreter.JSONToJS(req.args));
   }
@@ -376,4 +362,5 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+
 
