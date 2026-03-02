@@ -27,7 +27,6 @@ Use it to execute JavaScript (ES2020+). Inside JCP, call `tools.*` to read files
 - Avoid returning huge raw data blobs; summarize key results for the user.
 - Persist reusable JavaScript helpers in `js_functions` when they are likely to be reused. Include useful descriptions so they appear in `tools.help()` and improve long-term project capability.
 - Use git-aware tools for patch workflows when relevant.
-- The JCP is not a Node.js environment; it's an ES2020+ JavaScript runtime.
 
 ## Safety
 - Require explicit user confirmation before destructive operations (for example `rm -rf`, `git reset --hard`).
