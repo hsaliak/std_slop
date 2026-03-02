@@ -497,36 +497,8 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         HandleStatus(status, "cloning session");
       }
     }
-  } else if (sub_cmd == "scratchpad") {
-    // Scratchpad is a per-session persistent markdown-based text area.
-    // It allows maintaining a long-running plan or state that isn't lost
-    // when the context window shifts.
-    std::vector<std::string> scratch_parts = absl::StrSplit(sub_args, absl::MaxSplits(' ', 1));
-    std::string scratch_op = scratch_parts[0];
-    if (scratch_op == "read") {
-      auto res = db_->GetScratchpad(args.session_id);
-      if (res.ok()) {
-        std::string md = absl::Substitute("## Scratchpad [$0]\n\n", args.session_id);
-        md += *res;
-        PrintMarkdown(md);
-      } else {
-        std::cout << "Scratchpad is empty or session not found." << std::endl;
-      }
-    } else if (scratch_op == "edit") {
-      auto current = db_->GetScratchpad(args.session_id);
-      std::string initial = current.ok() ? *current : "";
-      std::string updated = TriggerEditor(initial, ".md");
-      if (!updated.empty()) {
-        HandleStatus(db_->UpdateScratchpad(args.session_id, updated));
-        std::cout << "Scratchpad updated." << std::endl;
-      } else {
-        std::cout << "Scratchpad not updated (empty or editor error)." << std::endl;
-      }
-    } else {
-      std::cout << "Unknown scratchpad operation: " << scratch_op << ". Use read or edit." << std::endl;
-    }
   } else {
-    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, switch, remove, clear, clone, scratchpad"
+    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, switch, remove, clear, clone"
               << std::endl;
   }
   return Result::HANDLED;
@@ -1147,3 +1119,4 @@ CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
 }
 
 }  // namespace slop
+

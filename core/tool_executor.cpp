@@ -214,12 +214,6 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
 
   JS_SetPropertyStr(ctx, global_obj, "session_id", JS_NewString(ctx, session_id_.c_str()));
 
-  // Inject scratchpad
-  auto scratchpad_res = db_->GetScratchpad(session_id_);
-  if (scratchpad_res.ok() && !scratchpad_res->empty()) {
-    JS_SetPropertyStr(ctx, global_obj, "scratchpad", JS_NewString(ctx, scratchpad_res->c_str()));
-  }
-
   // Inject state
   auto state_res = db_->GetSessionState(session_id_);
   if (state_res.ok() && !state_res->empty()) {
@@ -382,3 +376,4 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+

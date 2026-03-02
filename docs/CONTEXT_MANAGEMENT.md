@@ -1,34 +1,10 @@
 # Context Management in std::slop
 This document outlines the context management strategy in `std::slop`. We focus on a **Sequential Rolling Window** complemented by **Self-Managed State Tracking** and **On-Demand Historical Retrieval**.
 The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
-## 1. Static Anchor (Global State & Scratchpad)
+## 1. Static Anchor (Global State)
 To prevent the model from "losing the thread" during long sessions, the orchestrator injects two persistent blocks at the top of every prompt, immediately after the system instructions:
 1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. In the JavaScript Control Plane (RLM paradigm), this is accessible via the global `state` handle and is typically updated at the end of a response.
-2.  **Active Scratchpad**: A persistent markdown block stored in the `scratchpads` table. This serves as the agent's "Project Roadmap". In the JavaScript Control Plane, it is managed programmatically via the global `scratchpad` variable and the `tools.manage_scratchpad` tool.
-Both the **Global State** and **Active Scratchpad** are stored in the SQLite database and persist indefinitely across history pruning or session restarts. The scratchpad is intended to be the "source of truth" for the current task and can be manually edited by the user to redirect the agent or refine the plan.
-## 2. Sequential Rolling Window
-The system treats the conversation history as a linear timeline. This ensures that the narrative flow and the sequence of technical operations are preserved.
-### Mechanism
-- **Retrieval**: Fetches the conversation history for the session.
-- **Selection**:
-    - If a `context_size` limit (N) is set, it identifies the last N distinct `group_id`s in the history.
-    - It then filters the history to include only messages belonging to these last N groups.
-    - A `context_size` of 0 indicates "Full History" (no windowing).
-- **Ordering**: Strict chronological order.
-### Tradeoffs
-- **Pros**:
-    - **Coherence**: Guarantees the most recent conversation flow is preserved intact.
-    - **Simplicity**: Easy to reason about; "what you see is what you get" (the last N exchanges).
-    - **Reliability**: Avoids the "hallucination" or confusion that can occur with non-sequential fragments.
-- **Cons**:
-    - **Memory Loss**: Older context falls off the window. This is mitigated by **State Tracking** and **Historical Retrieval**.
-## 2. Multi-Strategy Orchestration and Tool Call Isolation
-As sessions evolve, users might switch between different LLM providers (e.g., shifting from Gemini to OpenAI). Different providers often use incompatible formats for tool calls and message structures. To ensure stability and prevent parsing errors, `std::slop` implements **Tool Call Isolation**.
-### Strategy Tagging
-Every message appended to the database is tagged with the `parsing_strategy` that was active when it was created. Common strategies include `openai`, `gemini`, and `gemini_gca`.
-### Strategy-Aware History Filtering
-When the `Orchestrator` assembles a prompt, it filters the historical messages based on the currently active strategy:
-1.  **Text Messages**: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.
+2.  **Text Messages**: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.
 2.  **Tool Isolation**: Messages with a `role` of `tool` or a `status` of `tool_call` are only included if their `parsing_strategy` matches the currently active one (with compatibility between `gemini` and `gemini_gca`).
 3.  **Rationale**: Providers (like Google and OpenAI) use vastly different JSON schemas and sequences for tool interactions. Attempting to "translate" a complex tool chain from one provider to another often leads to hallucinations or API errors. Isolation ensures that the LLM only sees tool interactions it is capable of understanding and continuing.
 This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs. Information that must persist across tool-isolated boundaries should be recorded in the **Global Anchor (State)**.
@@ -52,8 +28,7 @@ When building the prompt, the Orchestrator assembles multiple layers of context:
 1.  **System Prompt**: The hard-coded base instructions for the assistant.
 2.  **History Guidelines**: Instructions for the LLM on how to interpret the history and the requirement to maintain the state block.
 3.  **Global Anchor (`### STATE`)**: The persistent state blob retrieved from the `session_state` table.
-4.  **The Scratchpad**: A flexible, persistent workspace for evolving plans and task tracking.
-5.  **Conversation History**: The sequential messages retrieved via the rolling window.
+4.  **Conversation History**: The sequential messages retrieved via the rolling window.
 ### State Persistence and Extraction
 The state is managed autonomously by the LLM:
 -   **Extraction**: At the end of every response, the LLM is required to include a `### STATE` block. The `Orchestrator` parses this block from the response and saves it to the `session_state` table in the database.
@@ -67,14 +42,6 @@ Context: [Active files/classes being edited]
 Resolved: [List of things finished this session]
 Technical Anchors: [Ports, IPs, constant values]
 ```
-## 4. The Scratchpad: Evolutionary Planning
-As the system evolved, we replaced the structured, rigid `/todo` table with a more flexible **Scratchpad**. This shift represents a move from human-managed task lists to LLM-managed architectural and implementation plans.
-### Flexible Workspace
-- **Evolution**: Unlike the fixed schema of the `todos` table, the scratchpad is a raw text/markdown field in the `sessions` table. It allows for hierarchical plans, notes, and evolving implementation details that don't fit into a simple "Open/Complete" status.
-- **Persistence**: The scratchpad is specific to the session and persists across model switches and session restarts.
-- **LLM Introspection**: The LLM is equipped with tools (`manage_scratchpad`) to read, update, and append to the scratchpad. This allows it to "think out loud" or maintain a checklist that stays in context even as messages roll off the window.
-### User Transparency
-The scratchpad functionality is designed to be transparent. While the user can interact with it via `/session scratchpad`, the primary use case is for the LLM to autonomously maintain its own plan. The user simply ensures the plan is initialized or updated by asking the LLM to "update the scratchpad" or "save the plan to the scratchpad."
 ## 5. Historical Context Retrieval (SQL-based Retrieval)
 Unique to `std::slop`, the agent has the capability to query its own message history directly via SQL when the rolling window is insufficient.
 ### Mechanism
@@ -85,8 +52,8 @@ The agent is instructed to use the `query_db` tool to search the `messages` tabl
 - **Selective Retrieval**: The agent can search by `role`, `content` keywords, or `group_id`.
 Example query the agent might use:
 ```sql
-SELECT role, content FROM messages 
-WHERE status != 'dropped' AND content LIKE '%refactor plan%' 
+SELECT role, content FROM messages
+WHERE status != 'dropped' AND content LIKE '%refactor plan%'
 ORDER BY id DESC LIMIT 5;
 ```
 ## 6. Manual Context Intervention
@@ -129,7 +96,7 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 Token counts in `std::slop` (displayed as `· NNN tokens`) do not represent the isolated cost of a single message, but rather a **snapshot of the session's total weight** in the LLM's memory at that specific moment.
 ### The Snapshot Principle
 Every interaction with the LLM is stateless. To provide context, the orchestrator sends the entire relevant conversation history back to the model with every new request. The reported token count is the sum of:
-1.  **Prompt Tokens**: The "Input" (System Instructions + Global State + Active Scratchpad + Conversation History + New User Message).
+1.  **Prompt Tokens**: The "Input" (System Instructions + Global State + Active  + Conversation History + New User Message).
 2.  **Completion Tokens**: The "Output" (The LLM's new reasoning text and/or tool calls).
 ### Behavioral Characteristics
 *   **Growth**: As long as the session history is preserved, the token count will strictly increase turn-by-turn as the history "Prompt Tokens" grows.
@@ -152,9 +119,9 @@ Every interaction with the LLM is stateless. To provide context, the orchestrato
 **Change**: Implemented a 3-tier truncation strategy: Full-fidelity (5000 chars) for the last 5 tool calls in the active group, Degraded (1000 chars) for older calls in the active group, and Inactive (300 chars) for previous turns.
 **Rationale**: Complex tasks often involve many tool calls within a single "turn" (e.g., recursive file searches or broad refactors). Preserving 5000 characters for *every* call in a 20-call sequence would instantly exhaust the context window. By degrading older calls within the same turn to 1000 characters, we balance technical fidelity for the current task with the need to preserve conversation history and the Global Anchor state.
 ### 2026-01-29: Dual-Track State Management
-**Change**: Formalized the use of a "Static Anchor" consisting of two separate blocks: Global State (`### STATE`) and Active Scratchpad.
+**Change**: Formalized the use of a "Static Anchor" consisting of two separate blocks: Global State (`### STATE`) and Active .
 **Rationale**: Evaluated three strategies for maintaining continuity during complex engineering sessions:
 1.  **Model-Echo**: Model repeats state at the end of every message. Rejected as fragile; state is lost if the model forgets it once or hits token limits.
-2.  **Merged State/Scratchpad**: Single unified block for all persistent data. Rejected to avoid "context drift"; merging technical anchors (IPs, ports) with high-level roadmaps (checklists) confuses the model's focus.
-3.  **Dual-Track (Current)**: Separate blocks for "Short-Term Memory" (Technical Anchors in State) and "Long-Term Memory" (Project Roadmap in Scratchpad). This provides maximum robustness across history pruning. Both blocks are DB-backed and can be updated independently (e.g., by the `planner` skill) without disturbing the technical context.
+2.  **Merged State/**: Single unified block for all persistent data. Rejected to avoid "context drift"; merging technical anchors (IPs, ports) with high-level roadmaps (checklists) confuses the model's focus.
+3.  **Dual-Track (Current)**: Separate blocks for "Short-Term Memory" (Technical Anchors in State) and "Long-Term Memory" (Project Roadmap in ). This provides maximum robustness across history pruning. Both blocks are DB-backed and can be updated independently (e.g., by the `planner` skill) without disturbing the technical context.
 

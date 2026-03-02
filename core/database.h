@@ -173,8 +173,6 @@ class Database {
   absl::Status DeleteSession(const std::string& session_id);
   // Session Cloning
   absl::Status CloneSession(const std::string& source_id, const std::string& target_id);
-  absl::Status UpdateScratchpad(const std::string& session_id, const std::string& scratchpad);
-  absl::StatusOr<std::string> GetScratchpad(const std::string& session_id);
   // Patch Approval
   absl::Status SetPatchApproval(const std::string& branch_name, const std::string& hash);
   absl::StatusOr<std::string> GetPatchApproval(const std::string& branch_name);
@@ -198,3 +196,4 @@ class Database {
 };
 }  // namespace slop
 #endif  // SLOP_SQL_DATABASE_H_
+

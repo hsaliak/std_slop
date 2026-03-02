@@ -53,7 +53,6 @@ Tracks active conversation sessions.
 | :--- | :--- | :--- |
 | id | TEXT | Primary Key. Session identifier. |
 | context_size | INTEGER | Number of messages to include in context. Default: 5. |
-| scratchpad | TEXT | Scratchpad content for the session. |
 | active_skills | TEXT | Comma-separated list of active skill names. |
 | parent_session_id | TEXT | Parent session for branching conversations. |
 | depth | INTEGER | Nesting depth of the session. Default: 0. |
@@ -178,7 +177,6 @@ CREATE TABLE IF NOT EXISTS skills (
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     context_size INTEGER DEFAULT 5,
-    scratchpad TEXT,
     active_skills TEXT,
     parent_session_id TEXT,
     depth INTEGER DEFAULT 0,
@@ -238,3 +236,4 @@ CREATE TABLE IF NOT EXISTS test_memos (
     tags TEXT
 );
 ```
+

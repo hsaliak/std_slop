@@ -8,10 +8,9 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
       {"/exec", {}, {}, {"/exec <command>        Execute shell command"}, "Core Operations"},
       {"/stats", {}, {"/usage"}, {"Show session usage statistics"}, "Core Operations"},
       {"/session",
-       {"list", "switch", "remove", "clear", "clone", "scratchpad"},
+       {"list", "switch", "remove", "clear", "clone"},
        {},
-       {"/session list", "/session switch <name>", "/session remove <name>", "/session clear", "/session clone <name>",
-        "/session scratchpad read", "/session scratchpad edit"},
+       {"/session list", "/session switch <name>", "/session remove <name>", "/session clear", "/session clone <name>"},
        "Session & Memory"},
       {"/agents_md",
        {"show", "reload"},
@@ -51,3 +50,6 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
   return kDefinitions;
 }
 }  // namespace slop
+
+
+

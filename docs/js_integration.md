@@ -15,14 +15,9 @@ In `std::slop`, the JCP allows the agent to  pass the context programatically in
 ### Parallelism and Efficiency
 The JCP supports asynchronous execution. An agent can initiate multiple file reads, code searches, or even sub-LLM queries simultaneously using `_async` tool variants, drastically reducing the latency of complex investigative tasks.
 
-### Persistence and State Continuity
-The JCP provides a persistent environment across turns. By using the `scratchpad` and `state` globals, the agent maintains internal continuity without bloating user-facing output. These globals are saved in sqlite at the end of a turn, and injected into the environment in the next.
-
 ---
 
 ## 2. The Recursive Language Model (RLM) Paradigm
-
-The JCP implements the **Recursive Language Model (RLM)** paradigm. In this model, the agent processes arbitrarily long contexts by treating the codebase, history, and scratchpad as external variables in a persistent JavaScript environment.
 
 The JCP acts as the "inner loop" of the agent's cognition:
 1.  **Analyze**: The LLM analyzes the current state and goal.
@@ -36,56 +31,9 @@ The JCP acts as the "inner loop" of the agent's cognition:
 
 Scripts executed via `run_js` have access to a rich environment tailored for software engineering.
 
-### Global Symbolic Handles
-These variables bridge the gap between individual turns and provide persistent context.
-
-| Global | Purpose | Usage |
-| :--- | :--- | :--- |
-| `scratchpad` | Working notes and checklists. | Read at turn start; update via `tools.manage_scratchpad`. |
-| `state` | Current technical anchors (branch, files, ports). | Tracks progress through a multi-step workflow. |
-| `history` | Conversation metadata. | Used by the system to manage turn transitions. |
-
-### The `tools` Table
-All system tools are available under the `tools` namespace. Examples include:
-- `tools.read_file({path = "...", start_line = 1, end_line = 10, line_numbers = true})`: Reads a file with optional line range and `line_numbers`.
-- `tools.grep({pattern = "..."})`: **Preferred** for cross-file searching.
-- `tools.query_db({sql = "..."})`: Queries the project database.
-- `tools.ask_user({prompt = "..."})`: Prompts the human user for input. This is synchronous and will block script execution until the user responds.
-  - **Behavior**: If the user attempts to use a slash command in response, the system will display an error and re-prompt them. This ensures the agent receives a valid response to its question.
-- `tools.help({})`: Returns a JSON manifest with tool contracts, canonical names, and aliases.
-
-### Asynchronous Execution
-Most tools have an `_async` variant or can be used with `dispatch_async`.
-```javascript
-const job1 = tools.dispatch_async("execute_bash", {command: "bazel test //core:test1"});
-const job2 = tools.dispatch_async("execute_bash", {command: "bazel test //core:test2"});
-
-// Perform other logic while tests run...
-const res1 = job1.wait();
-const res2 = job2.wait();
-```
-
 ---
 
 ## 4. Persistence Mechanisms
-
-### Scratchpad (`tools.manage_scratchpad`)
-The scratchpad is the agent's primary internal "working memory." It should be used to track progress through a plan, not as user-facing output.
-**Mandatory Pattern:**
-```javascript
-// 1. READ scratchpad at start
-const notes = tools.manage_scratchpad({action: "read", key: "notes"});
-const ctx = notes ? notes : {step: 1};
-
-// 2. PERFORM work...
-
-// 3. UPDATE scratchpad at end
-tools.manage_scratchpad({
-    action: "update",
-    key: "notes",
-    value: {step: 2, status: "Refactored module A"}
-});
-```
 
 ### Transient Scope
 *   **Skill Limitation**: The `hey <skill>` hotword detection does not work for non-default or custom skills within a sub-query, as the sub-query's database only contains default system personas.
@@ -111,11 +59,8 @@ for (let i = 0; i < jobs.length; i++) {
 
 ## 6. Best Practices
 
-1.  **Read Before Writing**: Always read the `scratchpad` at the beginning of a script to maintain continuity.
 2.  **Filter Aggressively**: Use JavaScript processing or `grep` to filter data before returning it from `run_js`.
-3.  **Return User Conclusions**: Keep large intermediate artifacts in scratchpad, but return a concise user-facing conclusion in the same turn.
 4.  **No Uncommitted State**: In the Mail Model workflow, ensure all logical units of work are committed via `tools.git_commit_patch` before ending the script.
-
 
 ## Persistent Functions
 
@@ -153,3 +98,5 @@ tools.persist_function({
 ### Discoverability
 
 All persistent functions are automatically listed in the JSON output of `tools.help()` under `persistent_functions`.
+
+

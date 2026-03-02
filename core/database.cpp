@@ -145,7 +145,6 @@ absl::Status Database::Init(const std::string& db_path) {
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         context_size INTEGER DEFAULT 3,
-        scratchpad TEXT,
         active_skills TEXT
     );
     CREATE TABLE IF NOT EXISTS usage (
@@ -222,7 +221,7 @@ absl::Status Database::RegisterDefaultTools() {
       {"run_js",
        "Execute a JavaScript (ES2020+) script acting as a high-level 'control plane' with access to a "
        "'tools' object (supporting async variants), and global variables 'history', 'state', and optional "
-       "'scratchpad' TODO notes. Output and return values are captured.",
+       "Output and return values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The JavaScript script to execute."}},"required":["script"]})",
        true}};
   // Automatically register all core tools defined in the default_tools list.
@@ -291,7 +290,7 @@ absl::Status Database::RegisterDefaultSkills() {
                             "and aliases.\n"
                             "- **'history'**: Array of messages providing session context. It is appended to after "
                             "each turn and can be used to programmatically extract information from prior turns.\n"
-                            "- **'state', 'scratchpad'**: Global context strings. Scratchpad is INTERNAL memory only.\n"
+                            "- **'state'**: Global context string.\n"
                             ""
                             "### PARALLELISM\n"
                             "Use `tools.execute_bash_async` to launch parallel jobs, then "
@@ -299,7 +298,7 @@ absl::Status Database::RegisterDefaultSkills() {
                             "### OUTPUT\n"
                             "Use `print()` for debugging/logging. The script's final expression or explicit `return` "
                             "value is captured and returned to you. Return a concise user-facing result every turn; "
-                            "do not tell the user to inspect scratchpad."});
+                            ""});
   default_skills.push_back(
       {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
        "You are the Patcher, an expert software engineer specialized in the \"Mail Model\" workflow. Your primary "
@@ -742,9 +741,9 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
     return s;
   };
   absl::Status status = Execute(
-      "INSERT INTO sessions (id, context_size, scratchpad, active_skills) "
-      "SELECT ?, context_size, scratchpad, active_skills FROM sessions "
-      "WHERE id = ?;",
+      "INSERT INTO sessions (id, context_size, active_skills) "
+       "SELECT ?, context_size, active_skills FROM sessions "
+       "WHERE id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
@@ -800,26 +799,6 @@ absl::StatusOr<std::string> Database::Query(const std::string& sql, const std::v
   }
   return json_dump(results);
 }
-absl::Status Database::UpdateScratchpad(const std::string& session_id, const std::string& scratchpad) {
-  auto stmt_or = Prepare(
-      "INSERT INTO sessions (id, scratchpad) VALUES (?, ?) "
-      "ON CONFLICT(id) DO UPDATE SET scratchpad=excluded.scratchpad");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto stmt = std::move(*stmt_or);
-  (void)stmt->BindText(1, session_id);
-  (void)stmt->BindText(2, scratchpad);
-  return stmt->Run();
-}
-absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_id) {
-  auto stmt_or = Prepare("SELECT scratchpad FROM sessions WHERE id = ?");
-  if (!stmt_or.ok()) return stmt_or.status();
-  auto stmt = std::move(*stmt_or);
-  (void)stmt->BindText(1, session_id);
-  auto res = stmt->Step();
-  if (!res.ok()) return res.status();
-  if (!*res) return "";  // Return empty string if session not found
-  return stmt->ColumnText(0);
-}
 absl::Status Database::SetPatchApproval(const std::string& branch_name, const std::string& hash) {
   auto stmt_or = Prepare(
       "INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, "
@@ -869,3 +848,6 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
+
+

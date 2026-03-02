@@ -5,22 +5,10 @@
 // 
 // GLOBALS:
 //   session_id (string): The unique ID for the current interaction.
-//   scratchpad (object): The persistent programmatic scratchpad.
 //   state      (string): The technical state summary (Goal/Context/Resolved).
 //   history    (array):  The full conversation history as a list of message objects.
 //   tools      (object): The registry of available tools.
 // ============================================================================
-
-// Transform scratchpad from string to object if needed
-if (typeof scratchpad === "string") {
-  try {
-    scratchpad = JSON.parse(scratchpad);
-  } catch (e) {
-    scratchpad = { notes: scratchpad };
-  }
-} else if (typeof scratchpad === 'undefined' || scratchpad === null) {
-  scratchpad = {};
-}
 
 if (typeof state === 'undefined' || state === null) {
   state = "";
@@ -54,7 +42,6 @@ const core = {};
 
 // Internal state tracking
 let _loaded_session = null;
-let _initial_scratchpad_json = "{}";
 let _initial_state = null;
 
 core.load_session_state = function() {
@@ -67,23 +54,13 @@ core.load_session_state = function() {
 
   // Use query_db to fetch session data
   const rows_json = tools.query_db({
-    sql: "SELECT scratchpad, context_size FROM sessions WHERE id = ?",
+    sql: "SELECT context_size FROM sessions WHERE id = ?",
     params: [session_id]
   });
   const rows = JSON.parse(rows_json);
   let window_size = 0;
   if (rows && rows[0]) {
-    const raw_sp = rows[0].scratchpad || "{}";
-    try {
-      scratchpad = JSON.parse(raw_sp);
-    } catch (e) {
-      scratchpad = {};
-    }
-    _initial_scratchpad_json = JSON.stringify(scratchpad);
     window_size = rows[0].context_size || 0;
-  } else {
-    scratchpad = {};
-    _initial_scratchpad_json = "{}";
   }
 
   // Load session state
@@ -122,16 +99,6 @@ core.load_session_state = function() {
 
 core.maybe_persist_state = function() {
   if (!session_id || session_id === "") return;
-  
-  const current_json = JSON.stringify(scratchpad);
-  if (current_json !== _initial_scratchpad_json) {
-    tools.query_db({
-      sql: "INSERT INTO sessions (id, scratchpad) VALUES (?, ?) " +
-            "ON CONFLICT(id) DO UPDATE SET scratchpad = excluded.scratchpad",
-      params: [session_id, current_json]
-    });
-    _initial_scratchpad_json = current_json;
-  }
   
   if (state !== _initial_state) {
     tools.query_db({
@@ -266,43 +233,6 @@ git.get_current_branch = function() {
   }
 };
 
-// Knowledge Management Tools
-tools.manage_scratchpad = function(args) {
-  if (!session_id || session_id === "") throw new Error("FAILED_PRECONDITION: No active session");
-  const action = args.action;
-  
-  if (action === "read") {
-    return scratchpad;
-  } else if (action === "update") {
-    if (args.key) {
-      scratchpad[args.key] = args.value;
-    } else if (args.content) {
-      scratchpad.notes = args.content;
-    } else if (typeof args.value === "object") {
-      for (let k in args.value) scratchpad[k] = args.value[k];
-    }
-    
-    const json_str = JSON.stringify(scratchpad);
-    tools.query_db({
-      sql: "UPDATE sessions SET scratchpad = ? WHERE id = ?",
-      params: [json_str, session_id]
-    });
-    return "Scratchpad updated and persisted.";
-  } else if (action === "append") {
-    const current = scratchpad.notes || "";
-    scratchpad.notes = current + (args.content || "");
-    
-    const json_str = JSON.stringify(scratchpad);
-    tools.query_db({
-      sql: "UPDATE sessions SET scratchpad = ? WHERE id = ?",
-      params: [json_str, session_id]
-    });
-    return "Scratchpad appended and persisted.";
-  } else {
-    throw new Error("Unknown action: " + action);
-  }
-};
-
 tools.describe_db = function(args) {
   const query = "SELECT name, sql FROM sqlite_master WHERE type='table'";
   const res = tools.query_db({sql: query});
@@ -351,11 +281,6 @@ tools.help = function() {
       args_schema: {prompt: "string"},
       returns: "string"
     },
-    manage_scratchpad: {
-      description: "Reads/writes optional task TODO notes (scratchpad).",
-      args_schema: {action: "read|update|append", key: "string (optional)", value: "any (optional)", content: "string (optional)"},
-      returns: "object|string"
-    },
     describe_db: {
       description: "Lists SQLite schema details.",
       args_schema: {},
@@ -372,10 +297,8 @@ tools.help = function() {
     version: "2",
     model_entrypoints: ["run_js"],
     rules: {
-      scratchpad_is_internal_only: true,
       user_response_required_each_turn: true,
       guidance: [
-        "Use scratchpad as optional task TODO memory; do not ask user to inspect scratchpad.",
         "run_js output is plain text: return text or print text in every script.",
         "Return user-facing conclusions directly in this turn.",
         "For independent operations, prefer dispatch_async and wait().",
@@ -384,7 +307,6 @@ tools.help = function() {
     },
     globals: {
       tools: "tool registry object",
-      scratchpad: "persistent internal memory",
       state: "current technical context",
       history: "conversation history metadata"
     },
@@ -936,3 +858,4 @@ tools.persist_function = function(args) {
 
   return [true, "Function persisted successfully"];
 };
+

@@ -48,8 +48,6 @@ class ContextManagementTest : public ::testing::Test {
  protected:
   void SetUp() override {
     ASSERT_TRUE(db_.Init(":memory:").ok());
-    // Create a dummy session for scratchpad tests
-    ASSERT_TRUE(db_.Query("INSERT INTO sessions (id) VALUES ('test-session')").ok());
   }
 
   Database db_;
@@ -93,48 +91,6 @@ TEST_F(ContextManagementTest, ListDirectoryRecursive) {
   std::filesystem::remove_all("test_dir_rec");
 }
 
-TEST_F(ContextManagementTest, ScratchpadBasic) {
-  auto executor_or = ToolExecutor::Create(&db_);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-  executor.SetSessionId("test-session");
-
-  // Read empty scratchpad
-  auto res_read1 = executor.Execute("manage_scratchpad", {{"action", "read"}});
-  ASSERT_TRUE(res_read1.ok());
-  const auto read1_env = ParseEnvelope(*res_read1);
-  ASSERT_TRUE(read1_env.is_object());
-  ASSERT_TRUE(read1_env.contains("result"));
-  EXPECT_TRUE(read1_env["result"].is_object());
-  EXPECT_TRUE(read1_env["result"].empty());
-
-  // Update scratchpad
-  auto res_update = executor.Execute("manage_scratchpad", {{"action", "update"}, {"content", "# My Notes\n- Task 1"}});
-  ASSERT_TRUE(res_update.ok());
-
-  // Read updated scratchpad
-  auto res_read2 = executor.Execute("manage_scratchpad", {{"action", "read"}});
-  ASSERT_TRUE(res_read2.ok());
-  const auto read2_env = ParseEnvelope(*res_read2);
-  ASSERT_TRUE(read2_env.is_object());
-  ASSERT_TRUE(read2_env.contains("result"));
-  EXPECT_TRUE(read2_env["result"].is_object());
-  EXPECT_TRUE(absl::StrContains(read2_env["result"].dump(), "# My Notes"));
-  EXPECT_TRUE(absl::StrContains(read2_env["result"].dump(), "- Task 1"));
-
-  // Append to scratchpad
-  auto res_append = executor.Execute("manage_scratchpad", {{"action", "append"}, {"content", "\n- Task 2"}});
-  ASSERT_TRUE(res_append.ok());
-
-  // Read appended scratchpad
-  auto res_read3 = executor.Execute("manage_scratchpad", {{"action", "read"}});
-  ASSERT_TRUE(res_read3.ok());
-  const auto read3_env = ParseEnvelope(*res_read3);
-  ASSERT_TRUE(read3_env.is_object());
-  ASSERT_TRUE(read3_env.contains("result"));
-  EXPECT_TRUE(absl::StrContains(read3_env["result"].dump(), "- Task 1"));
-  EXPECT_TRUE(absl::StrContains(read3_env["result"].dump(), "- Task 2"));
-}
 
 TEST_F(ContextManagementTest, DescribeDb) {
   auto executor_or = ToolExecutor::Create(&db_);
@@ -191,3 +147,7 @@ TEST_F(ContextManagementTest, GrepTruncation) {
 }
 
 }  // namespace slop
+
+
+
+

@@ -79,7 +79,6 @@ TEST_F(CommandHandlerTest, SessionClone) {
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   // Set up some data in s1
-  ASSERT_TRUE(db.UpdateScratchpad(sid, "s1 scratchpad").ok());
   ASSERT_TRUE(db.AppendMessage(sid, "user", "Hello").ok());
   // Clone s1 to s2
   std::string input = "/session clone s2";
@@ -88,9 +87,7 @@ TEST_F(CommandHandlerTest, SessionClone) {
   // Verify sid was updated
   EXPECT_EQ(sid, "s2");
   // Verify s2 has s1's data
-  auto scratch = db.GetScratchpad("s2");
-  ASSERT_TRUE(scratch.ok());
-  EXPECT_EQ(*scratch, "s1 scratchpad");
+
   auto history = db.GetConversationHistory("s2");
   ASSERT_TRUE(history.ok());
   EXPECT_EQ(history->size(), 1);
@@ -158,19 +155,6 @@ TEST_F(CommandHandlerTest, ContextShowIsHandled) {
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-}
-TEST_F(CommandHandlerTest, SessionScratchpadEditSaves) {
-  TestableCommandHandler handler(&db);
-  std::string sid = "test_scratch_session";
-  std::vector<std::string> active_skills;
-  handler.next_editor_output = "New scratchpad content";
-  std::string input = "/session scratchpad edit";
-  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
-  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(handler.editor_was_called);
-  auto saved = db.GetScratchpad(sid);
-  ASSERT_TRUE(saved.ok()) << saved.status().message();
-  EXPECT_EQ(*saved, "New scratchpad content");
 }
 TEST_F(CommandHandlerTest, WindowAliasIsRemoved) {
   auto handler_or = CommandHandler::Create(&db);
@@ -738,3 +722,9 @@ TEST_F(CommandHandlerTest, ModeMailResolvesCorrectBaseBranch) {
   }
 }
 }  // namespace slop
+
+
+
+
+
+

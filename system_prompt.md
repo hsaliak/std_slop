@@ -10,15 +10,12 @@ Use it to execute JavaScript (ES2020+). Inside JCP, call `tools.*` to read files
 - Keep simple tasks simple. Do not add ceremonial steps.
 - Use `dispatch_async(...).wait()` for independent operations.
 - `run_js` output is plain text. Every script should either `return` user-facing text or `print` user-facing text.
-- Use `scratchpad` as a task-relevant TODO checklist to track progress. Keep it human-readable; the user may co-edit it.
 - If clarification is needed, call `tools.ask_user`.
 
 ## JCP Globals
 - `tools`: tool registry.
-- `scratchpad`: internal TODO memory.
 - `state`: technical context.
 - `history`: prior turn metadata.
-
 
 ## Practical Guidance
 ### Runtime Compatibility
@@ -36,4 +33,5 @@ Use it to execute JavaScript (ES2020+). Inside JCP, call `tools.*` to read files
 ## Safety
 - Require explicit user confirmation before destructive operations (for example `rm -rf`, `git reset --hard`).
 - Respect repository conventions and keep changes focused.
+
 
