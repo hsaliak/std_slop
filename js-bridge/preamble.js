@@ -216,65 +216,119 @@ tools.describe_db = function(args) {
 
 tools.help = function() {
   const builtin_tool_docs = {
-    read_file: {
-      description: "Reads file content with optional line range and line numbers.",
-      args_schema: {path: "string", start_line: "number (optional)", end_line: "number (optional)", line_numbers: "boolean (optional)"},
-      returns: "string"
-    },
-    write_file: {
-      description: "Writes file content (guarded in mail mode).",
-      args_schema: {path: "string", content: "string"},
-      returns: "string"
-    },
-    list_directory: {
-      description: "Lists files and directories.",
-      args_schema: {path: "string (optional, default '.')", depth: "number (optional, default 1)"},
-      returns: "string (one entry per line: 'Directory: <name>/' or 'File: <name>')"
-    },
-    grep_tool: {
-      description: "Searches code with grep semantics.",
-      args_schema: {pattern: "string", path: "string (optional)", context: "number (optional)", limit: "number (optional)"},
-      returns: "string"
-    },
-    execute_bash: {
-      description: "Executes shell command (guarded in mail mode).",
-      args_schema: {command: "string"},
-      returns: "{stdout, stderr, exit_code, exitCode, output}"
-    },
-    apply_patch: {
-      description: "Applies exact-match text patches to file content.",
-      args_schema: {path: "string", patches: "array<{find:string,replace:string}>"},
-      returns: "string"
-    },
-    query_db: {
-      description: "Executes SQLite query from inside JCP scripts.",
-      args_schema: {sql: "string", params: "array (optional)"},
-      returns: "string (JSON rows)"
-    },
-    ask_user: {
-      description: "Asks the human user a blocking clarification question.",
-      args_schema: {prompt: "string"},
-      returns: "string"
-    },
-    describe_db: {
-      description: "Lists SQLite schema details.",
-      args_schema: {},
-      returns: "string (JSON rows)"
-    },
-    
-    git_create_staging_branch: {
-      description: "Creates or reuses a staging branch (unguarded).",
-      args_schema: {name: "string", base_branch: "string (optional)"},
-      returns: "string"
-    },
-    help: {
-      description: "Returns this JSON help manifest.",
-      args_schema: {},
-      returns: "object"
-    }
-  };
+  apply_patch: {
+    description: "Applies exact-match text patches to file content.",
+    args_schema: {path: "string", patches: "array<{find:string,replace:string}>"},
+    returns: "string"
+  },
+  ask_user: {
+    description: "Asks the human user a blocking clarification question.",
+    args_schema: {prompt: "string"},
+    returns: "string"
+  },
+  describe_db: {
+    description: "Lists SQLite schema details.",
+    args_schema: {},
+    returns: "string (JSON rows)"
+  },
+  dispatch_async: {
+    description: "Dispatches another tool asynchronously, returning a job handle.",
+    args_schema: {name: "string", args: "object (optional)"},
+    returns: "object (job handle with is_ready() and wait())"
+  },
+  execute_bash: {
+    description: "Executes shell command (guarded in mail mode).",
+    args_schema: {command: "string"},
+    returns: "{stdout, stderr, exit_code, exitCode, output}"
+  },
+  execute_bash_async: {
+    description: "Runs execute_bash asynchronously.",
+    args_schema: {command: "string"},
+    returns: "object (job handle with is_ready() and wait())"
+  },
+  git_branch_staging: {
+    description: "Creates and checks out a new staging branch.",
+    args_schema: {name: "string", base_branch: "string (optional)"},
+    returns: "string"
+  },
+  git_commit_patch: {
+    description: "Commits staged changes with a summary and optional rationale.",
+    args_schema: {summary: "string (<=50 characters)", rationale: "string (optional)"},
+    returns: "string"
+  },
+  git_create_staging_branch: {
+    description: "Creates or reuses a staging branch (unguarded).",
+    args_schema: {name: "string", base_branch: "string (optional)"},
+    returns: "string"
+  },
+  git_finalize_series: {
+    description: "Finalizes the patch series by merging the staged branch after approval.",
+    args_schema: {target_branch: "string (optional)"},
+    returns: "string"
+  },
+  git_format_patch_series: {
+    description: "Formats the patch series as a mail-thread style summary.",
+    args_schema: {base_branch: "string (optional)"},
+    returns: "string"
+  },
+  git_reroll_patch: {
+    description: "Creates a fixup and rebases to reroll the specified patch.",
+    args_schema: {index: "number (1-based chunk index)", base_branch: "string (optional)"},
+    returns: "string"
+  },
+  git_verify_series: {
+    description: "Runs a command against every patch in the series.",
+    args_schema: {command: "string", base_branch: "string (optional)"},
+    returns: "string (JSON report)"
+  },
+  grep: {
+    description: "Low-level grep helper used by grep_tool.",
+    args_schema: {pattern: "string", path: "string (optional)", context: "number (optional)", limit: "number (optional)"},
+    returns: "string"
+  },
+  grep_tool: {
+    description: "Searches code with grep semantics.",
+    args_schema: {pattern: "string", path: "string (optional)", context: "number (optional)", limit: "number (optional)"},
+    returns: "string"
+  },
+  help: {
+    description: "Returns this JSON help manifest.",
+    args_schema: {},
+    returns: "object"
+  },
+  list_directory: {
+    description: "Lists files and directories.",
+    args_schema: {path: "string (optional, default '.')", depth: "number (optional, default 1)"},
+    returns: "string (one entry per line: 'Directory: <name>/' or 'File: <name>')"
+  },
+  persist_function: {
+    description: "Validates and persists a helper function in the JS environment.",
+    args_schema: {name: "string", code: "string", description: "string (optional)", test_args: "array (optional)", expected_result: "any (optional)"},
+    returns: "array [bool, message]"
+  },
+  query_db: {
+    description: "Executes SQLite query from inside JCP scripts.",
+    args_schema: {sql: "string", params: "array (optional)"},
+    returns: "string (JSON rows)"
+  },
+  read_file: {
+    description: "Reads file content with optional line range and line numbers.",
+    args_schema: {path: "string", start_line: "number (optional)", end_line: "number (optional)", line_numbers: "boolean (optional)"},
+    returns: "string"
+  },
+  use_skill: {
+    description: "Activates or deactivates a named skill for the current session.",
+    args_schema: {name: "string", action: "string (optional, 'activate' or 'deactivate')"},
+    returns: "string"
+  },
+  write_file: {
+    description: "Writes file content (guarded in mail mode).",
+    args_schema: {path: "string", content: "string"},
+    returns: "string"
+  }
+};
 
-  const manifest = {
+const manifest = {
     version: "2",
     model_entrypoints: ["run_js"],
     rules: {
@@ -880,6 +934,7 @@ tools.persist_function = function(args) {
 
   return [true, "Function persisted successfully"];
 };
+
 
 
 
