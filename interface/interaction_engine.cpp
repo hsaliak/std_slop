@@ -2,6 +2,7 @@
 #include "interface/renderer.h"
 #include "interface/terminal.h"
 #include <atomic>
+#include <functional>
 #include <iostream>
 #include <thread>
 
@@ -126,7 +127,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     });
   };
 
-  auto maybe_handle_ask_user_prompt = [&](AskState& ask_state) -> bool {
+  auto maybe_handle_ask_user_prompt = [&](AskState& ask_state,
+                                         const std::function<void()>& before_read,
+                                         const std::function<void()>& after_read) -> bool {
     std::string current_prompt;
     {
       absl::MutexLock lock(&ask_state.mutex);
@@ -136,12 +139,18 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       current_prompt = ask_state.prompt;
     }
 
+    if (before_read) {
+      before_read();
+    }
     std::cout << "\n" << ansi::Yellow << "Agent asks:\n" << ansi::Reset;
     slop::Renderer::Get().PrintMarkdown(current_prompt);
     if (!absl::EndsWith(current_prompt, "\n")) {
       std::cout << "\n";
     }
     std::string response = slop::ReadLine("reply");
+    if (after_read) {
+      after_read();
+    }
 
     {
       absl::MutexLock lock(&ask_state.mutex);
@@ -223,13 +232,20 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       if (!config.silent) animator.Start();
 
       while (!http_done) {
-        if (maybe_handle_ask_user_prompt(ask_state)) {
-          if (!config.silent) {
-            animator.Stop();
-            raw.reset();
-            raw = std::make_unique<slop::ScopedRawMode>();
-            animator.Start();
-          }
+        if (maybe_handle_ask_user_prompt(
+                ask_state,
+                [&]() {
+                  if (!config.silent) {
+                    animator.Stop();
+                    raw.reset();
+                  }
+                },
+                [&]() {
+                  if (!config.silent) {
+                    raw = std::make_unique<slop::ScopedRawMode>();
+                    animator.Start();
+                  }
+                })) {
           continue;
         } else {
           if (!config.silent && slop::IsInterruptPressed()) {
@@ -321,13 +337,12 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
               raw = std::make_unique<slop::ScopedRawMode>();
             }
             while (!done) {
-              if (maybe_handle_ask_user_prompt(ask_state)) {
-                // Temporarily disable Raw Mode to allow ReadLine to work
-                raw.reset();
-                // Restore Raw Mode
-                if (!config.silent) {
-                  raw = std::make_unique<slop::ScopedRawMode>();
-                }
+              if (maybe_handle_ask_user_prompt(
+                      ask_state, [&]() { raw.reset(); }, [&]() {
+                        if (!config.silent) {
+                          raw = std::make_unique<slop::ScopedRawMode>();
+                        }
+                      })) {
               } else {
                 if (!config.silent && slop::IsInterruptPressed()) {
                   cancellation->Cancel();
@@ -388,4 +403,5 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop
+
 
