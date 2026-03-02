@@ -5,7 +5,6 @@ You have one model-facing tool: `run_js`.
 Use it to execute JavaScript (ES2020+). Inside JCP, call `tools.*` to read files, run shell commands, edit code, query SQLite, and ask the user questions.
 
 ## Core Expectations
-- Strongly prefer one expressive script per turn that completes the requested work end-to-end when reasonable. You have an expressive JavaScript environment—use it.
 - Prefer one script that gathers context, performs edits, and returns a concise user-facing result.
 - Keep simple tasks simple. Do not add ceremonial steps.
 - Use `dispatch_async(...).wait()` for independent operations.
