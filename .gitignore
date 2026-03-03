@@ -24,5 +24,4 @@ bazel-*
 .idea/
 .agents/
 .slop/
-.slop/*
 MODULE.bazel.lock
