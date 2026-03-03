@@ -13,6 +13,22 @@
 #include "interface/color.h"
 
 namespace slop {
+namespace {
+
+std::string g_readline_prefill;
+
+int PrefillReadlineBuffer() {
+  if (!g_readline_prefill.empty()) {
+    rl_insert_text(g_readline_prefill.c_str());
+    rl_point = rl_end;
+    g_readline_prefill.clear();
+  }
+  rl_startup_hook = nullptr;
+  return 0;
+}
+
+}  // namespace
+
 
 size_t GetTerminalWidth() {
   struct winsize w;
@@ -112,21 +128,43 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
   return result;
 }
 
-std::string ReadLine(const std::string& modeline) {
+std::string ReadLine(const std::string& modeline, const std::string& initial_input) {
   SetupTerminal();
   if (!modeline.empty()) {
     PrintHorizontalLine(0, ansi::Grey, modeline, ansi::Grey);
   }
-  char* buf = readline("❯ ");
-  if (!buf) return "/exit";
-  std::string line(buf);
-  free(buf);
-  if (!line.empty()) {
-    add_history(line.c_str());
+
+  bool hold_once_armed = false;
+  std::string held_multiline_input = initial_input;
+
+  while (true) {
+    if (!held_multiline_input.empty()) {
+      g_readline_prefill = held_multiline_input;
+      rl_startup_hook = PrefillReadlineBuffer;
+    }
+
+    char* buf = readline("❯ ");
+    if (!buf) return "/exit";
+
+    std::string line(buf);
+    free(buf);
+
+    const bool has_newline = line.find("\n") != std::string::npos || line.find("\r") != std::string::npos;
+    if (!hold_once_armed && has_newline) {
+      hold_once_armed = true;
+      held_multiline_input = line;
+      std::cout << ansi::Yellow << "[pasted block — press Enter to send]" << ansi::Reset << std::endl;
+      continue;
+    }
+
+    if (!line.empty()) {
+      add_history(line.c_str());
+    }
+    return line;
   }
-  return line;
 }
 
 }  // namespace slop
+
 
 
