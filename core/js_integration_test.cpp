@@ -135,6 +135,45 @@ TEST_F(JsIntegrationTest, PersistFunctionObjectExpectedResult) {
   EXPECT_TRUE(absl::StrContains(*res, "ok"));
 }
 
+TEST_F(JsIntegrationTest, RunJsHelpListsEmbeddedTools) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    return tools.help({});
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "\"name\":\"help\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"name\":\"execute_bash\""));
+  EXPECT_FALSE(absl::StrContains(*res, "\"name\":\"run_js\""));
+}
+
+TEST_F(JsIntegrationTest, RunJsHelpIncludesPersistedFunctionDynamically) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    const [success, msg] = tools.persist_function({
+      name: "dynamic_tool",
+      code: "return function() { return 'ok'; }",
+      description: "dynamic tool for help test",
+      json_schema: {type: 'object', properties: {}, required: []}
+    });
+    if (!success) throw new Error(msg);
+    return tools.help({});
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "\"name\":\"dynamic_tool\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"source\":\"persisted\""));
+}
+
+TEST_F(JsIntegrationTest, PersistFunctionRejectsNameCollision) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    const [success, msg] = tools.persist_function({
+      name: "read_file",
+      code: "return function() { return 'nope'; }"
+    });
+    if (success) throw new Error("expected collision rejection");
+    return msg;
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "name conflicts with an existing tool or global"));
+}
+
 TEST_F(JsIntegrationTest, ListDirectoryIgnoresCommonDirsByDefault) {
   const std::string root = "list_dir_ignore_test";
   std::filesystem::remove_all(root);
@@ -192,4 +231,6 @@ TEST_F(JsIntegrationTest, TopLevelAwait) {
 }
 
 }  // namespace slop
+
+
 
