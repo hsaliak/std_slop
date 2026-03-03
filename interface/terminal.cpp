@@ -45,12 +45,15 @@ void SetupTerminal() {
   rl_catch_signals = 0;
   if (!readline_configured) {
     rl_readline_name = kReadlineName;
+    // Force readline initialization first so config-file/default processing has
+    // already happened before we apply our app-level preference.
+    rl_initialize();
     // Middle-click paste may include embedded newlines; bracketed paste keeps
     // those as literal input instead of triggering accept-line.
-    rl_variable_bind("enable-bracketed-paste", "on");
-    // Defensive binding for terminals that emit explicit bracketed-paste begin.
-    static char kBracketedPasteBeginBind[] = "\"\e[200~\": bracketed-paste-begin";
-    rl_parse_and_bind(kBracketedPasteBeginBind);
+    if (rl_variable_bind("enable-bracketed-paste", "on") != 0) {
+      std::cerr << "warning: failed to enable readline bracketed paste"
+                << std::endl;
+    }
     readline_configured = true;
   }
 
@@ -165,6 +168,7 @@ std::string ReadLine(const std::string& modeline, const std::string& initial_inp
 }
 
 }  // namespace slop
+
 
 
 
