@@ -23,7 +23,21 @@ size_t GetTerminalWidth() {
 }
 
 void SetupTerminal() {
+  static bool readline_configured = false;
+  static char kReadlineName[] = "slop";
+
   rl_catch_signals = 0;
+  if (!readline_configured) {
+    rl_readline_name = kReadlineName;
+    // Middle-click paste may include embedded newlines; bracketed paste keeps
+    // those as literal input instead of triggering accept-line.
+    rl_variable_bind("enable-bracketed-paste", "on");
+    // Defensive binding for terminals that emit explicit bracketed-paste begin.
+    static char kBracketedPasteBeginBind[] = "\"\e[200~\": bracketed-paste-begin";
+    rl_parse_and_bind(kBracketedPasteBeginBind);
+    readline_configured = true;
+  }
+
   // Ensure the terminal doesn't echo weird codes
   // \033[?1l: Disable Application Cursor Keys (DECCKM)
   // \033>: Disable Keypad Mode (DECPNM)
@@ -114,3 +128,5 @@ std::string ReadLine(const std::string& modeline) {
 }
 
 }  // namespace slop
+
+
