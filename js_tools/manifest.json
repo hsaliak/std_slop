@@ -208,6 +208,17 @@
         "limit": {
           "type": "integer",
           "description": "integer (optional)"
+        },
+        "include_ignored": {
+          "type": "boolean",
+          "description": "boolean (optional, default false)"
+        },
+        "ignore": {
+          "type": "array",
+          "description": "array of glob-like names to ignore (optional)",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -237,6 +248,17 @@
         "limit": {
           "type": "integer",
           "description": "integer (optional)"
+        },
+        "include_ignored": {
+          "type": "boolean",
+          "description": "boolean (optional, default false)"
+        },
+        "ignore": {
+          "type": "array",
+          "description": "array of glob-like names to ignore (optional)",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -268,6 +290,17 @@
         "depth": {
           "type": "integer",
           "description": "integer (optional, default 1)"
+        },
+        "include_ignored": {
+          "type": "boolean",
+          "description": "boolean (optional, default false)"
+        },
+        "ignore": {
+          "type": "array",
+          "description": "array of glob-like names to ignore (optional)",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": []

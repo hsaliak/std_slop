@@ -8,18 +8,27 @@ return function(args) {
     throw new Error("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
   }
 
-  // Use a temporary file and mv to be safer, or just use printf/redirect
-  // For simplicity, we'll use a heredoc-like approach with base64 to avoid escaping issues
-  // But wait, we don't have base64 easily. Let's just use a simple redirect for now.
-  // Actually, we can use a temporary file.
-  const tmp_file = ".tmp_write_" + Math.random().toString(36).substring(7);
-  
-  // We'll use a more robust way in the future.
-  const res = __os_run("cat > " + shell_escape(path) + " << 'EOF_SLOP'\n" + args.content + "\nEOF_SLOP\n");
-  
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+  function randomSuffix(len) {
+    let out = "";
+    for (let i = 0; i < len; i++) {
+      out += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return out;
+  }
+
+  let delimiter = "EOF_SLOP_" + randomSuffix(16);
+  while (args.content.includes("\n" + delimiter + "\n") || args.content.endsWith("\n" + delimiter)) {
+    delimiter = "EOF_SLOP_" + randomSuffix(16);
+  }
+
+  const cmd = "cat > " + shell_escape(path) + " << '" + delimiter + "'\n" + args.content + "\n" + delimiter + "\n";
+  const res = __os_run(cmd);
+
   if (res.exit_code !== 0) {
     throw new Error("IO_ERROR: Failed to write to file: " + res.stderr);
   }
 
   return "File written successfully:\nPath: " + path + "\nBytes written: " + args.content.length + "\n";
 };
+

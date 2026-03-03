@@ -6,7 +6,10 @@ return function(args) {
     pattern: args.pattern,
     path: args.path || args.paths,
     context: args.context,
-    limit: args.limit
+    limit: args.limit,
+    include_ignored: args.include_ignored,
+    ignore: args.ignore
   };
   return tools.grep(simplified);
 };
+
