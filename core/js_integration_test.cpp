@@ -2,6 +2,8 @@
 #include "core/tool_executor.h"
 #include "core/database.h"
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include "absl/strings/match.h"
 
 namespace slop {
@@ -93,6 +95,94 @@ TEST_F(JsIntegrationTest, UseSkill) {
 }
 
 
+TEST_F(JsIntegrationTest, PersistFunctionWithoutExpectedResult) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    const [success, msg] = tools.persist_function({
+      name: "inc_no_expect",
+      code: "return function(x) { return x + 1; }"
+    });
+    if (!success) throw new Error(msg);
+    return globalThis.inc_no_expect(41).toString();
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "42"));
+}
+
+TEST_F(JsIntegrationTest, PersistFunctionInvalidNameRejected) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    const [success, msg] = tools.persist_function({
+      name: "bad-name",
+      code: "return function() { return 1; }"
+    });
+    if (success) throw new Error("expected failure");
+    return msg;
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "name must match"));
+}
+
+TEST_F(JsIntegrationTest, PersistFunctionObjectExpectedResult) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    const [success, msg] = tools.persist_function({
+      name: "obj_result",
+      code: "return function() { return {a: 1, b: [2, 3]}; }",
+      expected_result: {a: 1, b: [2, 3]}
+    });
+    if (!success) throw new Error(msg);
+    return "ok";
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "ok"));
+}
+
+TEST_F(JsIntegrationTest, ListDirectoryIgnoresCommonDirsByDefault) {
+  const std::string root = "list_dir_ignore_test";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root + "/src");
+  std::filesystem::create_directories(root + "/.git");
+  std::filesystem::create_directories(root + "/node_modules");
+  {
+    std::ofstream(root + "/src/app.txt") << "x";
+    std::ofstream(root + "/.git/config") << "x";
+    std::ofstream(root + "/node_modules/pkg.js") << "x";
+  }
+
+  auto res_default = executor_->Execute("list_directory", {{"path", root}, {"depth", 2}});
+  ASSERT_TRUE(res_default.ok()) << res_default.status().message();
+  EXPECT_TRUE(absl::StrContains(*res_default, "Directory: src/"));
+  EXPECT_FALSE(absl::StrContains(*res_default, ".git/"));
+  EXPECT_FALSE(absl::StrContains(*res_default, "node_modules/"));
+
+  auto res_all = executor_->Execute("list_directory", {{"path", root}, {"depth", 2}, {"include_ignored", true}});
+  ASSERT_TRUE(res_all.ok()) << res_all.status().message();
+  EXPECT_TRUE(absl::StrContains(*res_all, "Directory: .git/"));
+  EXPECT_TRUE(absl::StrContains(*res_all, "Directory: node_modules/"));
+
+  std::filesystem::remove_all(root);
+}
+
+TEST_F(JsIntegrationTest, GrepIgnoresCommonDirsByDefault) {
+  const std::string root = "grep_ignore_test";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root + "/src");
+  std::filesystem::create_directories(root + "/node_modules");
+  {
+    std::ofstream(root + "/src/app.js") << "needle_ignore";
+    std::ofstream(root + "/node_modules/lib.js") << "needle_ignore";
+  }
+
+  auto res_default = executor_->Execute("grep", {{"pattern", "needle_ignore"}, {"path", root}});
+  ASSERT_TRUE(res_default.ok()) << res_default.status().message();
+  EXPECT_TRUE(absl::StrContains(*res_default, "src/app.js"));
+  EXPECT_FALSE(absl::StrContains(*res_default, "node_modules/lib.js"));
+
+  auto res_all = executor_->Execute("grep", {{"pattern", "needle_ignore"}, {"path", root}, {"include_ignored", true}});
+  ASSERT_TRUE(res_all.ok()) << res_all.status().message();
+  EXPECT_TRUE(absl::StrContains(*res_all, "node_modules/lib.js"));
+
+  std::filesystem::remove_all(root);
+}
+
 TEST_F(JsIntegrationTest, TopLevelAwait) {
   nlohmann::json args;
   args["script"] = "const res = await Promise.resolve(42); return res;";
@@ -102,3 +192,4 @@ TEST_F(JsIntegrationTest, TopLevelAwait) {
 }
 
 }  // namespace slop
+
