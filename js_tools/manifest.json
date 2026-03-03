@@ -202,12 +202,12 @@
           "description": "string (optional)"
         },
         "context": {
-          "type": "string",
-          "description": "number (optional)"
+          "type": "integer",
+          "description": "integer (optional)"
         },
         "limit": {
-          "type": "string",
-          "description": "number (optional)"
+          "type": "integer",
+          "description": "integer (optional)"
         }
       },
       "required": [
@@ -231,12 +231,12 @@
           "description": "string (optional)"
         },
         "context": {
-          "type": "string",
-          "description": "number (optional)"
+          "type": "integer",
+          "description": "integer (optional)"
         },
         "limit": {
-          "type": "string",
-          "description": "number (optional)"
+          "type": "integer",
+          "description": "integer (optional)"
         }
       },
       "required": [
@@ -266,8 +266,8 @@
           "description": "string (optional, default '.')"
         },
         "depth": {
-          "type": "string",
-          "description": "number (optional, default 1)"
+          "type": "integer",
+          "description": "integer (optional, default 1)"
         }
       },
       "required": []
@@ -294,14 +294,11 @@
         },
         "test_args": {
           "type": "array",
-          "description": "array (optional)",
-          "items": {
-            "type": "string"
-          }
+          "description": "array (optional, any JSON values)",
+          "items": {}
         },
         "expected_result": {
-          "type": "string",
-          "description": "any (optional)"
+          "description": "any JSON value (optional)"
         }
       },
       "required": [
@@ -322,15 +319,15 @@
           "description": "string"
         },
         "start_line": {
-          "type": "string",
-          "description": "number (optional)"
+          "type": "integer",
+          "description": "integer (optional)"
         },
         "end_line": {
-          "type": "string",
-          "description": "number (optional)"
+          "type": "integer",
+          "description": "integer (optional)"
         },
         "line_numbers": {
-          "type": "string",
+          "type": "boolean",
           "description": "boolean (optional)"
         }
       },
@@ -453,3 +450,4 @@
     "implementation": "describe_db.js"
   }
 ]
+
