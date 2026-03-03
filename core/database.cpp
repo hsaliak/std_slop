@@ -216,7 +216,9 @@ absl::Status Database::Init(const std::string& db_path) {
   
   // Insert default JS functions into js_functions table
   for (const auto& func : GetDefaultJsFunctions()) {
-    std::string sql = "INSERT OR IGNORE INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?)";
+    std::string sql = "INSERT INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?) "
+                      "ON CONFLICT(name) DO UPDATE SET code=excluded.code, description=excluded.description, "
+                      "json_schema=excluded.json_schema;";
     (void)Execute(sql, func.name, func.code, func.description, func.json_schema);
   }
 
@@ -878,6 +880,7 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
 
 
 
