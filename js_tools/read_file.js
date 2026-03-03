@@ -5,12 +5,17 @@ return function(args) {
     throw new Error("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
   }
 
-  if (args.start_line !== undefined && args.start_line !== null && typeof args.start_line !== "number") {
-    throw new Error("INVALID_ARGUMENT: start_line must be an integer");
+  function parseOptionalInteger(value, fieldName) {
+    if (value === undefined || value === null) return null;
+    if (typeof value === "number" && Number.isInteger(value)) return value;
+    if (typeof value === "string" && /^-?\d+$/.test(value.trim())) {
+      return Number.parseInt(value, 10);
+    }
+    throw new Error("INVALID_ARGUMENT: " + fieldName + " must be an integer");
   }
-  if (args.end_line !== undefined && args.end_line !== null && typeof args.end_line !== "number") {
-    throw new Error("INVALID_ARGUMENT: end_line must be an integer");
-  }
+
+  const parsed_start_line = parseOptionalInteger(args.start_line, "start_line");
+  const parsed_end_line = parseOptionalInteger(args.end_line, "end_line");
 
   let cmd = "cat " + shell_escape(path);
   const res = __os_run(cmd);
@@ -21,8 +26,8 @@ return function(args) {
   let lines = res.stdout.split("\n");
   if (res.stdout.endsWith("\n")) lines.pop();
 
-  const start_line = args.start_line || 1;
-  const end_line = args.end_line || lines.length;
+  const start_line = parsed_start_line === null ? 1 : parsed_start_line;
+  const end_line = parsed_end_line === null ? lines.length : parsed_end_line;
 
   if (start_line > end_line) {
     throw new Error("INVALID_ARGUMENT: start_line (" + start_line + ") cannot be greater than end_line (" + end_line + ")");
@@ -41,3 +46,5 @@ return function(args) {
   if (body.length > 0) body += "\n";
   return body;
 };
+
+

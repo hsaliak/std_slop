@@ -72,6 +72,14 @@ TEST_F(ToolTypingTest, OptionalHandling) {
   ASSERT_TRUE(res2.ok());
   EXPECT_TRUE(!res2->empty());
 
+  // Numeric strings should be accepted for optional integer fields
+  auto res_numeric_str = executor_->Execute(
+      "read_file", {{"path", "test_optional.txt"}, {"start_line", "5"}, {"end_line", "6"}});
+  ASSERT_TRUE(res_numeric_str.ok());
+  EXPECT_TRUE(res_numeric_str->find("Line 5") != std::string::npos);
+  EXPECT_TRUE(res_numeric_str->find("Line 6") != std::string::npos);
+  EXPECT_TRUE(res_numeric_str->find("Line 7") == std::string::npos);
+
   // Explicit null for optional fields
   auto res3 = executor_->Execute("read_file", {{"path", "test_optional.txt"}, {"end_line", nullptr}});
   ASSERT_TRUE(res3.ok());
@@ -113,5 +121,6 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
+
 
 
