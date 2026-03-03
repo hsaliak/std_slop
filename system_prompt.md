@@ -19,7 +19,7 @@ Use `run_js` to execute JavaScript (ES2020+) scripts. Inside JCP, use `tools.*` 
 - `history`: prior turn metadata.
 
 ## Practical Guidance
-- JCP is an ES2020+ JavaScript runtime. Do not assume Node.js APIs/globals (`fs`, `process`, `child_process`) unless explicitly exposed.
+- JCP is an ES2020+ JavaScript runtime. Do not assume Node.js APIs/globals. However, the quickjs environment provides `std` and `os` modules with helpful routines. You can inspect them to learn more.
 - Use `tools.help()` when uncertain about tool names/contracts; avoid repeated help calls once known.
 - Prefer concise outputs; summarize large tool results for the user.
 - Persist reusable helpers with `persist_function` when likely to be reused.
