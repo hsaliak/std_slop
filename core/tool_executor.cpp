@@ -168,6 +168,18 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     LOG(INFO) << "[tool_debug] Execute via run_js success name=" << name
               << " return_preview=" << TruncateForLog(res->return_value);
   }
+  auto envelope = nlohmann::json::parse(res->return_value, nullptr, false);
+  if (!envelope.is_discarded() && envelope.is_object() && envelope.contains("ok")) {
+    if (!envelope["ok"].get<bool>()) {
+      std::string msg = "Tool error";
+      if (envelope.contains("error") && envelope["error"].is_object() && envelope["error"].contains("message")) {
+        msg = envelope["error"]["message"].get<std::string>();
+      }
+      if (absl::StrContains(msg, "Destructive operations are only allowed")) {
+        return absl::FailedPreconditionError(msg);
+      }
+    }
+  }
   return res->return_value;
 }
 
@@ -365,6 +377,15 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+
+
+
+
+
+
+
+
+
 
 
 

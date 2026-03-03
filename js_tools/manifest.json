@@ -1,0 +1,455 @@
+[
+  {
+    "name": "apply_patch",
+    "description": "Applies exact-match text patches to file content.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "string"
+        },
+        "patches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "find": {
+                "type": "string"
+              },
+              "replace": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "find",
+              "replace"
+            ]
+          }
+        }
+      },
+      "required": [
+        "path",
+        "patches"
+      ]
+    },
+    "implementation": "apply_patch.js"
+  },
+  {
+    "name": "execute_bash_async",
+    "description": "Runs execute_bash asynchronously.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "string"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    },
+    "implementation": "execute_bash_async.js"
+  },
+  {
+    "name": "git_branch_staging",
+    "description": "Creates and checks out a new staging branch.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "string"
+        },
+        "base_branch": {
+          "type": "string",
+          "description": "string (optional)"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "implementation": "git_branch_staging.js"
+  },
+  {
+    "name": "git_commit_patch",
+    "description": "Commits staged changes with a summary and optional rationale.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "string (<=50 characters)"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "string (optional)"
+        }
+      },
+      "required": [
+        "summary"
+      ]
+    },
+    "implementation": "git_commit_patch.js"
+  },
+  {
+    "name": "git_create_staging_branch",
+    "description": "Creates or reuses a staging branch (unguarded).",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "string"
+        },
+        "base_branch": {
+          "type": "string",
+          "description": "string (optional)"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "implementation": "git_create_staging_branch.js"
+  },
+  {
+    "name": "git_finalize_series",
+    "description": "Finalizes the patch series by merging the staged branch after approval.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "target_branch": {
+          "type": "string",
+          "description": "string (optional)"
+        }
+      },
+      "required": []
+    },
+    "implementation": "git_finalize_series.js"
+  },
+  {
+    "name": "git_format_patch_series",
+    "description": "Formats the patch series as a mail-thread style summary.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "base_branch": {
+          "type": "string",
+          "description": "string (optional)"
+        }
+      },
+      "required": []
+    },
+    "implementation": "git_format_patch_series.js"
+  },
+  {
+    "name": "git_reroll_patch",
+    "description": "Creates a fixup and rebases to reroll the specified patch.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "string",
+          "description": "number (1-based chunk index)"
+        },
+        "base_branch": {
+          "type": "string",
+          "description": "string (optional)"
+        }
+      },
+      "required": [
+        "index"
+      ]
+    },
+    "implementation": "git_reroll_patch.js"
+  },
+  {
+    "name": "git_verify_series",
+    "description": "Runs a command against every patch in the series.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "string"
+        },
+        "base_branch": {
+          "type": "string",
+          "description": "string (optional)"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    },
+    "implementation": "git_verify_series.js"
+  },
+  {
+    "name": "grep",
+    "description": "Low-level grep helper used by grep_tool.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "description": "string"
+        },
+        "path": {
+          "type": "string",
+          "description": "string (optional)"
+        },
+        "context": {
+          "type": "string",
+          "description": "number (optional)"
+        },
+        "limit": {
+          "type": "string",
+          "description": "number (optional)"
+        }
+      },
+      "required": [
+        "pattern"
+      ]
+    },
+    "implementation": "grep.js"
+  },
+  {
+    "name": "grep_tool",
+    "description": "Searches code with grep semantics.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "description": "string"
+        },
+        "path": {
+          "type": "string",
+          "description": "string (optional)"
+        },
+        "context": {
+          "type": "string",
+          "description": "number (optional)"
+        },
+        "limit": {
+          "type": "string",
+          "description": "number (optional)"
+        }
+      },
+      "required": [
+        "pattern"
+      ]
+    },
+    "implementation": "grep_tool.js"
+  },
+  {
+    "name": "help",
+    "description": "Returns this JSON help manifest.",
+    "json_schema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "implementation": "help.js"
+  },
+  {
+    "name": "list_directory",
+    "description": "Lists files and directories.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "string (optional, default '.')"
+        },
+        "depth": {
+          "type": "string",
+          "description": "number (optional, default 1)"
+        }
+      },
+      "required": []
+    },
+    "implementation": "list_directory.js"
+  },
+  {
+    "name": "persist_function",
+    "description": "Validates and persists a helper function in the JS environment.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "string"
+        },
+        "code": {
+          "type": "string",
+          "description": "string"
+        },
+        "description": {
+          "type": "string",
+          "description": "string (optional)"
+        },
+        "test_args": {
+          "type": "array",
+          "description": "array (optional)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expected_result": {
+          "type": "string",
+          "description": "any (optional)"
+        }
+      },
+      "required": [
+        "name",
+        "code"
+      ]
+    },
+    "implementation": "persist_function.js"
+  },
+  {
+    "name": "read_file",
+    "description": "Reads file content with optional line range and line numbers.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "string"
+        },
+        "start_line": {
+          "type": "string",
+          "description": "number (optional)"
+        },
+        "end_line": {
+          "type": "string",
+          "description": "number (optional)"
+        },
+        "line_numbers": {
+          "type": "string",
+          "description": "boolean (optional)"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "implementation": "read_file.js"
+  },
+  {
+    "name": "use_skill",
+    "description": "Activates or deactivates a named skill for the current session.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "string"
+        },
+        "action": {
+          "type": "string",
+          "description": "string (optional, 'activate' or 'deactivate')"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "implementation": "use_skill.js"
+  },
+  {
+    "name": "write_file",
+    "description": "Writes file content (guarded in mail mode).",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "string"
+        },
+        "content": {
+          "type": "string",
+          "description": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ]
+    },
+    "implementation": "write_file.js"
+  },
+  {
+    "name": "shell_escape",
+    "description": "Helper to escape shell arguments",
+    "json_schema": "",
+    "implementation": "shell_escape.js"
+  },
+  {
+    "name": "slop_guard",
+    "description": "Guard for destructive operations",
+    "json_schema": "",
+    "implementation": "slop_guard.js"
+  },
+  {
+    "name": "git_get_current_branch",
+    "description": "Gets the current git branch",
+    "json_schema": "",
+    "implementation": "git_get_current_branch.js"
+  },
+  {
+    "name": "git_get_base_branch",
+    "description": "Gets the base branch for a staging branch",
+    "json_schema": "",
+    "implementation": "git_get_base_branch.js"
+  },
+  {
+    "name": "git_resolve_base_branch",
+    "description": "Resolves the base branch",
+    "json_schema": "",
+    "implementation": "git_resolve_base_branch.js"
+  },
+  {
+    "name": "git_assert_clean_workspace",
+    "description": "Asserts that the git workspace is clean",
+    "json_schema": "",
+    "implementation": "git_assert_clean_workspace.js"
+  },
+  {
+    "name": "git_is_staging_branch",
+    "description": "Checks if current branch is a staging branch",
+    "json_schema": "",
+    "implementation": "git_is_staging_branch.js"
+  },
+  {
+    "name": "execute_bash",
+    "description": "Executes shell command (guarded in mail mode).",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "string"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    },
+    "implementation": "execute_bash.js"
+  },
+  {
+    "name": "describe_db",
+    "description": "Lists SQLite schema details.",
+    "json_schema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "implementation": "describe_db.js"
+  }
+]

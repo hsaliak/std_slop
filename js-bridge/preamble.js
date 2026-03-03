@@ -20,7 +20,17 @@ if (typeof tools === 'undefined' || tools === null) {
 // Helper to call tools safely
 function call_tool(tool_func, args) {
   try {
-    const result = tool_func(args);
+    let result = tool_func(args);
+    if (typeof result === "object" && result !== null) {
+      if (result.stdout !== undefined || result.stderr !== undefined) {
+        let out = result.stdout || "";
+        if (result.stderr && result.stderr.trim() !== "") {
+          out += "\n### STDERR\n" + result.stderr;
+        }
+        
+        result = out;
+      }
+    }
     return [true, result];
   } catch (e) {
     return [false, "JS error: " + e.toString()];
@@ -145,7 +155,8 @@ core.dispatch_tool = function(name, args) {
   }
 
   try {
-    const result = tool_func(args);
+    const [success, result] = call_tool(tool_func, args);
+    if (!success) throw new Error(result);
     core.maybe_persist_state();
     return JSON.stringify({
       ok: true,
@@ -162,9 +173,28 @@ core.dispatch_tool = function(name, args) {
       alias_used: canonical_name !== name,
       error: {
         type: "TOOL_ERROR",
-        message: "Error: " + e.toString()
+        message: "Error: " + (e instanceof Error ? e.message : e.toString())
       }
     });
   }
 };
+
+
+
+
+
+
+// Git helper object for backward compatibility
+const git = {
+  get get_current_branch() { return globalThis.git_get_current_branch; },
+  get get_base_branch() { return globalThis.git_get_base_branch; },
+  get resolve_base_branch() { return globalThis.git_resolve_base_branch; },
+  get assert_clean_workspace() { return globalThis.git_assert_clean_workspace; },
+  get is_staging_branch() { return globalThis.git_is_staging_branch; }
+};
+
+
+
+
+
 

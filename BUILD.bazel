@@ -35,7 +35,7 @@ cc_binary(
 
 sh_binary(
     name = "clang_format_hermetic",
-    srcs = ["scripts/clang_format_wrapper.sh"],
+    srcs = ["//scripts:clang_format_wrapper.sh"],
     data = ["@llvm_toolchain//:clang-format"],
     deps = ["@bazel_tools//tools/bash/runfiles"],
     visibility = ["//visibility:public"], 
@@ -43,7 +43,7 @@ sh_binary(
 
 sh_binary(
     name = "clang_tidy_hermetic",
-    srcs = ["scripts/clang_tidy_wrapper.sh"],
+    srcs = ["//scripts:clang_tidy_wrapper.sh"],
     data = ["@llvm_toolchain//:clang-tidy"],
     deps = ["@bazel_tools//tools/bash/runfiles"],
     visibility = ["//visibility:public"], 
@@ -74,9 +74,9 @@ clang_tidy_test(
 sh_binary(
     name = "fix",
     testonly = True,
-    srcs = ["scripts/fix.sh"],
+    srcs = ["//scripts:fix.sh"],
     data = [
-        "scripts/clang_tidy_fix.sh",
+        "//scripts:clang_tidy_fix.sh",
         ":format",
         ":clang_tidy_test",
     ],
@@ -85,10 +85,12 @@ sh_binary(
 sh_binary(
     name = "clang_tidy_fix",
     testonly = True,
-    srcs = ["scripts/clang_tidy_fix.sh"],
+    srcs = ["//scripts:clang_tidy_fix.sh"],
     data = [
         ":clang_tidy_test",
     ],
 )
+
+
 
 

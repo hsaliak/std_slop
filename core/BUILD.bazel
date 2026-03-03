@@ -74,7 +74,7 @@ cc_library(
  srcs = [
  "config.cpp",
  "database.cpp",
- "default_js_functions.h",
+ ":generate_js_tools",
  "http_client.cpp",
  "message_parser.cpp",
  "oauth_handler.cpp",
@@ -103,6 +103,7 @@ cc_library(
  "status_macros.h",
  ":generate_system_prompt",
  ":generate_js_preamble",
+ ":generate_js_tools",
  ],
  visibility = ["//visibility:public"],
 
@@ -227,5 +228,15 @@ cc_test(
         ":core",
         "@googletest//:gtest_main",
     ],
+)
+
+
+
+genrule(
+    name = "generate_js_tools",
+    srcs = ["//js_tools:manifest.json", "//js_tools:js_files"],
+    outs = ["js_tools_data.h"],
+    cmd = "python3 $(location //scripts:bundle_js_tools.py) $(location //js_tools:manifest.json) $@",
+    tools = ["//scripts:bundle_js_tools.py"],
 )
 
