@@ -163,6 +163,52 @@ TEST(UiTest, PrintToolResultMessageStderr) {
   EXPECT_TRUE(absl::StrContains(output, "stderr line 1"));
   EXPECT_TRUE(absl::StrContains(output, "stderr line 2"));
 }
+
+TEST(UiTest, PrintToolResultMessageUnknownToolJsonDefaultFormatting) {
+  std::string name = "custom_persisted_tool";
+  std::string result = R"({"alpha":1,"beta":"two"})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolResultMessage(name, result, "completed");
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "```json"));
+  EXPECT_TRUE(absl::StrContains(output, "\"alpha\": 1"));
+  EXPECT_TRUE(absl::StrContains(output, "\"beta\": \"two\""));
+}
+
+TEST(UiTest, PrintToolResultMessageEnvelopeJsonFormatting) {
+  std::string name = "dynamic_tool";
+  std::string result =
+      R"({"ok":true,"tool":"list_directory","requested_tool":"list_directory","alias_used":false,"result":"File: a.txt"})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolResultMessage(name, result, "completed");
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "ok"));
+  EXPECT_TRUE(absl::StrContains(output, "tool"));
+  EXPECT_TRUE(absl::StrContains(output, "list_directory"));
+  EXPECT_TRUE(absl::StrContains(output, "Result"));
+  EXPECT_TRUE(absl::StrContains(output, "File: a.txt"));
+}
+
+TEST(UiTest, PrintToolResultMessageEnvelopeJsonErrorFormatting) {
+  std::string name = "dynamic_tool";
+  std::string result = R"({"ok":false,"error":{"type":"TOOL_ERROR","message":"boom"}})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolResultMessage(name, result, "error");
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "error"));
+  EXPECT_TRUE(absl::StrContains(output, "Error"));
+  EXPECT_TRUE(absl::StrContains(output, "TOOL_ERROR"));
+  EXPECT_TRUE(absl::StrContains(output, "boom"));
+}
 TEST(UiTest, PrintToolResultMessageHTTPError) {
   std::string name = "test_tool";
   std::string result = "Error: HTTP 429 Too Many Requests\nRate limit exceeded";
@@ -271,3 +317,4 @@ TEST(UiTest, RenderMarkdownWithJsCodeBlock) {
   EXPECT_TRUE(absl::StrContains(rendered, "x"));
 }
 }  // namespace slop
+

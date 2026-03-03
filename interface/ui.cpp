@@ -26,6 +26,7 @@ inline constexpr std::string_view kTool = "tool";
 #include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -86,6 +87,89 @@ namespace {
 
 
 
+
+std::string JsonToMarkdownFence(const nlohmann::json& json_value) {
+  return absl::StrCat("```json\n", json_dump(json_value, 2), "\n```\n");
+}
+
+std::string FormatJsonValueBlock(const std::string& heading, const nlohmann::json& value) {
+  std::stringstream ss;
+  ss << "### " << heading << "\n\n";
+  if (auto text = json_getter<std::string>::get(value)) {
+    ss << "```\n" << *text << "\n```\n\n";
+  } else {
+    ss << JsonToMarkdownFence(value) << "\n";
+  }
+  return ss.str();
+}
+
+bool IsToolResultEnvelope(const nlohmann::json& value) {
+  if (!json_is<nlohmann::json::object_t>(value)) return false;
+  return json_at(value, "ok") != nullptr || json_at(value, "tool") != nullptr ||
+         json_at(value, "requested_tool") != nullptr || json_at(value, "result") != nullptr ||
+         json_at(value, "error") != nullptr;
+}
+
+std::string FormatToolEnvelopeAsMarkdown(const nlohmann::json& envelope) {
+  std::stringstream ss;
+
+  bool wrote_header = false;
+  if (json_at(envelope, "ok") != nullptr) {
+    bool ok_value = json_get_or(envelope, "ok", false);
+    ss << (ok_value ? "✅ **ok**" : "❌ **error**") << "\n\n";
+    wrote_header = true;
+  }
+
+  bool wrote_meta = false;
+  if (auto tool = json_get<std::string>(envelope, "tool")) {
+    ss << "- tool: `" << *tool << "`\n";
+    wrote_meta = true;
+  }
+  if (auto requested_tool = json_get<std::string>(envelope, "requested_tool")) {
+    ss << "- requested_tool: `" << *requested_tool << "`\n";
+    wrote_meta = true;
+  }
+  if (auto alias_used = json_get<bool>(envelope, "alias_used")) {
+    ss << "- alias_used: `" << (*alias_used ? "true" : "false") << "`\n";
+    wrote_meta = true;
+  }
+  if (wrote_meta) {
+    ss << "\n";
+  }
+
+  bool wrote_payload = false;
+  if (const auto* result = json_at(envelope, "result")) {
+    ss << FormatJsonValueBlock("Result", *result);
+    wrote_payload = true;
+  }
+  if (const auto* error = json_at(envelope, "error")) {
+    ss << FormatJsonValueBlock("Error", *error);
+    wrote_payload = true;
+  }
+
+  if (!wrote_header && !wrote_meta && !wrote_payload) {
+    return JsonToMarkdownFence(envelope);
+  }
+  return ss.str();
+}
+
+std::string FormatToolStdoutForMarkdown(const std::string& stdout_part) {
+  const std::string trimmed = std::string(absl::StripAsciiWhitespace(stdout_part));
+  if (trimmed.empty()) return "";
+
+  auto parsed = json_parse(trimmed);
+  if (!parsed) {
+    if (absl::StartsWith(trimmed, "{") || absl::StartsWith(trimmed, "[")) {
+      LOG(INFO) << "Tool stdout looked like JSON but failed to parse for markdown formatting";
+    }
+    return stdout_part;
+  }
+
+  if (IsToolResultEnvelope(*parsed)) {
+    return FormatToolEnvelopeAsMarkdown(*parsed);
+  }
+  return JsonToMarkdownFence(*parsed);
+}
 
 std::string ExtractToolName(const std::string& tool_call_id) {
   size_t pipe = tool_call_id.find('|');
@@ -367,9 +451,10 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   std::cout << prefix << "    " << Colorize("  │", "", ansi::Metadata) << " " << Colorize(summary, "", color)
             << std::endl;
 
-  // Render stdout in markdown
+  // Render stdout in markdown, formatting structured JSON by default.
   std::string rendered_stdout;
-  RenderMarkdown(stdout_part, "", &rendered_stdout);
+  const std::string formatted_stdout = FormatToolStdoutForMarkdown(stdout_part);
+  RenderMarkdown(formatted_stdout, "", &rendered_stdout);
   std::vector<absl::string_view> rendered_out_lines =
       absl::StrSplit(absl::StripAsciiWhitespace(rendered_stdout), '\n', absl::SkipEmpty());
 
@@ -519,3 +604,8 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
+
+
+
+
+
