@@ -332,6 +332,9 @@
         },
         "expected_result": {
           "description": "any JSON value (optional)"
+        },
+        "json_schema": {
+          "description": "object or JSON string schema for tool exposure (optional)"
         }
       },
       "required": [

@@ -6,6 +6,32 @@ return function(args) {
   const has_expected_result = !!(args && Object.prototype.hasOwnProperty.call(args, "expected_result"));
   const expected_result = has_expected_result ? args.expected_result : undefined;
 
+  const default_schema_obj = {
+    type: "object",
+    properties: {},
+    required: []
+  };
+
+  let json_schema_str = JSON.stringify(default_schema_obj);
+  if (args && Object.prototype.hasOwnProperty.call(args, "json_schema")) {
+    if (typeof args.json_schema === "string") {
+      try {
+        const parsed = JSON.parse(args.json_schema);
+        json_schema_str = JSON.stringify(parsed);
+      } catch (e) {
+        return [false, "Invalid arguments: json_schema must be valid JSON if provided as string"];
+      }
+    } else if (args.json_schema && typeof args.json_schema === "object") {
+      try {
+        json_schema_str = JSON.stringify(args.json_schema);
+      } catch (e) {
+        return [false, "Invalid arguments: json_schema object is not serializable"];
+      }
+    } else {
+      return [false, "Invalid arguments: json_schema must be an object or JSON string"];
+    }
+  }
+
   if (typeof name !== "string" || typeof code !== "string") {
     return [false, "Invalid arguments: name and code must be strings"];
   }
@@ -27,6 +53,10 @@ return function(args) {
   };
   if (reservedNames[name]) {
     return [false, "Invalid arguments: name is reserved"];
+  }
+
+  if (typeof tools[name] === "function" || typeof globalThis[name] === "function") {
+    return [false, "Invalid arguments: name conflicts with an existing tool or global"];
   }
 
   let func;
@@ -87,13 +117,14 @@ return function(args) {
 
   try {
     tools.query_db({
-      sql: "INSERT OR REPLACE INTO js_functions (name, code, description) VALUES (?, ?, ?)",
-      params: [name, code, description]
+      sql: "INSERT OR REPLACE INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?)",
+      params: [name, code, description, json_schema_str]
     });
   } catch (e) {
     return [false, "DB Error: " + e.message];
   }
 
+  tools[name] = func;
   globalThis[name] = func;
 
   return [true, "Function persisted successfully"];
