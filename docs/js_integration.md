@@ -99,4 +99,17 @@ tools.persist_function({
 
 All persistent functions are automatically listed in the JSON output of `tools.help()` under `persistent_functions`.
 
+## 7. Migration Notes (since v0.1.9)
+
+### Dynamic tool registry (`js_functions`)
+JavaScript tools are now loaded from a dynamic registry (`js_functions`) rather than a fixed static list.
+In practice, rely on `tools.help()` as the runtime source of truth for tool names, schemas, and availability.
+
+### JSON-default tool result framing
+Tool results are framed as JSON by default. This improves consistency for programmatic consumption inside `run_js` scripts.
+When writing orchestration scripts, prefer explicit parsing/inspection of returned objects over string-shape assumptions.
+
+### Removed legacy globals
+Legacy bridge globals used by older flows (including scratchpad/history globals) are no longer part of the default model contract.
+Use explicit tool calls for context retrieval and state handling instead of relying on implicit global session objects.
 
