@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@aspect_rules_lint//format:defs.bzl", "format_test")
+load("//scripts:js_tools_bundle.bzl", "generate_js_tools_header")
 
 genrule(
  name = "generate_system_prompt",
@@ -232,11 +233,11 @@ cc_test(
 
 
 
-genrule(
+generate_js_tools_header(
     name = "generate_js_tools",
-    srcs = ["//js_tools:manifest.json", "//js_tools:js_files"],
-    outs = ["js_tools_data.h"],
-    cmd = "python3 $(location //scripts:bundle_js_tools.py) $(location //js_tools:manifest.json) $@",
-    tools = ["//scripts:bundle_js_tools.py"],
+    manifest = "//js_tools:manifest.json",
+    js_files = ["//js_tools:js_files"],
+    out = "js_tools_data.h",
 )
+
 

@@ -1,10 +1,11 @@
 
 exports_files([
-    "bundle_js_tools.py",
+    "js_tools_bundle.bzl",
     "clang_format_wrapper.sh",
     "clang_tidy_wrapper.sh",
     "fix.sh",
     "clang_tidy_fix.sh",
 ])
+
 
 
