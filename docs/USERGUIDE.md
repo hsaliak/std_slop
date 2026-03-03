@@ -112,11 +112,15 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 `std::slop` makes the LLM orchestrate work through JavaScript in the JCP. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
 ### The `run_js` Tool
 The `run_js` tool allows the agent to execute orchestrated scripts. It has access to:
-- **`tools`**: A table containing all standard tools.
-- **`history`**: Session message history for programmatic context extraction.
+- **`tools`**: Runtime tool registry exposed to scripts (discoverable via `tools.help()`).
 - **Async Execution**: `tools.execute_bash_async` allow for parallel execution (e.g., running multiple tests at once).
 - **Tool Manifest**: `tools.help({})` returns JSON with canonical tool names, aliases, and contracts.
 For more details, see the **[JavaScript Integration Documentation](js_integration.md)**.
+
+### Migration notes (v0.1.9 -> current)
+- Tool discovery is dynamic via `js_functions`; use `tools.help()` for current contracts instead of assuming a static tool list.
+- Tool results are JSON-framed by default; prefer object-aware handling in scripts.
+- Legacy scratchpad/history globals are removed from the default bridge contract; use explicit tools for retrieval and state workflows.
 ## Slash Commands
 > **Note**: Slash commands are unavailable while the agent is explicitly requesting input via a prompt (e.g., when it uses the `ask_user` tool). If you enter a slash command during such a prompt, the system will display an error and re-prompt you for a direct response.
 ### Session Management
@@ -283,4 +287,5 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
+
 
