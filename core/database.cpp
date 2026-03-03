@@ -244,25 +244,6 @@ absl::Status Database::RegisterDefaultTools() {
     if (!s.ok()) return s;
   }
 
-  // Register all functions from js_functions table as tools
-  auto functions_res = Query("SELECT name, description, json_schema FROM js_functions");
-  if (functions_res.ok()) {
-    if (auto functions_json = json_parse(*functions_res)) {
-      if (auto rows = json_getter<std::vector<nlohmann::json>>::get(*functions_json)) {
-        for (const auto& row : *rows) {
-          auto name = json_get<std::string>(row, "name");
-          auto description = json_get<std::string>(row, "description");
-          auto json_schema = json_get<std::string>(row, "json_schema");
-          if (name && description && json_schema && !json_schema->empty()) {
-            Tool t{*name, *description, *json_schema, true};
-            absl::Status s = RegisterTool(t);
-            if (!s.ok()) return s;
-          }
-        }
-      }
-    }
-  }
-
   return absl::OkStatus();
 }
 absl::Status Database::RegisterDefaultSkills() {
@@ -880,6 +861,10 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
+
+
+
 
 
 

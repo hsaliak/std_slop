@@ -281,7 +281,7 @@ TEST_F(OrchestratorTest, AssemblePromptWithTools) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
-  Database::Tool tool = {"test_tool", "A test tool", R"({"type":"object","properties":{}})", true};
+  Database::Tool tool = {"run_js", "Run JavaScript", R"({"type":"object","properties":{"script":{"type":"string"}},"required":["script"]})", true};
   ASSERT_TRUE(db.RegisterTool(tool).ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Use the tool").ok());
   auto result = orchestrator->AssemblePrompt("s1");
@@ -291,7 +291,7 @@ TEST_F(OrchestratorTest, AssemblePromptWithTools) {
   ASSERT_TRUE(prompt["tools"][0].contains("function_declarations"));
   bool found = false;
   for (const auto& decl : prompt["tools"][0]["function_declarations"]) {
-    if (decl["name"] == "test_tool") {
+    if (decl["name"] == "run_js") {
       found = true;
       break;
     }
@@ -694,3 +694,6 @@ TEST_F(OrchestratorTest, ExtractStateNotFound) {
   EXPECT_FALSE(state.has_value());
 }
 }  // namespace slop
+
+
+

@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/strings/match.h"
@@ -314,10 +315,24 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         auto calls_or = orchestrator_.ParseToolCalls(msg);
         if (calls_or.ok() && !calls_or->empty()) {
           std::vector<slop::ToolDispatcher::Call> dispatcher_calls;
+          std::vector<slop::ToolDispatcher::Result> results;
+          absl::flat_hash_set<std::string> enabled_tool_names;
+          auto enabled_tools_or = db_.GetEnabledTools();
+          if (enabled_tools_or.ok()) {
+            for (const auto& t : *enabled_tools_or) {
+              enabled_tool_names.insert(t.name);
+            }
+          }
           for (const auto& call : *calls_or) {
             std::string combined_id = call.id;
             if (call.id != call.name && !absl::StrContains(call.id, '|')) {
               combined_id = call.id + "|" + call.name;
+            }
+            if (enabled_tool_names.find(call.name) == enabled_tool_names.end()) {
+              results.push_back({combined_id, call.name,
+                                 absl::NotFoundError("Tool not found: " + call.name +
+                                                     ". Use run_js with tools.<name>.")});
+              continue;
             }
             dispatcher_calls.push_back({combined_id, call.name, call.args});
           }
@@ -326,9 +341,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           install_ask_user_handler(ask_state);
 
           std::atomic<bool> done{false};
-          std::vector<slop::ToolDispatcher::Result> results;
           std::thread t([&] {
-            results = dispatcher_.Dispatch(dispatcher_calls, cancellation, orchestrator_.GetThrottle());
+            if (!dispatcher_calls.empty()) {
+              auto dispatched = dispatcher_.Dispatch(dispatcher_calls, cancellation, orchestrator_.GetThrottle());
+              results.insert(results.end(), dispatched.begin(), dispatched.end());
+            }
             done = true;
           });
           {
@@ -403,5 +420,10 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop
+
+
+
+
+
 
 

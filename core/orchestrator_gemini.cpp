@@ -109,6 +109,9 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
   nlohmann::json f_decls = nlohmann::json::array();
   if (tools_or.ok()) {
     for (const auto& t : *tools_or) {
+      if (t.name != "run_js") {
+        continue;
+      }
       auto it = tool_schema_cache_.find(t.name);
       if (it == tool_schema_cache_.end()) {
         auto schema_opt = json_parse(t.json_schema);
@@ -286,3 +289,7 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::GetQuota(const std::string
 }
 
 }  // namespace slop
+
+
+
+

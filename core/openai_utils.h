@@ -31,3 +31,5 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
 }  // namespace slop
 
 #endif  // SLOP_CORE_OPENAI_UTILS_H_
+
+

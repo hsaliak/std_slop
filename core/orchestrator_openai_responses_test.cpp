@@ -17,7 +17,7 @@ class OpenAiResponsesOrchestratorTest : public ::testing::Test {
 };
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
-  ASSERT_TRUE(db.RegisterTool({"run_test", "Run test command", R"({"type":"object","properties":{"cmd":{"type":"string"}}})",
+  ASSERT_TRUE(db.RegisterTool({"run_js", "Run JavaScript", R"({"type":"object","properties":{"script":{"type":"string"}},"required":["script"]})",
                                true})
                   .ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
@@ -36,6 +36,8 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   ASSERT_TRUE(payload["input"].is_array());
   ASSERT_TRUE(payload.contains("tools"));
   ASSERT_TRUE(payload["tools"].is_array());
+  ASSERT_EQ(payload["tools"].size(), 1);
+  EXPECT_EQ(json_get_or(payload["tools"][0], "name", std::string{}), "run_js");
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndReasoning) {
@@ -212,3 +214,4 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
+

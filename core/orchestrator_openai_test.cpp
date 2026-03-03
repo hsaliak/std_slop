@@ -33,10 +33,10 @@ TEST_F(OpenAiOrchestratorTest, PayloadStructureBasic) {
 TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
   OpenAiOrchestrator orchestrator(&db, &http, "gpt-4", "https://api.openai.com/v1");
 
-  // Register only "tool1"
+  // Only run_js is exposed at top-level. tool1 is preserved; tool2 is filtered.
   ASSERT_TRUE(db.RegisterTool({"tool1", "desc1", "{}", true}).ok());
 
-  // Add "tool1" (valid) and "tool2" (invalid) calls
+  // Add "tool1" (preserved) and "tool2" (suppressed) calls.
   nlohmann::json tool_call1 = {
       {"role", "assistant"},
       {"tool_calls", {{{"id", "c1"}, {"type", "function"}, {"function", {{"name", "tool1"}, {"arguments", "{}"}}}}}}};
@@ -60,19 +60,22 @@ TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
 
   // Index 0: system
   EXPECT_EQ(messages[0]["role"], "system");
-  // Index 1: assistant (tool1 call)
+  // Index 1: assistant (tool1 call preserved)
   EXPECT_EQ(messages[1]["role"], "assistant");
   EXPECT_TRUE(messages[1].contains("tool_calls"));
-  // Index 2: tool (tool1 response)
+  // Index 2: tool (tool1 response preserved)
   EXPECT_EQ(messages[2]["role"], "tool");
   EXPECT_EQ(messages[2]["tool_call_id"], "c1");
-  // Index 3: assistant (tool2 call - suppressed)
+  // Index 3: assistant (tool2 call suppressed)
   EXPECT_EQ(messages[3]["role"], "assistant");
   EXPECT_FALSE(messages[3].contains("tool_calls"));
   EXPECT_TRUE(absl::StrContains(messages[3]["content"].get<std::string>(), "suppressed"));
-  // Index 4: user (tool2 response - suppressed and role changed)
+  // Index 4: user (tool2 response suppressed)
   EXPECT_EQ(messages[4]["role"], "user");
   EXPECT_TRUE(absl::StrContains(messages[4]["content"].get<std::string>(), "suppressed"));
 }
 
 }  // namespace slop
+
+
+

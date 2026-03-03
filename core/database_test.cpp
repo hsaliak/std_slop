@@ -33,17 +33,11 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
 
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());
-  bool found_execute_bash = false;
-  bool found_read_file = false;
-  bool found_persist_function = false;
+  bool found_run_js = false;
   for (const auto& t : *tools) {
-    if (t.name == "execute_bash") found_execute_bash = true;
-    if (t.name == "read_file") found_read_file = true;
-    if (t.name == "persist_function") found_persist_function = true;
+    if (t.name == "run_js") found_run_js = true;
   }
-  EXPECT_TRUE(found_execute_bash);
-  EXPECT_TRUE(found_read_file);
-  EXPECT_TRUE(found_persist_function);
+  EXPECT_TRUE(found_run_js);
 
   auto js_functions_res = db.Query("SELECT name FROM js_functions");
   ASSERT_TRUE(js_functions_res.ok());
@@ -328,24 +322,23 @@ TEST(DatabaseTest, SkillTracking) {
 TEST(DatabaseTest, ApplyPatchToolSchema) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  auto tools = db.GetEnabledTools();
-  ASSERT_TRUE(tools.ok());
-  bool found = false;
-  for (const auto& t : *tools) {
-    if (t.name == "apply_patch") {
-      found = true;
-      nlohmann::json schema = slop::json_parse(t.json_schema).value_or(nlohmann::json::object());
-      ASSERT_FALSE(schema.is_discarded());
-      EXPECT_EQ(schema["type"], "object");
-      EXPECT_TRUE(schema["properties"].contains("path"));
-      EXPECT_TRUE(schema["properties"].contains("patches"));
-      EXPECT_EQ(schema["properties"]["patches"]["type"], "array");
-      auto item_props = schema["properties"]["patches"]["items"]["properties"];
-      EXPECT_TRUE(item_props.contains("find"));
-      EXPECT_TRUE(item_props.contains("replace"));
-    }
-  }
-  EXPECT_TRUE(found) << "apply_patch not found in enabled tools";
+
+  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions WHERE name = 'apply_patch'");
+  ASSERT_TRUE(funcs_or.ok());
+  auto funcs_json = slop::json_parse(*funcs_or).value_or(nlohmann::json::array());
+  ASSERT_TRUE(funcs_json.is_array());
+  ASSERT_EQ(funcs_json.size(), 1);
+
+  nlohmann::json schema = slop::json_parse(funcs_json[0].value("json_schema", std::string{}))
+                              .value_or(nlohmann::json::object());
+  ASSERT_FALSE(schema.is_discarded());
+  EXPECT_EQ(schema["type"], "object");
+  EXPECT_TRUE(schema["properties"].contains("path"));
+  EXPECT_TRUE(schema["properties"].contains("patches"));
+  EXPECT_EQ(schema["properties"]["patches"]["type"], "array");
+  auto item_props = schema["properties"]["patches"]["items"]["properties"];
+  EXPECT_TRUE(item_props.contains("find"));
+  EXPECT_TRUE(item_props.contains("replace"));
 }
 TEST(DatabaseTest, ToolUsageCounters) {
   slop::Database db;
@@ -402,6 +395,9 @@ TEST(DatabaseTest, ConcurrentAccess) {
   }
   EXPECT_EQ(success_count, num_threads * iterations * 2);
 }
+
+
+
 
 
 
