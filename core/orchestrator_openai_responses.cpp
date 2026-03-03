@@ -18,9 +18,7 @@
 namespace slop {
 namespace {
 
-bool IsDebugToolsEnabled() {
-  return std::getenv("SLOP_DEBUG_TOOLS") != nullptr;
-}
+bool IsDebugToolsEnabled() { return std::getenv("SLOP_DEBUG_TOOLS") != nullptr; }
 
 std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string& payload) {
   if (!absl::StrContains(payload, "event:") || !absl::StrContains(payload, "data:")) {
@@ -159,12 +157,13 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
 
 }  // namespace
 
-OpenAiResponsesOrchestrator::OpenAiResponsesOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
-                                                         const std::string& base_url)
+OpenAiResponsesOrchestrator::OpenAiResponsesOrchestrator(Database* db, HttpClient* http_client,
+                                                         const std::string& model, const std::string& base_url)
     : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {}
 
 absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
-    const std::string& session_id, const std::string& system_instruction, const std::vector<Database::Message>& history) {
+    const std::string& session_id, const std::string& system_instruction,
+    const std::vector<Database::Message>& history) {
   (void)session_id;
   nlohmann::json input = nlohmann::json::array();
 
@@ -329,8 +328,8 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
 
   if (!tool_calls.empty()) {
     if (!assistant_text.empty()) {
-      auto text_st =
-          db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, GetName(), total_tokens);
+      auto text_st = db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, GetName(),
+                                        total_tokens);
       if (!text_st.ok()) {
         return text_st;
       }
@@ -344,9 +343,8 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
     const std::string first_id = json_get_or(first_call, "id", std::string{});
     const auto* fn = json_at(first_call, "function");
     const std::string first_name = fn == nullptr ? "" : json_get_or(*fn, "name", std::string{});
-    auto st =
-        db_->AppendMessage(session_id, "assistant", json_dump(msg), first_id + "|" + first_name, "tool_call", group_id,
-                           GetName(), assistant_text.empty() ? total_tokens : 0);
+    auto st = db_->AppendMessage(session_id, "assistant", json_dump(msg), first_id + "|" + first_name, "tool_call",
+                                 group_id, GetName(), assistant_text.empty() ? total_tokens : 0);
     if (!st.ok()) {
       return st;
     }
@@ -354,8 +352,8 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
   }
 
   if (!assistant_text.empty()) {
-    auto st = db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, GetName(),
-                                 total_tokens);
+    auto st =
+        db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, GetName(), total_tokens);
     if (!st.ok()) {
       return st;
     }
@@ -374,7 +372,7 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiResponsesOrchestrator::ParseToolCall
 }
 
 absl::StatusOr<std::vector<ModelInfo>> OpenAiResponsesOrchestrator::GetModels(const std::string& api_key,
-                                                                               const std::string& account_id) {
+                                                                              const std::string& account_id) {
   return GetOpenAiModels(http_client_, base_url_, api_key, account_id);
 }
 

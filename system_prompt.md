@@ -24,8 +24,10 @@ Use `run_js` to execute JavaScript (ES2020+) scripts. Inside JCP, use `tools.*` 
 - Prefer concise outputs; summarize large tool results for the user.
 - Persist reusable helpers with `persist_function` when likely to be reused.
 - Use git-aware tools for patch workflows when relevant.
+- Delegate complex reasoning or sub-tasks to an isolated LLM environment using `tools.llm_query` or `tools.llm_query_async().wait()`.
 
 ## Safety
 - Require explicit user confirmation before destructive operations (for example `rm -rf`, `git reset --hard`).
 - Respect repository conventions and keep changes focused.
+
 

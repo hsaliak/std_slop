@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "core/tool_executor.h"
 
 #include <cstdlib>
@@ -17,7 +18,7 @@ namespace {
 nlohmann::json ParseEnvelope(const std::string& raw) {
   auto parsed = nlohmann::json::parse(raw, nullptr, false);
   if (parsed.is_discarded()) {
-    return nlohmann::json();
+    return {};
   }
   return parsed;
 }
@@ -72,7 +73,7 @@ TEST(ToolExecutorTest, ReadWriteFile) {
   EXPECT_EQ(read_env.value("tool", std::string{}), "read_file");
   const std::string read_text = EnvelopeResultText(*read_res);
   EXPECT_TRUE(read_text.find(content) != std::string::npos);
-  EXPECT_TRUE(read_text.find("1: ") == std::string::npos);
+  EXPECT_TRUE(!absl::StrContains(read_text, "1: "));
 
   std::filesystem::remove(test_file);
 }
@@ -92,33 +93,33 @@ TEST(ToolExecutorTest, ReadFileGranular) {
   auto res1 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 2}, {"end_line", 4}});
   ASSERT_TRUE(res1.ok());
   const std::string text1 = EnvelopeResultText(*res1);
-  EXPECT_TRUE(text1.find("Line 2\nLine 3\nLine 4\n") != std::string::npos);
-  EXPECT_TRUE(text1.find("1: Line 1") == std::string::npos);
-  EXPECT_TRUE(text1.find("5: Line 5") == std::string::npos);
+  EXPECT_TRUE(absl::StrContains(text1, "Line 2\nLine 3\nLine 4\n"));
+  EXPECT_TRUE(!absl::StrContains(text1, "1: Line 1"));
+  EXPECT_TRUE(!absl::StrContains(text1, "5: Line 5"));
 
   // Test: Start only
   auto res2 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 4}});
   ASSERT_TRUE(res2.ok());
   const std::string text2 = EnvelopeResultText(*res2);
-  EXPECT_TRUE(text2.find("Line 4\nLine 5\n") != std::string::npos);
-  EXPECT_TRUE(text2.find("3: Line 3") == std::string::npos);
+  EXPECT_TRUE(absl::StrContains(text2, "Line 4\nLine 5\n"));
+  EXPECT_TRUE(!absl::StrContains(text2, "3: Line 3"));
 
   // Test: End only
   auto res3 = executor.Execute("read_file", {{"path", test_file}, {"end_line", 2}});
   ASSERT_TRUE(res3.ok());
   const std::string text3 = EnvelopeResultText(*res3);
-  EXPECT_TRUE(text3.find("Line 1\nLine 2\n") != std::string::npos);
-  EXPECT_TRUE(text3.find("3: Line 3") == std::string::npos);
+  EXPECT_TRUE(absl::StrContains(text3, "Line 1\nLine 2\n"));
+  EXPECT_TRUE(!absl::StrContains(text3, "3: Line 3"));
 
   // Test: Out of bounds
   auto res4 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 10}});
   ASSERT_TRUE(res4.ok());
-  EXPECT_TRUE(EnvelopeResultText(*res4).find("10: ") == std::string::npos);
+  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*res4), "10: "));
 
   // Test: Invalid range
   auto res5 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 5}, {"end_line", 2}});
   ASSERT_TRUE(res5.ok());
-  EXPECT_TRUE(EnvelopeResultText(*res5).find("Error: INVALID_ARGUMENT") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res5), "Error: INVALID_ARGUMENT"));
 
   std::filesystem::remove(test_file);
 }
@@ -203,6 +204,7 @@ TEST(ToolExecutorTest, ExecuteBash) {
   ASSERT_TRUE(res.ok());
   auto env = ParseEnvelope(*res);
   ASSERT_TRUE(env.is_object());
+  std::cout << "RES: " << *res << std::endl;
   EXPECT_EQ(env.value("ok", false), true);
   EXPECT_EQ(env.value("tool", std::string{}), "execute_bash");
   EXPECT_TRUE(res->find("slop") != std::string::npos);
@@ -222,7 +224,7 @@ TEST(ToolExecutorTest, ToolNotFound) {
   EXPECT_EQ(env.value("ok", true), false);
   EXPECT_EQ(env.value("tool", std::string{}), "non_existent");
   ASSERT_TRUE(env.contains("error"));
-  EXPECT_TRUE(EnvelopeResultText(*res).find("NOT_FOUND") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res), "NOT_FOUND"));
 }
 
 TEST(ToolExecutorTest, AliasToolNameResolvesToCanonical) {
@@ -304,7 +306,7 @@ TEST(ToolExecutorTest, GrepToolNoMatches) {
   ASSERT_TRUE(grep_env.is_object());
   EXPECT_EQ(grep_env.value("ok", false), true);
   EXPECT_EQ(grep_env.value("tool", std::string{}), "grep_tool");
-  EXPECT_TRUE(EnvelopeResultText(*grep_res).find("Error:") == std::string::npos);
+  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*grep_res), "Error:"));
 
   std::filesystem::remove(test_file);
 }
@@ -545,7 +547,6 @@ TEST(ToolExecutorTest, UseSkill) {
   EXPECT_EQ((*skills)[skills->size() - 1].activation_count, 1);
 }
 
-
 TEST(ToolExecutorTest, GrepToolEscaping) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -576,7 +577,7 @@ TEST(ToolExecutorTest, GrepToolEscaping) {
   // Test: Double quote
   auto res4 = executor.Execute("grep_tool", {{"pattern", "\"baz\""}, {"path", test_file}});
   ASSERT_TRUE(res4.ok());
-  EXPECT_TRUE(EnvelopeResultText(*res4).find("Double-quote: \"baz\"") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res4), "Double-quote: \"baz\""));
 
   std::filesystem::remove(test_file);
 }
@@ -812,7 +813,7 @@ TEST(ToolExecutorTest, AskUser) {
   auto& executor = **executor_or;
 
   bool handler_called = false;
-  std::string received_prompt = "";
+  std::string received_prompt;
 
   executor.SetAskUserHandler([&](const std::string& p) {
     handler_called = true;
@@ -828,5 +829,3 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
-
-

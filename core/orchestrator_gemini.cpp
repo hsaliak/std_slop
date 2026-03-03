@@ -259,7 +259,7 @@ absl::StatusOr<int> GeminiGcaOrchestrator::ProcessResponse(const std::string& se
 }
 
 absl::StatusOr<std::vector<ModelInfo>> GeminiGcaOrchestrator::GetModels([[maybe_unused]] const std::string& api_key,
-                                                                         const std::string& account_id) {
+                                                                        const std::string& account_id) {
   (void)account_id;
   return absl::UnimplementedError("Model listing not implemented for Gemini OAuth logins yet");
 }
@@ -270,12 +270,10 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::GetQuota(const std::string
   }
 
   std::string url = base_url_ + ":retrieveUserQuota";
-  std::vector<std::string> headers = {"Content-Type: application/json",
-                                      "Authorization: Bearer " + oauth_token};
+  std::vector<std::string> headers = {"Content-Type: application/json", "Authorization: Bearer " + oauth_token};
   headers.push_back(std::string("User-Agent: ") + kUserAgent);
   headers.push_back(std::string("x-goog-api-client: ") + kGcaApiClient);
   headers.push_back(std::string("x-goog-api-client-metadata: ") + kGcaClientMetadata);
-
 
   nlohmann::json body;
   body["project"] = project_id_;
@@ -289,7 +287,3 @@ absl::StatusOr<nlohmann::json> GeminiGcaOrchestrator::GetQuota(const std::string
 }
 
 }  // namespace slop
-
-
-
-

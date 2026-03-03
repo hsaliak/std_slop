@@ -498,8 +498,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
       }
     }
   } else {
-    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, switch, remove, clear, clone"
-              << std::endl;
+    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, switch, remove, clear, clone" << std::endl;
   }
   return Result::HANDLED;
 }
@@ -1119,4 +1118,3 @@ CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
 }
 
 }  // namespace slop
-

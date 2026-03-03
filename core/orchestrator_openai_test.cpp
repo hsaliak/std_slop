@@ -76,6 +76,3 @@ TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
 }
 
 }  // namespace slop
-
-
-

@@ -2,12 +2,12 @@
 #define SLOP_SQL_HTTP_CLIENT_H_
 
 #include <atomic>
-#include "absl/synchronization/mutex.h"
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
 #include <curl/curl.h>
@@ -52,7 +52,6 @@ class HttpClient {
   std::atomic<bool> abort_requested_{false};
   absl::Mutex abort_mutex_;
   absl::CondVar abort_cv_;
-
 
   int max_retries_;
   int64_t initial_backoff_ms_;

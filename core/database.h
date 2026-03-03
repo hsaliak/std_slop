@@ -196,4 +196,3 @@ class Database {
 };
 }  // namespace slop
 #endif  // SLOP_SQL_DATABASE_H_
-

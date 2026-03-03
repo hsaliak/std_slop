@@ -1,7 +1,9 @@
 #include "interface/renderer.h"
+
 #include <iostream>
+
 #include "interface/color.h"
-#include "interface/terminal.h" // For GetTerminalWidth and VisibleLength
+#include "interface/terminal.h"  // For GetTerminalWidth and VisibleLength
 
 namespace slop {
 
@@ -16,7 +18,7 @@ void Renderer::RenderMarkdown(const std::string& markdown, const std::string& pr
     *rendered = prefix + markdown + "\n";
     return;
   }
-  
+
   size_t width = GetTerminalWidth();
   size_t prefix_len = VisibleLength(prefix);
   renderer_.SetMaxWidth(width > prefix_len + 5 ? width - prefix_len : 0);

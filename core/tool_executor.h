@@ -90,7 +90,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleRunJs(const nlohmann::json& args,
                                           std::shared_ptr<CancellationRequest> cancellation);
 
-    absl::StatusOr<JsResult> RunJs(const RunJsRequest& req, std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<JsResult> RunJs(const RunJsRequest& req, std::shared_ptr<CancellationRequest> cancellation);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   std::unique_ptr<ToolDispatcher> dispatcher_;

@@ -8,9 +8,9 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 
+#include "core/js_tools_data.h"
 #include "core/status_macros.h"
 #include "json_utils.h"
-#include "core/js_tools_data.h"
 
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
@@ -213,12 +213,13 @@ absl::Status Database::Init(const std::string& db_path) {
     absl::MutexLock lock(&mu_);
     db_.reset(raw_db);
   }
-  
+
   // Insert default JS functions into js_functions table
   for (const auto& func : GetDefaultJsFunctions()) {
-    std::string sql = "INSERT INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?) "
-                      "ON CONFLICT(name) DO UPDATE SET code=excluded.code, description=excluded.description, "
-                      "json_schema=excluded.json_schema;";
+    std::string sql =
+        "INSERT INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(name) DO UPDATE SET code=excluded.code, description=excluded.description, "
+        "json_schema=excluded.json_schema;";
     (void)Execute(sql, func.name, func.code, func.description, func.json_schema);
   }
 
@@ -235,6 +236,10 @@ absl::Status Database::RegisterDefaultTools() {
        "'tools' object (supporting async variants), and global variables 'history', 'state', and optional "
        "Output and return values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The JavaScript script to execute."}},"required":["script"]})",
+       true},
+      {"llm_query",
+       "Executes a synchronous LLM query in a transient, isolated environment. Useful for sub-tasks or analysis.",
+       R"({"type":"object","properties":{"query":{"type":"string","description":"The prompt to send to the LLM."}},"required":["query"]})",
        true}};
   // Automatically register all core tools defined in the default_tools list.
   // This ensures the agent always has access to the fundamental building blocks
@@ -282,8 +287,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, "
        "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
   default_skills.push_back(
-      {0, "js_control_plane",
-       "Constrains the agent to use the 'run_js' control plane for all operations.",
+      {0, "js_control_plane", "Constrains the agent to use the 'run_js' control plane for all operations.",
        "### Skill: js_control_plane\n"
        "DANGER: You are in **JS CONTROL PLANE** mode.\n"
        "- You MUST NOT use any tools directly EXCEPT for `run_js`.\n"
@@ -291,27 +295,28 @@ absl::Status Database::RegisterDefaultSkills() {
        "executing a JavaScript script via `run_js`.\n"
        "- Use `tools.query_db` from inside JCP scripts only when schema or metadata inspection is needed.\n"
        "- This mode ensures all actions are documented, reproducible, and orchestrated via the control plane.\n"
-       "- If you need to search, read files, or apply patches, write a JavaScript script that calls the appropriate `tools` "
+       "- If you need to search, read files, or apply patches, write a JavaScript script that calls the appropriate "
+       "`tools` "
        "functions."});
-  default_skills.push_back({0, "run_js",
-                            "Expert JavaScript scripter capable of orchestrating complex tasks using the JavaScript bridge.",
-                            "You are a JavaScript scripting expert. You use 'run_js' to orchestrate complex tasks.\n"
-                            "### ENVIRONMENT\n"
-                            "- **'tools'**: Table of all tool functions. Every tool takes a SINGLE table argument "
-                            "(e.g., `tools.read_file({path='foo.txt'})`).\n"
-                            "- **'tools.help()'**: Call this early to fetch the JSON API manifest, canonical names, "
-                            "and aliases.\n"
-                            "- **'history'**: Array of messages providing session context. It is appended to after "
-                            "each turn and can be used to programmatically extract information from prior turns.\n"
-                            "- **'state'**: Global context string.\n"
-                            ""
-                            "### PARALLELISM\n"
-                            "Use `tools.execute_bash_async` to launch parallel jobs, then "
-                            "`job:wait()` to block and collect results.\n"
-                            "### OUTPUT\n"
-                            "Use `print()` for debugging/logging. The script's final expression or explicit `return` "
-                            "value is captured and returned to you. Return a concise user-facing result every turn; "
-                            ""});
+  default_skills.push_back(
+      {0, "run_js", "Expert JavaScript scripter capable of orchestrating complex tasks using the JavaScript bridge.",
+       "You are a JavaScript scripting expert. You use 'run_js' to orchestrate complex tasks.\n"
+       "### ENVIRONMENT\n"
+       "- **'tools'**: Table of all tool functions. Every tool takes a SINGLE table argument "
+       "(e.g., `tools.read_file({path='foo.txt'})`).\n"
+       "- **'tools.help()'**: Call this early to fetch the JSON API manifest, canonical names, "
+       "and aliases.\n"
+       "- **'history'**: Array of messages providing session context. It is appended to after "
+       "each turn and can be used to programmatically extract information from prior turns.\n"
+       "- **'state'**: Global context string.\n"
+       ""
+       "### PARALLELISM\n"
+       "Use `tools.execute_bash_async` to launch parallel jobs, then "
+       "`job:wait()` to block and collect results.\n"
+       "### OUTPUT\n"
+       "Use `print()` for debugging/logging. The script's final expression or explicit `return` "
+       "value is captured and returned to you. Return a concise user-facing result every turn; "
+       ""});
   default_skills.push_back(
       {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
        "You are the Patcher, an expert software engineer specialized in the \"Mail Model\" workflow. Your primary "
@@ -755,8 +760,8 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
   };
   absl::Status status = Execute(
       "INSERT INTO sessions (id, context_size, active_skills) "
-       "SELECT ?, context_size, active_skills FROM sessions "
-       "WHERE id = ?;",
+      "SELECT ?, context_size, active_skills FROM sessions "
+      "WHERE id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
@@ -861,15 +866,3 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
-
-
-
-
-
-
-
-
-
-
-
-

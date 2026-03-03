@@ -106,7 +106,6 @@ TEST(DatabaseTest, CloneEmptySession) {
   auto history = db.GetConversationHistory("empty_clone");
   ASSERT_TRUE(history.ok());
   EXPECT_TRUE(history->empty());
-
 }
 TEST(DatabaseTest, CloneLargeSession) {
   slop::Database db;
@@ -122,7 +121,6 @@ TEST(DatabaseTest, CloneLargeSession) {
   ASSERT_TRUE(history.ok());
   EXPECT_EQ(history->size(), kNumMessages);
   EXPECT_EQ((*history)[99].content, "Message 99");
-
 }
 TEST(DatabaseTest, CloneStressTest) {
   slop::Database db;
@@ -329,8 +327,8 @@ TEST(DatabaseTest, ApplyPatchToolSchema) {
   ASSERT_TRUE(funcs_json.is_array());
   ASSERT_EQ(funcs_json.size(), 1);
 
-  nlohmann::json schema = slop::json_parse(funcs_json[0].value("json_schema", std::string{}))
-                              .value_or(nlohmann::json::object());
+  nlohmann::json schema =
+      slop::json_parse(funcs_json[0].value("json_schema", std::string{})).value_or(nlohmann::json::object());
   ASSERT_FALSE(schema.is_discarded());
   EXPECT_EQ(schema["type"], "object");
   EXPECT_TRUE(schema["properties"].contains("path"));
@@ -395,10 +393,3 @@ TEST(DatabaseTest, ConcurrentAccess) {
   }
   EXPECT_EQ(success_count, num_threads * iterations * 2);
 }
-
-
-
-
-
-
-

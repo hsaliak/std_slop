@@ -14,7 +14,7 @@ namespace {
 nlohmann::json ParseEnvelope(const std::string& raw) {
   auto parsed = nlohmann::json::parse(raw, nullptr, false);
   if (parsed.is_discarded() || !parsed.is_object()) {
-    return nlohmann::json();
+    return {};
   }
   return parsed;
 }
@@ -46,9 +46,7 @@ std::string EnvelopeResultText(const std::string& raw) {
 
 class ContextManagementTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    ASSERT_TRUE(db_.Init(":memory:").ok());
-  }
+  void SetUp() override { ASSERT_TRUE(db_.Init(":memory:").ok()); }
 
   Database db_;
 };
@@ -68,9 +66,9 @@ TEST_F(ContextManagementTest, ListDirectoryBasic) {
   auto res = executor.Execute("list_directory", {{"path", "test_dir"}, {"depth", 1}});
   ASSERT_TRUE(res.ok());
   const std::string output = EnvelopeResultText(*res);
-  EXPECT_TRUE(output.find("File: file1.txt") != std::string::npos);
-  EXPECT_TRUE(output.find("File: file2.txt") != std::string::npos);
-  EXPECT_TRUE(output.find("Directory: subdir/") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "File: file1.txt"));
+  EXPECT_TRUE(absl::StrContains(output, "File: file2.txt"));
+  EXPECT_TRUE(absl::StrContains(output, "Directory: subdir/"));
 
   std::filesystem::remove_all("test_dir");
 }
@@ -86,11 +84,10 @@ TEST_F(ContextManagementTest, ListDirectoryRecursive) {
 
   auto res = executor.Execute("list_directory", {{"path", "test_dir_rec"}, {"depth", 2}});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(EnvelopeResultText(*res).find("subdir/subfile.txt") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res), "subdir/subfile.txt"));
 
   std::filesystem::remove_all("test_dir_rec");
 }
-
 
 TEST_F(ContextManagementTest, DescribeDb) {
   auto executor_or = ToolExecutor::Create(&db_);
@@ -100,8 +97,8 @@ TEST_F(ContextManagementTest, DescribeDb) {
   auto res = executor.Execute("describe_db", {});
   ASSERT_TRUE(res.ok());
   const std::string output = EnvelopeResultText(*res);
-  EXPECT_TRUE(output.find("\"name\":\"messages\"") != std::string::npos);
-  EXPECT_TRUE(output.find("\"name\":\"tools\"") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(output, "\"name\":\"messages\""));
+  EXPECT_TRUE(absl::StrContains(output, "\"name\":\"tools\""));
 }
 
 TEST_F(ContextManagementTest, ReadFileWarning) {
@@ -141,10 +138,9 @@ TEST_F(ContextManagementTest, GrepTruncation) {
 
   auto res = executor.Execute("grep_tool", {{"pattern", "match"}, {"path", "large_grep.txt"}, {"limit", 50}});
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(EnvelopeResultText(*res).find("[TRUNCATED") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res), "[TRUNCATED"));
 
   std::filesystem::remove("large_grep.txt");
 }
 
 }  // namespace slop
-

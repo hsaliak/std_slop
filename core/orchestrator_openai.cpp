@@ -138,9 +138,9 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
       // Store reasoning as separate assistant message in DB
       auto reasoning = json_get<std::string>(*msg, "reasoning_content");
       if (reasoning && !reasoning->empty()) {
-        db_->AppendMessage(session_id, "assistant",
-                           absl::StrCat("🤔 **Reasoning:**\n", *reasoning),
-                           "", "completed", group_id, GetName(), 0).IgnoreError();
+        db_->AppendMessage(session_id, "assistant", absl::StrCat("🤔 **Reasoning:**\n", *reasoning), "", "completed",
+                           group_id, GetName(), 0)
+            .IgnoreError();
       }
 
     } else {

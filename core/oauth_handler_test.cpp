@@ -108,7 +108,6 @@ TEST_F(OAuthHandlerTest, OpenAiAccountIdFromJwtClaims) {
   unlink(temp_path);
 }
 
-
 TEST_F(OAuthHandlerTest, OpenAiRefreshRequestFormValuesAreUrlEncoded) {
   char temp_path[] = "/tmp/slop_openai_refresh_token_XXXXXX";
   int fd = mkstemp(temp_path);
@@ -135,12 +134,11 @@ TEST_F(OAuthHandlerTest, OpenAiRefreshRequestFormValuesAreUrlEncoded) {
   handler.SetTokenPath(temp_path);
   handler.SetEnabled(true);
 
-  EXPECT_CALL(mock_http,
-              Post(HasSubstr("oauth/token"),
-                   AllOf(HasSubstr("refresh_token=refresh%2Btok%26en%3D1%20%2F"),
-                         HasSubstr("client_secret=sec%2Bret%26x%3Dy%20%2F"),
-                         HasSubstr("client_id="), HasSubstr("grant_type=refresh_token")),
-                   Contains("Content-Type: application/x-www-form-urlencoded")))
+  EXPECT_CALL(mock_http, Post(HasSubstr("oauth/token"),
+                              AllOf(HasSubstr("refresh_token=refresh%2Btok%26en%3D1%20%2F"),
+                                    HasSubstr("client_secret=sec%2Bret%26x%3Dy%20%2F"), HasSubstr("client_id="),
+                                    HasSubstr("grant_type=refresh_token")),
+                              Contains("Content-Type: application/x-www-form-urlencoded")))
       .WillOnce(Return(R"({"access_token":"new_token","expires_in":3600})"));
 
   auto token_or = handler.GetValidToken();

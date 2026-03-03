@@ -31,8 +31,8 @@ nlohmann::json BuildOpenAiChatTools(Database* db) {
     if (!schema_opt) {
       continue;
     }
-    tools.push_back(
-        {{"type", "function"}, {"function", {{"name", t.name}, {"description", t.description}, {"parameters", *schema_opt}}}});
+    tools.push_back({{"type", "function"},
+                     {"function", {{"name", t.name}, {"description", t.description}, {"parameters", *schema_opt}}}});
   }
   return tools;
 }
@@ -129,12 +129,3 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
 }
 
 }  // namespace slop
-
-
-
-
-
-
-
-
-

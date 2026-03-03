@@ -113,7 +113,8 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 ### The `run_js` Tool
 The `run_js` tool allows the agent to execute orchestrated scripts. It has access to:
 - **`tools`**: Runtime tool registry exposed to scripts (discoverable via `tools.help()`).
-- **Async Execution**: `tools.execute_bash_async` allow for parallel execution (e.g., running multiple tests at once).
+- **`llm_query`**: Synchronous and asynchronous helpers for isolated LLM sub-tasks.
+- **Async Execution**: `tools.execute_bash_async` and `tools.llm_query_async` allow for parallel execution (e.g., running multiple tests at once).
 - **Tool Manifest**: `tools.help({})` returns JSON with canonical tool names, aliases, and contracts.
 For more details, see the **[JavaScript Integration Documentation](js_integration.md)**.
 
@@ -287,5 +288,6 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
+
 
 

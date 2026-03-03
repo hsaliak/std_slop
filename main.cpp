@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <chrono>
 #include <csignal>
-#include <readline/readline.h>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -35,16 +34,19 @@
 #include "core/constants.h"
 #include "core/database.h"
 #include "core/http_client.h"
+#include "core/json_utils.h"
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
 #include "core/tool_dispatcher.h"
 #include "core/tool_executor.h"
 #include "interface/color.h"
 #include "interface/command_handler.h"
-#include "interface/interaction_engine.h"
-#include "interface/ui.h"
-#include "interface/terminal.h"
 #include "interface/completer.h"
+#include "interface/interaction_engine.h"
+#include "interface/terminal.h"
+#include "interface/ui.h"
+
+#include <readline/readline.h>
 
 ABSL_FLAG(std::string, config, "", "Path to the configuration INI file");
 ABSL_FLAG(std::string, db, "", "Path to SQLite database (default: slop.db)");
@@ -76,7 +78,6 @@ void SignalHandler(int signum) {
 }
 
 namespace {
-
 
 class FileLogSink : public absl::LogSink {
  public:
@@ -219,8 +220,8 @@ int main(int argc, char* argv[]) {
     if (openai_oauth) {
       resolved_openai_base_url = slop::kOpenAiChatGptCodexBaseUrl;
       if (!openai_base_url.empty()) {
-        std::cout << "--openai_base_url ignored in --openai_oauth mode; using "
-                  << slop::kOpenAiChatGptCodexBaseUrl << "." << std::endl;
+        std::cout << "--openai_base_url ignored in --openai_oauth mode; using " << slop::kOpenAiChatGptCodexBaseUrl
+                  << "." << std::endl;
       }
     } else {
       resolved_openai_base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
@@ -319,6 +320,17 @@ int main(int argc, char* argv[]) {
   engine_config.google_oauth = google_auth;
   engine_config.openai_oauth = openai_oauth;
   engine_config.use_responses = openai_oauth || use_responses;
+
+  tool_executor->RegisterTool(
+      "llm_query",
+      [&engine, engine_config, active_skills](
+          const nlohmann::json& args, std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
+        auto query = slop::json_get<std::string>(args, "query");
+        if (!query) {
+          return absl::InvalidArgumentError("Missing 'query' argument");
+        }
+        return engine.Query(*query, engine_config, active_skills);
+      });
 
   std::string batch_prompt = absl::GetFlag(FLAGS_prompt);
   if (!batch_prompt.empty()) {

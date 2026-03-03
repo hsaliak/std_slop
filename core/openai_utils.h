@@ -25,11 +25,8 @@ int RecordOpenAiResponsesUsage(Database* db, const std::string& session_id, cons
                                const nlohmann::json& response);
 
 absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, const std::string& base_url,
-                                                       const std::string& api_key,
-                                                       const std::string& account_id = "");
+                                                       const std::string& api_key, const std::string& account_id = "");
 
 }  // namespace slop
 
 #endif  // SLOP_CORE_OPENAI_UTILS_H_
-
-

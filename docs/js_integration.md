@@ -38,15 +38,25 @@ Scripts executed via `run_js` have access to a rich environment tailored for sof
 ### Transient Scope
 *   **Skill Limitation**: The `hey <skill>` hotword detection does not work for non-default or custom skills within a sub-query, as the sub-query's database only contains default system personas.
 
+## 5. Offloading via `llm_query`
+
+The JCP allows the agent to "fork" its reasoning by calling sub-LLMs.
+- `tools.llm_query`: Synchronous; best for small, investigative tasks.
+- `tools.llm_query_async`: Parallel; best for processing large batches of data (e.g., summarizing 10 files at once).
+
+### Transient Scope
+Sub-queries spawned via `llm_query` operate within a transient, in-memory database context.
+*   **Skill Limitation**: The `hey <skill>` hotword detection does not work for non-default or custom skills within a sub-query, as the sub-query's database only contains default system personas.
+*   **Isolation**: Messages and state changes within an `llm_query` do not persist in the main `slop.db` history.
+
 **Example: Batch Analysis**
 ```javascript
 const files = ["auth.cpp", "session.cpp", "db.cpp"];
 const jobs = [];
 for (const f of files) {
     const code = tools.read_file({path: f});
-    jobs.push(tools.dispatch_async("ask_user", {
-        prompt: "Explain the error handling pattern in this file",
-        context: code
+    jobs.push(tools.llm_query_async({
+        query: "Explain the error handling pattern in this file:\n" + code
     }));
 }
 
@@ -112,4 +122,5 @@ When writing orchestration scripts, prefer explicit parsing/inspection of return
 ### Removed legacy globals
 Legacy bridge globals used by older flows (including scratchpad/history globals) are no longer part of the default model contract.
 Use explicit tool calls for context retrieval and state handling instead of relying on implicit global session objects.
+
 

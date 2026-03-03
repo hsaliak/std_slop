@@ -1,10 +1,13 @@
-#include <gtest/gtest.h>
-#include "core/tool_executor.h"
-#include "core/database.h"
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+
 #include "absl/strings/match.h"
+
+#include "core/database.h"
+#include "core/tool_executor.h"
+
+#include <gtest/gtest.h>
 
 namespace slop {
 
@@ -17,9 +20,7 @@ class JsIntegrationTest : public ::testing::Test {
     setenv("SLOP_USE_JS", "1", 1);
   }
 
-  void TearDown() override {
-    unsetenv("SLOP_USE_JS");
-  }
+  void TearDown() override { unsetenv("SLOP_USE_JS"); }
 
   Database db_;
   std::unique_ptr<ToolExecutor> executor_;
@@ -60,7 +61,6 @@ TEST_F(JsIntegrationTest, JsPreamble) {
   EXPECT_TRUE(absl::StrContains(*res, "1"));
 }
 
-
 TEST_F(JsIntegrationTest, PersistFunction) {
   auto res = executor_->Execute("run_js", {{"script", R"(
     const [success, msg] = tools.persist_function({
@@ -78,22 +78,20 @@ TEST_F(JsIntegrationTest, PersistFunction) {
 
 TEST_F(JsIntegrationTest, UseSkill) {
   // Setup a dummy skill in the DB
-    ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id, active_skills) VALUES ('test_session', '[]');").ok());
+  ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id, active_skills) VALUES ('test_session', '[]');").ok());
   ASSERT_TRUE(db_.Execute("INSERT INTO skills (name, system_prompt_patch) VALUES ('test_skill', 'patch');").ok());
 
-  
   auto res = executor_->Execute("run_js", {{"script", R"(
     return tools.use_skill({name: "test_skill", action: "activate"});
   )"}});
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_TRUE(absl::StrContains(*res, "activated"));
-  
+
   // Verify it was added to the session
   auto db_res = db_.Query("SELECT active_skills FROM sessions WHERE id = ?;", {"test_session"});
   ASSERT_TRUE(db_res.ok());
   EXPECT_TRUE(absl::StrContains(*db_res, "test_skill"));
 }
-
 
 TEST_F(JsIntegrationTest, PersistFunctionWithoutExpectedResult) {
   auto res = executor_->Execute("run_js", {{"script", R"(
@@ -231,6 +229,3 @@ TEST_F(JsIntegrationTest, TopLevelAwait) {
 }
 
 }  // namespace slop
-
-
-

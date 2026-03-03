@@ -4,11 +4,11 @@
 #include <cstring>
 #include <vector>
 
-#include <readline/readline.h>
-#include <readline/history.h>
-
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
+
+#include <readline/history.h>
+#include <readline/readline.h>
 
 namespace slop {
 

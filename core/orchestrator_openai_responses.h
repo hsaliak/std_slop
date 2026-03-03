@@ -9,7 +9,8 @@ namespace slop {
 
 class OpenAiResponsesOrchestrator : public OrchestratorStrategy {
  public:
-  OpenAiResponsesOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url);
+  OpenAiResponsesOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
+                              const std::string& base_url);
 
   std::string GetName() const override { return "openai"; }
 
@@ -21,8 +22,7 @@ class OpenAiResponsesOrchestrator : public OrchestratorStrategy {
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) override;
 
-  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key,
-                                                   const std::string& account_id) override;
+  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id) override;
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
 
  private:

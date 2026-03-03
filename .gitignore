@@ -23,4 +23,6 @@ bazel-*
 .vscode/
 .idea/
 .agents/
+.slop/
+.slop/*
 MODULE.bazel.lock

@@ -1,9 +1,9 @@
-#include <fstream>
-#include "js-bridge/interpreter.h"
 #include "core/tool_executor.h"
 
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <vector>
@@ -17,18 +17,16 @@
 #include "core/database.h"
 #include "core/js_preamble_data.h"
 #include "core/tool_dispatcher.h"
-#include "json_utils.h"
-#include "interface/terminal.h"
 #include "interface/color.h"
 #include "interface/renderer.h"
-#include <iostream>
+#include "interface/terminal.h"
+#include "js-bridge/interpreter.h"
+#include "json_utils.h"
 
 namespace slop {
 namespace {
 
-bool IsDebugToolsEnabled() {
-  return std::getenv("SLOP_DEBUG_TOOLS") != nullptr;
-}
+bool IsDebugToolsEnabled() { return std::getenv("SLOP_DEBUG_TOOLS") != nullptr; }
 
 std::string JsonKeys(const nlohmann::json& j) {
   if (!j.is_object()) return "<non-object>";
@@ -86,14 +84,13 @@ absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& ar
   return db_->Query(*sql, params);
 }
 
-
 void ToolExecutor::RegisterTools() {
   RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
 
   RegisterTool("run_js", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
     return HandleRunJs(args, cancellation);
   });
-    RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
+  RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
     std::string prompt_text = "Input required: ";
     if (auto p = json_get<std::string>(args, "prompt")) {
       prompt_text = *p;
@@ -113,7 +110,8 @@ void ToolExecutor::RegisterTools() {
         return response;
       }
 
-      std::cout << "\n" << ansi::Red << "Error: " << ansi::Reset
+      std::cout << "\n"
+                << ansi::Red << "Error: " << ansi::Reset
                 << "/commands don't work in Q&A mode. Please provide a direct answer without using slash commands."
                 << std::endl;
     }
@@ -138,7 +136,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
     return res;
   }
 
-    RunJsRequest req;
+  RunJsRequest req;
   req.script = "return core.dispatch_tool(args.name, args.tool_args)";
   req.args["name"] = name;
   req.args["tool_args"] = args;
@@ -208,11 +206,10 @@ std::vector<std::string> ToolExecutor::GetActiveSkills() {
 }
 
 absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& req,
-                                                             std::shared_ptr<CancellationRequest> cancellation) {
+                                                           std::shared_ptr<CancellationRequest> cancellation) {
   if (IsDebugToolsEnabled()) {
     LOG(INFO) << "[tool_debug] RunJs begin script_len=" << req.script.size()
-              << " script_preview=" << TruncateForLog(req.script)
-              << " has_args=" << (!req.args.is_null());
+              << " script_preview=" << TruncateForLog(req.script) << " has_args=" << (!req.args.is_null());
     if (!req.args.is_null()) {
       LOG(INFO) << "[tool_debug] RunJs args_keys=" << JsonKeys(req.args);
     }
@@ -263,57 +260,55 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
   JSValue preamble_res = interpreter.RunString(slop::kJsPreamble, "preamble.js", false);
   JS_FreeValue(ctx, preamble_res);
 
-
   JSValue result = interpreter.RunString(req.script, "input.js");
-  
+
   JsResult res;
   res.stdout_out = stdout_buffer.str();
   bool had_js_return_value = false;
   if (JS_IsException(result)) {
-      JSValue exception = JS_GetException(ctx);
-      absl::Status status = absl::InternalError(absl::StrCat("JS Error\nOutput:\n", res.stdout_out));
-      if (const char* str = JS_ToCString(ctx, exception)) {
-          status = absl::InternalError(absl::StrCat(str, "\nOutput:\n", res.stdout_out));
-          JS_FreeCString(ctx, str);
-      }
-      JS_FreeValue(ctx, exception);
-      JS_FreeValue(ctx, result);
-      if (IsDebugToolsEnabled()) {
-        LOG(INFO) << "[tool_debug] RunJs exception status=" << status;
-      }
-      return status;
+    JSValue exception = JS_GetException(ctx);
+    absl::Status status = absl::InternalError(absl::StrCat("JS Error\nOutput:\n", res.stdout_out));
+    if (const char* str = JS_ToCString(ctx, exception)) {
+      status = absl::InternalError(absl::StrCat(str, "\nOutput:\n", res.stdout_out));
+      JS_FreeCString(ctx, str);
+    }
+    JS_FreeValue(ctx, exception);
+    JS_FreeValue(ctx, result);
+    if (IsDebugToolsEnabled()) {
+      LOG(INFO) << "[tool_debug] RunJs exception status=" << status;
+    }
+    return status;
   }
-  
+
   if (!JS_IsUndefined(result)) {
-      had_js_return_value = true;
-      JSValue printable = result;
-      bool owns_printable = false;
-      if (JS_IsObject(result)) {
-        JSValue json_value = JS_JSONStringify(ctx, result, JS_UNDEFINED, JS_UNDEFINED);
-        if (!JS_IsException(json_value)) {
-          printable = json_value;
-          owns_printable = true;
-        } else {
-          // Clear stringify exception and fall back to default JS string coercion.
-          JSValue exception = JS_GetException(ctx);
-          JS_FreeValue(ctx, exception);
-        }
+    had_js_return_value = true;
+    JSValue printable = result;
+    bool owns_printable = false;
+    if (JS_IsObject(result)) {
+      JSValue json_value = JS_JSONStringify(ctx, result, JS_UNDEFINED, JS_UNDEFINED);
+      if (!JS_IsException(json_value)) {
+        printable = json_value;
+        owns_printable = true;
+      } else {
+        // Clear stringify exception and fall back to default JS string coercion.
+        JSValue exception = JS_GetException(ctx);
+        JS_FreeValue(ctx, exception);
       }
-      const char* str = JS_ToCString(ctx, printable);
-      if (str) {
-          res.return_value = str;
-          JS_FreeCString(ctx, str);
-      }
-      if (owns_printable) {
-        JS_FreeValue(ctx, printable);
-      }
+    }
+    const char* str = JS_ToCString(ctx, printable);
+    if (str) {
+      res.return_value = str;
+      JS_FreeCString(ctx, str);
+    }
+    if (owns_printable) {
+      JS_FreeValue(ctx, printable);
+    }
   }
   JS_FreeValue(ctx, result);
   res.has_js_return_value = had_js_return_value;
   if (IsDebugToolsEnabled()) {
     LOG(INFO) << "[tool_debug] RunJs success stdout_len=" << res.stdout_out.size()
-              << " return_len=" << res.return_value.size()
-              << " return_preview=" << TruncateForLog(res.return_value);
+              << " return_len=" << res.return_value.size() << " return_preview=" << TruncateForLog(res.return_value);
     if (!had_js_return_value) {
       LOG(INFO) << "[tool_debug] RunJs JS result was undefined. Script likely executed without an explicit return.";
     }
@@ -322,7 +317,7 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
 }
 
 absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args,
-                                                       std::shared_ptr<CancellationRequest> cancellation) {
+                                                      std::shared_ptr<CancellationRequest> cancellation) {
   if (IsDebugToolsEnabled()) {
     LOG(INFO) << "[tool_debug] HandleRunJs args_keys=" << JsonKeys(args);
   }
@@ -343,9 +338,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args
     if (arg_shape.size() > 512) {
       arg_shape = arg_shape.substr(0, 512) + "...";
     }
-    return absl::InvalidArgumentError(
-        absl::StrCat("'script' must be a string (also accepted: args.script, code, javascript). Received: ",
-                     arg_shape));
+    return absl::InvalidArgumentError(absl::StrCat(
+        "'script' must be a string (also accepted: args.script, code, javascript). Received: ", arg_shape));
   }
   req.script = *script;
   if (nested_args != nullptr) {
@@ -353,9 +347,11 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args
   }
   if (IsDebugToolsEnabled()) {
     LOG(INFO) << "[tool_debug] HandleRunJs resolved script_source="
-              << (json_get<std::string>(args, "script") ? "script"
-                  : (nested_args != nullptr && json_get<std::string>(*nested_args, "script") ? "args.script"
-                     : (json_get<std::string>(args, "code") ? "code" : "javascript")))
+              << (json_get<std::string>(args, "script")
+                      ? "script"
+                      : (nested_args != nullptr && json_get<std::string>(*nested_args, "script")
+                             ? "args.script"
+                             : (json_get<std::string>(args, "code") ? "code" : "javascript")))
               << " script_len=" << req.script.size();
   }
   auto res = RunJs(req, cancellation);
@@ -377,16 +373,3 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
-
-
-
-
-
-
-
-
-
-
-
-
-

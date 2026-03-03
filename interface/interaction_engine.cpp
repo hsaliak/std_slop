@@ -1,6 +1,5 @@
 #include "interface/interaction_engine.h"
-#include "interface/renderer.h"
-#include "interface/terminal.h"
+
 #include <atomic>
 #include <functional>
 #include <iostream>
@@ -9,16 +8,18 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 
 #include "core/cancellation.h"
 #include "core/constants.h"
 #include "core/shell_util.h"
 #include "interface/color.h"
+#include "interface/renderer.h"
+#include "interface/terminal.h"
 #include "interface/ui.h"
 namespace slop {
 InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler,
@@ -128,9 +129,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     });
   };
 
-  auto maybe_handle_ask_user_prompt = [&](AskState& ask_state,
-                                         const std::function<void()>& before_read,
-                                         const std::function<void()>& after_read) -> bool {
+  auto maybe_handle_ask_user_prompt = [&](AskState& ask_state, const std::function<void()>& before_read,
+                                          const std::function<void()>& after_read) -> bool {
     std::string current_prompt;
     {
       absl::MutexLock lock(&ask_state.mutex);
@@ -228,7 +228,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       if (!config.silent) {
         raw = std::make_unique<slop::ScopedRawMode>();
       }
-      
+
       slop::AsyncAnimator animator;
       if (!config.silent) animator.Start();
 
@@ -248,20 +248,18 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                   }
                 })) {
           continue;
-        } else {
-          if (!config.silent && slop::IsInterruptPressed()) {
+        }           if (!config.silent && slop::IsInterruptPressed()) {
             animator.Stop();
             http_cancellation->Cancel();
-            std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red)
-                      << std::endl;
+            std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
           }
           std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
+       
       }
-      
+
       // Cleanup handler
       tool_executor_.SetAskUserHandler(nullptr);
-      
+
       if (!config.silent) animator.Stop();
     }
     http_t.join();
@@ -329,9 +327,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
               combined_id = call.id + "|" + call.name;
             }
             if (enabled_tool_names.find(call.name) == enabled_tool_names.end()) {
-              results.push_back({combined_id, call.name,
-                                 absl::NotFoundError("Tool not found: " + call.name +
-                                                     ". Use run_js with tools.<name>.")});
+              results.push_back(
+                  {combined_id, call.name,
+                   absl::NotFoundError("Tool not found: " + call.name + ". Use run_js with tools.<name>.")});
               continue;
             }
             dispatcher_calls.push_back({combined_id, call.name, call.args});
@@ -355,7 +353,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             }
             while (!done) {
               if (maybe_handle_ask_user_prompt(
-                      ask_state, [&]() { raw.reset(); }, [&]() {
+                      ask_state, [&]() { raw.reset(); },
+                      [&]() {
                         if (!config.silent) {
                           raw = std::make_unique<slop::ScopedRawMode>();
                         }
@@ -420,10 +419,3 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop
-
-
-
-
-
-
-

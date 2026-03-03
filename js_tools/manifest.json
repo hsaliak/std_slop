@@ -484,6 +484,22 @@
       "required": []
     },
     "implementation": "describe_db.js"
+  },
+  {
+    "name": "llm_query_async",
+    "description": "Runs llm_query asynchronously.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The prompt to send to the LLM."
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "implementation": "llm_query_async.js"
   }
 ]
-

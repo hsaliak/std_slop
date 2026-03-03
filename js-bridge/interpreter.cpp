@@ -1,20 +1,24 @@
-#include "core/json_utils.h"
 #include "js-bridge/interpreter.h"
+
 #include <fstream>
-#include <sstream>
 #include <iostream>
+#include <sstream>
+
+#include "absl/cleanup/cleanup.h"
+#include "absl/log/log.h"
+
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/tool_dispatcher.h"
-#include "absl/log/log.h"
-#include "absl/cleanup/cleanup.h"
-#include "absl/cleanup/cleanup.h"
 
 namespace slop {
 
 struct ContextData {
   std::stringstream* stdout_buffer;
   std::shared_ptr<CancellationRequest> cancellation;
-  const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>* dispatch_map;
+  const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(
+                                             const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>*
+      dispatch_map;
   JsInterpreter* interpreter;
   ToolDispatcher* dispatcher;
   std::vector<std::shared_ptr<ToolJob>> active_jobs;
@@ -32,67 +36,69 @@ JsInterpreter::~JsInterpreter() {
 }
 
 JSValue JsInterpreter::RunString(const std::string& code, const std::string& filename, bool wrap) {
-    if (!wrap) {
-        return JS_Eval(ctx_, code.c_str(), code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
-    }
+  if (!wrap) {
+    return JS_Eval(ctx_, code.c_str(), code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
+  }
 
-    // 1. Auto-wrap the user's code in a double async IIFE.
-    // The inner IIFE captures their `return`, the outer catches errors and saves the result.
-    std::string wrapped_code =
-        "globalThis.__agent_res = undefined;\n"
-        "globalThis.__agent_err = undefined;\n"
-        "(async () => {\n"
-        "  try {\n"
-        "    globalThis.__agent_res = await (async () => {\n"
-        "      " + code + "\n"
-        "    })();\n"
-        "  } catch (e) {\n"
-        "    globalThis.__agent_err = e;\n"
-        "  }\n"
-        "})();";
+  // 1. Auto-wrap the user's code in a double async IIFE.
+  // The inner IIFE captures their `return`, the outer catches errors and saves the result.
+  std::string wrapped_code =
+      "globalThis.__agent_res = undefined;\n"
+      "globalThis.__agent_err = undefined;\n"
+      "(async () => {\n"
+      "  try {\n"
+      "    globalThis.__agent_res = await (async () => {\n"
+      "      " +
+      code +
+      "\n"
+      "    })();\n"
+      "  } catch (e) {\n"
+      "    globalThis.__agent_err = e;\n"
+      "  }\n"
+      "})();";
 
-    // 2. Evaluate the wrapped code (Keep JS_EVAL_TYPE_GLOBAL)
-    JSValue eval_res = JS_Eval(ctx_, wrapped_code.c_str(), wrapped_code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
+  // 2. Evaluate the wrapped code (Keep JS_EVAL_TYPE_GLOBAL)
+  JSValue eval_res = JS_Eval(ctx_, wrapped_code.c_str(), wrapped_code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
 
-    // Check for immediate syntax errors (like missing brackets)
-    if (JS_IsException(eval_res)) {
-        return eval_res;
-    }
-    JS_FreeValue(ctx_, eval_res); // Free the unresolved Promise, we don't need it
+  // Check for immediate syntax errors (like missing brackets)
+  if (JS_IsException(eval_res)) {
+    return eval_res;
+  }
+  JS_FreeValue(ctx_, eval_res);  // Free the unresolved Promise, we don't need it
 
-    // 3. Pump the QuickJS Event Loop!
-    // This is required for `await` to actually finish executing in QuickJS.
-    JSRuntime *rt = JS_GetRuntime(ctx_);
-    JSContext *pctx;
-    int err;
-    while ((err = JS_ExecutePendingJob(rt, &pctx)) > 0) {
-        // Loop runs until all microtasks (promises) are resolved
-    }
+  // 3. Pump the QuickJS Event Loop!
+  // This is required for `await` to actually finish executing in QuickJS.
+  JSRuntime* rt = JS_GetRuntime(ctx_);
+  JSContext* pctx;
+  int err;
+  while ((err = JS_ExecutePendingJob(rt, &pctx)) > 0) {
+    // Loop runs until all microtasks (promises) are resolved
+  }
 
-    if (err < 0) {
-        // Event loop crashed (rare, usually out of memory)
-        return JS_GetException(pctx);
-    }
+  if (err < 0) {
+    // Event loop crashed (rare, usually out of memory)
+    return JS_GetException(pctx);
+  }
 
-    // 4. Extract the final resolved value from the global object
-    JSValue global_obj = JS_GetGlobalObject(ctx_);
+  // 4. Extract the final resolved value from the global object
+  JSValue global_obj = JS_GetGlobalObject(ctx_);
 
-    absl::Cleanup free_global = [this, global_obj] { JS_FreeValue(ctx_, global_obj); };
+  absl::Cleanup free_global = [this, global_obj] { JS_FreeValue(ctx_, global_obj); };
 
-    // Did the script throw an error during execution?
-    JSValue err_val = JS_GetPropertyStr(ctx_, global_obj, "__agent_err");
-    if (!JS_IsUndefined(err_val)) {
-        JS_Throw(ctx_, err_val); // Move the error to the context's exception slot
-        // JS_Throw takes ownership of the value, so we don't free it
-        return JS_EXCEPTION; 
-    }
-    absl::Cleanup free_err = [this, err_val] { JS_FreeValue(ctx_, err_val); };
+  // Did the script throw an error during execution?
+  JSValue err_val = JS_GetPropertyStr(ctx_, global_obj, "__agent_err");
+  if (!JS_IsUndefined(err_val)) {
+    JS_Throw(ctx_, err_val);  // Move the error to the context's exception slot
+    // JS_Throw takes ownership of the value, so we don't free it
+    return JS_EXCEPTION;
+  }
+  absl::Cleanup free_err = [this, err_val] { JS_FreeValue(ctx_, err_val); };
 
-    // Grab the successful return value
-    JSValue res_val = JS_GetPropertyStr(ctx_, global_obj, "__agent_res");
+  // Grab the successful return value
+  JSValue res_val = JS_GetPropertyStr(ctx_, global_obj, "__agent_res");
 
-    // Return the actual value your JS payload sent back!
-    return res_val;
+  // Return the actual value your JS payload sent back!
+  return res_val;
 }
 
 JSValue JsInterpreter::RunFile(const std::string& path) {
@@ -173,14 +179,15 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
   call.id = "async-" + std::string(name);
   call.name = name;
   call.args = args;
-  
+
   auto job = data->dispatcher->Submit(call, data->cancellation);
   data->active_jobs.push_back(job);
 
   JSValue obj = JS_NewObject(ctx);
   JS_SetPropertyStr(ctx, obj, "_job_ptr", JS_NewInt64(ctx, reinterpret_cast<int64_t>(job.get())));
-  
-  auto is_ready = [](JSContext* ctx, JSValueConst this_val, [[maybe_unused]] int argc, [[maybe_unused]] JSValueConst* argv) -> JSValue {
+
+  auto is_ready = [](JSContext* ctx, JSValueConst this_val, [[maybe_unused]] int argc,
+                     [[maybe_unused]] JSValueConst* argv) -> JSValue {
     JSValue ptr_val = JS_GetPropertyStr(ctx, this_val, "_job_ptr");
     int64_t ptr;
     JS_ToInt64(ctx, &ptr, ptr_val);
@@ -189,7 +196,8 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
     return JS_NewBool(ctx, job->IsReady());
   };
 
-  auto wait = [](JSContext* ctx, JSValueConst this_val, [[maybe_unused]] int argc, [[maybe_unused]] JSValueConst* argv) -> JSValue {
+  auto wait = [](JSContext* ctx, JSValueConst this_val, [[maybe_unused]] int argc,
+                 [[maybe_unused]] JSValueConst* argv) -> JSValue {
     JSValue ptr_val = JS_GetPropertyStr(ctx, this_val, "_job_ptr");
     int64_t ptr;
     JS_ToInt64(ctx, &ptr, ptr_val);
@@ -240,11 +248,11 @@ static JSValue js_dispatch_async(JSContext* ctx, [[maybe_unused]] JSValueConst t
 }
 
 void JsInterpreter::InitializeEnvironment(
-    [[maybe_unused]] Database* db, ToolDispatcher* dispatcher,
-    std::shared_ptr<CancellationRequest> cancellation,
-    const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>& dispatch_map,
+    [[maybe_unused]] Database* db, ToolDispatcher* dispatcher, std::shared_ptr<CancellationRequest> cancellation,
+    const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(
+                                               const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>&
+        dispatch_map,
     std::stringstream& stdout_buffer) {
-  
   auto data = std::make_unique<ContextData>();
   data->stdout_buffer = &stdout_buffer;
   data->cancellation = cancellation;
@@ -263,23 +271,24 @@ void JsInterpreter::InitializeEnvironment(
 
   for (auto const& [name, handler] : dispatch_map) {
     if (name == "run_js") continue;
-    
-    auto tool_wrapper = [](JSContext* ctx, [[maybe_unused]] JSValueConst this_val, [[maybe_unused]] int argc, JSValueConst* argv, [[maybe_unused]] int magic, JSValue* func_data) -> JSValue {
+
+    auto tool_wrapper = [](JSContext* ctx, [[maybe_unused]] JSValueConst this_val, [[maybe_unused]] int argc,
+                           JSValueConst* argv, [[maybe_unused]] int magic, JSValue* func_data) -> JSValue {
       ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(ctx));
       const char* name = JS_ToCString(ctx, func_data[0]);
       if (!name) return JS_EXCEPTION;
       absl::Cleanup free_name = [ctx, name] { JS_FreeCString(ctx, name); };
       nlohmann::json args = data->interpreter->JSToJSON(argv[0]);
-      
+
       auto it = data->dispatch_map->find(name);
       if (it == data->dispatch_map->end()) {
-          return JS_ThrowReferenceError(ctx, "Tool not found: %s", name);
+        return JS_ThrowReferenceError(ctx, "Tool not found: %s", name);
       }
-      
+
       auto result = it->second(args, data->cancellation);
-      
+
       if (!result.ok()) {
-          return JS_ThrowInternalError(ctx, "Error: %s", result.status().ToString().c_str());
+        return JS_ThrowInternalError(ctx, "Error: %s", result.status().ToString().c_str());
       }
       return JS_NewString(ctx, result->c_str());
     };
@@ -289,14 +298,9 @@ void JsInterpreter::InitializeEnvironment(
     JS_SetPropertyStr(ctx_, tools_obj, name.c_str(), func);
     JS_FreeValue(ctx_, name_val);
   }
-  
+
   JS_SetPropertyStr(ctx_, global_obj, "tools", tools_obj);
   JS_FreeValue(ctx_, global_obj);
 }
 
 }  // namespace slop
-
-
-
-
-

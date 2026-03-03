@@ -50,6 +50,3 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
   return kDefinitions;
 }
 }  // namespace slop
-
-
-

@@ -1,10 +1,10 @@
 #include "core/orchestrator_openai_responses.h"
 
-#include <gtest/gtest.h>
-
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/json_utils.h"
+
+#include <gtest/gtest.h>
 
 namespace slop {
 
@@ -17,9 +17,10 @@ class OpenAiResponsesOrchestratorTest : public ::testing::Test {
 };
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
-  ASSERT_TRUE(db.RegisterTool({"run_js", "Run JavaScript", R"({"type":"object","properties":{"script":{"type":"string"}},"required":["script"]})",
-                               true})
-                  .ok());
+  ASSERT_TRUE(
+      db.RegisterTool({"run_js", "Run JavaScript",
+                       R"({"type":"object","properties":{"script":{"type":"string"}},"required":["script"]})", true})
+          .ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
 
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
@@ -36,8 +37,9 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   ASSERT_TRUE(payload["input"].is_array());
   ASSERT_TRUE(payload.contains("tools"));
   ASSERT_TRUE(payload["tools"].is_array());
-  ASSERT_EQ(payload["tools"].size(), 1);
+  ASSERT_EQ(payload["tools"].size(), 2);
   EXPECT_EQ(json_get_or(payload["tools"][0], "name", std::string{}), "run_js");
+  EXPECT_EQ(json_get_or(payload["tools"][1], "name", std::string{}), "llm_query");
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndReasoning) {
@@ -214,4 +216,3 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
-

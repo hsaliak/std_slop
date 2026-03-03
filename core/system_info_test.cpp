@@ -37,5 +37,3 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
 }
 
 }  // namespace slop
-
-

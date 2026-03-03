@@ -24,8 +24,7 @@ class GeminiOrchestrator : public OrchestratorStrategy {
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) override;
 
-  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key,
-                                                   const std::string& account_id) override;
+  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id) override;
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
 
  protected:
@@ -55,8 +54,7 @@ class GeminiGcaOrchestrator : public GeminiOrchestrator {
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id) override;
 
-  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key,
-                                                   const std::string& account_id) override;
+  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id) override;
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
 
  private:

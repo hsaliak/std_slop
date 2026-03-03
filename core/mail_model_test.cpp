@@ -214,7 +214,8 @@ TEST_F(MailModelTest, BranchStagingNormalizesAlreadyPrefixedName) {
   EXPECT_TRUE(current_branch->find("slop/staging/prefixed-name") != std::string::npos);
   EXPECT_TRUE(current_branch->find("slop/staging/slop/staging") == std::string::npos);
 
-  auto db_res = db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {"slop/staging/prefixed-name"});
+  auto db_res =
+      db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {"slop/staging/prefixed-name"});
   EXPECT_TRUE(db_res.ok());
 
   (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
@@ -234,13 +235,15 @@ TEST_F(MailModelTest, FinalizeSeriesSucceedsWhenAlreadyLandedWithoutApproval) {
   ASSERT_TRUE(executor_->Execute("git_commit_patch", {{"summary", "already landed patch"}, {"rationale", "r"}}).ok());
 
   (void)executor_->Execute("execute_bash", {{"command", "git checkout main"}});
-  ASSERT_TRUE(executor_->Execute("execute_bash", {{"command", "git merge --ff-only slop/staging/" + staging_name}}).ok());
+  ASSERT_TRUE(
+      executor_->Execute("execute_bash", {{"command", "git merge --ff-only slop/staging/" + staging_name}}).ok());
   ASSERT_TRUE(executor_->Execute("execute_bash", {{"command", "git checkout slop/staging/" + staging_name}}).ok());
 
   auto finalize_res = executor_->Execute("git_finalize_series", {{"target_branch", "main"}});
   ASSERT_TRUE(finalize_res.ok()) << finalize_res.status().message();
 
-  auto contains_res = executor_->Execute("execute_bash", {{"command", "git branch --list slop/staging/" + staging_name}});
+  auto contains_res =
+      executor_->Execute("execute_bash", {{"command", "git branch --list slop/staging/" + staging_name}});
   ASSERT_TRUE(contains_res.ok());
   EXPECT_TRUE(contains_res->find("slop/staging/" + staging_name) == std::string::npos);
 
@@ -341,5 +344,3 @@ TEST_F(MailModelTest, GetBaseBranchResolution) {
 }
 
 }  // namespace slop
-
-

@@ -14,8 +14,9 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "core/json_utils.h"
 #include "nlohmann/json.hpp"
+
+#include "core/json_utils.h"
 
 namespace slop {
 
@@ -192,7 +193,6 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
   return absl::UnavailableError("HTTP request failed");
 }
-
 
 void HttpClient::Abort() {
   {

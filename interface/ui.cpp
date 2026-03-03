@@ -1,8 +1,10 @@
-#include <cstring>
 #include "interface/ui.h"
-#include "interface/terminal.h"
-#include "interface/renderer.h"
+
+#include <cstring>
+
 #include "interface/animator.h"
+#include "interface/renderer.h"
+#include "interface/terminal.h"
 
 // Role constants for message handling
 namespace role_constants {
@@ -81,12 +83,6 @@ void PrintStyledBlock(const std::string& body, const std::string& prefix, const 
 }
 }  // namespace
 namespace {
-
-
-
-
-
-
 
 std::string JsonToMarkdownFence(const nlohmann::json& json_value) {
   return absl::StrCat("```json\n", json_dump(json_value, 2), "\n```\n");
@@ -179,7 +175,6 @@ std::string ExtractToolName(const std::string& tool_call_id) {
   return tool_call_id;
 }
 }  // namespace
-
 
 void ShowBanner() {
   std::string banner = R"(
@@ -592,10 +587,6 @@ std::string GetHelpText() {
 }
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
 
-
-
-
-
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
   Renderer::Get().RenderMarkdown(markdown, prefix, rendered);
 }
@@ -604,8 +595,3 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
-
-
-
-
-

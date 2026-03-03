@@ -1,5 +1,4 @@
 #include "interface/ui.h"
-#include "interface/terminal.h"
 
 #include <iostream>
 #include <sstream>
@@ -9,6 +8,7 @@
 #include "gtest/gtest.h"
 
 #include "interface/color.h"
+#include "interface/terminal.h"
 namespace slop {
 TEST(UiTest, GetTerminalWidth) {
   size_t width = slop::GetTerminalWidth();
@@ -317,4 +317,3 @@ TEST(UiTest, RenderMarkdownWithJsCodeBlock) {
   EXPECT_TRUE(absl::StrContains(rendered, "x"));
 }
 }  // namespace slop
-

@@ -2,7 +2,9 @@
 #define SLOP_INTERFACE_RENDERER_H_
 
 #include <string>
+
 #include "absl/base/no_destructor.h"
+
 #include "markdown/parser.h"
 #include "markdown/renderer.h"
 

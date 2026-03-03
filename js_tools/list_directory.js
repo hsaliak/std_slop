@@ -32,11 +32,11 @@ return function(args) {
   }
 
   const cmd =
-    "find " + shell_escape(path) +
+    "cd " + shell_escape(path) + " && find . " +
     " -mindepth 1 -maxdepth " + depth +
     pruneClause +
     " -mindepth 1 -maxdepth " + depth +
-    " -printf '%y\t%P\n'";
+    " -exec sh -c 'for f; do rel=\"${f#./}\"; if [ -d \"$f\" ]; then printf \"d\\t%s\\n\" \"$rel\"; else printf \"f\\t%s\\n\" \"$rel\"; fi; done' sh {} +";
 
   const res = __os_run(cmd);
   if (res.exit_code !== 0) {
@@ -63,4 +63,6 @@ return function(args) {
 
   return output.join("\n");
 };
+
+
 

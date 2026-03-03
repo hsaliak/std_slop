@@ -1,16 +1,18 @@
 #include "interface/terminal.h"
 
+#include <unistd.h>
+
+#include <algorithm>
 #include <cstdio>
 #include <iostream>
-#include <algorithm>
 #include <sstream>
-#include <unistd.h>
-#include <sys/ioctl.h>
 
-#include <readline/readline.h>
-#include <readline/history.h>
-
+#include "absl/strings/match.h"
 #include "interface/color.h"
+
+#include <readline/history.h>
+#include <readline/readline.h>
+#include <sys/ioctl.h>
 
 namespace slop {
 namespace {
@@ -28,7 +30,6 @@ int PrefillReadlineBuffer() {
 }
 
 }  // namespace
-
 
 size_t GetTerminalWidth() {
   struct winsize w;
@@ -51,8 +52,7 @@ void SetupTerminal() {
     // Middle-click paste may include embedded newlines; bracketed paste keeps
     // those as literal input instead of triggering accept-line.
     if (rl_variable_bind("enable-bracketed-paste", "on") != 0) {
-      std::cerr << "warning: failed to enable readline bracketed paste"
-                << std::endl;
+      std::cerr << "warning: failed to enable readline bracketed paste" << std::endl;
     }
     readline_configured = true;
   }
@@ -64,8 +64,8 @@ void SetupTerminal() {
 }
 
 void PrintHorizontalLine(size_t width, const char* color_fg, const std::string& header, const char* color_header) {
-  if (width == 0) width = GetTerminalWidth() -1;
-  
+  if (width == 0) width = GetTerminalWidth() - 1;
+
   std::string line;
   if (header.empty()) {
     line = std::string(width, '-');
@@ -75,13 +75,15 @@ void PrintHorizontalLine(size_t width, const char* color_fg, const std::string& 
       line = header;
     } else {
       size_t side = (width - header_len - 2) / 2;
-      line = std::string(side, '-') + " " + color_header + header + color_fg + " " + std::string(width - side - header_len - 2, '-');
+      line = std::string(side, '-') + " " + color_header + header + color_fg + " " +
+             std::string(width - side - header_len - 2, '-');
     }
   }
   std::cout << color_fg << line << ansi::Reset << std::endl;
 }
 
-std::string WrapText(const std::string& text, size_t width, const std::string& prefix, const std::string& first_line_prefix) {
+std::string WrapText(const std::string& text, size_t width, const std::string& prefix,
+                     const std::string& first_line_prefix) {
   size_t prefix_len = VisibleLength(prefix);
   size_t first_prefix_len = first_line_prefix.empty() ? prefix_len : VisibleLength(first_line_prefix);
   std::string result;
@@ -152,7 +154,7 @@ std::string ReadLine(const std::string& modeline, const std::string& initial_inp
     std::string line(buf);
     free(buf);
 
-    const bool has_newline = line.find("\n") != std::string::npos || line.find("\r") != std::string::npos;
+    const bool has_newline = absl::StrContains(line, "\n") || absl::StrContains(line, "\r");
     if (!hold_once_armed && has_newline) {
       hold_once_armed = true;
       held_multiline_input = line;
@@ -168,7 +170,3 @@ std::string ReadLine(const std::string& modeline, const std::string& initial_inp
 }
 
 }  // namespace slop
-
-
-
-

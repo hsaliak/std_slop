@@ -1,15 +1,16 @@
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <functional>
-#include <sstream>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
+#include "nlohmann/json.hpp"
 
 #include "quickjs.h"
-#include "absl/status/statusor.h"
-#include "absl/container/flat_hash_map.h"
-#include "nlohmann/json.hpp"
 
 namespace slop {
 
@@ -33,9 +34,10 @@ class JsInterpreter {
 
   // Initialize the environment with tools and globals
   void InitializeEnvironment(
-      Database* db, ToolDispatcher* dispatcher,
-      std::shared_ptr<CancellationRequest> cancellation,
-      const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>& dispatch_map,
+      Database* db, ToolDispatcher* dispatcher, std::shared_ptr<CancellationRequest> cancellation,
+      const absl::flat_hash_map<std::string, std::function<absl::StatusOr<std::string>(
+                                                 const nlohmann::json&, std::shared_ptr<CancellationRequest>)>>&
+          dispatch_map,
       std::stringstream& stdout_buffer);
 
   // Helpers for JSON conversion
@@ -48,6 +50,3 @@ class JsInterpreter {
 };
 
 }  // namespace slop
-
-
-

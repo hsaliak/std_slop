@@ -1,8 +1,9 @@
-#include "core/shell_util.h"
 #include "ini/ini_parser.h"
 
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_split.h"
+
+#include "core/shell_util.h"
 
 namespace slop {
 

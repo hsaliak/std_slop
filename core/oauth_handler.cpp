@@ -4,13 +4,13 @@
 
 #include <array>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
-#include <iomanip>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <system_error>
-#include <cstdlib>
 
 #include "absl/log/log.h"
 #include "absl/strings/escaping.h"
@@ -57,11 +57,12 @@ absl::Status MaybeCreateDirectory(const std::string& dir_path) {
 
 OAuthHandler::OAuthHandler(HttpClient* http_client) : OAuthHandler(http_client, Provider::kGoogle) {}
 
-OAuthHandler::OAuthHandler(HttpClient* http_client, Provider provider) : http_client_(http_client), provider_(provider) {
+OAuthHandler::OAuthHandler(HttpClient* http_client, Provider provider)
+    : http_client_(http_client), provider_(provider) {
   std::string home = GetHomeDir();
   if (!home.empty()) {
     token_path_ = provider_ == Provider::kGoogle ? home + "/.config/slop/token.json"
-                                                  : home + "/.config/slop/chatgpt_plus_token.json";
+                                                 : home + "/.config/slop/chatgpt_plus_token.json";
   }
 }
 
@@ -139,14 +140,14 @@ absl::Status OAuthHandler::RefreshToken() {
   std::string body;
   if (provider_ == Provider::kGoogle) {
     token_url = kGoogleOAuthTokenUrl;
-    body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token), "&client_id=",
-                        UrlEncodeFormValue(kGeminiClientId), "&client_secret=",
-                        UrlEncodeFormValue(kGeminiClientSecret), "&grant_type=refresh_token");
+    body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token),
+                        "&client_id=", UrlEncodeFormValue(kGeminiClientId),
+                        "&client_secret=", UrlEncodeFormValue(kGeminiClientSecret), "&grant_type=refresh_token");
   } else {
     token_url = kOpenAiOAuthTokenUrl;
     const char* client_secret = std::getenv("CHATGPT_CLIENT_SECRET");
-    body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token), "&client_id=",
-                        UrlEncodeFormValue(kOpenAiOAuthClientId), "&grant_type=refresh_token");
+    body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token),
+                        "&client_id=", UrlEncodeFormValue(kOpenAiOAuthClientId), "&grant_type=refresh_token");
     if (client_secret != nullptr && *client_secret != '\0') {
       absl::StrAppend(&body, "&client_secret=", UrlEncodeFormValue(client_secret));
     }
