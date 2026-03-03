@@ -204,6 +204,49 @@ TEST_F(MailModelTest, FormatPatchSeries) {
   std::filesystem::remove("test.txt");
 }
 
+TEST_F(MailModelTest, BranchStagingNormalizesAlreadyPrefixedName) {
+  std::string staging_name = "slop/staging/prefixed-name";
+  auto branch_res = executor_->Execute("git_branch_staging", {{"name", staging_name}});
+  ASSERT_TRUE(branch_res.ok()) << branch_res.status().message();
+
+  auto current_branch = executor_->Execute("execute_bash", {{"command", "git rev-parse --abbrev-ref HEAD"}});
+  ASSERT_TRUE(current_branch.ok());
+  EXPECT_TRUE(current_branch->find("slop/staging/prefixed-name") != std::string::npos);
+  EXPECT_TRUE(current_branch->find("slop/staging/slop/staging") == std::string::npos);
+
+  auto db_res = db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {"slop/staging/prefixed-name"});
+  EXPECT_TRUE(db_res.ok());
+
+  (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
+  (void)executor_->Execute("execute_bash", {{"command", "git branch -D slop/staging/prefixed-name"}});
+}
+
+TEST_F(MailModelTest, FinalizeSeriesSucceedsWhenAlreadyLandedWithoutApproval) {
+  std::string staging_name = "feat-already-landed";
+  auto branch_res = executor_->Execute("git_branch_staging", {{"name", staging_name}});
+  ASSERT_TRUE(branch_res.ok()) << branch_res.status().message();
+
+  {
+    std::ofstream ofs("already_landed.txt");
+    ofs << "already landed content";
+    ofs.close();
+  }
+  ASSERT_TRUE(executor_->Execute("git_commit_patch", {{"summary", "already landed patch"}, {"rationale", "r"}}).ok());
+
+  (void)executor_->Execute("execute_bash", {{"command", "git checkout main"}});
+  ASSERT_TRUE(executor_->Execute("execute_bash", {{"command", "git merge --ff-only slop/staging/" + staging_name}}).ok());
+  ASSERT_TRUE(executor_->Execute("execute_bash", {{"command", "git checkout slop/staging/" + staging_name}}).ok());
+
+  auto finalize_res = executor_->Execute("git_finalize_series", {{"target_branch", "main"}});
+  ASSERT_TRUE(finalize_res.ok()) << finalize_res.status().message();
+
+  auto contains_res = executor_->Execute("execute_bash", {{"command", "git branch --list slop/staging/" + staging_name}});
+  ASSERT_TRUE(contains_res.ok());
+  EXPECT_TRUE(contains_res->find("slop/staging/" + staging_name) == std::string::npos);
+
+  std::filesystem::remove("already_landed.txt");
+}
+
 TEST_F(MailModelTest, DynamicBaseBranchWorkflow) {
   // 1. Setup: Create and switch to a non-main base branch
   std::string base_branch = "test-base-develop";
@@ -298,3 +341,5 @@ TEST_F(MailModelTest, GetBaseBranchResolution) {
 }
 
 }  // namespace slop
+
+

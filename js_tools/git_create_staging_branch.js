@@ -1,8 +1,11 @@
 return function(args) {
   const name = args.name;
   const base_branch = args.base_branch || git_get_current_branch();
-  const staging_name = "slop/staging/" + name;
   if (!name) throw new Error("name is required");
+
+  const normalized_name = String(name).replace(/^(slop\/staging\/)+/, "");
+  if (!normalized_name) throw new Error("name must contain non-prefix characters");
+  const staging_name = "slop/staging/" + normalized_name;
 
   let res = __os_run(`git checkout -b ${shell_escape(staging_name)} ${shell_escape(base_branch)}`);
   if (res.exit_code !== 0 && (res.stdout + res.stderr).includes('already exists')) {
@@ -19,3 +22,4 @@ return function(args) {
 
   return "Created and checked out staging branch: " + staging_name + " (base: " + base_branch + ")";
 };
+
