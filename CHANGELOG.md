@@ -1,3 +1,8 @@
+## v0.12.1 - 2026-03-04
+
+- **Orchestrator routing restored**: Provider selection now switches between OpenAI and Gemini based on the available credentials and uses matching API styles when routing responses or chat completions.
+- **Default OpenAI model bumped**: The OpenAI provider now defaults to `gpt-5.1-codex-mini` as the recommended baseline.
+
 ## v0.12.0 - 2026-03-04
 
 - **Removed Google OAuth and GCA integration**: Deprecated all Google OAuth flows and associated constants following updated Terms of Service restrictions.
@@ -31,6 +36,7 @@
 ### Test and build updates
 - Added/updated tests for dynamic help behavior, JS helper hardening, and migration compatibility.
 - Updated JS tooling bundle/build wiring to match the new dynamic layout.
+
 
 
 
