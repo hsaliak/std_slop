@@ -344,6 +344,8 @@ absl::Status Database::RegisterDefaultSkills() {
        "6. **Finalization**: When the user provides an \"LGTM\", \"Looks Good\", or explicit approval, use "
        "`tools.git_finalize_series` to land the work.\n\n"
        "### 3. PRECISE TOOL FUNCtiON  USAGE RULES  within the JavaScript control plane\n"
+       "- Use `tools.git_branch_staging` as the canonical staging-branch tool.\n"
+       "- If `tools.git_create_staging_branch` is present, treat it as a compatibility alias and still prefer `tools.git_branch_staging`.\n"
        "- **tools.git_branch_staging**: Use at the start of every new task.\n"
        "- **tools.git_commit_patch**: Use for every atomic step. Do NOT batch multiple logical changes. ALWAYS include "
        "the returned series summary in your response.\n"
@@ -866,4 +868,6 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
+
 
