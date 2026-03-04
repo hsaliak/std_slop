@@ -203,8 +203,9 @@ int main(int argc, char* argv[]) {
   }
 
   if (!google_auth && !openai_oauth && google_key.empty() && openai_key.empty()) {
-    google_auth = true;
-    std::cout << "No API keys found. Defaulting to Google OAuth mode." << std::endl;
+    std::cerr << "No authentication method found. Configure at least one authentication method." << std::endl;
+    std::cerr << absl::ProgramUsageMessage() << std::endl;
+    return 1;
   }
 
   std::string model = absl::GetFlag(FLAGS_model);
@@ -345,3 +346,4 @@ int main(int argc, char* argv[]) {
   }
   return 0;
 }
+
