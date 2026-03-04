@@ -10,6 +10,34 @@
 #include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/tool_dispatcher.h"
+#include "absl/strings/str_cat.h"
+
+#include <regex>
+#include <algorithm>
+
+namespace {
+std::string CorrectLineNumbers(const std::string& error_msg, int line_offset) {
+  std::regex line_re(R"((?:line |:)(\d+)(?::|\b))");
+  std::smatch match;
+  std::string::const_iterator searchStart(error_msg.cbegin());
+  std::string temp;
+  
+  while (std::regex_search(searchStart, error_msg.cend(), match, line_re)) {
+    absl::StrAppend(&temp, match.prefix().str());
+    int original_line = std::stoi(match[1].str());
+    int corrected_line = std::max(1, original_line - line_offset);
+    
+    std::string prefix_str = match[0].str();
+    size_t num_pos = prefix_str.find(match[1].str());
+    absl::StrAppend(&temp, prefix_str.substr(0, num_pos), corrected_line, prefix_str.substr(num_pos + match[1].length()));
+  
+    searchStart = match.suffix().first;
+  }
+  absl::StrAppend(&temp, std::string(searchStart, error_msg.cend()));
+  return temp;
+}
+} // namespace
+
 
 namespace slop {
 
@@ -40,16 +68,15 @@ JSValue JsInterpreter::RunString(const std::string& code, const std::string& fil
     return JS_Eval(ctx_, code.c_str(), code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
   }
 
-  // 1. Auto-wrap the user's code in a double async IIFE.
-  // The inner IIFE captures their `return`, the outer catches errors and saves the result.
-  std::string wrapped_code =
+  // 1. Wrap the code in an async IIFE
+  std::string prefix =
       "globalThis.__agent_res = undefined;\n"
       "globalThis.__agent_err = undefined;\n"
       "(async () => {\n"
       "  try {\n"
       "    globalThis.__agent_res = await (async () => {\n"
-      "      " +
-      code +
+      "      ";
+  std::string suffix =
       "\n"
       "    })();\n"
       "  } catch (e) {\n"
@@ -57,12 +84,58 @@ JSValue JsInterpreter::RunString(const std::string& code, const std::string& fil
       "  }\n"
       "})();";
 
-  // 2. Evaluate the wrapped code (Keep JS_EVAL_TYPE_GLOBAL)
-  JSValue eval_res = JS_Eval(ctx_, wrapped_code.c_str(), wrapped_code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
+  std::string wrapped_code = prefix + code + suffix;
+  int line_offset = std::count(prefix.begin(), prefix.end(), '\n');
 
-  // Check for immediate syntax errors (like missing brackets)
+  // 2. Compile the wrapped code
+  JSValue compiled_func = JS_Eval(ctx_, wrapped_code.c_str(), wrapped_code.length(), filename.c_str(), JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+
+  if (JS_IsException(compiled_func)) {
+    JSValue exception = JS_GetException(ctx_);
+    absl::Cleanup free_exception = [this, exception] { JS_FreeValue(ctx_, exception); };
+
+    const char* err_str = JS_ToCString(ctx_, exception);
+    absl::Cleanup free_err_str = [this, err_str] { if (err_str) JS_FreeCString(ctx_, err_str); };
+    std::string err_msg = err_str ? err_str : "Unknown Syntax Error";
+    
+    JSValue stack = JS_GetPropertyStr(ctx_, exception, "stack");
+    absl::Cleanup free_stack = [this, stack] { JS_FreeValue(ctx_, stack); };
+
+    if (!JS_IsUndefined(stack)) {
+      const char* stack_str = JS_ToCString(ctx_, stack);
+      absl::Cleanup free_stack_str = [this, stack_str] { if (stack_str) JS_FreeCString(ctx_, stack_str); };
+      if (stack_str) {
+        absl::StrAppend(&err_msg, "\n", stack_str);
+      }
+    }
+
+    std::string corrected_error = CorrectLineNumbers(err_msg, line_offset);
+    return JS_ThrowTypeError(ctx_, "%s", corrected_error.c_str());
+  }
+
+  // 3. Execute the compiled function
+  JSValue eval_res = JS_EvalFunction(ctx_, compiled_func);
   if (JS_IsException(eval_res)) {
-    return eval_res;
+    JSValue exception = JS_GetException(ctx_);
+    absl::Cleanup free_exception = [this, exception] { JS_FreeValue(ctx_, exception); };
+
+    const char* err_str = JS_ToCString(ctx_, exception);
+    absl::Cleanup free_err_str = [this, err_str] { if (err_str) JS_FreeCString(ctx_, err_str); };
+    std::string err_msg = err_str ? err_str : "Unknown Syntax Error";
+    
+    JSValue stack = JS_GetPropertyStr(ctx_, exception, "stack");
+    absl::Cleanup free_stack = [this, stack] { JS_FreeValue(ctx_, stack); };
+
+    if (!JS_IsUndefined(stack)) {
+      const char* stack_str = JS_ToCString(ctx_, stack);
+      absl::Cleanup free_stack_str = [this, stack_str] { if (stack_str) JS_FreeCString(ctx_, stack_str); };
+      if (stack_str) {
+        absl::StrAppend(&err_msg, "\n", stack_str);
+      }
+    }
+
+    std::string corrected_error = CorrectLineNumbers(err_msg, line_offset);
+    return JS_ThrowTypeError(ctx_, "%s", corrected_error.c_str());
   }
   JS_FreeValue(ctx_, eval_res);  // Free the unresolved Promise, we don't need it
 
@@ -267,7 +340,36 @@ void JsInterpreter::InitializeEnvironment(
   JS_SetPropertyStr(ctx_, global_obj, "__os_run", JS_NewCFunction(ctx_, js_os_run, "__os_run", 1));
 
   JSValue tools_obj = JS_NewObject(ctx_);
+  
   JS_SetPropertyStr(ctx_, tools_obj, "dispatch_async", JS_NewCFunction(ctx_, js_dispatch_async, "dispatch_async", 2));
+
+  auto js_check_syntax = [](JSContext* ctx, [[maybe_unused]] JSValueConst this_val, int argc, JSValueConst* argv) -> JSValue {
+    if (argc < 1 || !JS_IsString(argv[0])) {
+      return JS_ThrowTypeError(ctx, "Expected a string argument");
+    }
+    const char* code_cstr = JS_ToCString(ctx, argv[0]);
+    if (!code_cstr) return JS_EXCEPTION;
+    absl::Cleanup free_code_cstr = [ctx, code_cstr] { JS_FreeCString(ctx, code_cstr); };
+    std::string code(code_cstr);
+
+    JSValue compiled = JS_Eval(ctx, code.c_str(), code.length(), "<persist_function>", JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+    absl::Cleanup free_compiled = [ctx, compiled] { JS_FreeValue(ctx, compiled); };
+    
+    if (JS_IsException(compiled)) {
+      JSValue exception = JS_GetException(ctx);
+      absl::Cleanup free_exception = [ctx, exception] { JS_FreeValue(ctx, exception); };
+
+      const char* err_str = JS_ToCString(ctx, exception);
+      absl::Cleanup free_err_str = [ctx, err_str] { if (err_str) JS_FreeCString(ctx, err_str); };
+      std::string err_msg = err_str ? err_str : "Unknown Syntax Error";
+      
+      return JS_ThrowTypeError(ctx, "Syntax Error: %s", err_msg.c_str());
+    }
+    
+    return JS_UNDEFINED;
+  };
+  JS_SetPropertyStr(ctx_, tools_obj, "check_syntax", JS_NewCFunction(ctx_, js_check_syntax, "check_syntax", 1));
+
 
   for (auto const& [name, handler] : dispatch_map) {
     if (name == "run_js") continue;
@@ -304,3 +406,16 @@ void JsInterpreter::InitializeEnvironment(
 }
 
 }  // namespace slop
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -59,20 +59,32 @@ return function(args) {
     return [false, "Invalid arguments: name conflicts with an existing tool or global"];
   }
 
-  let func;
+  // 1. Validate syntax strictly without executing
   try {
-    let eval_code = code;
-    if (eval_code.trim().startsWith("return ")) {
-      eval_code = "(function() { " + eval_code + " })()";
-    }
-    func = eval(eval_code);
+    // Wrap in a function to allow top-level return statements, 
+    // which are valid since we instantiate via new Function()
+    tools.check_syntax("function __syntax_check__() {\n" + code + "\n}");
   } catch (e) {
-    return [false, "Syntax/Evaluation Error: " + e.message];
+    return [false, "Syntax Error in provided code: " + e.message];
   }
 
-  if (typeof func !== "function") {
-    return [false, "Code must return a function"];
-  }
+  // 2. Safely instantiate the function lazily
+  let instantiated = false;
+  let inner_func;
+  let func = function(...args) {
+    if (!instantiated) {
+      try {
+        inner_func = new Function(code)();
+      } catch (e) {
+        throw new Error("Failed to instantiate function: " + e.message);
+      }
+      if (typeof inner_func !== "function") {
+        throw new Error("Code must evaluate to a function");
+      }
+      instantiated = true;
+    }
+    return inner_func.apply(this, args);
+  };
 
   function comparable(value) {
     if (value === null) return "null";
@@ -129,4 +141,9 @@ return function(args) {
 
   return [true, "Function persisted successfully"];
 };
+
+
+
+
+
 

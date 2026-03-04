@@ -228,4 +228,44 @@ TEST_F(JsIntegrationTest, TopLevelAwait) {
   EXPECT_TRUE(absl::StrContains(*res, "42"));
 }
 
+
+TEST_F(JsIntegrationTest, RunJsAccurateLineNumbers) {
+  auto args = slop::json_parse(R"({"script": "let x = ;\n"})").value();
+  auto res = executor_->Execute("run_js", args);
+  ASSERT_FALSE(res.ok());
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "input.js:1"));
+}
+
+TEST_F(JsIntegrationTest, PersistFunctionSideEffectPrevention) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    globalThis.sideEffectTriggered = false;
+    const [success, msg] = tools.persist_function({
+      name: "side_effect_test",
+      code: "globalThis.sideEffectTriggered = true; return function() { return true; }"
+    });
+    if (!success) throw new Error(msg);
+    return globalThis.sideEffectTriggered;
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "false"));
+}
+
+TEST_F(JsIntegrationTest, PersistFunctionCompileOnlyValidation) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    const [success, msg] = tools.persist_function({
+      name: "bad_syntax_test",
+      code: "return function() { let x = ; }"
+    });
+    if (success) throw new Error("Expected syntax error");
+    return msg;
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "Syntax Error"));
+}
+
 }  // namespace slop
+
+
+
+
+
