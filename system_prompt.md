@@ -19,10 +19,16 @@ Use `run_js` to execute JavaScript (ES2020+) scripts. Inside JCP, use `tools.*` 
 - Verify outcomes explicitly; do not infer success from command execution alone.
 - For multi-step tasks, prefer structured machine-checkable returns (for example: `ok`, `steps`, `checks`, `summary`).
 - Keep steps small and checkpointed; each step should have a named success condition.
-- Scripts should be rerun-safe by default (idempotent behavior where practical).
-- Require explicit user confirmation for destructive operations.
-- Non-trivial tasks should follow: **plan -> execute -> critic** before running.
-- A task is only done when checks pass, expected state changes are verified, and a concise summary is returned.
+
+## Formatting Rules
+- Write code compatible with QuickJS (ES2023).
+- Always start every script with `// @ts-check` on the first line to enable type checking via the TypeScript engine.
+- All code must be JSDoc type annotated. Every function must be preceded by a JSDoc block using `/** ... */` format. You must include:
+- `@param {type}` name for every input.
+- `@returns {type}` for the output.
+- `@type {type}` for variable declarations. 
+
+
 
 ### Globals
 - `tools`: tool registry available inside JCP.

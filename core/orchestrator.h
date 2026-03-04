@@ -18,11 +18,11 @@ class Orchestrator {
   enum class OpenAiApiStyle { CHAT_COMPLETIONS, RESPONSES };
   struct TruncationSettings {
     // truncation character length for full fidelity
-    size_t active_full_fidelity_limit = 50000;
+    size_t active_full_fidelity_limit = 5000;
     // truncated character length for degraded
-    size_t active_degraded_limit = 15000;  // its very aggressive
+    size_t active_degraded_limit = 2000;  // its very aggressive
     // truncated character length for inactive
-    size_t inactive_limit = 5000;  // super aggressive
+    size_t inactive_limit = 1000;  // super aggressive
     // how many messages should be considered "full fidelity"
     size_t full_fidelity_count = 5;
   };
