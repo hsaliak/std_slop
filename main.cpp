@@ -207,9 +207,29 @@ int main(int argc, char* argv[]) {
 
   std::string model = absl::GetFlag(FLAGS_model);
 
-  auto orchestrator_or = builder.WithModel(model)
-                     .WithBaseUrl(openai_base_url)
-                     .Build();
+  if (openai_oauth || !openai_key.empty()) {
+    const bool openai_responses = openai_oauth || use_responses;
+    std::string resolved_openai_base_url;
+    if (openai_oauth) {
+      resolved_openai_base_url = slop::kOpenAiChatGptCodexBaseUrl;
+      if (!openai_base_url.empty()) {
+        std::cout << "--openai_base_url ignored in --openai_oauth mode; using " << slop::kOpenAiChatGptCodexBaseUrl
+                  << "." << std::endl;
+      }
+    } else {
+      resolved_openai_base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
+    }
+    builder.WithProvider(slop::Orchestrator::Provider::OPENAI)
+        .WithModel(!model.empty() ? model : "gpt-4o")
+        .WithBaseUrl(resolved_openai_base_url)
+        .WithOpenAiApiStyle(openai_responses ? slop::Orchestrator::OpenAiApiStyle::RESPONSES
+                                             : slop::Orchestrator::OpenAiApiStyle::CHAT_COMPLETIONS);
+  } else {  // gemini API key
+    builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
+        .WithModel(!model.empty() ? model : "gemini-3-flash-preview");
+  }
+
+  auto orchestrator_or = builder.Build();
   if (!orchestrator_or.ok()) {
     std::cerr << "Failed to build orchestrator: " << orchestrator_or.status().message() << std::endl;
     return 1;
@@ -298,4 +318,6 @@ int main(int argc, char* argv[]) {
   }
   return 0;
 }
+
+
 
