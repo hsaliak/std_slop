@@ -1,5 +1,9 @@
 return function(args) {
-  slop_guard();
+  try {
+    slop_guard();
+  } catch (e) {
+    throw new Error("Branch safety gate blocked execute_bash before command execution. This does not imply previous tool steps failed. Original error: " + e.message);
+  }
   if (!args.command) throw new Error("Usage: execute_bash({command = '...'})");
   const res = __os_run(args.command);
   const out = res.stdout + res.stderr;
@@ -23,3 +27,4 @@ return function(args) {
   };
   return obj;
 };
+
