@@ -161,6 +161,17 @@ std::string FormatToolStdoutForMarkdown(const std::string& stdout_part) {
     return stdout_part;
   }
 
+  if (parsed->is_string()) {
+    const std::string nested_text = std::string(absl::StripAsciiWhitespace(parsed->get<std::string>()));
+    auto nested = json_parse(nested_text);
+    if (nested) {
+      if (IsToolResultEnvelope(*nested)) {
+        return FormatToolEnvelopeAsMarkdown(*nested);
+      }
+      return JsonToMarkdownFence(*nested);
+    }
+  }
+
   if (IsToolResultEnvelope(*parsed)) {
     return FormatToolEnvelopeAsMarkdown(*parsed);
   }
@@ -468,7 +479,8 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
     printed++;
   }
   if (rendered_out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
-    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ..." << std::endl;
+    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ... (truncated)"
+              << std::endl;
   }
 }
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {
