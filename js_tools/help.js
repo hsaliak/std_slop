@@ -32,7 +32,8 @@ return function(args) {
   const builtinDescriptions = {
     ask_user: "Prompts the user for required clarification/input.",
     dispatch_async: "Dispatches a tool call asynchronously and returns a job handle.",
-    query_db: "Queries the SQLite database and returns JSON rows."
+    query_db: "Queries the SQLite database and returns JSON rows.",
+    run_js: "Executes JavaScript in the hosted QuickJS runtime. Runtime globals include console.log/info/warn/error and QuickJS std/os as globalThis.std/globalThis.os. Output is composed from printed console/print output and explicit return values."
   };
 
   const rowsRaw = tools.query_db({
@@ -83,4 +84,5 @@ return function(args) {
 
   return JSON.stringify(catalog);
 };
+
 
