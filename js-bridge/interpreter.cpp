@@ -161,9 +161,24 @@ JSValue JsInterpreter::RunString(const std::string& code, const std::string& fil
   // Did the script throw an error during execution?
   JSValue err_val = JS_GetPropertyStr(ctx_, global_obj, "__agent_err");
   if (!JS_IsUndefined(err_val)) {
-    JS_Throw(ctx_, err_val);  // Move the error to the context's exception slot
-    // JS_Throw takes ownership of the value, so we don't free it
-    return JS_EXCEPTION;
+    const char* err_str = JS_ToCString(ctx_, err_val);
+    absl::Cleanup free_err_str = [this, err_str] { if (err_str) JS_FreeCString(ctx_, err_str); };
+    std::string err_msg = err_str ? err_str : "Unknown Error";
+
+    JSValue stack = JS_GetPropertyStr(ctx_, err_val, "stack");
+    absl::Cleanup free_stack = [this, stack] { JS_FreeValue(ctx_, stack); };
+
+    if (!JS_IsUndefined(stack)) {
+      const char* stack_str = JS_ToCString(ctx_, stack);
+      absl::Cleanup free_stack_str = [this, stack_str] { if (stack_str) JS_FreeCString(ctx_, stack_str); };
+      if (stack_str) {
+        absl::StrAppend(&err_msg, "\n", stack_str);
+      }
+    }
+
+    std::string corrected_error = CorrectLineNumbers(err_msg, line_offset);
+    JS_FreeValue(ctx_, err_val);
+    return JS_ThrowTypeError(ctx_, "%s", corrected_error.c_str());
   }
   absl::Cleanup free_err = [this, err_val] { JS_FreeValue(ctx_, err_val); };
 
@@ -424,6 +439,7 @@ void JsInterpreter::InitializeEnvironment(
 }
 
 }  // namespace slop
+
 
 
 
