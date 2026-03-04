@@ -728,6 +728,33 @@ TEST(ToolExecutorTest, RunJsFailsWhenNoOutputProduced) {
                                 "run_js produced no output: script must return a value or print output"));
 }
 
+TEST(ToolExecutorTest, ConsoleAndStdOsAreAvailable) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto dispatcher = std::make_unique<ToolDispatcher>([&executor](const std::string& name, const nlohmann::json& args,
+                                                                 std::shared_ptr<CancellationRequest> cancellation) {
+    return executor.Execute(name, args, cancellation);
+  });
+  executor.SetDispatcher(std::move(dispatcher));
+
+  std::string script = R"(
+    if (typeof console !== "object") throw new Error("console missing");
+    console.log("console-ok");
+    if (typeof std !== "object") throw new Error("std missing");
+    if (typeof os !== "object") throw new Error("os missing");
+    return std !== undefined && os !== undefined;
+  )";
+
+  auto res = executor.Execute("run_js", {{"script", script}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "console-ok"));
+  EXPECT_TRUE(absl::StrContains(*res, "true"));
+}
+
 TEST(ToolExecutorTest, AsyncJobExecution) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -829,3 +856,4 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+
