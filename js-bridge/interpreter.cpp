@@ -347,6 +347,12 @@ void JsInterpreter::InitializeEnvironment(
     if (argc < 1 || !JS_IsString(argv[0])) {
       return JS_ThrowTypeError(ctx, "Expected a string argument");
     }
+    
+    int line_offset = 0;
+    if (argc >= 2 && JS_IsNumber(argv[1])) {
+      JS_ToInt32(ctx, &line_offset, argv[1]);
+    }
+
     const char* code_cstr = JS_ToCString(ctx, argv[0]);
     if (!code_cstr) return JS_EXCEPTION;
     absl::Cleanup free_code_cstr = [ctx, code_cstr] { JS_FreeCString(ctx, code_cstr); };
@@ -363,12 +369,24 @@ void JsInterpreter::InitializeEnvironment(
       absl::Cleanup free_err_str = [ctx, err_str] { if (err_str) JS_FreeCString(ctx, err_str); };
       std::string err_msg = err_str ? err_str : "Unknown Syntax Error";
       
-      return JS_ThrowTypeError(ctx, "Syntax Error: %s", err_msg.c_str());
+      JSValue stack = JS_GetPropertyStr(ctx, exception, "stack");
+      absl::Cleanup free_stack = [ctx, stack] { JS_FreeValue(ctx, stack); };
+
+      if (!JS_IsUndefined(stack)) {
+        const char* stack_str = JS_ToCString(ctx, stack);
+        absl::Cleanup free_stack_str = [ctx, stack_str] { if (stack_str) JS_FreeCString(ctx, stack_str); };
+        if (stack_str) {
+          absl::StrAppend(&err_msg, "\n", stack_str);
+        }
+      }
+
+      std::string corrected_error = CorrectLineNumbers(err_msg, line_offset);
+      return JS_ThrowTypeError(ctx, "Syntax Error: %s", corrected_error.c_str());
     }
     
     return JS_UNDEFINED;
   };
-  JS_SetPropertyStr(ctx_, tools_obj, "check_syntax", JS_NewCFunction(ctx_, js_check_syntax, "check_syntax", 1));
+  JS_SetPropertyStr(ctx_, tools_obj, "check_syntax", JS_NewCFunction(ctx_, js_check_syntax, "check_syntax", 2));
 
 
   for (auto const& [name, handler] : dispatch_map) {
@@ -406,6 +424,7 @@ void JsInterpreter::InitializeEnvironment(
 }
 
 }  // namespace slop
+
 
 
 

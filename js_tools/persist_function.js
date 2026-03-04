@@ -63,7 +63,7 @@ return function(args) {
   try {
     // Wrap in a function to allow top-level return statements, 
     // which are valid since we instantiate via new Function()
-    tools.check_syntax("function __syntax_check__() {\n" + code + "\n}");
+    tools.check_syntax("function __syntax_check__() {\n" + code + "\n}", 1);
   } catch (e) {
     return [false, "Syntax Error in provided code: " + e.message];
   }
@@ -141,6 +141,7 @@ return function(args) {
 
   return [true, "Function persisted successfully"];
 };
+
 
 
 
