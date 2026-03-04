@@ -233,7 +233,7 @@ absl::Status Database::RegisterDefaultTools() {
   std::vector<Tool> default_tools = {
       {"run_js",
        "Execute a JavaScript (ES2020+) script acting as a high-level 'control plane' with access to a "
-       "'tools' object (supporting async variants), and global variables 'history', 'state', and optional "
+       "'tools' object (supporting async variants), and global variable 'state'; optional "
        "Output and return values are captured.",
        R"({"type":"object","properties":{"script":{"type":"string","description":"The JavaScript script to execute."}},"required":["script"]})",
        true},
@@ -306,8 +306,8 @@ absl::Status Database::RegisterDefaultSkills() {
        "(e.g., `tools.read_file({path='foo.txt'})`).\n"
        "- **'tools.help()'**: Call this early to fetch the JSON API manifest, canonical names, "
        "and aliases.\n"
-       "- **'history'**: Array of messages providing session context. It is appended to after "
-       "each turn and can be used to programmatically extract information from prior turns.\n"
+       "- **No 'history' global**: Conversation history is not exposed as a JS global in this runtime.\n"
+       "- Use database APIs when prior messages are needed.\n"
        "- **'state'**: Global context string.\n"
        ""
        "### PARALLELISM\n"
@@ -866,3 +866,4 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
