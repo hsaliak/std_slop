@@ -1,3 +1,9 @@
+## v0.12.0 - 2026-03-04
+
+- **Removed Google OAuth and GCA integration**: Deprecated all Google OAuth flows and associated constants following updated Terms of Service restrictions.
+- **Streamlined Authentication**: Updated `slop_auth.sh` and internal orchestration logic to focus on ChatGPT Plus/Pro for subscription-based model access.
+- **Bug Fixes**: Fixed a syntax error in `slop_auth.sh` and cleaned up trailing newlines in core headers and source files.
+
 ## v0.11.0 - 2026-03-04
 
 - **Improved reliability and safer defaults**: startup now fails fast when auth methods are missing, branch/shell guard behavior is clearer, and core defaults were updated for smoother out-of-box behavior (`update defaults`, 0673050).
@@ -25,5 +31,6 @@
 ### Test and build updates
 - Added/updated tests for dynamic help behavior, JS helper hardening, and migration compatibility.
 - Updated JS tooling bundle/build wiring to match the new dynamic layout.
+
 
 
