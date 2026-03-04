@@ -37,14 +37,6 @@ Orchestrator::Builder& Orchestrator::Builder::WithModel(const std::string& model
   config_.model = model;
   return *this;
 }
-Orchestrator::Builder& Orchestrator::Builder::WithGcaMode(bool enabled) {
-  config_.gca_mode = enabled;
-  return *this;
-}
-Orchestrator::Builder& Orchestrator::Builder::WithProjectId(const std::string& project_id) {
-  config_.project_id = project_id;
-  return *this;
-}
 Orchestrator::Builder& Orchestrator::Builder::WithBaseUrl(const std::string& url) {
   config_.base_url = url;
   return *this;
@@ -81,12 +73,7 @@ void Orchestrator::Builder::BuildInto(Orchestrator* orchestrator) {
 Orchestrator::Orchestrator(Database* db, HttpClient* http_client) : db_(db), http_client_(http_client) {}
 void Orchestrator::UpdateStrategy() {
   if (config_.provider == Provider::GEMINI) {
-    if (config_.gca_mode) {
-      strategy_ = std::make_unique<GeminiGcaOrchestrator>(db_, http_client_, config_.model, config_.base_url,
-                                                          config_.project_id);
-    } else {
-      strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
-    }
+    strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
   } else {
     if (config_.openai_api_style == OpenAiApiStyle::RESPONSES) {
       strategy_ = std::make_unique<OpenAiResponsesOrchestrator>(db_, http_client_, config_.model, config_.base_url);
@@ -361,9 +348,6 @@ void Orchestrator::InjectAgentMd(std::string* system_instruction) {
   absl::StrAppend(system_instruction, "\n\n## Project Context (from ", active_agent_md_path_, ")\n", *content_or, "\n");
 }
 
-// ... (existing includes)
-
-// ...
 
 namespace {
 std::string ExpandPath(const std::string& path) {
@@ -458,3 +442,5 @@ absl::Status Orchestrator::ReloadAllSkills() {
   return absl::OkStatus();
 }
 }  // namespace slop
+
+

@@ -22,7 +22,6 @@ class InteractionEngine {
     std::string google_api_key;
     std::string openai_api_key;
     std::string openai_base_url;
-    bool google_oauth = false;
     bool openai_oauth = false;
     bool use_responses = false;
     bool silent = false;
@@ -54,3 +53,4 @@ class InteractionEngine {
 }  // namespace slop
 
 #endif  // SLOP_INTERFACE_INTERACTION_ENGINE_H_
+

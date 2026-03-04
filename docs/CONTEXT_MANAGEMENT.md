@@ -5,7 +5,7 @@ The system groups messages into "conversation groups" (identified by `group_id`)
 To prevent the model from "losing the thread" during long sessions, the orchestrator injects two persistent blocks at the top of every prompt, immediately after the system instructions:
 1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. In the JavaScript Control Plane (RLM paradigm), this is accessible via the global `state` handle and is typically updated at the end of a response.
 2.  **Text Messages**: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.
-2.  **Tool Isolation**: Messages with a `role` of `tool` or a `status` of `tool_call` are only included if their `parsing_strategy` matches the currently active one (with compatibility between `gemini` and `gemini_gca`).
+2.  **Tool Isolation**: Messages with a `role` of `tool` or a `status` of `tool_call` are only included if their `parsing_strategy` matches the currently active one.
 3.  **Rationale**: Providers (like Google and OpenAI) use vastly different JSON schemas and sequences for tool interactions. Attempting to "translate" a complex tool chain from one provider to another often leads to hallucinations or API errors. Isolation ensures that the LLM only sees tool interactions it is capable of understanding and continuing.
 This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs. Information that must persist across tool-isolated boundaries should be recorded in the **Global Anchor (State)**.
 ### Centralized Message Parsing
@@ -124,4 +124,5 @@ Every interaction with the LLM is stateless. To provide context, the orchestrato
 1.  **Model-Echo**: Model repeats state at the end of every message. Rejected as fragile; state is lost if the model forgets it once or hits token limits.
 2.  **Merged State/**: Single unified block for all persistent data. Rejected to avoid "context drift"; merging technical anchors (IPs, ports) with high-level roadmaps (checklists) confuses the model's focus.
 3.  **Dual-Track (Current)**: Separate blocks for "Short-Term Memory" (Technical Anchors in State) and "Long-Term Memory" (Project Roadmap in ). This provides maximum robustness across history pruning. Both blocks are DB-backed and can be updated independently (e.g., by the `planner` skill) without disturbing the technical context.
+
 

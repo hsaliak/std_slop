@@ -20,7 +20,7 @@ CHATGPT_DEVICE_TIMEOUT_SECONDS="${CHATGPT_DEVICE_TIMEOUT_SECONDS:-900}"
 usage() {
     cat <<EOF
 Usage:
-  ./slop_auth.sh [google|chatgpt-plus|chatgpt-plus-device]
+  ./slop_auth.sh [chatgpt-plus|chatgpt-plus-device]
 
 Modes:
   google               Gemini OAuth via browser + manual callback paste.
@@ -357,96 +357,6 @@ run_device_flow() {
 
     save_tokens "$access_token" "$refresh_token" "${expires_in:-3600}" "$CHATGPT_TOKEN_FILE"
 }
-
-run_google_flow() {
-    local code_verifier
-    code_verifier=$(gen_base64url)
-    local code_challenge
-    code_challenge=$(echo -n "$code_verifier" | openssl dgst -sha256 -binary | openssl base64 | tr '+/' '-_' | tr -d '=')
-    local state
-    state=$(gen_base64url)
-
-    local auth_url
-    auth_url=$(curl -sS -o /dev/null -w '%{url_effective}' -G "$GOOGLE_AUTH_BASE_URL" \
-        --data-urlencode "response_type=code" \
-        --data-urlencode "client_id=$GOOGLE_CLIENT_ID" \
-        --data-urlencode "redirect_uri=$GOOGLE_REDIRECT_URI" \
-        --data-urlencode "scope=$GOOGLE_SCOPE" \
-        --data-urlencode "state=$state" \
-        --data-urlencode "code_challenge=$code_challenge" \
-        --data-urlencode "code_challenge_method=S256" \
-        --data-urlencode "access_type=offline" \
-        --data-urlencode "prompt=consent")
-
-    echo "To authenticate for Gemini OAuth, visit the following URL:"
-    echo ""
-    echo "$auth_url"
-    echo ""
-    echo "1. Authorize the application in your browser."
-    echo "2. You will be redirected to localhost (which may fail to load)."
-    echo "3. Copy the FULL URL from your browser's address bar and paste it below."
-    echo ""
-    read -p "Enter redirect URL: " callback_url
-
-    extract_param() {
-        local name="$1"
-        local value
-        value=$(echo "$callback_url" | sed -nE "s/.*[?#&]${name}=([^&#]+).*/\1/p" | head -n1)
-        echo "$value"
-    }
-
-    local state_from_url
-    state_from_url=$(url_decode "$(extract_param "state")")
-    if [ -n "$state_from_url" ] && [ "$state_from_url" != "$state" ]; then
-        echo "Error: state mismatch in callback URL."
-        exit 1
-    fi
-
-    local code
-    code=$(url_decode "$(extract_param "code")")
-    if [ -z "$code" ]; then
-        echo "Error: Could not find code parameter in callback URL."
-        exit 1
-    fi
-
-    echo "Exchanging code for tokens..."
-    local response_with_status
-    if ! response_with_status=$(curl -sS -X POST "$GOOGLE_TOKEN_URL" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "grant_type=authorization_code" \
-        -d "code=$code" \
-        -d "client_id=$GOOGLE_CLIENT_ID" \
-        -d "client_secret=$GOOGLE_CLIENT_SECRET" \
-        -d "redirect_uri=$GOOGLE_REDIRECT_URI" \
-        -d "code_verifier=$code_verifier" \
-        -w $'\n__HTTP_STATUS__:%{http_code}'); then
-        echo "Error: Google token exchange request failed."
-        exit 1
-    fi
-
-    local http_status
-    http_status=$(echo "$response_with_status" | sed -n 's/^__HTTP_STATUS__://p' | tail -n1)
-    local response
-    response=$(echo "$response_with_status" | sed '/^__HTTP_STATUS__:/d')
-    case "$http_status" in
-        2??) ;;
-        *)
-            echo "Error: Google token endpoint returned HTTP $http_status"
-            echo "$response"
-            exit 1
-            ;;
-    esac
-
-    local access_token
-    access_token=$(extract_json_string_field "access_token" "$response")
-    local refresh_token
-    refresh_token=$(extract_json_string_field "refresh_token" "$response")
-    local expires_in
-    expires_in=$(extract_json_number_field "expires_in" "$response")
-
-    save_tokens "$access_token" "$refresh_token" "${expires_in:-3600}" "$GOOGLE_TOKEN_FILE"
-}
-
 run_manual_flow() {
     local requested_scope
     requested_scope=$(join_scopes "$CHATGPT_SCOPE" "$CHATGPT_EXTRA_SCOPES")
@@ -553,10 +463,11 @@ run_manual_flow() {
     save_tokens "$access_token" "$refresh_token" "${expires_in:-3600}" "$CHATGPT_TOKEN_FILE"
 }
 
-if [ "$MODE" = "google" ]; then
-    run_google_flow
-elif [ "$MODE" = "chatgpt-plus-device" ]; then
+if [ "$MODE" = "chatgpt-plus-device" ]; then
     run_device_flow
 else
     run_manual_flow
 fi
+
+
+

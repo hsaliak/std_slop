@@ -53,7 +53,6 @@ Example `config.ini`:
 ```ini
 [slop]
 model = gemini-2.0-flash-exp
-google_api_key = AIza...
 # OR OpenAI API key mode
 # openai_api_key = sk-...
 # openai_base_url = https://openrouter.ai/api/v1
@@ -288,6 +287,7 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
+
 
 
 

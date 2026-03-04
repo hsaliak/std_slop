@@ -51,7 +51,6 @@
 ABSL_FLAG(std::string, config, "", "Path to the configuration INI file");
 ABSL_FLAG(std::string, db, "", "Path to SQLite database (default: slop.db)");
 ABSL_FLAG(std::string, log, "", "Log file path");
-ABSL_FLAG(bool, google_oauth, false, "Use Google OAuth for authentication");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
 ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_MODEL env vars)");
 ABSL_FLAG(std::string, google_api_key, "", "Google API key");
@@ -177,9 +176,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  bool google_auth = absl::GetFlag(FLAGS_google_oauth);
   bool openai_oauth = absl::GetFlag(FLAGS_openai_oauth);
-  std::string manual_project_id = absl::GetFlag(FLAGS_project);
   bool use_responses = absl::GetFlag(FLAGS_use_responses);
 
   slop::Database db;
@@ -191,18 +188,18 @@ int main(int argc, char* argv[]) {
   slop::HttpClient http_client;
   slop::Orchestrator::Builder builder(&db, &http_client);
 
+  std::shared_ptr<slop::OAuthHandler> oauth_handler;
+  std::unique_ptr<slop::Orchestrator> orchestrator;
+
   std::string google_key = absl::GetFlag(FLAGS_google_api_key);
 
   std::string openai_key = absl::GetFlag(FLAGS_openai_api_key);
 
   std::string openai_base_url = absl::GetFlag(FLAGS_openai_base_url);
 
-  if (google_auth && openai_oauth) {
-    std::cerr << "Cannot use --google_oauth and --openai_oauth together." << std::endl;
-    return 1;
-  }
+  
 
-  if (!google_auth && !openai_oauth && google_key.empty() && openai_key.empty()) {
+  if (!openai_oauth && google_key.empty() && openai_key.empty()) {
     std::cerr << "No authentication method found. Configure at least one authentication method." << std::endl;
     std::cerr << absl::ProgramUsageMessage() << std::endl;
     return 1;
@@ -210,60 +207,16 @@ int main(int argc, char* argv[]) {
 
   std::string model = absl::GetFlag(FLAGS_model);
 
-  if (google_auth) {
-    builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-        .WithModel(!model.empty() ? model : "gemini-3-flash-preview")
-        .WithBaseUrl(absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal"))
-        .WithGcaMode(true);
-  } else if (openai_oauth || !openai_key.empty()) {
-    const bool openai_responses = openai_oauth || use_responses;
-    std::string resolved_openai_base_url;
-    if (openai_oauth) {
-      resolved_openai_base_url = slop::kOpenAiChatGptCodexBaseUrl;
-      if (!openai_base_url.empty()) {
-        std::cout << "--openai_base_url ignored in --openai_oauth mode; using " << slop::kOpenAiChatGptCodexBaseUrl
-                  << "." << std::endl;
-      }
-    } else {
-      resolved_openai_base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
-    }
-    builder.WithProvider(slop::Orchestrator::Provider::OPENAI)
-        .WithModel(!model.empty() ? model : "gpt-4o")
-        .WithBaseUrl(resolved_openai_base_url)
-        .WithOpenAiApiStyle(openai_responses ? slop::Orchestrator::OpenAiApiStyle::RESPONSES
-                                             : slop::Orchestrator::OpenAiApiStyle::CHAT_COMPLETIONS);
-  } else {  // gemini API key
-    builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-        .WithModel(!model.empty() ? model : "gemini-3-flash-preview");
-  }
-
-  auto orchestrator_or = builder.Build();
+  auto orchestrator_or = builder.WithModel(model)
+                     .WithBaseUrl(openai_base_url)
+                     .Build();
   if (!orchestrator_or.ok()) {
-    std::cerr << "Failed to initialize orchestrator: " << orchestrator_or.status().message() << std::endl;
+    std::cerr << "Failed to build orchestrator: " << orchestrator_or.status().message() << std::endl;
     return 1;
   }
-  auto orchestrator = std::move(*orchestrator_or);
+  orchestrator = std::move(*orchestrator_or);
 
-  std::shared_ptr<slop::OAuthHandler> oauth_handler;
-  if (google_auth) {
-    oauth_handler = std::make_shared<slop::OAuthHandler>(&http_client, slop::OAuthHandler::Provider::kGoogle);
-    if (!manual_project_id.empty()) {
-      oauth_handler->SetProjectId(manual_project_id);
-    }
-    oauth_handler->SetEnabled(true);
-    auto token_or = oauth_handler->GetValidToken();
-    if (!token_or.ok()) {
-      if (absl::IsUnauthenticated(token_or.status()) || absl::IsNotFound(token_or.status())) {
-        std::cout << "Google OAuth: " << token_or.status().message() << std::endl;
-        std::cout << "Please run ./slop_auth.sh to authenticate." << std::endl;
-        return 1;
-      }
-    }
-    auto proj_or = oauth_handler->GetProjectId();
-    if (proj_or.ok()) {
-      orchestrator->Update().WithProjectId(*proj_or).BuildInto(orchestrator.get());
-    }
-  } else if (openai_oauth) {
+  if (openai_oauth) {
     oauth_handler = std::make_shared<slop::OAuthHandler>(&http_client, slop::OAuthHandler::Provider::kOpenAi);
     std::string openai_oauth_token_path = absl::GetFlag(FLAGS_openai_oauth_token_path);
     if (!openai_oauth_token_path.empty()) {
@@ -318,7 +271,6 @@ int main(int argc, char* argv[]) {
   engine_config.google_api_key = google_key;
   engine_config.openai_api_key = openai_key;
   engine_config.openai_base_url = openai_oauth ? slop::kOpenAiChatGptCodexBaseUrl : openai_base_url;
-  engine_config.google_oauth = google_auth;
   engine_config.openai_oauth = openai_oauth;
   engine_config.use_responses = openai_oauth || use_responses;
 

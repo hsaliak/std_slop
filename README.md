@@ -58,7 +58,6 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 Read the [User Guide](docs/USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](docs/WALKTHROUGH.md) to start with something simple.
 
 ### Authentication Quick Notes
-- Google OAuth: `./slop_auth.sh google` then run with `--google_oauth`. [ Do not use - soon to be deprecated].
 - OpenAI OAuth (Responses API): `./slop_auth.sh chatgpt-plus` then run with `--openai_oauth`.
 
 ### ⚙️ Configuration
@@ -72,7 +71,6 @@ your .gitignore contains this. The context ledger is completely stored in the da
 ```ini
 [slop]
 model = gemini-3-flash-preview
-google_api_key = AIza...
 # OR
 openai_api_key = sk-...
 openai_base_url = https://api.openai.com/v1
@@ -86,7 +84,6 @@ See [docs/example_config.ini](docs/example_config.ini) for a full list of option
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
-If no keys are provided, std::slop defaults to Google OAuth mode.
 
 ## 💻 Code
 
@@ -145,3 +142,4 @@ tools.persist_function({
   expected_result: 15
 });
 ```
+

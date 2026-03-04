@@ -5,17 +5,9 @@ namespace slop {
 
 // Gemini / Google Cloud Endpoints
 constexpr char kPublicGeminiBaseUrl[] = "https://generativelanguage.googleapis.com/v1beta";
-constexpr char kCloudCodeBaseUrl[] = "https://cloudcode-pa.googleapis.com";
-constexpr char kCloudCodeSandboxBaseUrl[] = "https://daily-cloudcode-pa.sandbox.googleapis.com";
-constexpr char kCloudResourceManagerBaseUrl[] = "https://cloudresourcemanager.googleapis.com/v1";
-constexpr char kServiceUsageBaseUrl[] = "https://serviceusage.googleapis.com/v1";
-constexpr char kGoogleOAuthTokenUrl[] = "https://oauth2.googleapis.com/token";
 
-// GCA / Antigravity Headers
+// Headers
 constexpr char kUserAgent[] = "std::slop/prerelease";
-constexpr char kGcaApiClient[] = "std::slop/0.1";
-constexpr char kGcaClientMetadata[] =
-    "{\"ideType\":\"IDE_UNSPECIFIED\",\"platform\":\"PLATFORM_UNSPECIFIED\",\"pluginType\":\"GEMINI\"}";
 
 // OpenAI Endpoints
 // constexpr char kOpenAIBaseUrl[] = "https://api.openai.com/v1";
@@ -27,3 +19,5 @@ constexpr char kOpenAiOAuthClientId[] = "app_EMoamEEZ73f0CkXaXp7hrann";
 }  // namespace slop
 
 #endif  // SLOP_CONSTANTS_H_
+
+

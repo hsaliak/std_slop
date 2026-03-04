@@ -29,8 +29,6 @@ class Orchestrator {
   struct Config {
     Provider provider = Provider::GEMINI;
     std::string model;
-    bool gca_mode = false;
-    std::string project_id;
     std::string base_url;
     int throttle = 1;
     OpenAiApiStyle openai_api_style = OpenAiApiStyle::CHAT_COMPLETIONS;
@@ -42,8 +40,6 @@ class Orchestrator {
     explicit Builder(const Orchestrator& orchestrator);
     Builder& WithProvider(Provider provider);
     Builder& WithModel(const std::string& model);
-    Builder& WithGcaMode(bool enabled);
-    Builder& WithProjectId(const std::string& project_id);
     Builder& WithBaseUrl(const std::string& url);
     Builder& WithThrottle(int seconds);
     Builder& WithOpenAiApiStyle(OpenAiApiStyle style);
@@ -105,3 +101,4 @@ class Orchestrator {
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_
+

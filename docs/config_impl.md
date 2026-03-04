@@ -36,10 +36,11 @@ This document outlines the implementation plan for adding INI configuration supp
 ## Precedence Order
 1.  **Command Line Arguments**: Always take highest priority.
 2.  **INI File**: Applied only if the flag was not set on the CLI.
-3.  **Environment Variables**: (e.g., `GOOGLE_API_KEY`) checked by existing application logic if flags are empty.
+3.  **Environment Variables**: checked by existing application logic if flags are empty.
 4.  **Hardcoded Defaults**: Built-in `absl` flag defaults.
 
 ## Exclusive Flags Management
-Settings like `google_api_key`, `openai_api_key`, `google_oauth`, `openai_oauth`, and `use_responses` are managed by
+Settings like `openai_api_key`, `openai_oauth`, and `use_responses` are managed by
 the runtime selection logic in `main.cpp` and `core/orchestrator.cpp`. The INI loader only populates flags; conflict
 resolution (including OAuth mode exclusivity) remains in runtime logic.
+

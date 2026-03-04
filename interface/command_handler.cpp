@@ -599,12 +599,8 @@ CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
   std::string api_key =
       (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI) ? google_api_key_ : openai_api_key_;
   std::string account_id;
-  if (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ && oauth_handler_->IsEnabled() &&
-      oauth_handler_->GetProvider() == OAuthHandler::Provider::kGoogle) {
-    auto token_or = oauth_handler_->GetValidToken();
-    if (token_or.ok()) api_key = *token_or;
-  } else if (orchestrator_->GetProvider() == Orchestrator::Provider::OPENAI && oauth_handler_ &&
-             oauth_handler_->IsEnabled() && oauth_handler_->GetProvider() == OAuthHandler::Provider::kOpenAi) {
+  if (orchestrator_->GetProvider() == Orchestrator::Provider::OPENAI && oauth_handler_ &&
+      oauth_handler_->IsEnabled() && oauth_handler_->GetProvider() == OAuthHandler::Provider::kOpenAi) {
     auto token_or = oauth_handler_->GetValidToken();
     if (token_or.ok()) api_key = *token_or;
     auto account_id_or = oauth_handler_->GetOpenAiAccountId();
@@ -1118,3 +1114,6 @@ CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
 }
 
 }  // namespace slop
+
+
+

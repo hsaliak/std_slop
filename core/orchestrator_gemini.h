@@ -41,26 +41,8 @@ class GeminiOrchestrator : public OrchestratorStrategy {
   int max_output_tokens_ = 8192;
 };
 
-class GeminiGcaOrchestrator : public GeminiOrchestrator {
- public:
-  GeminiGcaOrchestrator(Database* db, HttpClient* http_client, const std::string& model, const std::string& base_url,
-                        const std::string& project_id);
-
-  std::string GetName() const override { return "gemini_gca"; }
-
-  absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
-                                                 const std::vector<Database::Message>& history) override;
-
-  absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
-                                      const std::string& group_id) override;
-
-  absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id) override;
-  absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
-
- private:
-  std::string project_id_;
-};
 
 }  // namespace slop
 
 #endif  // SLOP_SQL_ORCHESTRATOR_GEMINI_H_
+

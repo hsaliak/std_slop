@@ -169,11 +169,6 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     }
     std::vector<std::string> headers = {"Content-Type: application/json"};
     headers.push_back(std::string("User-Agent: ") + kUserAgent);
-    if (orchestrator_.GetProvider() == slop::Orchestrator::Provider::GEMINI) {
-      headers.push_back(std::string("x-goog-api-client: ") + kGcaApiClient);
-      headers.push_back(std::string("x-goog-api-client-metadata: ") + kGcaClientMetadata);
-    }
-
     std::string url;
     if (orchestrator_.GetProvider() == slop::Orchestrator::Provider::OPENAI) {
       std::string bearer_token = config.openai_api_key;
@@ -196,10 +191,6 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           !config.openai_base_url.empty() ? config.openai_base_url : default_openai_base_url;
       const std::string openai_endpoint = config.use_responses ? "/responses" : "/chat/completions";
       url = resolved_openai_base_url + openai_endpoint;
-    } else if (config.google_oauth && oauth_handler_) {
-      auto token_or = oauth_handler_->GetValidToken();
-      if (token_or.ok()) headers.push_back("Authorization: Bearer " + *token_or);
-      url = absl::StrCat(slop::kCloudCodeBaseUrl, "/v1internal:generateContent");
     } else {
       headers.push_back("x-goog-api-key: " + config.google_api_key);
       url = absl::StrCat(slop::kPublicGeminiBaseUrl, "/models/", orchestrator_.GetModel(),
@@ -248,13 +239,13 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                   }
                 })) {
           continue;
-        }           if (!config.silent && slop::IsInterruptPressed()) {
-            animator.Stop();
-            http_cancellation->Cancel();
-            std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
-          }
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
-       
+        }
+        if (!config.silent && slop::IsInterruptPressed()) {
+          animator.Stop();
+          http_cancellation->Cancel();
+          std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
 
       // Cleanup handler
@@ -285,7 +276,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       }
       if (!resp_or.ok()) {
         slop::HandleStatus(resp_or.status(), "HTTP Error");
-        if ((config.google_oauth || config.openai_oauth) && oauth_handler_ &&
+        if (config.openai_oauth && oauth_handler_ &&
             (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
           std::cout << "Refreshing OAuth token..." << std::endl;
           (void)oauth_handler_->GetValidToken();
@@ -419,3 +410,6 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop
+
+
+

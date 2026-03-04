@@ -30,8 +30,6 @@
 namespace slop {
 
 namespace {
-const char* kGeminiClientId = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
-const char* kGeminiClientSecret = "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";
 
 std::string UrlEncodeFormValue(const std::string& value) {
   std::ostringstream encoded;
@@ -55,14 +53,13 @@ absl::Status MaybeCreateDirectory(const std::string& dir_path) {
   return absl::OkStatus();
 }
 
-OAuthHandler::OAuthHandler(HttpClient* http_client) : OAuthHandler(http_client, Provider::kGoogle) {}
+OAuthHandler::OAuthHandler(HttpClient* http_client) : OAuthHandler(http_client, Provider::kOpenAi) {}
 
 OAuthHandler::OAuthHandler(HttpClient* http_client, Provider provider)
     : http_client_(http_client), provider_(provider) {
   std::string home = GetHomeDir();
   if (!home.empty()) {
-    token_path_ = provider_ == Provider::kGoogle ? home + "/.config/slop/token.json"
-                                                 : home + "/.config/slop/chatgpt_plus_token.json";
+    token_path_ = home + "/.config/slop/chatgpt_plus_token.json";
   }
 }
 
@@ -83,7 +80,6 @@ absl::Status OAuthHandler::LoadTokens() {
   tokens_.access_token = json_get_or(j, "access_token", std::string{});
   tokens_.refresh_token = json_get_or(j, "refresh_token", std::string{});
   tokens_.expiry_time = json_get_or(j, "expiry_time", 0LL);
-  tokens_.project_id = json_get_or(j, "project_id", std::string{});
   tokens_.account_id = json_get_or(j, "account_id", std::string{});
   if (provider_ == Provider::kOpenAi && tokens_.account_id.empty()) {
     tokens_.account_id = ExtractOpenAiAccountIdFromJwt(tokens_.access_token);
@@ -102,7 +98,6 @@ absl::Status OAuthHandler::SaveTokens(const OAuthTokens& tokens) {
   j["access_token"] = tokens.access_token;
   j["refresh_token"] = tokens.refresh_token;
   j["expiry_time"] = tokens.expiry_time;
-  j["project_id"] = tokens.project_id;
   j["account_id"] = tokens.account_id;
 
   std::ofstream f(token_path_);
@@ -130,20 +125,13 @@ absl::StatusOr<std::string> OAuthHandler::GetValidToken() {
 absl::Status OAuthHandler::RefreshToken() {
   if (tokens_.refresh_token.empty()) {
     LOG(ERROR) << "No refresh token available";
-    return absl::UnauthenticatedError(provider_ == Provider::kGoogle
-                                          ? "No refresh token available. Please run ./slop_auth.sh google"
-                                          : "No refresh token available. Please run ./slop_auth.sh chatgpt-plus");
+    return absl::UnauthenticatedError("No refresh token available. Please run ./slop_auth.sh chatgpt-plus");
   }
 
   LOG(INFO) << "Refreshing OAuth token...";
   std::string token_url;
   std::string body;
-  if (provider_ == Provider::kGoogle) {
-    token_url = kGoogleOAuthTokenUrl;
-    body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token),
-                        "&client_id=", UrlEncodeFormValue(kGeminiClientId),
-                        "&client_secret=", UrlEncodeFormValue(kGeminiClientSecret), "&grant_type=refresh_token");
-  } else {
+  {
     token_url = kOpenAiOAuthTokenUrl;
     const char* client_secret = std::getenv("CHATGPT_CLIENT_SECRET");
     body = absl::StrCat("refresh_token=", UrlEncodeFormValue(tokens_.refresh_token),
@@ -156,9 +144,7 @@ absl::Status OAuthHandler::RefreshToken() {
   auto res = http_client_->Post(token_url, body, {"Content-Type: application/x-www-form-urlencoded"});
   if (!res.ok()) {
     LOG(ERROR) << "Token refresh failed: " << res.status().ToString();
-    return absl::UnauthenticatedError(provider_ == Provider::kGoogle
-                                          ? "Token refresh failed. Please run ./slop_auth.sh google"
-                                          : "Token refresh failed. Please run ./slop_auth.sh chatgpt-plus");
+    return absl::UnauthenticatedError("Token refresh failed. Please run ./slop_auth.sh chatgpt-plus");
   }
   LOG(INFO) << "Token refreshed successfully.";
 
@@ -195,99 +181,7 @@ absl::StatusOr<std::string> OAuthHandler::GetOpenAiAccountId() {
   return tokens_.account_id;
 }
 
-absl::StatusOr<std::string> OAuthHandler::GetProjectId() {
-  if (provider_ != Provider::kGoogle) {
-    return absl::FailedPreconditionError("Project ID is only available for Google OAuth");
-  }
-  if (!manual_project_id_.empty()) return manual_project_id_;
-  if (!tokens_.project_id.empty()) return tokens_.project_id;
-
-  auto token = GetValidToken();
-  if (!token.ok()) return token.status();
-
-  auto disc = DiscoverProjectId(*token);
-  if (disc.ok()) {
-    tokens_.project_id = *disc;
-    (void)SaveTokens(tokens_);
-    return *disc;
-  }
-
-  return absl::NotFoundError("No project ID found. Use --project to specify one.");
-}
-
-std::string OAuthHandler::GetGcpProjectFromGcloud() {
-  std::array<char, 128> buffer;
-  std::string result;
-  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("gcloud config get-value project 2>/dev/null", "r"), pclose);
-  if (!pipe) return "";
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-    result += buffer.data();
-  }
-  result.erase(result.find_last_not_of(" \n\r\t") + 1);
-  return result;
-}
-
-absl::StatusOr<std::string> OAuthHandler::DiscoverProjectId(const std::string& access_token) {
-  // 1. Try loadCodeAssist (the authoritative way for GCA / Managed Project)
-  std::string gca_url = absl::StrCat(kCloudCodeBaseUrl, "/v1internal:loadCodeAssist");
-
-  // GCA identification headers
-  std::vector<std::string> headers = {"Authorization: Bearer " + access_token, "Content-Type: application/json",
-                                      absl::StrCat("User-Agent: ", kUserAgent),
-                                      absl::StrCat("X-Goog-Api-Client: ", kGcaApiClient),
-                                      absl::StrCat("Client-Metadata: ", kGcaClientMetadata)};
-
-  nlohmann::json gca_req = {
-      {"metadata", {{"ideType", "IDE_UNSPECIFIED"}, {"platform", "PLATFORM_UNSPECIFIED"}, {"pluginType", "GEMINI"}}}};
-
-  const char* env_p = std::getenv("GOOGLE_CLOUD_PROJECT");
-  if (!env_p) env_p = std::getenv("GOOGLE_CLOUD_PROJECT_ID");
-  if (env_p) {
-    gca_req["cloudaicompanionProject"] = env_p;
-    gca_req["metadata"]["duetProject"] = env_p;
-  }
-
-  auto gca_res =
-      http_client_->Post(gca_url, gca_req.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
-  if (gca_res.ok()) {
-    auto j_opt = json_parse(*gca_res);
-    if (j_opt) {
-      const auto* proj = json_at(*j_opt, "cloudaicompanionProject");
-      if (proj != nullptr && !proj->is_null()) {
-        if (proj->is_string()) {
-          std::string pid = json_getter<std::string>::get(*proj).value_or("");
-          if (!pid.empty()) return pid;
-        }
-        if (proj->is_object()) {
-          std::string pid = json_get_or(*proj, "id", std::string{});
-          if (!pid.empty()) return pid;
-        }
-      }
-    }
-  }
-
-  // 2. Try env var fallback
-  if (env_p) return std::string(env_p);
-
-  // 3. Try gcloud config
-  std::string gcloud_project = GetGcpProjectFromGcloud();
-  if (!gcloud_project.empty()) return gcloud_project;
-
-  // 4. Fallback to listing projects
-  std::string url = absl::StrCat(kCloudResourceManagerBaseUrl, "/projects");
-  auto res = http_client_->Get(url, {"Authorization: Bearer " + access_token});
-  if (res.ok()) {
-    auto j_opt = json_parse(*res);
-    if (j_opt) {
-      auto projects = json_get<nlohmann::json::array_t>(*j_opt, "projects");
-      if (projects && !projects->empty()) {
-        return json_get_or((*projects)[0], "projectId", std::string{});
-      }
-    }
-  }
-
-  return absl::NotFoundError("Could not discover project ID");
-}
+  
 
 std::string OAuthHandler::ExtractOpenAiAccountIdFromJwt(const std::string& jwt) {
   if (jwt.empty()) {
@@ -329,3 +223,10 @@ std::string OAuthHandler::ExtractOpenAiAccountIdFromJwt(const std::string& jwt) 
 }
 
 }  // namespace slop
+
+
+
+
+
+
+
