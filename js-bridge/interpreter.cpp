@@ -1,11 +1,14 @@
 #include "js-bridge/interpreter.h"
 
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
+
+#include "quickjs-libc.h"
 
 #include "core/json_utils.h"
 #include "core/shell_util.h"
@@ -54,12 +57,15 @@ struct ContextData {
 
 JsInterpreter::JsInterpreter() {
   rt_ = JS_NewRuntime();
+  js_std_init_handlers(rt_);
   ctx_ = JS_NewContext(rt_);
+  JS_SetModuleLoaderFunc(rt_, nullptr, js_module_loader, nullptr);
 }
 
 JsInterpreter::~JsInterpreter() {
   std::unique_ptr<ContextData> data(static_cast<ContextData*>(JS_GetContextOpaque(ctx_)));
   JS_FreeContext(ctx_);
+  js_std_free_handlers(rt_);
   JS_FreeRuntime(rt_);
 }
 
@@ -354,6 +360,37 @@ void JsInterpreter::InitializeEnvironment(
   JS_SetPropertyStr(ctx_, global_obj, "print", JS_NewCFunction(ctx_, js_print, "print", 1));
   JS_SetPropertyStr(ctx_, global_obj, "__os_run", JS_NewCFunction(ctx_, js_os_run, "__os_run", 1));
 
+  JSValue console_obj = JS_NewObject(ctx_);
+  JS_SetPropertyStr(ctx_, console_obj, "log", JS_NewCFunction(ctx_, js_print, "log", 1));
+  JS_SetPropertyStr(ctx_, console_obj, "info", JS_NewCFunction(ctx_, js_print, "info", 1));
+  JS_SetPropertyStr(ctx_, console_obj, "warn", JS_NewCFunction(ctx_, js_print, "warn", 1));
+  JS_SetPropertyStr(ctx_, console_obj, "error", JS_NewCFunction(ctx_, js_print, "error", 1));
+  JS_SetPropertyStr(ctx_, global_obj, "console", console_obj);
+
+  js_init_module_std(ctx_, "std");
+  js_init_module_os(ctx_, "os");
+
+  constexpr const char* kQuickJsGlobals =
+      "import * as std from 'std';\n"
+      "import * as os from 'os';\n"
+      "globalThis.std = std;\n"
+      "globalThis.os = os;\n";
+  JSValue module_res = JS_Eval(ctx_, kQuickJsGlobals, std::strlen(kQuickJsGlobals),
+                               "<quickjs-globals>", JS_EVAL_TYPE_MODULE);
+  if (JS_IsException(module_res)) {
+    JSValue exception = JS_GetException(ctx_);
+    const char* err_cstr = JS_ToCString(ctx_, exception);
+    std::string err = err_cstr ? err_cstr : "unknown error";
+    if (err_cstr) {
+      JS_FreeCString(ctx_, err_cstr);
+    }
+    JS_FreeValue(ctx_, exception);
+    JS_FreeValue(ctx_, module_res);
+    JS_FreeValue(ctx_, global_obj);
+    LOG(FATAL) << "Failed to expose QuickJS std/os modules: " << err;
+  }
+  JS_FreeValue(ctx_, module_res);
+
   JSValue tools_obj = JS_NewObject(ctx_);
   
   JS_SetPropertyStr(ctx_, tools_obj, "dispatch_async", JS_NewCFunction(ctx_, js_dispatch_async, "dispatch_async", 2));
@@ -439,18 +476,3 @@ void JsInterpreter::InitializeEnvironment(
 }
 
 }  // namespace slop
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
