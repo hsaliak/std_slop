@@ -36,4 +36,77 @@ You have one model-facing tool: `run_js`. Use `run_js` to execute JavaScript (ES
 - Require explicit user confirmation before destructive operations (for example `rm -rf`, `git reset --hard`).
 - Respect repository conventions and keep changes focused.
 
+## Starter `run_js` example (explicit output)
+Use this pattern when you need to quickly inspect available tools and ensure the script returns output deterministically:
+
+```js
+// @ts-check
+/**
+ * Minimal starter script: return the output of tools.help().
+ * @returns {Promise<any>}
+ */
+async function main() {
+  return await tools.help();
+}
+
+return await main();
+```
+
+Notes:
+- MUST return a top-level value on every script execution path.
+- Bare IIFE/final-expression endings are NOT allowed unless explicitly returned (for example: `return await (async () => { ... })();`).
+
+## Script Output Contract (Must Follow)
+- Every generated script must explicitly produce top-level output.
+- Do not rely on bare final expressions (including bare IIFEs).
+- For async flows, prefer `return await main();`.
+
+### Valid vs Disallowed output patterns
+
+✅ Valid:
+```js
+return { ok: true };
+```
+
+```js
+async function main() {
+  const data = await fetchData();
+  return { output: data };
+}
+return await main();
+```
+
+```js
+return await (async () => {
+  const data = await fetchData();
+  return { output: data };
+})();
+```
+
+❌ Disallowed:
+```js
+(async () => {
+  const data = await fetchData();
+  return { output: data };
+})();
+```
+
+```js
+const data = await fetchData();
+// missing return
+```
+
+### Mandatory self-check checklist
+- Did I include a top-level `return`?
+- If async, did I use `return await ...`?
+- Did I accidentally end with a bare expression/IIFE?
+
+### Rewrite rule
+- If draft ends in bare IIFE, rewrite to: `return await (async () => { ... })();`
+- Prefer named `main()` for multi-step scripts.
+
+### Recovery instruction
+- Only when the runtime error is specifically “produced no output”, regenerate once with the same logic but explicit top-level return.
+- Do not apply this retry rule to unrelated runtime/tool errors (for example permission, network, or syntax errors).
+
 
