@@ -24,6 +24,22 @@ return function(args) {
     throw new Error("INVALID_ARGUMENT: cwd must be a non-empty string when provided");
   }
 
+  // Explicit result mode contract:
+  // - matches: structured line matches (default)
+  // - files: unique file paths
+  // - count: count of matches
+  // Compatibility shim: files_with_matches=true maps to mode='files'.
+  const requestedMode = (args.mode === undefined || args.mode === null) ? "" : String(args.mode);
+  let resultMode = "matches";
+  if (requestedMode !== "") {
+    if (requestedMode !== "matches" && requestedMode !== "files" && requestedMode !== "count") {
+      throw new Error("INVALID_ARGUMENT: mode must be 'matches', 'files', or 'count'");
+    }
+    resultMode = requestedMode;
+  } else if (args.files_with_matches === true) {
+    resultMode = "files";
+  }
+
   const cwdPrefix = (typeof args.cwd === "string")
     ? "cd " + shell_escape(args.cwd) + " && "
     : "";
@@ -37,11 +53,28 @@ return function(args) {
   const inRepo = repoProbe.exit_code === 0 && repoProbe.stdout.trim() === "true";
   const mode = inRepo ? "repo" : "no-index";
 
+  const cwdResult = __os_run(cwdPrefix + "pwd");
+  const modeDetails = {
+    type: mode,
+    cwd: cwdResult.exit_code === 0 ? cwdResult.stdout.trim() : undefined
+  };
+  if (inRepo) {
+    const repoRootResult = __os_run(cwdPrefix + "git rev-parse --show-toplevel");
+    if (repoRootResult.exit_code === 0) {
+      modeDetails.repoRoot = repoRootResult.stdout.trim();
+    } else {
+      modeDetails.reason = "Unable to determine repository root";
+    }
+  } else {
+    modeDetails.reason = "Not inside a Git work tree";
+  }
+
   const argv = ["git", "grep", "-n", "-I"];
   if (!inRepo) argv.push("--no-index");
   if (args.fixed === true) argv.push("-F");
   if (args.functionContext === true) argv.push("-W");
   if (args.ignoreCase === true) argv.push("-i");
+  if (resultMode === "files") argv.push("-l");
   argv.push("-e", pattern);
 
   const paths = Array.isArray(args.paths) ? args.paths : [];
@@ -59,17 +92,39 @@ return function(args) {
     );
   }
 
-  if (format === "raw") {
+  const lines = res.stdout === "" ? [] : res.stdout.split("\n").filter(Boolean);
+
+  if (resultMode === "files") {
+    const files = [];
+    const seen = {};
+    for (const line of lines) {
+      const path = line.trim();
+      if (path === "" || seen[path]) continue;
+      seen[path] = true;
+      files.push(path);
+    }
+    if (format === "raw") {
+      return {
+        ok: true,
+        mode: mode,
+        modeDetails: modeDetails,
+        resultMode: "files",
+        exitCode: res.exit_code,
+        format: "raw",
+        data: files.join("\n")
+      };
+    }
     return {
       ok: true,
       mode: mode,
+      modeDetails: modeDetails,
+      resultMode: "files",
       exitCode: res.exit_code,
-      format: "raw",
-      data: res.stdout
+      format: "structured",
+      data: files
     };
   }
 
-  const lines = res.stdout === "" ? [] : res.stdout.split("\n").filter(Boolean);
   const matches = [];
   for (const line of lines) {
     const m = line.match(/^(.*?):(\d+):(.*)$/);
@@ -81,13 +136,49 @@ return function(args) {
     });
   }
 
+  if (resultMode === "count") {
+    if (format === "raw") {
+      return {
+        ok: true,
+        mode: mode,
+        modeDetails: modeDetails,
+        resultMode: "count",
+        exitCode: res.exit_code,
+        format: "raw",
+        data: String(matches.length)
+      };
+    }
+    return {
+      ok: true,
+      mode: mode,
+      modeDetails: modeDetails,
+      resultMode: "count",
+      exitCode: res.exit_code,
+      format: "structured",
+      data: { count: matches.length }
+    };
+  }
+
+  if (format === "raw") {
+    return {
+      ok: true,
+      mode: mode,
+      modeDetails: modeDetails,
+      resultMode: "matches",
+      exitCode: res.exit_code,
+      format: "raw",
+      data: res.stdout
+    };
+  }
+
   return {
     ok: true,
     mode: mode,
+    modeDetails: modeDetails,
+    resultMode: "matches",
     exitCode: res.exit_code,
     format: "structured",
     data: matches
   };
 };
-
 

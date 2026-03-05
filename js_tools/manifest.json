@@ -269,7 +269,7 @@
   },
   {
     "name": "git_grep",
-    "description": "Preferred tool for codebase search; uses git grep with structured or raw output.",
+    "description": "Preferred tool for codebase search; supports explicit result modes ('matches'|'files'|'count') with structured or raw output.",
     "json_schema": {
       "type": "object",
       "properties": {
@@ -303,6 +303,10 @@
         "format": {
           "type": "string",
           "description": "string (optional, 'structured' or 'raw', default 'structured')"
+        },
+        "mode": {
+          "type": "string",
+          "description": "string (optional, 'matches'|'files'|'count'; default 'matches')"
         }
       },
       "required": [
