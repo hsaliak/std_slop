@@ -105,7 +105,7 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 - **Model Switching**: You can switch models (e.g., from Gemini to OpenAI) mid-session using the `/model` command. While conversational text is preserved across models, tool calls and results are isolated by provider (e.g., Gemini vs. OpenAI) to ensure reliable parsing and execution. Switching providers will hide previous tool interactions from the new model's immediate context.
 - **State**: The persistent "Long-term RAM" for each session.
 - **Skills**: Persona patches that inject specific instructions into the system prompt. These can be manually activated or automatically orchestrated by the agent.
-- **Tools**: Executable functions (grep, file read, write_file, etc.) that the LLM can call.
+- **Tools**: Executable functions (grep, git_grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
 ## Orchestration & JavaScript Integration
 `std::slop` makes the LLM orchestrate work through JavaScript in the JCP. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
@@ -115,6 +115,7 @@ The `run_js` tool allows the agent to execute orchestrated scripts. It has acces
 - **`llm_query`**: Synchronous and asynchronous helpers for isolated LLM sub-tasks.
 - **Async Execution**: `tools.execute_bash_async` and `tools.llm_query_async` allow for parallel execution (e.g., running multiple tests at once).
 - **Tool Manifest**: `tools.help({})` returns JSON with canonical tool names, aliases, and contracts.
+- **`git_grep`**: Git-backed code search with default structured JSON (`format: "structured"`) and optional raw text (`format: "raw"`). Returns `ok: true` for both matches and no-match (`exitCode: 1` with empty data).
 For more details, see the **[JavaScript Integration Documentation](js_integration.md)**.
 
 ### Migration notes (v0.1.9 -> current)
@@ -287,6 +288,7 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
+
 
 
 

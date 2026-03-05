@@ -102,6 +102,16 @@ TEST_F(ToolTypingTest, GrepFlexiblePath) {
   }
 }
 
+TEST_F(ToolTypingTest, GitGrepTypedArgs) {
+  auto res_ok = executor_->Execute("git_grep", {{"pattern", "foo"}});
+  ASSERT_TRUE(res_ok.ok());
+  EXPECT_TRUE(res_ok->find("INVALID_ARGUMENT") == std::string::npos);
+
+  auto res_bad = executor_->Execute("git_grep", {{"pattern", "foo"}, {"paths", "core"}});
+  ASSERT_TRUE(res_bad.ok());
+  EXPECT_TRUE(absl::StrContains(*res_bad, "paths must be an array of strings"));
+}
+
 TEST_F(ToolTypingTest, ApplyPatchTyped) {
   nlohmann::json args = {{"path", "test_patch.txt"}, {"patches", {{{"find", "old"}, {"replace", "new"}}}}};
 
@@ -121,3 +131,4 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
+

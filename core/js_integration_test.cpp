@@ -8,6 +8,7 @@
 #include "core/tool_executor.h"
 
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 
 namespace slop {
 
@@ -263,7 +264,89 @@ TEST_F(JsIntegrationTest, PersistFunctionCompileOnlyValidation) {
   EXPECT_TRUE(absl::StrContains(*res, "Syntax Error"));
 }
 
+TEST_F(JsIntegrationTest, GitGrepStructuredAndRawModes) {
+  const std::string root = "git_grep_test";
+  std::filesystem::create_directories(root);
+  {
+    std::ofstream(root + "/a.txt") << "alpha needle\n";
+    std::ofstream(root + "/b.txt") << "beta\n";
+  }
+
+  auto structured = executor_->Execute("git_grep", {
+    {"pattern", "needle"},
+    {"paths", nlohmann::json::array({root})}
+  });
+  ASSERT_TRUE(structured.ok()) << structured.status().message();
+  auto structured_json = nlohmann::json::parse(*structured, nullptr, false);
+  ASSERT_TRUE(structured_json.is_object());
+  auto structured_payload = structured_json.contains("result") ? structured_json["result"] : structured_json;
+  ASSERT_TRUE(structured_payload.is_object());
+  ASSERT_TRUE(structured_payload.contains("ok"));
+  EXPECT_TRUE(structured_payload.value("ok", false));
+  EXPECT_EQ(structured_payload.value("format", std::string{}), "structured");
+  EXPECT_EQ(structured_payload.value("exitCode", -1), 0);
+  ASSERT_TRUE(structured_payload.contains("data"));
+  ASSERT_TRUE(structured_payload["data"].is_array());
+  EXPECT_FALSE(structured_payload["data"].empty());
+
+  auto raw = executor_->Execute("git_grep", {
+    {"pattern", "needle"},
+    {"paths", nlohmann::json::array({root})},
+    {"format", "raw"}
+  });
+  ASSERT_TRUE(raw.ok()) << raw.status().message();
+  auto raw_json = nlohmann::json::parse(*raw, nullptr, false);
+  ASSERT_TRUE(raw_json.is_object());
+  auto raw_payload = raw_json.contains("result") ? raw_json["result"] : raw_json;
+  ASSERT_TRUE(raw_payload.is_object());
+  EXPECT_EQ(raw_payload.value("format", std::string{}), "raw");
+  ASSERT_TRUE(raw_payload.contains("data"));
+  EXPECT_TRUE(raw_payload["data"].is_string());
+  EXPECT_TRUE(absl::StrContains(raw_payload["data"].get<std::string>(), "needle"));
+
+  std::filesystem::remove_all(root);
+}
+
+TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
+  const std::string root = "git_grep_noindex_test";
+  std::filesystem::create_directories(root);
+  std::ofstream(root + "/c.txt") << "gamma line\n";
+
+  auto no_match = executor_->Execute("git_grep", {
+    {"pattern", "definitely_not_present_token"},
+    {"paths", nlohmann::json::array({"core"})}
+  });
+  ASSERT_TRUE(no_match.ok()) << no_match.status().message();
+  auto no_match_json = nlohmann::json::parse(*no_match, nullptr, false);
+  ASSERT_TRUE(no_match_json.is_object());
+  auto no_match_payload = no_match_json.contains("result") ? no_match_json["result"] : no_match_json;
+  ASSERT_TRUE(no_match_payload.is_object());
+  EXPECT_EQ(no_match_payload.value("exitCode", -1), 1);
+  ASSERT_TRUE(no_match_payload.contains("data"));
+  ASSERT_TRUE(no_match_payload["data"].is_array());
+  EXPECT_TRUE(no_match_payload["data"].empty());
+
+  auto no_index = executor_->Execute("git_grep", {
+    {"pattern", "gamma"},
+    {"cwd", root},
+    {"paths", nlohmann::json::array({"."})}
+  });
+  ASSERT_TRUE(no_index.ok()) << no_index.status().message();
+  auto no_index_json = nlohmann::json::parse(*no_index, nullptr, false);
+  ASSERT_TRUE(no_index_json.is_object());
+  auto no_index_payload = no_index_json.contains("result") ? no_index_json["result"] : no_index_json;
+  ASSERT_TRUE(no_index_payload.is_object());
+  EXPECT_EQ(no_index_payload.value("mode", std::string{}), "no-index");
+  EXPECT_EQ(no_index_payload.value("exitCode", -1), 0);
+
+  std::filesystem::remove_all(root);
+}
+
 }  // namespace slop
+
+
+
+
 
 
 
