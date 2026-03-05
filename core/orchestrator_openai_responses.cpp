@@ -18,6 +18,33 @@
 namespace slop {
 namespace {
 
+struct ModelSelection {
+  std::string base_model;
+  std::string reasoning_effort;
+};
+
+absl::StatusOr<ModelSelection> ParseResponsesModelSelection(const std::string& selector) {
+  static constexpr const char* kLow = "low";
+  static constexpr const char* kMedium = "medium";
+  static constexpr const char* kHigh = "high";
+
+  const size_t split = selector.rfind(':');
+  if (split == std::string::npos) {
+    return ModelSelection{selector, kMedium};
+  }
+
+  const std::string base_model = selector.substr(0, split);
+  const std::string suffix = selector.substr(split + 1);
+  if (suffix == kLow || suffix == kMedium || suffix == kHigh) {
+    if (base_model.empty()) {
+      return absl::InvalidArgumentError("Model selector base cannot be empty before reasoning suffix");
+    }
+    return ModelSelection{base_model, suffix};
+  }
+
+  return absl::InvalidArgumentError("Invalid reasoning level in model selector. Use low, medium, or high.");
+}
+
 bool IsDebugToolsEnabled() { return std::getenv("SLOP_DEBUG_TOOLS") != nullptr; }
 
 std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string& payload) {
@@ -165,6 +192,12 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
     const std::string& session_id, const std::string& system_instruction,
     const std::vector<Database::Message>& history) {
   (void)session_id;
+  const auto model_selection_or = ParseResponsesModelSelection(model_);
+  if (!model_selection_or.ok()) {
+    return model_selection_or.status();
+  }
+  const ModelSelection model_selection = *model_selection_or;
+
   nlohmann::json input = nlohmann::json::array();
 
   const auto enabled_tool_names = GetEnabledToolNames(db_);
@@ -225,12 +258,12 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
     input.push_back({{"role", msg.role}, {"content", display_content}});
   }
 
-  nlohmann::json payload = {{"model", model_}, {"input", input}, {"store", false}};
+  nlohmann::json payload = {{"model", model_selection.base_model}, {"input", input}, {"store", false}};
   if (!system_instruction.empty()) {
     payload["instructions"] = system_instruction;
   }
   if (absl::StrContains(base_url_, "/backend-api/codex")) {
-    payload["reasoning"] = {{"effort", "medium"}, {"summary", "auto"}};
+    payload["reasoning"] = {{"effort", model_selection.reasoning_effort}, {"summary", "auto"}};
     payload["stream"] = true;
   }
   const nlohmann::json tools = BuildOpenAiResponsesTools(db_);
@@ -382,3 +415,4 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::GetQuota(const std::
 }
 
 }  // namespace slop
+

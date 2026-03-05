@@ -56,6 +56,18 @@ bool HasReviewComments(const std::string& content) {
   }
   return false;
 }
+
+std::array<std::string, 3> BuildReasoningModelVariants(const std::string& model_id) {
+  return {absl::StrCat(model_id, ":low"), absl::StrCat(model_id, ":medium"), absl::StrCat(model_id, ":high")};
+}
+
+bool ShouldUseResponsesModelVariants(const Orchestrator* orchestrator) {
+  if (orchestrator == nullptr) {
+    return false;
+  }
+  return orchestrator->GetProvider() == Orchestrator::Provider::OPENAI &&
+         orchestrator->GetOpenAiApiStyle() == Orchestrator::OpenAiApiStyle::RESPONSES;
+}
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
                                std::string google_api_key, std::string openai_api_key)
@@ -614,7 +626,17 @@ CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
     return Result::HANDLED;
   }
   std::cout << "Available Models:" << std::endl;
+  const bool use_reasoning_variants = ShouldUseResponsesModelVariants(orchestrator_);
   for (const auto& m : *models_or) {
+    if (use_reasoning_variants) {
+      const auto variants = BuildReasoningModelVariants(m.id);
+      for (const auto& variant : variants) {
+        if (args.args.empty() || absl::StrContains(variant, args.args)) {
+          std::cout << " - " << variant << " (" << m.name << ")" << std::endl;
+        }
+      }
+      continue;
+    }
     if (args.args.empty() || absl::StrContains(m.id, args.args)) {
       std::cout << " - " << m.id << " (" << m.name << ")" << std::endl;
     }
@@ -1114,6 +1136,7 @@ CommandHandler::Result CommandHandler::HandleAgentsMd(CommandArgs& args) {
 }
 
 }  // namespace slop
+
 
 
 

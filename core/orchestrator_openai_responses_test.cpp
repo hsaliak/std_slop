@@ -4,6 +4,7 @@
 #include "core/http_client.h"
 #include "core/json_utils.h"
 
+#include "absl/status/status.h"
 #include <gtest/gtest.h>
 
 namespace slop {
@@ -58,6 +59,32 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndR
   EXPECT_TRUE(payload.contains("reasoning"));
   EXPECT_EQ(json_get_or(payload["reasoning"], "effort", std::string{}), "medium");
   EXPECT_EQ(json_get_or(payload["reasoning"], "summary", std::string{}), "auto");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesReasoningFromModelSuffix) {
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello codex").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex:low", "https://chatgpt.com/backend-api/codex");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or);
+  ASSERT_TRUE(payload_or.ok());
+
+  const auto& payload = *payload_or;
+  EXPECT_EQ(json_get_or(payload, "model", std::string{}), "gpt-5.3-codex");
+  EXPECT_TRUE(payload.contains("reasoning"));
+  EXPECT_EQ(json_get_or(payload["reasoning"], "effort", std::string{}), "low");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadRejectsInvalidReasoningSuffix) {
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello codex").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex:ultra", "https://chatgpt.com/backend-api/codex");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or);
+  ASSERT_FALSE(payload_or.ok());
+  EXPECT_EQ(payload_or.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSsePayload) {
@@ -216,3 +243,4 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
+

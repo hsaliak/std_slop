@@ -58,6 +58,7 @@ class Orchestrator {
   Orchestrator(Database* db, HttpClient* http_client);
   Provider GetProvider() const { return config_.provider; }
   std::string GetModel() const { return config_.model; }
+  OpenAiApiStyle GetOpenAiApiStyle() const { return config_.openai_api_style; }
   int GetThrottle() const { return config_.throttle; }
   std::string GetName() const { return strategy_ ? strategy_->GetName() : ""; }
   Builder Update() const { return Builder(*this); }
@@ -101,4 +102,5 @@ class Orchestrator {
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_
+
 
