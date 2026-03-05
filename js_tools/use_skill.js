@@ -1,24 +1,80 @@
 return function(args) {
+  /**
+   * Validate and normalize the requested skill name.
+   *
+   * @param {any} value
+   * @returns {string}
+   */
+  function requireSkillName(value) {
+    if (typeof value !== "string") throw new Error("INVALID_ARGUMENT: name must be a non-empty string");
+    const trimmed = value.trim();
+    if (trimmed === "") throw new Error("INVALID_ARGUMENT: name must be a non-empty string");
+    return trimmed;
+  }
+
+  /**
+   * Validate and normalize the requested action.
+   *
+   * @param {any} value
+   * @returns {"activate"|"deactivate"}
+   */
+  function requireAction(value) {
+    if (value !== "activate" && value !== "deactivate") {
+      throw new Error("INVALID_ARGUMENT: action must be 'activate' or 'deactivate'");
+    }
+    return value;
+  }
+
+  /**
+   * Parse a query_db result into row objects.
+   *
+   * @param {any} value
+   * @param {string} context
+   * @returns {any[]}
+   */
+  function parseRows(value, context) {
+    if (Array.isArray(value)) return value;
+    if (value == null || value === "") return [];
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        throw new Error("Failed to parse " + context + ": " + e.message);
+      }
+      throw new Error("Unexpected result shape for " + context);
+    }
+    if (typeof value === "object" && Array.isArray(value.rows)) return value.rows;
+    throw new Error("Unexpected result shape for " + context);
+  }
+
   if (!session_id || session_id === "") throw new Error("FAILED_PRECONDITION: No active session");
-  const name = args.name;
-  const action = args.action || "activate";
-  
-  const res = tools.query_db({
+
+  const name = requireSkillName(args && args.name);
+  const action = requireAction((args && args.action) || "activate");
+
+  const sessionRows = parseRows(tools.query_db({
     sql: "SELECT active_skills FROM sessions WHERE id = ?",
     params: [session_id]
-  });
-  
-  let rows = [];
-  if (res) {
-    try { rows = JSON.parse(res); } catch (e) { print("Error parsing JSON from DB: " + e.message); }
-  }
-  if (rows.length === 0) throw new Error("Session not found: " + session_id);
-  
+  }), "session lookup");
+  if (sessionRows.length === 0) throw new Error("Session not found: " + session_id);
+
+  const skillRows = parseRows(tools.query_db({
+    sql: "SELECT name, system_prompt_patch FROM skills WHERE name = ?",
+    params: [name]
+  }), "skill lookup");
+  if (skillRows.length === 0) throw new Error("UNKNOWN_SKILL: " + name);
+
   let skill_list = [];
-  if (rows[0].active_skills && rows[0].active_skills !== "null") {
-    try { skill_list = JSON.parse(rows[0].active_skills); } catch (e) { print("Error parsing JSON from DB: " + e.message); }
+  if (sessionRows[0].active_skills && sessionRows[0].active_skills !== "null") {
+    try {
+      const parsedSkills = JSON.parse(sessionRows[0].active_skills);
+      if (Array.isArray(parsedSkills)) skill_list = parsedSkills;
+    } catch (e) {
+      throw new Error("Failed to parse active_skills: " + e.message);
+    }
   }
-  
+
   let prompt_patch = "";
   if (action === "activate") {
     if (!skill_list.includes(name)) {
@@ -28,26 +84,20 @@ return function(args) {
         params: [name]
       });
     }
-    const res_skill = tools.query_db({
-      sql: "SELECT system_prompt_patch FROM skills WHERE name = ?",
-      params: [name]
-    });
-    if (res_skill) {
-      try {
-        const skill_rows = JSON.parse(res_skill);
-        if (skill_rows.length > 0 && skill_rows[0].system_prompt_patch) {
-          prompt_patch = "\n\n" + skill_rows[0].system_prompt_patch;
-        }
-      } catch (e) { print("Error parsing JSON from DB: " + e.message); }
+    if (skillRows[0].system_prompt_patch) {
+      prompt_patch = "
+
+" + skillRows[0].system_prompt_patch;
     }
   } else if (action === "deactivate") {
     skill_list = skill_list.filter(s => s !== name);
   }
-  
+
   tools.query_db({
     sql: "UPDATE sessions SET active_skills = ? WHERE id = ?",
     params: [JSON.stringify(skill_list), session_id]
   });
-  
+
   return "Skill '" + name + "' " + (action === "activate" ? "activated" : "deactivated") + "." + prompt_patch;
 };
+
