@@ -450,11 +450,11 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   std::vector<absl::string_view> err_lines =
       absl::StrSplit(absl::StripAsciiWhitespace(stderr_part), '\n', absl::SkipEmpty());
   bool is_error = (status == "error" || absl::StartsWith(result, "Error:"));
-  const char* color = is_error ? ansi::Red : ansi::Metadata;
+  const char* color = is_error ? ansi::ToolResultError : ansi::ToolResultSummary;
   // Print Summary
   std::string summary =
       absl::Substitute("$0 $1 ($2 lines)", is_error ? icons::Error : icons::Success, status, out_lines.size());
-  std::cout << prefix << "    " << Colorize("  │", "", ansi::Metadata) << " " << Colorize(summary, "", color)
+  std::cout << prefix << "    " << Colorize("  │", "", ansi::ToolResultPrefix) << " " << Colorize(summary, "", color)
             << std::endl;
 
   // Render stdout in markdown, formatting structured JSON by default.
@@ -469,17 +469,24 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   const int kMaxLines = 15;
   for (const auto& line : rendered_out_lines) {
     if (printed >= kMaxLines) break;
-    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << std::string(line) << std::endl;
+    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
+              << Colorize(std::string(line), "", ansi::ToolResultBody) << std::endl;
     printed++;
+  }
+  if (!err_lines.empty()) {
+    const char* stderr_heading_color = is_error ? ansi::ToolResultError : ansi::ToolResultWarning;
+    const std::string stderr_heading = is_error ? "Error output:" : "Additional details (stderr):";
+    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
+              << Colorize(stderr_heading, "", stderr_heading_color) << std::endl;
   }
   for (const auto& line : err_lines) {
     if (printed >= kMaxLines) break;
-    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " "
-              << Colorize(std::string(line), "", ansi::Red) << std::endl;
+    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
+              << Colorize(std::string(line), "", ansi::ToolResultStderr) << std::endl;
     printed++;
   }
   if (rendered_out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
-    std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " ... (truncated)"
+    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " ... (truncated)"
               << std::endl;
   }
 }
@@ -607,3 +614,4 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
+

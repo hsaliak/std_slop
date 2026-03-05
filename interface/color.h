@@ -71,6 +71,14 @@ constexpr const char* Warning = Yellow;
 constexpr const char* Logo = Cyan;
 constexpr const char* SystemLabel = Yellow;
 
+// Tool result semantics (grey-forward baseline + warm severity escalation).
+constexpr const char* ToolResultPrefix = Grey;
+constexpr const char* ToolResultSummary = LightGrey;
+constexpr const char* ToolResultBody = LightGrey;
+constexpr const char* ToolResultWarning = Yellow;
+constexpr const char* ToolResultError = Red;
+constexpr const char* ToolResultStderr = "\x1b[38;2;251;73;52m";  // Gruvbox bright red
+
 // Mode labels
 constexpr const char* StandardMode = Cyan;
 constexpr const char* MailMode = Blue;
@@ -144,3 +152,4 @@ inline size_t VisibleLength(std::string_view s) {
 }  // namespace slop
 
 #endif  // SLOP_INTERFACE_COLOR_H_
+
