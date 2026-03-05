@@ -1,15 +1,40 @@
-return function() {
-  try {
-    const res = tools.query_db({sql: "SELECT mode FROM settings WHERE id = 1"});
-    if (res && res.includes('"standard"')) {
-      return;
+return function(args) {
+  /**
+   * Normalize query_db output into an array of row objects.
+   *
+   * @param {any} value
+   * @param {string} context
+   * @returns {any[]}
+   */
+  function parseRows(value, context) {
+    if (Array.isArray(value)) return value;
+    if (value == null || value === "") return [];
+    if (typeof value === "string") {
+      let parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch (e) {
+        throw new Error("Failed to parse " + context + ": " + e.message);
+      }
+      if (Array.isArray(parsed)) return parsed;
+      throw new Error("Unexpected result shape for " + context);
     }
-  } catch (e) { print("Error parsing JSON from DB: " + e.message); }
-
-  const branch = git_get_current_branch();
-  if (!branch) return;
-
-  if (!branch.startsWith("slop/staging/") && branch !== "HEAD") {
-    throw new Error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " + branch);
+    if (typeof value === "object" && Array.isArray(value.rows)) return value.rows;
+    throw new Error("Unexpected result shape for " + context);
   }
+
+  const sessionId = args && args.session_id ? args.session_id : session_id;
+  if (!sessionId) throw new Error("FAILED_PRECONDITION: No active session");
+
+  const rows = parseRows(tools.query_db({
+    sql: "SELECT mode FROM sessions WHERE id = ?",
+    params: [sessionId]
+  }), "session mode lookup");
+  if (rows.length === 0) throw new Error("Session not found: " + sessionId);
+  if (rows[0].mode !== "standard") {
+    throw new Error("FAILED_PRECONDITION: Tool unavailable outside standard mode");
+  }
+
+  return true;
 };
+

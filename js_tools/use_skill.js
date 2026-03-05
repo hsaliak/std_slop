@@ -85,9 +85,9 @@ return function(args) {
       });
     }
     if (skillRows[0].system_prompt_patch) {
-      prompt_patch = "
+      prompt_patch = `
 
-" + skillRows[0].system_prompt_patch;
+${skillRows[0].system_prompt_patch}`;
     }
   } else if (action === "deactivate") {
     skill_list = skill_list.filter(s => s !== name);
@@ -100,4 +100,5 @@ return function(args) {
 
   return "Skill '" + name + "' " + (action === "activate" ? "activated" : "deactivated") + "." + prompt_patch;
 };
+
 
