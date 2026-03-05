@@ -1,32 +1,11 @@
+const parseToolRows = require("./parse_tool_rows.js");
+
 return function(args) {
-  /**
-   * Normalize query_db output into an array of row objects.
-   *
-   * @param {any} value
-   * @param {string} context
-   * @returns {any[]}
-   */
-  function parseRows(value, context) {
-    if (Array.isArray(value)) return value;
-    if (value == null || value === "") return [];
-    if (typeof value === "string") {
-      let parsed;
-      try {
-        parsed = JSON.parse(value);
-      } catch (e) {
-        throw new Error("Failed to parse " + context + ": " + e.message);
-      }
-      if (Array.isArray(parsed)) return parsed;
-      throw new Error("Unexpected result shape for " + context);
-    }
-    if (typeof value === "object" && Array.isArray(value.rows)) return value.rows;
-    throw new Error("Unexpected result shape for " + context);
-  }
 
   const sessionId = args && args.session_id ? args.session_id : session_id;
   if (!sessionId) throw new Error("FAILED_PRECONDITION: No active session");
 
-  const rows = parseRows(tools.query_db({
+  const rows = parseToolRows(tools.query_db({
     sql: "SELECT mode FROM sessions WHERE id = ?",
     params: [sessionId]
   }), "session mode lookup");
@@ -37,4 +16,5 @@ return function(args) {
 
   return true;
 };
+
 
