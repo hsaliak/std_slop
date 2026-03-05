@@ -196,7 +196,7 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
   if (!model_selection_or.ok()) {
     return model_selection_or.status();
   }
-  const ModelSelection model_selection = *model_selection_or;
+  const ModelSelection& model_selection = *model_selection_or;
 
   nlohmann::json input = nlohmann::json::array();
 
