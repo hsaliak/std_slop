@@ -1,3 +1,9 @@
+## v0.12.2
+
+- **Introduced `git_grep`**: Added the structured/raw repository search tool, locked down its JSON contract with integration and typing tests, and documented success-on-empty and no-index fallbacks in the USERGUIDE so run_js consumers know what to expect.
+- **Expanded QuickJS tooling exposure**: Published the QuickJS `console` and `std/os` globals in `tools.help` and added run_js tests that verify the canonical helper list plus the accessible aliases.
+- **Better Error reporting**: Delivered accurate runtime and syntax error line numbers and implemented `JS_EVAL_FLAG_COMPILE_ONLY` so compile-only evaluation no longer mutates runtime state.
+
 ## v0.12.1 - 2026-03-04
 
 - **Orchestrator routing restored**: Provider selection now switches between OpenAI and Gemini based on the available credentials and uses matching API styles when routing responses or chat completions.
@@ -36,8 +42,3 @@
 ### Test and build updates
 - Added/updated tests for dynamic help behavior, JS helper hardening, and migration compatibility.
 - Updated JS tooling bundle/build wiring to match the new dynamic layout.
-
-
-
-
-
