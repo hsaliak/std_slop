@@ -268,6 +268,50 @@
     "implementation": "grep_tool.js"
   },
   {
+    "name": "git_grep",
+    "description": "Preferred tool for codebase search; uses git grep with structured or raw output.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "description": "string"
+        },
+        "paths": {
+          "type": "array",
+          "description": "array of pathspec strings (optional)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fixed": {
+          "type": "boolean",
+          "description": "boolean (optional, uses -F)"
+        },
+        "functionContext": {
+          "type": "boolean",
+          "description": "boolean (optional, uses -W)"
+        },
+        "ignoreCase": {
+          "type": "boolean",
+          "description": "boolean (optional, uses -i)"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "string (optional, run from this directory)"
+        },
+        "format": {
+          "type": "string",
+          "description": "string (optional, 'structured' or 'raw', default 'structured')"
+        }
+      },
+      "required": [
+        "pattern"
+      ]
+    },
+    "implementation": "git_grep.js"
+  },
+  {
     "name": "help",
     "description": "Returns this JSON help manifest.",
     "json_schema": {
@@ -503,3 +547,4 @@
     "implementation": "llm_query_async.js"
   }
 ]
+
