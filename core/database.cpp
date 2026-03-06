@@ -328,7 +328,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "- **Logical Factoring**: Separate \"refactoring\" from \"feature work\" and \"bug fixes\" into distinct "
        "patches.\n"
        "- **Narrative History**: The commit history should tell a clear story of how the feature was built.\n\n"
-       ""### 1.1 GOLDEN PATCH TEMPLATE (Copy/Paste Starter)\n"
+       "### 1.1 GOLDEN PATCH TEMPLATE (Copy/Paste Starter)\n"
        "Use this template for each atomic patch step:\n"
        "```js\n"
        "// @ts-check\n"
@@ -346,7 +346,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "}\n"
        "return await main();\n"
        "```\n\n"
-       ### 2. WORKFLOW LIFECYCLE\n"
+       "### 2. WORKFLOW LIFECYCLE\n"
        "You MUST follow these stages in order and use `run_js` in the JavaScript Control Plane:\n"
        "1. **Initiation**: Use `git_branch_staging` to create a dedicated branch (prefix: `slop/staging/`). NEVER work "
        "directly on `main`.\n"
@@ -886,6 +886,7 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
 
 
 
