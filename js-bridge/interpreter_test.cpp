@@ -39,7 +39,7 @@ TEST(JsInterpreterTest, RunStringUnwrappedEvaluatesGlobalCode) {
 TEST(JsInterpreterTest, RunStringWrappedSyntaxErrorReturnsException) {
   JsInterpreter interpreter;
 
-  JSValue result = interpreter.RunString("return ;", "bad.js", true);
+  JSValue result = interpreter.RunString("return (", "bad.js", true);
   ASSERT_TRUE(JS_IsException(result));
 
   JSValue ex = JS_GetException(interpreter.context());
@@ -56,4 +56,5 @@ TEST(JsInterpreterTest, RunStringWrappedSyntaxErrorReturnsException) {
 
 }  // namespace
 }  // namespace slop
+
 
