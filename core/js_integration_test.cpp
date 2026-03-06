@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <string>
+#include <vector>
 
 #include "absl/strings/match.h"
 
@@ -342,7 +344,75 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
   std::filesystem::remove_all(root);
 }
 
+
+TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
+  struct Case {
+    std::string line;
+    bool supported;
+    bool is_dir;
+    std::string expected_mapped_pattern;
+  };
+
+  const std::vector<Case> cases = {
+      {"", false, false, ""},
+      {"# comment", false, false, ""},
+      {"build/", true, true, "build"},
+      {"dist/", true, true, "dist"},
+      {"*.log", true, false, "*.log"},
+      {".env", true, false, ".env"},
+      {"foo.log", true, false, "foo.log"},
+      {"!keep.log", false, false, ""},
+      {"**/gen", false, false, ""},
+      {"a/b", false, false, ""},
+      {"a/b/", false, false, ""},
+  };
+
+  auto trim = [](const std::string& in) -> std::string {
+    const size_t start = in.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos) return std::string();
+    const size_t end = in.find_last_not_of(" \t\r\n");
+    return in.substr(start, end - start + 1);
+  };
+
+  for (const auto& tc : cases) {
+    const std::string line = trim(tc.line);
+    bool supported = true;
+    bool is_dir = false;
+    std::string mapped;
+
+    if (line.empty() || line[0] == '#') {
+      supported = false;
+    } else if (line[0] == '!' || line.find("**") != std::string::npos) {
+      supported = false;
+    } else if (!line.empty() && line.back() == '/') {
+      const std::string dir = trim(line.substr(0, line.size() - 1));
+      if (dir.empty() || dir.find('/') != std::string::npos) {
+        supported = false;
+      } else {
+        is_dir = true;
+        mapped = dir;
+      }
+    } else if (line.find('/') != std::string::npos) {
+      supported = false;
+    } else {
+      is_dir = false;
+      mapped = line;
+    }
+
+    EXPECT_EQ(supported, tc.supported) << "line='" << tc.line << "'";
+    if (tc.supported) {
+      EXPECT_EQ(is_dir, tc.is_dir) << "line='" << tc.line << "'";
+      EXPECT_EQ(mapped, tc.expected_mapped_pattern) << "line='" << tc.line << "'";
+    }
+  }
+}
+
 }  // namespace slop
+
+
+
+
+
 
 
 
