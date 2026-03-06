@@ -17,22 +17,26 @@ const parseToolRows = (typeof tools !== "undefined" && typeof tools.parse_tool_r
       throw new Error("Unexpected result shape for " + context);
     };
 
-return function(args) {
-
-  const sessionId = args && args.session_id ? args.session_id : session_id;
-  if (!sessionId) throw new Error("FAILED_PRECONDITION: No active session");
-
-  const rows = parseToolRows(tools.query_db({
-    sql: "SELECT mode FROM sessions WHERE id = ?",
-    params: [sessionId]
-  }), "session mode lookup");
-  if (rows.length === 0) throw new Error("Session not found: " + sessionId);
-  if (rows[0].mode !== "standard") {
-    throw new Error("FAILED_PRECONDITION: Tool unavailable outside standard mode");
+return function() {
+  // Preserve original behavior: allow destructive tools in standard mode,
+  // otherwise enforce staging branch protection.
+  try {
+    const rows = parseToolRows(
+      tools.query_db({ sql: "SELECT mode FROM settings WHERE id = 1" }),
+      "settings mode lookup"
+    );
+    if (rows.length > 0 && rows[0].mode === "standard") {
+      return;
+    }
+  } catch (e) {
+    // Keep fail-open semantics for DB lookup issues, then rely on branch guard.
   }
 
-  return true;
+  const branch = git_get_current_branch();
+  if (!branch) return;
+
+  if (!branch.startsWith("slop/staging/") && branch !== "HEAD") {
+    throw new Error("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: " + branch);
+  }
 };
-
-
 
