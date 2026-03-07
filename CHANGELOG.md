@@ -1,3 +1,11 @@
+## v0.13 - 2026-03-05
+
+- **Prompt and guidance refreshes**: Reworked `system_prompt.md` with new reliability rules, patcher prompt guidance, and repeated prompt cleaning so the orchestration flow reflects the latest requirements.
+- **Tooling standardization**: Updated numerous JS helpers (e.g., `git_grep`, `help`, `git_verify_series`, `persist_function`, `execute_bash`) to return structured objects or throw on error, ensure gitignore compliance, and documented the consistent “Tool Return Values” contract in the USERGUIDE.
+- **Testing and interpreter hardening**: Added a real `js-bridge` interpreter gtest, improved JS parser loading/syntax tests, and shared DB row parsing helpers to bolster integration coverage.
+- **UX polish**: Applied Gruvbox-inspired semantic colors to tool results to keep the interface more consistent.
+- **Responses model tuning**: Introduced the `reasoning` selector for the `Responses` model, updating orchestrator headers, implementation, tests, and the command handler to expose the new option.
+
 ## v0.12.2
 
 - **Introduced `git_grep`**: Added the structured/raw repository search tool, locked down its JSON contract with integration and typing tests, and documented success-on-empty and no-index fallbacks in the USERGUIDE so run_js consumers know what to expect.
@@ -42,3 +50,4 @@
 ### Test and build updates
 - Added/updated tests for dynamic help behavior, JS helper hardening, and migration compatibility.
 - Updated JS tooling bundle/build wiring to match the new dynamic layout.
+
