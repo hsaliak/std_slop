@@ -5,6 +5,51 @@
 `std::slop` uses QuickJS to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
 ### `run_js`
 The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing JavaScript scripts. For detailed documentation on orchestration patterns, parallel execution, and the RLM paradigm, see [js_integration.md](js_integration.md).
+## Tool Return Values and Error Handling
+
+All tools in `std::slop` return **plain JavaScript objects** with an `output` property containing the result. This standardization makes it easier to work with tool results in `run_js` scripts.
+
+### Standard Return Format
+
+```javascript
+// Most tools return: { output: "result data" }
+const result = tools.execute_bash({command: "ls -la"});
+// result.output contains the command output
+```
+
+### Error Handling Patterns
+
+Tools use one of two error handling patterns:
+
+| Tool | Error Handling |
+|------|----------------|
+| `execute_bash`, `git_grep` (automatically respects .gitignore patterns), `read_file`, `list_directory` | Returns error in `output` as string |
+| `persist_function`, `apply_patch` | Throws JavaScript exceptions on failure |
+
+When using tools that throw, wrap them in try/catch:
+
+```javascript
+try {
+  tools.persist_function({
+    name: "myHelper",
+    code: "return function() { return 42; }"
+  });
+} catch (e) {
+  print("Failed to persist function: " + e.message);
+}
+```
+
+### The `tools.help()` Tool
+
+Use `tools.help()` to get a complete list of available tools, their schemas, and return types:
+
+```javascript
+const help = tools.help();
+print(JSON.stringify(help, null, 2));
+```
+
+This is especially useful when writing `run_js` scripts to verify tool names and expected parameters.
+
 ## Installation
 Build using Bazel:
 ```bash
@@ -288,6 +333,7 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
+
 
 
 
