@@ -1,40 +1,35 @@
 return function(args) {
-  slop_guard();
-  git_assert_clean_workspace("Working tree is dirty. Please commit, stash, or discard changes before running this command.");
+  const base_branch = (args && args.base_branch) || "main";
+  const build_command = (args && args.build_command) || "npm test";
 
-  const command = args.command;
-  if (!command) throw new Error("command is required");
-  const base_branch = git_resolve_base_branch(args.base_branch);
-  
-  const log_cmd = `git log --reverse --format=%H ${shell_escape(base_branch)}..HEAD`;
-  const log_res = tools.execute_bash({command: log_cmd});
-  
-  const commits = log_res.stdout.trim().split(/\s+/).filter(h => h.length > 0);
-  const current_branch = git_get_current_branch();
-  const results = [];
-  let all_passed = true;
-  
-  for (let i = 0; i < commits.length; i++) {
-    const hash = commits[i];
-    const co_res = __os_run(`git checkout ${hash}`);
-    if (co_res.exit_code !== 0) {
-      results.push({status: "failed", message: "Checkout failed", hash: hash});
-      all_passed = false;
-      break;
-    }
-    const test_res = __os_run(command);
-    const status = (test_res.exit_code === 0) ? "passed" : "failed";
-    results.push({status: status, hash: hash});
-    if (test_res.exit_code !== 0) {
-      all_passed = false;
-      break;
-    }
-  }
-  
-  __os_run(`git checkout ${shell_escape(current_branch)}`);
-  
-  return JSON.stringify({
-    all_passed: all_passed,
-    report: results
+  const res = tools.execute_bash({ 
+    command: "git log " + base_branch + "..HEAD --format=%H" 
   });
+  const commits = res.stdout.trim().split("\n").reverse();
+
+  const results = [];
+  for (const hash of commits) {
+    if (!hash) continue;
+    tools.execute_bash({ command: "git checkout " + hash });
+    
+    let ok = true;
+    let error = "";
+    try {
+      tools.execute_bash({ command: build_command });
+    } catch (e) {
+      ok = false;
+      error = e.message;
+    }
+    
+    results.push({ hash, ok, error });
+    if (!ok) break;
+  }
+
+  tools.execute_bash({ command: "git checkout -" });
+
+  return {
+    ok: results.every(r => r.ok),
+    results: results
+  };
 };
+
