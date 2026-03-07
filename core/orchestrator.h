@@ -30,7 +30,7 @@ class Orchestrator {
     Provider provider = Provider::GEMINI;
     std::string model;
     std::string base_url;
-    int throttle = 1;
+    int throttle = 0;
     OpenAiApiStyle openai_api_style = OpenAiApiStyle::CHAT_COMPLETIONS;
     TruncationSettings truncation = {};
   };
@@ -102,5 +102,6 @@ class Orchestrator {
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_
+
 
 
