@@ -17,12 +17,15 @@ return function(args) {
     throw new Error("INTERNAL: Command failed with status " + res.exit_code + (out ? "\nOutput:\n" + out : ""));
   }
 
-  return {
+  const result = {
     stdout: res.stdout,
     stderr: res.stderr,
     exit_code: res.exit_code,
     exitCode: res.exit_code,
-    output: out
+    output: out,
+    toString: function() { return out; }
   };
+  return result;
 };
+
 

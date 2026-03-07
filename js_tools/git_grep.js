@@ -92,6 +92,7 @@ return function(args) {
     }
     if (format === "raw") {
       return {
+    ok: true,
         mode: mode,
         modeDetails: modeDetails,
         resultMode: "files",
@@ -101,6 +102,7 @@ return function(args) {
       };
     }
     return {
+    ok: true,
       mode: mode,
       modeDetails: modeDetails,
       resultMode: "files",
@@ -124,6 +126,7 @@ return function(args) {
   if (resultMode === "count") {
     if (format === "raw") {
       return {
+    ok: true,
         mode: mode,
         modeDetails: modeDetails,
         resultMode: "count",
@@ -133,6 +136,7 @@ return function(args) {
       };
     }
     return {
+    ok: true,
       mode: mode,
       modeDetails: modeDetails,
       resultMode: "count",
@@ -144,6 +148,7 @@ return function(args) {
 
   if (format === "raw") {
     return {
+    ok: true,
       mode: mode,
       modeDetails: modeDetails,
       resultMode: "matches",
@@ -154,6 +159,7 @@ return function(args) {
   }
 
   return {
+    ok: true,
     mode: mode,
     modeDetails: modeDetails,
     resultMode: "matches",
@@ -162,4 +168,5 @@ return function(args) {
     data: matches
   };
 };
+
 

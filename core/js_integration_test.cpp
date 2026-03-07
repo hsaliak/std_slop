@@ -165,7 +165,7 @@ TEST_F(JsIntegrationTest, RunJsHelpIncludesPersistedFunctionDynamically) {
 TEST_F(JsIntegrationTest, PersistFunctionRejectsNameCollision) {
   auto res = executor_->Execute("run_js", {{"script", R"(
     const [success, msg] = tools.persist_function({
-      name: "read_file",
+      name: "query_db",
       code: "return function() { return 'nope'; }"
     });
     if (success) throw new Error("expected collision rejection");
@@ -408,6 +408,7 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 }
 
 }  // namespace slop
+
 
 
 
