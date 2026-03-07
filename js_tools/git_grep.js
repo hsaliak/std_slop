@@ -20,18 +20,9 @@ return function(args) {
     }
   }
 
-  if (args.cwd !== undefined && (typeof args.cwd !== "string" || args.cwd.trim() === "")) {
-    throw new Error("INVALID_ARGUMENT: cwd must be a non-empty string when provided");
-  }
-
-  // Explicit result mode contract:
-  // - matches: structured line matches (default)
-  // - files: unique file paths
-  // - count: count of matches
-  // Compatibility shim: files_with_matches=true maps to mode='files'.
-  const requestedMode = (args.mode === undefined || args.mode === null) ? "" : String(args.mode);
   let resultMode = "matches";
-  if (requestedMode !== "") {
+  if (args.mode !== undefined) {
+    const requestedMode = String(args.mode);
     if (requestedMode !== "matches" && requestedMode !== "files" && requestedMode !== "count") {
       throw new Error("INVALID_ARGUMENT: mode must be 'matches', 'files', or 'count'");
     }
@@ -62,11 +53,7 @@ return function(args) {
     const repoRootResult = __os_run(cwdPrefix + "git rev-parse --show-toplevel");
     if (repoRootResult.exit_code === 0) {
       modeDetails.repoRoot = repoRootResult.stdout.trim();
-    } else {
-      modeDetails.reason = "Unable to determine repository root";
     }
-  } else {
-    modeDetails.reason = "Not inside a Git work tree";
   }
 
   const argv = ["git", "grep", "-n", "-I"];
@@ -105,7 +92,6 @@ return function(args) {
     }
     if (format === "raw") {
       return {
-        ok: true,
         mode: mode,
         modeDetails: modeDetails,
         resultMode: "files",
@@ -115,7 +101,6 @@ return function(args) {
       };
     }
     return {
-      ok: true,
       mode: mode,
       modeDetails: modeDetails,
       resultMode: "files",
@@ -139,7 +124,6 @@ return function(args) {
   if (resultMode === "count") {
     if (format === "raw") {
       return {
-        ok: true,
         mode: mode,
         modeDetails: modeDetails,
         resultMode: "count",
@@ -149,7 +133,6 @@ return function(args) {
       };
     }
     return {
-      ok: true,
       mode: mode,
       modeDetails: modeDetails,
       resultMode: "count",
@@ -161,7 +144,6 @@ return function(args) {
 
   if (format === "raw") {
     return {
-      ok: true,
       mode: mode,
       modeDetails: modeDetails,
       resultMode: "matches",
@@ -172,7 +154,6 @@ return function(args) {
   }
 
   return {
-    ok: true,
     mode: mode,
     modeDetails: modeDetails,
     resultMode: "matches",
