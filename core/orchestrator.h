@@ -24,7 +24,7 @@ class Orchestrator {
     // truncated character length for inactive
     size_t inactive_limit = 1000;  // super aggressive
     // how many messages should be considered "full fidelity"
-    size_t full_fidelity_count = 5;
+    size_t full_fidelity_count = 10;
   };
   struct Config {
     Provider provider = Provider::GEMINI;

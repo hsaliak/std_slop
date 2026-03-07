@@ -498,17 +498,21 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
   } else if (msg.role == std::string(role_constants::kAssistant)) {
     if (msg.status == "tool_call") {
       MessageContext ctx(msg);
-      std::string text = MessageParser::ExtractAssistantText(ctx);
-      if (!text.empty()) {
-        PrintAssistantMessage(text, prefix + "  ", msg.tokens);
-      }
       auto calls_or = MessageParser::ExtractToolCalls(ctx);
       if (calls_or.ok() && !calls_or->empty()) {
+        // Suppress assistant text for tool_call messages when structured tool
+        // calls are present. The final assistant message renders the
+        // user-facing response; printing tool_call text here can appear as a
+        // duplicate final answer.
         for (const auto& call : *calls_or) {
           PrintToolCallMessage(call.name, call.args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
                                prefix + "  ", msg.tokens);
         }
       } else if (!calls_or.ok() || calls_or->empty()) {
+        std::string text = MessageParser::ExtractAssistantText(ctx);
+        if (!text.empty()) {
+          PrintAssistantMessage(text, prefix + "  ", msg.tokens);
+        }
         // Fallback for unidentified tool calls
         PrintToolCallMessage("tool_call", msg.content, prefix + "  ", msg.tokens);
       }
@@ -614,4 +618,5 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
+
 
