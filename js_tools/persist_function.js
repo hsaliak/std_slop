@@ -19,25 +19,26 @@ return function(args) {
         const parsed = JSON.parse(args.json_schema);
         json_schema_str = JSON.stringify(parsed);
       } catch (e) {
-        return [false, "Invalid arguments: json_schema must be valid JSON if provided as string"];
+        throw new Error("Invalid arguments: json_schema must be valid JSON if provided as string");
       }
     } else if (args.json_schema && typeof args.json_schema === "object") {
       try {
         json_schema_str = JSON.stringify(args.json_schema);
       } catch (e) {
-        return [false, "Invalid arguments: json_schema object is not serializable"];
+        throw new Error("Invalid arguments: json_schema must be stringifiable if provided as object");
       }
-    } else {
-      return [false, "Invalid arguments: json_schema must be an object or JSON string"];
     }
   }
 
-  if (typeof name !== "string" || typeof code !== "string") {
-    return [false, "Invalid arguments: name and code must be strings"];
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new Error("Invalid arguments: name is required and must be a string");
+  }
+  if (typeof code !== "string" || code.trim() === "") {
+    throw new Error("Invalid arguments: code is required and must be a string");
   }
 
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-    return [false, "Invalid arguments: name must match ^[A-Za-z_][A-Za-z0-9_]*$"];
+    throw new Error("Invalid arguments: name must match ^[A-Za-z_][A-Za-z0-9_]*$");
   }
 
   const reservedNames = {
@@ -52,20 +53,18 @@ return function(args) {
     constructor: true
   };
   if (reservedNames[name]) {
-    return [false, "Invalid arguments: name is reserved"];
+    throw new Error("Invalid arguments: name is reserved");
   }
 
-  if (typeof tools[name] === "function" || typeof globalThis[name] === "function") {
-    return [false, "Invalid arguments: name conflicts with an existing tool or global"];
+  if (tools[name] || globalThis[name]) {
+    throw new Error("Invalid arguments: name conflicts with an existing tool or global");
   }
 
   // 1. Validate syntax strictly without executing
   try {
-    // Wrap in a function to allow top-level return statements, 
-    // which are valid since we instantiate via new Function()
     tools.check_syntax("function __syntax_check__() {\n" + code + "\n}", 1);
   } catch (e) {
-    return [false, "Syntax Error in provided code: " + e.message];
+    throw new Error("Syntax Error in provided code: " + e.message);
   }
 
   // 2. Safely instantiate the function lazily
@@ -104,7 +103,7 @@ return function(args) {
     try {
       actual_result = func.apply(null, test_args);
     } catch (e) {
-      return [false, "Runtime Error: " + e.message];
+      throw new Error("Runtime Error: " + e.message);
     }
 
     let matches = (actual_result === expected_result);
@@ -123,7 +122,7 @@ return function(args) {
     }
 
     if (!matches) {
-      return [false, "Test Failed: Expected " + comparable(expected_result) + ", got " + comparable(actual_result)];
+      throw new Error("Test Failed: Expected " + comparable(expected_result) + ", got " + comparable(actual_result));
     }
   }
 
@@ -133,18 +132,12 @@ return function(args) {
       params: [name, code, description, json_schema_str]
     });
   } catch (e) {
-    return [false, "DB Error: " + e.message];
+    throw new Error("DB Error: " + e.message);
   }
 
   tools[name] = func;
   globalThis[name] = func;
 
-  return [true, "Function persisted successfully"];
+  return "Function persisted successfully";
 };
-
-
-
-
-
-
 
