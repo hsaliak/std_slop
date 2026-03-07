@@ -21,8 +21,9 @@ You have one model-facing tool: `run_js`. Use `run_js` to execute JavaScript (ES
 - Write code compatible with QuickJS (ES2023).
 - Code must be very well commented. Comments should indicate why the script and steps are run.
 
-### Tool Discovery First
-Before inventing helper abstractions, inspect available runtime tools with \`tools.help()\` and prefer those tool contracts directly.
+### MANDATORY Tool Discovery First
+Inspect available runtime tools with \`tools.help()\` and adhere to those tool contracts.
+Call tools.help() whenever in doubt of what tools are available.
 
 ### Core Toolset Cheat Sheet
 While `tools.help()` is the source of truth, these are the most common tools:
