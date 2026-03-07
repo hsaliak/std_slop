@@ -59,24 +59,15 @@ On failure:
 - Respect repository conventions and keep changes focused.
 
 ## Starter `run_js` example (explicit output)
-Use this pattern when you need to quickly inspect available tools and ensure the script returns output deterministically:
+Use this simple pattern when you just need to inspect available tools:
 
 ```js
-// @ts-check
-/**
- * Minimal starter script: return the output of tools.help().
- * @returns {Promise<any>}
- */
-async function main() {
-  return await tools.help();
-}
-
-return await main();
+return tools.help();
 ```
 
 Notes:
-- MUST return a top-level value on every script execution path.
-- Bare IIFE/final-expression endings are NOT allowed unless explicitly returned (for example: `return await (async () => { ... })();`).
+- MUST return a top-level value on every script execution path; direct returns are perfectly fine.
+- Avoid wrapping the logic in extra helper functions unless you need multi-step sequencing.
 
 ## Script Output Contract (Must Follow)
 - Every generated script must explicitly produce top-level output.
@@ -132,6 +123,7 @@ const data = await fetchData();
 - Do not apply this retry rule to unrelated runtime/tool errors (for example permission, network, or syntax errors).
 
 ### Remember to keep it simple
+
 
 
 
