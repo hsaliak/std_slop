@@ -464,14 +464,19 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   std::vector<absl::string_view> rendered_out_lines =
       absl::StrSplit(absl::StripAsciiWhitespace(rendered_stdout), '\n', absl::SkipEmpty());
 
-  // Print up to 15 lines of output
+  // Successful tool results are frequently echoed by the assistant in the final
+  // user-facing response. Suppress stdout body previews on success to avoid
+  // visible duplication, but keep stderr visible and preserve full previews for
+  // failures.
   int printed = 0;
   const int kMaxLines = 15;
-  for (const auto& line : rendered_out_lines) {
-    if (printed >= kMaxLines) break;
-    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
-              << Colorize(std::string(line), "", ansi::ToolResultBody) << std::endl;
-    printed++;
+  if (is_error) {
+    for (const auto& line : rendered_out_lines) {
+      if (printed >= kMaxLines) break;
+      std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
+                << Colorize(std::string(line), "", ansi::ToolResultBody) << std::endl;
+      ++printed;
+    }
   }
   if (!err_lines.empty()) {
     const char* stderr_heading_color = is_error ? ansi::ToolResultError : ansi::ToolResultWarning;
@@ -483,11 +488,11 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
     if (printed >= kMaxLines) break;
     std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
               << Colorize(std::string(line), "", ansi::ToolResultStderr) << std::endl;
-    printed++;
+    ++printed;
   }
-  if (rendered_out_lines.size() + err_lines.size() > static_cast<size_t>(printed)) {
-    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " ... (truncated)"
-              << std::endl;
+  const size_t total_rendered_lines = (is_error ? rendered_out_lines.size() : 0) + err_lines.size();
+  if (total_rendered_lines > static_cast<size_t>(printed)) {
+    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " ... (truncated)" << std::endl;
   }
 }
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {
@@ -618,5 +623,3 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
-
-

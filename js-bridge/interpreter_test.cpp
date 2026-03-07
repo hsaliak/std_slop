@@ -56,5 +56,3 @@ TEST(JsInterpreterTest, RunStringWrappedSyntaxErrorReturnsException) {
 
 }  // namespace
 }  // namespace slop
-
-

@@ -232,9 +232,4 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& o
   return absl::UnimplementedError("Quota check not implemented for Gemini Strategy yet");
 }
 
-
-
-
-
-  }  // namespace slop
-
+}  // namespace slop

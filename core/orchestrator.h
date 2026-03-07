@@ -102,6 +102,3 @@ class Orchestrator {
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_
-
-
-

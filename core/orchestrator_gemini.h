@@ -41,8 +41,6 @@ class GeminiOrchestrator : public OrchestratorStrategy {
   int max_output_tokens_ = 8192;
 };
 
-
 }  // namespace slop
 
 #endif  // SLOP_SQL_ORCHESTRATOR_GEMINI_H_
-

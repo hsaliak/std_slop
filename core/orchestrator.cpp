@@ -348,7 +348,6 @@ void Orchestrator::InjectAgentMd(std::string* system_instruction) {
   absl::StrAppend(system_instruction, "\n\n## Project Context (from ", active_agent_md_path_, ")\n", *content_or, "\n");
 }
 
-
 namespace {
 std::string ExpandPath(const std::string& path) {
   if (path.empty()) return path;
@@ -442,5 +441,3 @@ absl::Status Orchestrator::ReloadAllSkills() {
   return absl::OkStatus();
 }
 }  // namespace slop
-
-

@@ -211,7 +211,7 @@ TEST(UiTest, PrintToolResultMessageEnvelopeJsonErrorFormatting) {
 }
 TEST(UiTest, PrintToolResultMessageNestedJsonStringFormatting) {
   std::string name = "dynamic_tool";
-  std::string result = "\"{\\\"alpha\\\":1,\\\"beta\\\":\\\"two\\\"}\"";
+  std::string result = R"("{\"alpha\":1,\"beta\":\"two\"}")";
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
   PrintToolResultMessage(name, result, "completed");
@@ -226,7 +226,9 @@ TEST(UiTest, PrintToolResultMessageNestedJsonStringFormatting) {
 TEST(UiTest, PrintToolResultMessageNestedJsonStringTruncationMarker) {
   std::string name = "dynamic_tool";
   std::string result =
-      "\"{\\\"k01\\\":1,\\\"k02\\\":2,\\\"k03\\\":3,\\\"k04\\\":4,\\\"k05\\\":5,\\\"k06\\\":6,\\\"k07\\\":7,\\\"k08\\\":8,\\\"k09\\\":9,\\\"k10\\\":10,\\\"k11\\\":11,\\\"k12\\\":12,\\\"k13\\\":13,\\\"k14\\\":14,\\\"k15\\\":15,\\\"k16\\\":16,\\\"k17\\\":17,\\\"k18\\\":18,\\\"k19\\\":19,\\\"k20\\\":20}\"";
+      "\"{\\\"k01\\\":1,\\\"k02\\\":2,\\\"k03\\\":3,\\\"k04\\\":4,\\\"k05\\\":5,\\\"k06\\\":6,\\\"k07\\\":7,"
+      "\\\"k08\\\":8,\\\"k09\\\":9,\\\"k10\\\":10,\\\"k11\\\":11,\\\"k12\\\":12,\\\"k13\\\":13,\\\"k14\\\":14,"
+      "\\\"k15\\\":15,\\\"k16\\\":16,\\\"k17\\\":17,\\\"k18\\\":18,\\\"k19\\\":19,\\\"k20\\\":20}\"";
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
   PrintToolResultMessage(name, result, "completed");
@@ -344,5 +346,3 @@ TEST(UiTest, RenderMarkdownWithJsCodeBlock) {
   EXPECT_TRUE(absl::StrContains(rendered, "x"));
 }
 }  // namespace slop
-
-

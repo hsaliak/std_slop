@@ -410,6 +410,3 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop
-
-
-

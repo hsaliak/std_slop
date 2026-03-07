@@ -53,4 +53,3 @@ class InteractionEngine {
 }  // namespace slop
 
 #endif  // SLOP_INTERFACE_INTERACTION_ENGINE_H_
-

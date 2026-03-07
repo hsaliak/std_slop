@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "absl/strings/match.h"
+
 #include "interface/color.h"
 
 #include <readline/history.h>

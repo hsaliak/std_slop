@@ -1,4 +1,3 @@
-#include "absl/strings/match.h"
 #include "core/tool_executor.h"
 
 #include <cstdlib>
@@ -856,4 +855,3 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
-

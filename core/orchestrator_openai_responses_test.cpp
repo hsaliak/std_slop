@@ -1,10 +1,11 @@
 #include "core/orchestrator_openai_responses.h"
 
+#include "absl/status/status.h"
+
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/json_utils.h"
 
-#include "absl/status/status.h"
 #include <gtest/gtest.h>
 
 namespace slop {
@@ -243,4 +244,3 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
-

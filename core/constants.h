@@ -19,5 +19,3 @@ constexpr char kOpenAiOAuthClientId[] = "app_EMoamEEZ73f0CkXaXp7hrann";
 }  // namespace slop
 
 #endif  // SLOP_CONSTANTS_H_
-
-

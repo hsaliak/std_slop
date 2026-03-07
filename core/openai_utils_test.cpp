@@ -14,6 +14,7 @@ namespace slop {
 using ::testing::_;
 using ::testing::Contains;
 using ::testing::HasSubstr;
+using ::testing::InSequence;
 using ::testing::Return;
 
 class MockHttpClient : public HttpClient {
@@ -45,6 +46,22 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsParsesCodexModelsShapeAndSetsAccountHeader)
   ASSERT_EQ(models_or->size(), 1);
   EXPECT_EQ((*models_or)[0].id, "gpt-5.3-codex");
   EXPECT_EQ((*models_or)[0].name, "GPT-5.3 Codex");
+}
+
+TEST(OpenAiUtilsTest, GetOpenAiModelsPaginatesOpenAiDataShape) {
+  MockHttpClient mock_http;
+  InSequence seq;
+  EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models", _))
+      .WillOnce(Return(R"({"data":[{"id":"gpt-5.2"},{"id":"gpt-5.3"}],"has_more":true})"));
+  EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models?after=gpt-5.3", _))
+      .WillOnce(Return(R"({"data":[{"id":"gpt-5.3"},{"id":"gpt-5.4"}],"has_more":false})"));
+
+  auto models_or = GetOpenAiModels(&mock_http, "https://api.openai.com/v1", "test_key");
+  ASSERT_TRUE(models_or.ok());
+  ASSERT_EQ(models_or->size(), 3);
+  EXPECT_EQ((*models_or)[0].id, "gpt-5.2");
+  EXPECT_EQ((*models_or)[1].id, "gpt-5.3");
+  EXPECT_EQ((*models_or)[2].id, "gpt-5.4");
 }
 
 TEST(OpenAiUtilsTest, GetOpenAiModelsFailsForUnrecognizedSchema) {

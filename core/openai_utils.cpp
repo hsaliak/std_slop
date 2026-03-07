@@ -84,48 +84,82 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
   if (!account_id.empty()) {
     headers.push_back("ChatGPT-Account-Id: " + account_id);
   }
-  std::string url = base_url + "/models";
-  if (absl::StrContains(base_url, "/backend-api/codex")) {
-    url += "?client_version=0.1.0";
-  }
-  auto resp_or = http_client->Get(url, headers);
-  if (!resp_or.ok()) {
-    return resp_or.status();
-  }
-
-  auto j_opt = json_parse(*resp_or);
-  if (!j_opt) {
-    return absl::InternalError("Failed to parse models response");
-  }
 
   std::vector<ModelInfo> models;
-  if (auto data = json_get<nlohmann::json::array_t>(*j_opt, "data")) {
-    for (const auto& m : *data) {
+  absl::flat_hash_set<std::string> seen_ids;
+
+  std::string base_models_url = base_url + "/models";
+  if (absl::StrContains(base_url, "/backend-api/codex")) {
+    base_models_url += "?client_version=0.1.0";
+  }
+
+  std::string after;
+  while (true) {
+    std::string url = base_models_url;
+    if (!after.empty()) {
+      url += (absl::StrContains(url, "?") ? "&after=" : "?after=");
+      url += after;
+    }
+
+    auto resp_or = http_client->Get(url, headers);
+    if (!resp_or.ok()) {
+      return resp_or.status();
+    }
+
+    auto j_opt = json_parse(*resp_or);
+    if (!j_opt) {
+      return absl::InternalError("Failed to parse models response");
+    }
+
+    if (auto data = json_get<nlohmann::json::array_t>(*j_opt, "data")) {
+      std::string last_id;
+      for (const auto& m : *data) {
+        ModelInfo info;
+        info.id = json_get_or(m, "id", std::string{});
+        if (info.id.empty()) {
+          continue;
+        }
+        info.name = info.id;
+        last_id = info.id;
+        if (seen_ids.insert(info.id).second) {
+          models.push_back(info);
+        }
+      }
+
+      const bool has_more = json_get_or(*j_opt, "has_more", false);
+      if (!has_more) {
+        return models;
+      }
+      if (last_id.empty()) {
+        return absl::InternalError("OpenAI models response indicated has_more=true but page contained no model ids");
+      }
+      after = last_id;
+      continue;
+    }
+
+    auto codex_models = json_get<nlohmann::json::array_t>(*j_opt, "models");
+    if (!codex_models) {
+      return absl::InternalError("Unrecognized models response schema (expected 'data' or 'models')");
+    }
+    for (const auto& m : *codex_models) {
       ModelInfo info;
-      info.id = json_get_or(m, "id", std::string{});
-      info.name = info.id;
-      models.push_back(info);
+      info.id = json_get_or(m, "slug", std::string{});
+      if (info.id.empty()) {
+        info.id = json_get_or(m, "id", std::string{});
+      }
+      if (info.id.empty()) {
+        continue;
+      }
+      info.name = json_get_or(m, "display_name", std::string{});
+      if (info.name.empty()) {
+        info.name = info.id;
+      }
+      if (seen_ids.insert(info.id).second) {
+        models.push_back(info);
+      }
     }
     return models;
   }
-
-  auto codex_models = json_get<nlohmann::json::array_t>(*j_opt, "models");
-  if (!codex_models) {
-    return absl::InternalError("Unrecognized models response schema (expected 'data' or 'models')");
-  }
-  for (const auto& m : *codex_models) {
-    ModelInfo info;
-    info.id = json_get_or(m, "slug", std::string{});
-    if (info.id.empty()) {
-      info.id = json_get_or(m, "id", std::string{});
-    }
-    info.name = json_get_or(m, "display_name", std::string{});
-    if (info.name.empty()) {
-      info.name = info.id;
-    }
-    models.push_back(info);
-  }
-  return models;
 }
 
 }  // namespace slop

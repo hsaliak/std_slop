@@ -181,8 +181,6 @@ absl::StatusOr<std::string> OAuthHandler::GetOpenAiAccountId() {
   return tokens_.account_id;
 }
 
-  
-
 std::string OAuthHandler::ExtractOpenAiAccountIdFromJwt(const std::string& jwt) {
   if (jwt.empty()) {
     return "";
@@ -223,10 +221,3 @@ std::string OAuthHandler::ExtractOpenAiAccountIdFromJwt(const std::string& jwt) 
 }
 
 }  // namespace slop
-
-
-
-
-
-
-

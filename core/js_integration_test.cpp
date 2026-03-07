@@ -231,7 +231,6 @@ TEST_F(JsIntegrationTest, TopLevelAwait) {
   EXPECT_TRUE(absl::StrContains(*res, "42"));
 }
 
-
 TEST_F(JsIntegrationTest, RunJsAccurateLineNumbers) {
   auto args = slop::json_parse(R"({"script": "let x = ;\n"})").value();
   auto res = executor_->Execute("run_js", args);
@@ -274,10 +273,7 @@ TEST_F(JsIntegrationTest, GitGrepStructuredAndRawModes) {
     std::ofstream(root + "/b.txt") << "beta\n";
   }
 
-  auto structured = executor_->Execute("git_grep", {
-    {"pattern", "needle"},
-    {"paths", nlohmann::json::array({root})}
-  });
+  auto structured = executor_->Execute("git_grep", {{"pattern", "needle"}, {"paths", nlohmann::json::array({root})}});
   ASSERT_TRUE(structured.ok()) << structured.status().message();
   auto structured_json = nlohmann::json::parse(*structured, nullptr, false);
   ASSERT_TRUE(structured_json.is_object());
@@ -291,11 +287,8 @@ TEST_F(JsIntegrationTest, GitGrepStructuredAndRawModes) {
   ASSERT_TRUE(structured_payload["data"].is_array());
   EXPECT_FALSE(structured_payload["data"].empty());
 
-  auto raw = executor_->Execute("git_grep", {
-    {"pattern", "needle"},
-    {"paths", nlohmann::json::array({root})},
-    {"format", "raw"}
-  });
+  auto raw = executor_->Execute("git_grep",
+                                {{"pattern", "needle"}, {"paths", nlohmann::json::array({root})}, {"format", "raw"}});
   ASSERT_TRUE(raw.ok()) << raw.status().message();
   auto raw_json = nlohmann::json::parse(*raw, nullptr, false);
   ASSERT_TRUE(raw_json.is_object());
@@ -314,10 +307,8 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
   std::filesystem::create_directories(root);
   std::ofstream(root + "/c.txt") << "gamma line\n";
 
-  auto no_match = executor_->Execute("git_grep", {
-    {"pattern", "definitely_not_present_token"},
-    {"paths", nlohmann::json::array({"core"})}
-  });
+  auto no_match = executor_->Execute(
+      "git_grep", {{"pattern", "definitely_not_present_token"}, {"paths", nlohmann::json::array({"core"})}});
   ASSERT_TRUE(no_match.ok()) << no_match.status().message();
   auto no_match_json = nlohmann::json::parse(*no_match, nullptr, false);
   ASSERT_TRUE(no_match_json.is_object());
@@ -328,11 +319,8 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
   ASSERT_TRUE(no_match_payload["data"].is_array());
   EXPECT_TRUE(no_match_payload["data"].empty());
 
-  auto no_index = executor_->Execute("git_grep", {
-    {"pattern", "gamma"},
-    {"cwd", root},
-    {"paths", nlohmann::json::array({"."})}
-  });
+  auto no_index =
+      executor_->Execute("git_grep", {{"pattern", "gamma"}, {"cwd", root}, {"paths", nlohmann::json::array({"."})}});
   ASSERT_TRUE(no_index.ok()) << no_index.status().message();
   auto no_index_json = nlohmann::json::parse(*no_index, nullptr, false);
   ASSERT_TRUE(no_index_json.is_object());
@@ -343,7 +331,6 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
 
   std::filesystem::remove_all(root);
 }
-
 
 TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
   struct Case {
@@ -369,7 +356,7 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 
   auto trim = [](const std::string& in) -> std::string {
     const size_t start = in.find_first_not_of(" \t\r\n");
-    if (start == std::string::npos) return std::string();
+    if (start == std::string::npos) return {};
     const size_t end = in.find_last_not_of(" \t\r\n");
     return in.substr(start, end - start + 1);
   };
@@ -382,17 +369,17 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 
     if (line.empty() || line[0] == '#') {
       supported = false;
-    } else if (line[0] == '!' || line.find("**") != std::string::npos) {
+    } else if (line[0] == '!' || absl::StrContains(line, "**")) {
       supported = false;
     } else if (!line.empty() && line.back() == '/') {
       const std::string dir = trim(line.substr(0, line.size() - 1));
-      if (dir.empty() || dir.find('/') != std::string::npos) {
+      if (dir.empty() || absl::StrContains(dir, '/')) {
         supported = false;
       } else {
         is_dir = true;
         mapped = dir;
       }
-    } else if (line.find('/') != std::string::npos) {
+    } else if (absl::StrContains(line, '/')) {
       supported = false;
     } else {
       is_dir = false;
@@ -408,18 +395,3 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 }
 
 }  // namespace slop
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

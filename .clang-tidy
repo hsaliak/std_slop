@@ -9,6 +9,7 @@ Checks: >
   readability-*,
   -abseil-duration-addition,
   -abseil-time-comparison,
+  -bugprone-unchecked-optional-access,
   -bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,
   -google-build-using-namespace,

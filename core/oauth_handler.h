@@ -53,7 +53,3 @@ class OAuthHandler {
 }  // namespace slop
 
 #endif  // SLOP_SQL_OAUTH_HANDLER_H_
-
-
-
-

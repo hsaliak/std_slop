@@ -1,8 +1,9 @@
 #include "core/oauth_handler.h"
 
+#include <unistd.h>
+
 #include <cstdlib>
 #include <fstream>
-#include <unistd.h>
 
 #include "absl/strings/match.h"
 #include "gmock/gmock.h"
@@ -109,4 +110,3 @@ TEST_F(OAuthHandlerTest, OpenAiRefreshRequestFormValuesAreUrlEncoded) {
 }
 
 }  // namespace slop
-

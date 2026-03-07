@@ -197,8 +197,6 @@ int main(int argc, char* argv[]) {
 
   std::string openai_base_url = absl::GetFlag(FLAGS_openai_base_url);
 
-  
-
   if (!openai_oauth && google_key.empty() && openai_key.empty()) {
     std::cerr << "No authentication method found. Configure at least one authentication method." << std::endl;
     std::cerr << absl::ProgramUsageMessage() << std::endl;
@@ -318,8 +316,3 @@ int main(int argc, char* argv[]) {
   }
   return 0;
 }
-
-
-
-
-

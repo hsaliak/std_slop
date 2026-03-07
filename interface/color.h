@@ -152,4 +152,3 @@ inline size_t VisibleLength(std::string_view s) {
 }  // namespace slop
 
 #endif  // SLOP_INTERFACE_COLOR_H_
-

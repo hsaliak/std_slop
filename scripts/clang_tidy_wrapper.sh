@@ -16,4 +16,4 @@ if [[ ! -f "$CLANG_TIDY" ]]; then
     CLANG_TIDY=$(rlocation "toolchains_llvm/clang-tidy")
 fi
 
-exec "$CLANG_TIDY" "$@"
+exec "$CLANG_TIDY" -j8 "$@"
