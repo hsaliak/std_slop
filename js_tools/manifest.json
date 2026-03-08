@@ -176,7 +176,7 @@
     "json_schema": {
       "type": "object",
       "properties": {
-        "command": {
+        "build_command": {
           "type": "string",
           "description": "string"
         },
@@ -186,7 +186,7 @@
         }
       },
       "required": [
-        "command"
+        "build_command"
       ]
     },
     "implementation": "git_verify_series.js"
@@ -618,4 +618,5 @@
     "native": true
   }
 ]
+
 
