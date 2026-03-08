@@ -31,7 +31,7 @@ If you want OpenAI OAuth instead, use:
 ./slop_auth.sh chatgpt-plus
 std_slop --openai_oauth
 ```
-This model defaults to `gemini-2.5-flash`. It does not support the `/models` command, but `/stats` should show usage stats in a second table. You may need to run at least one query with the LLM before doing so.
+This model defaults to `gemini-3-flash-preview`. Use `/models` to list available models for the active provider, and use `/stats` to inspect token usage. You may need to run at least one query with the LLM before usage tables are populated.
 `std_slop` will have created a new database.
 ### Adding Skills
 Let's add some skills.
@@ -172,4 +172,5 @@ run_js({
   ]]
 })
 ```
+
 

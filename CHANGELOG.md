@@ -1,3 +1,10 @@
+## v0.14 - 2026-03-08
+
+- Mail patch workflow now enforces tool-contract checks, staging-branch use, and approval/hash matching before `git_finalize_series`.
+- Patch verification now requires an explicit project test/build command when calling `git_verify_series`.
+- `apply_patch` now supports `dry_run` to validate patch anchors/replacements without writing files.
+- Updated and fixed `/models` documentation and behavior for provider model listing.
+
 ## v0.13 - 2026-03-05
 
 - **Prompt and guidance refreshes**: Reworked `system_prompt.md` with new reliability rules, patcher prompt guidance, and repeated prompt cleaning so the orchestration flow reflects the latest requirements.
@@ -50,4 +57,5 @@
 ### Test and build updates
 - Added/updated tests for dynamic help behavior, JS helper hardening, and migration compatibility.
 - Updated JS tooling bundle/build wiring to match the new dynamic layout.
+
 
