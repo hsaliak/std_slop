@@ -392,10 +392,24 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   Database transient_db;
   auto status = transient_db.Init(":memory:");
   if (!status.ok()) return status;
+  (void)transient_db.Execute("UPDATE tools SET is_enabled = 0 WHERE name = 'ask_user'");
+
   auto sub_orch_or = orchestrator_.Update().WithDatabase(&transient_db).Build();
   if (!sub_orch_or.ok()) return sub_orch_or.status();
-  InteractionEngine sub_engine(transient_db, **sub_orch_or, cmd_handler_, dispatcher_, tool_executor_, http_client_,
-                               oauth_handler_);
+
+  auto sub_tool_executor_or = ToolExecutor::Create(&transient_db);
+  if (!sub_tool_executor_or.ok()) return sub_tool_executor_or.status();
+  auto sub_tool_executor = std::move(*sub_tool_executor_or);
+  sub_tool_executor->SetSessionId("query");
+  sub_tool_executor->SetMailMode(cmd_handler_.IsMailMode());
+  sub_tool_executor->SetDispatcher(std::make_unique<ToolDispatcher>(
+      [executor = sub_tool_executor.get()](const std::string& name, const nlohmann::json& args,
+                                           std::shared_ptr<CancellationRequest> cancellation) {
+        return executor->Execute(name, args, cancellation);
+      }));
+
+  InteractionEngine sub_engine(transient_db, **sub_orch_or, cmd_handler_, *sub_tool_executor->dispatcher(),
+                               *sub_tool_executor, http_client_, oauth_handler_);
   Config sub_config = config;
   sub_config.silent = true;
   std::string input = prompt;
@@ -410,3 +424,4 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop
+

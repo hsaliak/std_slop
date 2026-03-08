@@ -193,6 +193,21 @@ const git = {
   get is_staging_branch() { return globalThis.git_is_staging_branch; }
 };
 
+const _original_ask_user = tools.ask_user;
+if (_original_ask_user) {
+  tools.ask_user = function(args) {
+    try {
+      const res = tools.query_db({ sql: "SELECT is_enabled FROM tools WHERE name = 'ask_user'" });
+      const rows = JSON.parse(res);
+      if (rows.length === 0 || rows[0].is_enabled !== 1) {
+        return "Error: ask_user tool is not enabled in this context.";
+      }
+    } catch (e) {}
+    return _original_ask_user(args);
+  };
+}
+
+
 
 
 
