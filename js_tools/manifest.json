@@ -26,6 +26,10 @@
               "replace"
             ]
           }
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "boolean (optional, default false); when true, validate patches without writing file"
         }
       },
       "required": [
@@ -614,6 +618,4 @@
     "native": true
   }
 ]
-
-
 

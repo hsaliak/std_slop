@@ -121,7 +121,14 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 
   auto res = executor_->Execute("apply_patch", args);
   ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("File patched successfully") != std::string::npos);
+  auto outer = nlohmann::json::parse(*res, nullptr, false);
+  ASSERT_TRUE(outer.is_object());
+  ASSERT_TRUE(outer.contains("result"));
+  auto env = nlohmann::json::parse(outer["result"].dump(), nullptr, false);
+  ASSERT_TRUE(env.is_object());
+  EXPECT_EQ(env.value("ok", false), true);
+  EXPECT_EQ(env.value("mode", std::string{}), "apply");
+  EXPECT_EQ(env.value("applied", 0), 1);
 
   std::ifstream ifs("test_patch.txt");
   std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
@@ -131,3 +138,5 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
+
+

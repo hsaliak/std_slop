@@ -45,6 +45,11 @@ std::string EnvelopeResultText(const std::string& raw) {
   return raw;
 }
 
+
+nlohmann::json ParseResultJson(const std::string& raw) {
+  return ParseEnvelope(EnvelopeResultText(raw));
+}
+
 }  // namespace
 
 TEST(ToolExecutorTest, ReadWriteFile) {
@@ -394,7 +399,12 @@ TEST(ToolExecutorTest, ApplyPatch_Success) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
-  EXPECT_TRUE(patch_res->find("Error:") == std::string::npos) << *patch_res;
+  auto patch_env = ParseResultJson(*patch_res);
+  ASSERT_TRUE(patch_env.is_object());
+  EXPECT_EQ(patch_env.value("ok", false), true);
+  EXPECT_EQ(patch_env.value("mode", std::string{}), "apply");
+  EXPECT_EQ(patch_env.value("path", std::string{}), test_file);
+  EXPECT_EQ(patch_env.value("applied", 0), 1);
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
@@ -420,7 +430,12 @@ TEST(ToolExecutorTest, ApplyPatch_FindNotFound) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok());
-  EXPECT_TRUE(patch_res->find("Error: NOT_FOUND") != std::string::npos);
+  auto patch_env = ParseResultJson(*patch_res);
+  ASSERT_TRUE(patch_env.is_object());
+  EXPECT_EQ(patch_env.value("ok", true), false);
+  EXPECT_EQ(patch_env.value("code", std::string{}), "NOT_FOUND");
+  ASSERT_TRUE(patch_env.contains("error"));
+  EXPECT_EQ(patch_env["error"].value("patch_index", -1), 0);
 
   std::filesystem::remove(test_file);
 }
@@ -441,7 +456,12 @@ TEST(ToolExecutorTest, ApplyPatch_AmbiguousMatch) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok());
-  EXPECT_TRUE(patch_res->find("Error: FAILED_PRECONDITION") != std::string::npos);
+  auto patch_env = ParseResultJson(*patch_res);
+  ASSERT_TRUE(patch_env.is_object());
+  EXPECT_EQ(patch_env.value("ok", true), false);
+  EXPECT_EQ(patch_env.value("code", std::string{}), "AMBIGUOUS");
+  ASSERT_TRUE(patch_env.contains("error"));
+  EXPECT_EQ(patch_env["error"].value("patch_index", -1), 0);
 
   std::filesystem::remove(test_file);
 }
@@ -463,12 +483,47 @@ TEST(ToolExecutorTest, ApplyPatch_MultiplePatches) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok());
+  auto patch_env = ParseResultJson(*patch_res);
+  ASSERT_TRUE(patch_env.is_object());
+  EXPECT_EQ(patch_env.value("ok", false), true);
+  EXPECT_EQ(patch_env.value("applied", 0), 2);
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
   EXPECT_TRUE(read_res->find("part1") != std::string::npos);
   EXPECT_TRUE(read_res->find("line2") != std::string::npos);
   EXPECT_TRUE(read_res->find("part3") != std::string::npos);
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, ApplyPatch_DryRunDoesNotWrite) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string test_file = "patch_dry_run.txt";
+  std::string initial_content = "alpha\nbeta\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
+
+  nlohmann::json patches = nlohmann::json::array();
+  patches.push_back({{"find", "beta"}, {"replace", "gamma"}});
+
+  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}, {"dry_run", true}});
+  ASSERT_TRUE(patch_res.ok());
+  auto patch_env = ParseResultJson(*patch_res);
+  ASSERT_TRUE(patch_env.is_object());
+  EXPECT_EQ(patch_env.value("ok", false), true);
+  EXPECT_EQ(patch_env.value("mode", std::string{}), "dry_run");
+  EXPECT_EQ(patch_env.value("can_apply", false), true);
+
+  auto read_res = executor.Execute("read_file", {{"path", test_file}});
+  ASSERT_TRUE(read_res.ok());
+  const std::string read_text = EnvelopeResultText(*read_res);
+  EXPECT_TRUE(read_text.find("beta") != std::string::npos);
+  EXPECT_TRUE(read_text.find("gamma") == std::string::npos);
 
   std::filesystem::remove(test_file);
 }
@@ -855,3 +910,5 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+
+
