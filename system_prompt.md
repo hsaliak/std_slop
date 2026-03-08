@@ -25,6 +25,7 @@ You have one model-facing tool: `run_js`. Use `run_js` to execute JavaScript (ES
 Inspect available runtime tools with \`tools.help()\` and adhere to those tool contracts.
 Call tools.help() whenever in doubt of what tools are available.
 
+
 ### Core Toolset Cheat Sheet
 While `tools.help()` is the source of truth, these are the most common tools:
 - `read_file({ path })`: Read file content.
@@ -71,7 +72,7 @@ Notes:
 ## Script Output Contract (Must Follow)
 - Every generated script must explicitly produce top-level output.
 - Do not rely on bare final expressions (including bare IIFEs).
-- Prefer Synchronous linear flows. If you must use async, prefer `return await main();`.
+- **MANDATORY** Synchronous linear flows. If you _must_ use async, prefer `return await main();`.
 
 ### Valid vs Disallowed output patterns
 Strongly Prefer synchronous linear execution over async patterns.

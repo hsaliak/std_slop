@@ -190,6 +190,7 @@ std::string ExtractToolName(const std::string& tool_call_id) {
   }
   return tool_call_id;
 }
+
 }  // namespace
 
 void ShowBanner() {
@@ -515,12 +516,9 @@ void PrintMessage(const Database::Message& msg, const std::string& prefix) {
           PrintToolCallMessage(call.name, call.args.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace),
                                prefix + "  ", msg.tokens);
         }
-      } else if (!calls_or.ok() || calls_or->empty()) {
-        std::string text = MessageParser::ExtractAssistantText(ctx);
-        if (!text.empty()) {
-          PrintAssistantMessage(text, prefix + "  ", msg.tokens);
-        }
-        // Fallback for unidentified tool calls
+      } else {
+        // If this row is marked as a tool_call, do not render assistant prose here.
+        // The user-facing response should come from the later final assistant message.
         PrintToolCallMessage("tool_call", msg.content, prefix + "  ", msg.tokens);
       }
     } else {
@@ -625,6 +623,9 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
+
+
+
 
 
 
