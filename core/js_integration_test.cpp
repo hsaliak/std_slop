@@ -37,6 +37,66 @@ TEST_F(JsIntegrationTest, RunJsBasic) {
   EXPECT_TRUE(absl::StrContains(*res, "2"));
 }
 
+TEST_F(JsIntegrationTest, TopLevelShimSmokeTest) {
+  // 1) Discoverability smoke test: help should list targeted shims.
+  auto help_res = executor_->Execute("help", nlohmann::json::object());
+  ASSERT_TRUE(help_res.ok()) << help_res.status().ToString();
+
+  auto help_envelope = nlohmann::json::parse(*help_res, nullptr, false);
+  ASSERT_TRUE(help_envelope.is_object());
+  ASSERT_TRUE(help_envelope.value("ok", false));
+  ASSERT_TRUE(help_envelope.contains("result"));
+
+  nlohmann::json help_json;
+  if (help_envelope["result"].is_string()) {
+    help_json = nlohmann::json::parse(help_envelope["result"].get<std::string>(), nullptr, false);
+  } else {
+    help_json = help_envelope["result"];
+  }
+  ASSERT_TRUE(help_json.is_array());
+
+  auto has_name = [&help_json](const std::string& name) {
+    for (const auto& row : help_json) {
+      if (row.is_object() && row.value("name", std::string{}) == name) return true;
+    }
+    return false;
+  };
+
+  auto find_row = [&help_json](const std::string& name) -> nlohmann::json {
+    for (const auto& row : help_json) {
+      if (row.is_object() && row.value("name", std::string{}) == name) return row;
+    }
+    return nlohmann::json();
+  };
+
+  EXPECT_TRUE(has_name("ask_user"));
+  EXPECT_TRUE(has_name("llm_query"));
+  EXPECT_TRUE(has_name("query_db"));
+
+  // 2) Execution smoke test for non-interactive shim.
+  auto query_ok = executor_->Execute("query_db", {{"sql", "SELECT 1 AS v;"}});
+  ASSERT_TRUE(query_ok.ok()) << query_ok.status().ToString();
+  EXPECT_TRUE(absl::StrContains(*query_ok, "1"));
+
+  // 3) Contract smoke test for llm_query entry: schema requires "query".
+  auto llm_row = find_row("llm_query");
+  ASSERT_TRUE(llm_row.is_object());
+  ASSERT_TRUE(llm_row.contains("json_schema"));
+  auto schema = llm_row["json_schema"];
+  ASSERT_TRUE(schema.is_object());
+  ASSERT_TRUE(schema.contains("required"));
+  ASSERT_TRUE(schema["required"].is_array());
+
+  bool requires_query = false;
+  for (const auto& req : schema["required"]) {
+    if (req.is_string() && req.get<std::string>() == "query") {
+      requires_query = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(requires_query);
+}
+
 TEST_F(JsIntegrationTest, JsPrint) {
   nlohmann::json args;
   args["script"] = "print('Hello JS'); 'done'";
@@ -165,7 +225,7 @@ TEST_F(JsIntegrationTest, RunJsHelpIncludesPersistedFunctionDynamically) {
 TEST_F(JsIntegrationTest, PersistFunctionRejectsNameCollision) {
   auto res = executor_->Execute("run_js", {{"script", R"(
     const [success, msg] = tools.persist_function({
-      name: "query_db",
+      name: "JSON",
       code: "return function() { return 'nope'; }"
     });
     if (success) throw new Error("expected collision rejection");
@@ -395,3 +455,9 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 }
 
 }  // namespace slop
+
+
+
+
+
+

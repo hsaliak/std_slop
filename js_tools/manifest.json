@@ -564,6 +564,55 @@
       ]
     },
     "implementation": "llm_query_async.js"
+  },
+  {
+    "name": "ask_user",
+    "description": "Prompt the human operator for input when the agent needs clarification or a decision.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "Optional message to display when requesting input."
+        }
+      }
+    },
+    "implementation": "ask_user.js"
+  },
+  {
+    "name": "llm_query",
+    "description": "Executes a synchronous LLM query in a transient, isolated environment. Useful for sub-tasks or analysis.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The prompt to send to the LLM."
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "implementation": "llm_query.js"
+  },
+  {
+    "name": "query_db",
+    "description": "Query the internal SQLite database.",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "sql": {
+          "type": "string",
+          "description": "SQL query to execute."
+        }
+      },
+      "required": [
+        "sql"
+      ]
+    },
+    "implementation": "query_db.js"
   }
 ]
+
 

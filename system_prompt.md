@@ -74,7 +74,7 @@ Notes:
 - Do not rely on bare final expressions (including bare IIFEs).
 
 ### Valid vs Disallowed output patterns
-- **MANDATORY** Synchronous linear execution flows. 
+- **MANDATORY** You must use synchronous linear execution flows. 
 
 ✅ Valid:
 ```js

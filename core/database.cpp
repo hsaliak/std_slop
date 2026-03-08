@@ -240,6 +240,10 @@ absl::Status Database::RegisterDefaultTools() {
       {"llm_query",
        "Executes a synchronous LLM query in a transient, isolated environment. Useful for sub-tasks or analysis.",
        R"({"type":"object","properties":{"query":{"type":"string","description":"The prompt to send to the LLM."}},"required":["query"]})",
+       true},
+      {"ask_user",
+       "Prompt the human operator for input when the agent needs clarification or a decision.",
+       R"({"type":"object","properties":{"prompt":{"type":"string","description":"Optional message to display when requesting input."}}})",
        true}};
   // Automatically register all core tools defined in the default_tools list.
   // This ensures the agent always has access to the fundamental building blocks
@@ -887,3 +891,4 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+

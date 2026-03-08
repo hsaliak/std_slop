@@ -39,9 +39,10 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   ASSERT_TRUE(payload["input"].is_array());
   ASSERT_TRUE(payload.contains("tools"));
   ASSERT_TRUE(payload["tools"].is_array());
-  ASSERT_EQ(payload["tools"].size(), 2);
+  ASSERT_EQ(payload["tools"].size(), 3);
   EXPECT_EQ(json_get_or(payload["tools"][0], "name", std::string{}), "run_js");
   EXPECT_EQ(json_get_or(payload["tools"][1], "name", std::string{}), "llm_query");
+  EXPECT_EQ(json_get_or(payload["tools"][2], "name", std::string{}), "ask_user");
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndReasoning) {
@@ -244,3 +245,4 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
+
