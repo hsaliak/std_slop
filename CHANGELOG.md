@@ -1,3 +1,5 @@
+## v0.14.1 - 2026-03-08
+- Fixed an issue with git_finalize_series where a subsequent execute_bash in the same script would fail as we are in mail mode and destructive ops are not allowed. Now, when we finalize series, we remove mail mode. 
 ## v0.14 - 2026-03-08
 
 - Mail patch workflow now enforces tool-contract checks, staging-branch use, and approval/hash matching before `git_finalize_series`.
