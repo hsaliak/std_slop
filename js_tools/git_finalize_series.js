@@ -55,8 +55,10 @@ return function(args) {
     }
   }
 
+  let deleted_staging_branch = false;
   if (current_branch !== target_branch) {
-    __os_run(`git branch -D ${shell_escape(current_branch)}`);
+    const del_res = __os_run(`git branch -D ${shell_escape(current_branch)}`);
+    deleted_staging_branch = del_res.exit_code === 0;
   }
 
   tools.query_db({
@@ -76,9 +78,30 @@ return function(args) {
     params: [canonical_current]
   });
 
-  if (already_landed) {
-    return "Patch already landed on " + target_branch + "; cleaned up staging metadata/branch.";
-  }
-  return "Successfully finalized series and merged into " + target_branch;
+  // Explicitly exit mail mode after a successful finalize.
+  // This avoids post-finalize policy confusion when the branch is now main.
+  tools.query_db({
+    sql: "UPDATE settings SET mode = 'standard' WHERE id = 1"
+  });
+
+  const head_res = tools.execute_bash({command: "git rev-parse HEAD"});
+  const final_head = (head_res && head_res.stdout) ? head_res.stdout.trim() : "";
+
+  return {
+    ok: true,
+    action: "finalize_series",
+    mail_mode: "off",
+    previous_branch: current_branch,
+    current_branch: target_branch,
+    head: final_head,
+    approved: approved,
+    already_landed: already_landed,
+    merged: !already_landed,
+    deleted_staging_branch: deleted_staging_branch,
+    cleaned_metadata: true,
+    notes: already_landed
+      ? ["Patch already landed on target branch", "Cleaned staging metadata", "Mail mode disabled"]
+      : ["Series finalized and merged", "Cleaned staging metadata", "Mail mode disabled"]
+  };
 };
 
