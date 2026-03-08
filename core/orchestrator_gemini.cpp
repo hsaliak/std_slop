@@ -166,18 +166,27 @@ absl::StatusOr<int> GeminiOrchestrator::ProcessResponse(const std::string& sessi
     auto& candidate = (*candidates)[0];
     if (const auto* content = json_at(candidate, "content")) {
       if (auto parts = json_get<nlohmann::json::array_t>(*content, "parts")) {
+        bool has_tool_call = false;
+        for (const auto& part : *parts) {
+          if (json_at(part, "functionCall") != nullptr) {
+            has_tool_call = true;
+            break;
+          }
+        }
         for (const auto& part : *parts) {
           if (const auto* fc = json_at(part, "functionCall")) {
             std::string name = json_get_or(*fc, "name", std::string{});
             status = db_->AppendMessage(session_id, "assistant", json_dump(part), name, "tool_call", group_id,
                                         GetName(), total_tokens);
-          } else if (auto text = json_get<std::string>(part, "text")) {
-            status =
-                db_->AppendMessage(session_id, "assistant", *text, "", "completed", group_id, GetName(), total_tokens);
+          } else if (!has_tool_call) {
+            if (auto text = json_get<std::string>(part, "text")) {
+              status = db_->AppendMessage(session_id, "assistant", *text, "", "completed", group_id, GetName(),
+                                          total_tokens);
 
-            auto state = Orchestrator::ExtractState(*text);
-            if (state) {
-              db_->SetSessionState(session_id, *state).IgnoreError();
+              auto state = Orchestrator::ExtractState(*text);
+              if (state) {
+                db_->SetSessionState(session_id, *state).IgnoreError();
+              }
             }
           }
         }
@@ -233,3 +242,4 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& o
 }
 
 }  // namespace slop
+

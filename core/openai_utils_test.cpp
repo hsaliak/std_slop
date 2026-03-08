@@ -37,7 +37,7 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsParsesApiDataShape) {
 
 TEST(OpenAiUtilsTest, GetOpenAiModelsParsesCodexModelsShapeAndSetsAccountHeader) {
   MockHttpClient mock_http;
-  EXPECT_CALL(mock_http, Get("https://chatgpt.com/backend-api/codex/models?client_version=0.1.0",
+  EXPECT_CALL(mock_http, Get("https://chatgpt.com/backend-api/codex/models?client_version=1.0.0",
                              Contains("ChatGPT-Account-Id: org_test_123")))
       .WillOnce(Return(R"({"models":[{"slug":"gpt-5.3-codex","display_name":"GPT-5.3 Codex"}]})"));
 
@@ -74,6 +74,8 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsFailsForUnrecognizedSchema) {
 }
 
 }  // namespace slop
+
+
 
 
 

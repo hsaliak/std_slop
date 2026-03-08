@@ -93,7 +93,7 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
   if (is_codex_backend) {
     // Match upstream Codex behavior exactly: a single request to GET models?client_version=...
     // with a response shaped like { models: [...] }.
-    base_models_url += "?client_version=0.1.0";
+    base_models_url += "?client_version=1.0.0";
   }
 
   auto resp_or = http_client->Get(base_models_url, headers);
@@ -184,5 +184,7 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
 }
 
 }  // namespace slop
+
+
 
 

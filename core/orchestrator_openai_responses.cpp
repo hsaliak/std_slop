@@ -360,17 +360,8 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
   }
 
   if (!tool_calls.empty()) {
-    if (!assistant_text.empty()) {
-      auto text_st = db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, GetName(),
-                                        total_tokens);
-      if (!text_st.ok()) {
-        return text_st;
-      }
-      auto state = Orchestrator::ExtractState(assistant_text);
-      if (state) {
-        db_->SetSessionState(session_id, *state).IgnoreError();
-      }
-    }
+    // When a turn contains tool calls, do not persist assistant prose from the same turn.
+    // The follow-up model turn after tool execution is the authoritative user-facing answer.
     nlohmann::json msg = {{"role", "assistant"}, {"tool_calls", tool_calls}};
     const auto& first_call = tool_calls[0];
     const std::string first_id = json_get_or(first_call, "id", std::string{});
@@ -415,3 +406,4 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::GetQuota(const std::
 }
 
 }  // namespace slop
+

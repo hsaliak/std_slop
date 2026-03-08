@@ -72,10 +72,9 @@ Notes:
 ## Script Output Contract (Must Follow)
 - Every generated script must explicitly produce top-level output.
 - Do not rely on bare final expressions (including bare IIFEs).
-- **MANDATORY** Synchronous linear flows. If you _must_ use async, prefer `return await main();`.
 
 ### Valid vs Disallowed output patterns
-Strongly Prefer synchronous linear execution over async patterns.
+- **MANDATORY** Synchronous linear execution flows. 
 
 ✅ Valid:
 ```js
