@@ -88,59 +88,25 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
   std::vector<ModelInfo> models;
   absl::flat_hash_set<std::string> seen_ids;
 
+  const bool is_codex_backend = absl::StrContains(base_url, "/backend-api/codex");
   std::string base_models_url = base_url + "/models";
-  if (absl::StrContains(base_url, "/backend-api/codex")) {
+  if (is_codex_backend) {
+    // Match upstream Codex behavior exactly: a single request to GET models?client_version=...
+    // with a response shaped like { models: [...] }.
     base_models_url += "?client_version=0.1.0";
   }
 
-  std::string after;
-  while (true) {
-    std::string url = base_models_url;
-    if (!after.empty()) {
-      url += (absl::StrContains(url, "?") ? "&after=" : "?after=");
-      url += after;
-    }
+  auto resp_or = http_client->Get(base_models_url, headers);
+  if (!resp_or.ok()) {
+    return resp_or.status();
+  }
 
-    auto resp_or = http_client->Get(url, headers);
-    if (!resp_or.ok()) {
-      return resp_or.status();
-    }
+  auto j_opt = json_parse(*resp_or);
+  if (!j_opt) {
+    return absl::InternalError("Failed to parse models response");
+  }
 
-    auto j_opt = json_parse(*resp_or);
-    if (!j_opt) {
-      return absl::InternalError("Failed to parse models response");
-    }
-
-    if (auto data = json_get<nlohmann::json::array_t>(*j_opt, "data")) {
-      std::string last_id;
-      for (const auto& m : *data) {
-        ModelInfo info;
-        info.id = json_get_or(m, "id", std::string{});
-        if (info.id.empty()) {
-          continue;
-        }
-        info.name = info.id;
-        last_id = info.id;
-        if (seen_ids.insert(info.id).second) {
-          models.push_back(info);
-        }
-      }
-
-      const bool has_more = json_get_or(*j_opt, "has_more", false);
-      if (!has_more) {
-        return models;
-      }
-      if (last_id.empty()) {
-        return absl::InternalError("OpenAI models response indicated has_more=true but page contained no model ids");
-      }
-      after = last_id;
-      continue;
-    }
-
-    auto codex_models = json_get<nlohmann::json::array_t>(*j_opt, "models");
-    if (!codex_models) {
-      return absl::InternalError("Unrecognized models response schema (expected 'data' or 'models')");
-    }
+  if (auto codex_models = json_get<std::vector<nlohmann::json>>(*j_opt, "models")) {
     for (const auto& m : *codex_models) {
       ModelInfo info;
       info.id = json_get_or(m, "slug", std::string{});
@@ -160,6 +126,63 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
     }
     return models;
   }
+
+  std::string after;
+  while (true) {
+    auto data = json_get<std::vector<nlohmann::json>>(*j_opt, "data");
+    if (!data) {
+      return absl::InternalError("Unrecognized models response schema (expected 'data' or 'models')");
+    }
+
+    std::string last_id;
+    for (const auto& m : *data) {
+      ModelInfo info;
+      info.id = json_get_or(m, "id", std::string{});
+      if (info.id.empty()) {
+        continue;
+      }
+      info.name = info.id;
+      last_id = info.id;
+      if (seen_ids.insert(info.id).second) {
+        models.push_back(info);
+      }
+    }
+
+    std::string next_after = json_get_or(*j_opt, "after", std::string{});
+    if (next_after.empty()) {
+      next_after = json_get_or(*j_opt, "next_cursor", std::string{});
+    }
+    if (next_after.empty()) {
+      next_after = json_get_or(*j_opt, "next_page", std::string{});
+    }
+    if (next_after.empty()) {
+      next_after = json_get_or(*j_opt, "cursor", std::string{});
+    }
+    if (next_after.empty()) {
+      next_after = json_get_or(*j_opt, "next", std::string{});
+    }
+
+    const bool has_more = json_get_or(*j_opt, "has_more", false);
+    if (!has_more && next_after.empty()) {
+      return models;
+    }
+    if (next_after.empty() || next_after == last_id) {
+      return models;
+    }
+
+    after = next_after;
+    const std::string url = base_models_url + (absl::StrContains(base_models_url, "?") ? "&after=" : "?after=") + after;
+    resp_or = http_client->Get(url, headers);
+    if (!resp_or.ok()) {
+      return resp_or.status();
+    }
+    j_opt = json_parse(*resp_or);
+    if (!j_opt) {
+      return absl::InternalError("Failed to parse models response");
+    }
+  }
 }
 
 }  // namespace slop
+
+

@@ -112,7 +112,12 @@ std::string FormatToolEnvelopeAsMarkdown(const nlohmann::json& envelope) {
   bool wrote_header = false;
   if (json_at(envelope, "ok") != nullptr) {
     bool ok_value = json_get_or(envelope, "ok", false);
-    ss << (ok_value ? "✅ **ok**" : "❌ **error**") << "\n\n";
+    ss << "- ok: `" << (ok_value ? "true" : "false") << "`\n";
+    if (!ok_value) {
+      ss << "\n❌ **error**" << "\n\n";
+    } else {
+      ss << "\n";
+    }
     wrote_header = true;
   }
 
@@ -464,19 +469,16 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   std::vector<absl::string_view> rendered_out_lines =
       absl::StrSplit(absl::StripAsciiWhitespace(rendered_stdout), '\n', absl::SkipEmpty());
 
-  // Successful tool results are frequently echoed by the assistant in the final
-  // user-facing response. Suppress stdout body previews on success to avoid
-  // visible duplication, but keep stderr visible and preserve full previews for
-  // failures.
+  // Render a short preview of stdout for both success and failure cases.
+  // Several UI tests and interactive workflows rely on seeing these lines,
+  // especially when the tool output carries the primary useful result.
   int printed = 0;
   const int kMaxLines = 15;
-  if (is_error) {
-    for (const auto& line : rendered_out_lines) {
-      if (printed >= kMaxLines) break;
-      std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
-                << Colorize(std::string(line), "", ansi::ToolResultBody) << std::endl;
-      ++printed;
-    }
+  for (const auto& line : rendered_out_lines) {
+    if (printed >= kMaxLines) break;
+    std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " "
+              << Colorize(std::string(line), "", ansi::ToolResultBody) << std::endl;
+    ++printed;
   }
   if (!err_lines.empty()) {
     const char* stderr_heading_color = is_error ? ansi::ToolResultError : ansi::ToolResultWarning;
@@ -490,7 +492,7 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
               << Colorize(std::string(line), "", ansi::ToolResultStderr) << std::endl;
     ++printed;
   }
-  const size_t total_rendered_lines = (is_error ? rendered_out_lines.size() : 0) + err_lines.size();
+  const size_t total_rendered_lines = rendered_out_lines.size() + err_lines.size();
   if (total_rendered_lines > static_cast<size_t>(printed)) {
     std::cout << prefix << "      " << Colorize("│", "", ansi::ToolResultPrefix) << " ... (truncated)" << std::endl;
   }
@@ -623,3 +625,6 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
+
+
+

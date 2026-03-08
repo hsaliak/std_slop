@@ -52,8 +52,8 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsPaginatesOpenAiDataShape) {
   MockHttpClient mock_http;
   InSequence seq;
   EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models", _))
-      .WillOnce(Return(R"({"data":[{"id":"gpt-5.2"},{"id":"gpt-5.3"}],"has_more":true})"));
-  EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models?after=gpt-5.3", _))
+      .WillOnce(Return(R"({"data":[{"id":"gpt-5.2"},{"id":"gpt-5.3"}],"has_more":true,"after":"page_2"})"));
+  EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models?after=page_2", _))
       .WillOnce(Return(R"({"data":[{"id":"gpt-5.3"},{"id":"gpt-5.4"}],"has_more":false})"));
 
   auto models_or = GetOpenAiModels(&mock_http, "https://api.openai.com/v1", "test_key");
@@ -74,3 +74,6 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsFailsForUnrecognizedSchema) {
 }
 
 }  // namespace slop
+
+
+

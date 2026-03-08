@@ -508,13 +508,28 @@
   },
   {
     "name": "execute_bash",
-    "description": "Executes shell command (guarded in mail mode).",
+    "description": "Executes a raw shell command string (guarded in mail mode). Supports optional cwd, allow_nonzero_exit, and env. JavaScript string parsing happens before shell parsing.",
     "json_schema": {
       "type": "object",
       "properties": {
         "command": {
           "type": "string",
-          "description": "string"
+          "description": "Raw shell command string interpreted by the shell."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Optional working directory to cd into before running the command."
+        },
+        "allow_nonzero_exit": {
+          "type": "boolean",
+          "description": "If true, return the result object even when the command exits non-zero."
+        },
+        "env": {
+          "type": "object",
+          "description": "Optional environment overrides. Keys must be valid shell identifiers and values must be strings.",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
       "required": [

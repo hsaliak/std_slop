@@ -49,7 +49,6 @@ On failure:
 3. never continue from partially validated state
 
 ## Practical Guidance
-- Summarize large tool results for the user.
 - Persist reusable helpers with `persist_function` when likely to be reused.
 - Use git-aware tools for patch workflows when relevant.
 - Delegate complex reasoning or sub-tasks to an isolated LLM environment using `tools.llm_query`. 
