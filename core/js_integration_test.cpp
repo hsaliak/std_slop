@@ -37,8 +37,8 @@ TEST_F(JsIntegrationTest, RunJsBasic) {
   EXPECT_TRUE(absl::StrContains(*res, "2"));
 }
 
-TEST_F(JsIntegrationTest, TopLevelShimSmokeTest) {
-  // 1) Discoverability smoke test: help should list targeted shims.
+TEST_F(JsIntegrationTest, TopLevelNativeToolContractsAreManifestBacked) {
+  // 1) Discoverability smoke test: help should list targeted top-level contracts.
   auto help_res = executor_->Execute("help", nlohmann::json::object());
   ASSERT_TRUE(help_res.ok()) << help_res.status().ToString();
 
@@ -73,7 +73,7 @@ TEST_F(JsIntegrationTest, TopLevelShimSmokeTest) {
   EXPECT_TRUE(has_name("llm_query"));
   EXPECT_TRUE(has_name("query_db"));
 
-  // 2) Execution smoke test for non-interactive shim.
+  // 2) Execution smoke test for direct native tool call path.
   auto query_ok = executor_->Execute("query_db", {{"sql", "SELECT 1 AS v;"}});
   ASSERT_TRUE(query_ok.ok()) << query_ok.status().ToString();
   EXPECT_TRUE(absl::StrContains(*query_ok, "1"));
@@ -95,6 +95,21 @@ TEST_F(JsIntegrationTest, TopLevelShimSmokeTest) {
     }
   }
   EXPECT_TRUE(requires_query);
+
+  // 4) Regression: these top-level tools are static manifest contracts and should
+  // not have JS shim code persisted in js_functions.
+  auto rows_json = db_.Query(
+      "SELECT name, code FROM js_functions WHERE name IN ('ask_user','llm_query','query_db') ORDER BY name");
+  ASSERT_TRUE(rows_json.ok()) << rows_json.status().ToString();
+  auto rows = nlohmann::json::parse(*rows_json, nullptr, false);
+  ASSERT_TRUE(rows.is_array());
+  ASSERT_EQ(rows.size(), 3);
+  for (const auto& row : rows) {
+    ASSERT_TRUE(row.is_object());
+    ASSERT_TRUE(row.contains("code"));
+    EXPECT_TRUE(row["code"].is_string());
+    EXPECT_TRUE(row["code"].get<std::string>().empty());
+  }
 }
 
 TEST_F(JsIntegrationTest, JsPrint) {
@@ -455,6 +470,7 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 }
 
 }  // namespace slop
+
 
 
 

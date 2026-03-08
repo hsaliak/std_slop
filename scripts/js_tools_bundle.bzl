@@ -49,9 +49,15 @@ inline const std::vector<DefaultJsFunction>& GetDefaultJsFunctions() {
             schema = tool["json_schema"]
             schema_str = json.dumps(schema) if isinstance(schema, dict) else schema
 
-            js_file = os.path.join(js_tools_dir, tool["implementation"])
-            with open(js_file, "r") as js_f:
-                code = js_f.read()
+            # Manifest-defined native tools may intentionally omit an implementation file.
+            # For these entries, we persist an empty code blob while still preserving
+            # name/description/schema so tools.help() stays deterministic from manifest data.
+            code = ""
+            implementation = tool.get("implementation")
+            if implementation:
+                js_file = os.path.join(js_tools_dir, implementation)
+                with open(js_file, "r") as js_f:
+                    code = js_f.read()
 
             print("    {", file=f)
             print(f'      "{name}",', file=f)
@@ -91,3 +97,4 @@ generate_js_tools_header = rule(
         "out": attr.output(mandatory = True),
     },
 )
+

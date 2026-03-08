@@ -577,7 +577,7 @@
         }
       }
     },
-    "implementation": "ask_user.js"
+    "native": true
   },
   {
     "name": "llm_query",
@@ -594,7 +594,7 @@
         "query"
       ]
     },
-    "implementation": "llm_query.js"
+    "native": true
   },
   {
     "name": "query_db",
@@ -611,8 +611,9 @@
         "sql"
       ]
     },
-    "implementation": "query_db.js"
+    "native": true
   }
 ]
+
 
 

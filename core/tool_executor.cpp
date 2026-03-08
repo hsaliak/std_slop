@@ -245,8 +245,17 @@ absl::StatusOr<ToolExecutor::JsResult> ToolExecutor::RunJs(const RunJsRequest& r
             auto code = json_get<std::string>(row, "code");
             auto json_schema = json_get<std::string>(row, "json_schema");
             if (name && code) {
+              // Manifest-defined native tools may intentionally persist empty JS code.
+              // Do not evaluate empty/whitespace code, otherwise we overwrite native
+              // bindings with `undefined` through an empty IIFE.
+              std::string code_text = *code;
+              auto first_non_ws = code_text.find_first_not_of(" \t\n\r");
+              if (first_non_ws == std::string::npos) {
+                continue;
+              }
+
               std::string target = (json_schema && !json_schema->empty()) ? "tools" : "globalThis";
-              std::string wrapped_code = target + "['" + *name + "'] = (function() {\n" + *code + "\n})();";
+              std::string wrapped_code = target + "['" + *name + "'] = (function() {\n" + code_text + "\n})();";
               JSValue func_res = interpreter.RunString(wrapped_code, "js_function_" + *name + ".js", false);
               JS_FreeValue(ctx, func_res);
             }
@@ -373,3 +382,4 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+
