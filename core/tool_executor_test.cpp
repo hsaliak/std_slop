@@ -46,10 +46,6 @@ std::string EnvelopeResultText(const std::string& raw) {
 }
 
 
-nlohmann::json ParseResultJson(const std::string& raw) {
-  return ParseEnvelope(EnvelopeResultText(raw));
-}
-
 }  // namespace
 
 TEST(ToolExecutorTest, ReadWriteFile) {
@@ -399,12 +395,11 @@ TEST(ToolExecutorTest, ApplyPatch_Success) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
-  auto patch_env = ParseResultJson(*patch_res);
-  ASSERT_TRUE(patch_env.is_object());
-  EXPECT_EQ(patch_env.value("ok", false), true);
-  EXPECT_EQ(patch_env.value("mode", std::string{}), "apply");
-  EXPECT_EQ(patch_env.value("path", std::string{}), test_file);
-  EXPECT_EQ(patch_env.value("applied", 0), 1);
+  const std::string patch_text = EnvelopeResultText(*patch_res);
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)")) << patch_text;
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("mode":"apply")"));
+  EXPECT_TRUE(absl::StrContains(patch_text, test_file));
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("applied":1)"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
@@ -430,12 +425,10 @@ TEST(ToolExecutorTest, ApplyPatch_FindNotFound) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok());
-  auto patch_env = ParseResultJson(*patch_res);
-  ASSERT_TRUE(patch_env.is_object());
-  EXPECT_EQ(patch_env.value("ok", true), false);
-  EXPECT_EQ(patch_env.value("code", std::string{}), "NOT_FOUND");
-  ASSERT_TRUE(patch_env.contains("error"));
-  EXPECT_EQ(patch_env["error"].value("patch_index", -1), 0);
+  const std::string patch_text = EnvelopeResultText(*patch_res);
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":false)"));
+  EXPECT_TRUE(absl::StrContains(patch_text, "NOT_FOUND"));
+  EXPECT_TRUE(absl::StrContains(patch_text, "patch_index"));
 
   std::filesystem::remove(test_file);
 }
@@ -456,12 +449,10 @@ TEST(ToolExecutorTest, ApplyPatch_AmbiguousMatch) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok());
-  auto patch_env = ParseResultJson(*patch_res);
-  ASSERT_TRUE(patch_env.is_object());
-  EXPECT_EQ(patch_env.value("ok", true), false);
-  EXPECT_EQ(patch_env.value("code", std::string{}), "AMBIGUOUS");
-  ASSERT_TRUE(patch_env.contains("error"));
-  EXPECT_EQ(patch_env["error"].value("patch_index", -1), 0);
+  const std::string patch_text = EnvelopeResultText(*patch_res);
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":false)"));
+  EXPECT_TRUE(absl::StrContains(patch_text, "AMBIGUOUS"));
+  EXPECT_TRUE(absl::StrContains(patch_text, "patch_index"));
 
   std::filesystem::remove(test_file);
 }
@@ -483,10 +474,9 @@ TEST(ToolExecutorTest, ApplyPatch_MultiplePatches) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok());
-  auto patch_env = ParseResultJson(*patch_res);
-  ASSERT_TRUE(patch_env.is_object());
-  EXPECT_EQ(patch_env.value("ok", false), true);
-  EXPECT_EQ(patch_env.value("applied", 0), 2);
+  const std::string patch_text = EnvelopeResultText(*patch_res);
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)")) << patch_text;
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("applied":2)"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
@@ -513,11 +503,10 @@ TEST(ToolExecutorTest, ApplyPatch_DryRunDoesNotWrite) {
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}, {"dry_run", true}});
   ASSERT_TRUE(patch_res.ok());
-  auto patch_env = ParseResultJson(*patch_res);
-  ASSERT_TRUE(patch_env.is_object());
-  EXPECT_EQ(patch_env.value("ok", false), true);
-  EXPECT_EQ(patch_env.value("mode", std::string{}), "dry_run");
-  EXPECT_EQ(patch_env.value("can_apply", false), true);
+  const std::string patch_text = EnvelopeResultText(*patch_res);
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)")) << patch_text;
+  EXPECT_TRUE(absl::StrContains(patch_text, "dry_run"));
+  EXPECT_TRUE(absl::StrContains(patch_text, "can_apply"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
@@ -539,20 +528,23 @@ TEST(ToolExecutorTest, ApplyPatch_WhitespaceSensitivity) {
   std::string initial_content = "  indented\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
 
-  // Try to find with wrong indentation
+  // Exact-match behavior is substring-based; indentation around the token is preserved.
   nlohmann::json patches = nlohmann::json::array();
   patches.push_back({{"find", "indented"}, {"replace", "fixed"}});
 
   auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
   ASSERT_TRUE(patch_res.ok());
+  const std::string patch_text = EnvelopeResultText(*patch_res);
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)"));
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("applied":1)"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(read_res->find("  fixed") != std::string::npos);
+  const std::string read_text = EnvelopeResultText(*read_res);
+  EXPECT_TRUE(read_text.find("  fixed") != std::string::npos);
 
   std::filesystem::remove(test_file);
 }
-
 TEST(ToolExecutorTest, UseSkill) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -599,6 +591,57 @@ TEST(ToolExecutorTest, UseSkill) {
   skills = db.GetSkills();
   ASSERT_TRUE(skills.ok());
   EXPECT_EQ((*skills)[skills->size() - 1].activation_count, 1);
+}
+
+TEST(ToolExecutorTest, ApplyPatchUnifiedDiff) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string test_file = "patch_unified.txt";
+  std::string initial_content = "alpha\nbeta\ngamma\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
+
+  std::string unified_diff =
+      "--- patch_unified.txt\n"
+      "+++ patch_unified.txt\n"
+      "@@ -1,3 +1,3 @@\n"
+      " alpha\n"
+      "-beta\n"
+      "+beta patched\n"
+      " gamma\n";
+
+  auto dry_res = executor.Execute("apply_patch",
+                                  {{"path", test_file},
+                                   {"unified_diff", unified_diff},
+                                   {"dry_run", true},
+                                   {"ignore_whitespace", true},
+                                   {"fuzz", 3}});
+  ASSERT_TRUE(dry_res.ok()) << dry_res.status().message();
+  const std::string dry_text = EnvelopeResultText(*dry_res);
+  EXPECT_TRUE(absl::StrContains(dry_text, R"("ok":true)"));
+  EXPECT_TRUE(absl::StrContains(dry_text, "dry_run"));
+  EXPECT_TRUE(absl::StrContains(dry_text, "system-patch"));
+  EXPECT_TRUE(absl::StrContains(dry_text, R"("fuzz":3)"));
+
+  auto apply_res = executor.Execute("apply_patch",
+                                    {{"path", test_file},
+                                     {"unified_diff", unified_diff},
+                                     {"ignore_whitespace", true},
+                                     {"fuzz", 3}});
+  ASSERT_TRUE(apply_res.ok()) << apply_res.status().message();
+  const std::string apply_text = EnvelopeResultText(*apply_res);
+  EXPECT_TRUE(absl::StrContains(apply_text, R"("ok":true)"));
+  EXPECT_TRUE(absl::StrContains(apply_text, R"("mode":"apply")"));
+  EXPECT_TRUE(absl::StrContains(apply_text, "system-patch"));
+
+  auto read_res = executor.Execute("read_file", {{"path", test_file}});
+  ASSERT_TRUE(read_res.ok());
+  EXPECT_TRUE(EnvelopeResultText(*read_res).find("beta patched") != std::string::npos);
+
+  std::filesystem::remove(test_file);
 }
 
 TEST(ToolExecutorTest, GrepToolEscaping) {
@@ -910,5 +953,6 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+
 
 

@@ -1,7 +1,7 @@
 [
   {
     "name": "apply_patch",
-    "description": "Applies exact-match text patches to file content.",
+    "description": "Applies exact-match text patches or unified diffs to file content.",
     "json_schema": {
       "type": "object",
       "properties": {
@@ -30,11 +30,34 @@
         "dry_run": {
           "type": "boolean",
           "description": "boolean (optional, default false); when true, validate patches without writing file"
+        },
+        "unified_diff": {
+          "type": "string",
+          "description": "string (optional); unified diff text using ---/+++ and @@ hunks"
+        },
+        "strip": {
+          "type": "integer",
+          "description": "integer (optional, default 0); patch -p strip count"
+        },
+        "ignore_whitespace": {
+          "type": "boolean",
+          "description": "boolean (optional, default true); enables patch -l"
+        },
+        "fuzz": {
+          "type": "integer",
+          "description": "integer (optional, default 3); patch -F fuzz factor"
+        },
+        "forward": {
+          "type": "boolean",
+          "description": "boolean (optional, default true); enables --forward"
+        },
+        "batch": {
+          "type": "boolean",
+          "description": "boolean (optional, default true); enables --batch"
         }
       },
       "required": [
-        "path",
-        "patches"
+        "path"
       ]
     },
     "implementation": "apply_patch.js"
@@ -618,5 +641,3 @@
     "native": true
   }
 ]
-
-
