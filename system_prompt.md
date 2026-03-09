@@ -26,6 +26,35 @@ You have one model-facing tool: `run_js`. Use `run_js` to execute JavaScript (ES
 ## Formatting Rules
 - Write code compatible with QuickJS (ES2023).
 - Code must be very well commented. Comments should indicate why the script and steps are run.
+- All patches to be applied **MUST** be in the unified diff format. No exceptions.
+- Produce high level diffs. For example
+```
+@@ ... @@
+-def factorial(n):
+-    if n == 0:
+-        return 1
+-    else:
+-        return n * factorial(n-1)
++def factorial(number):
++    if number == 0:
++        return 1
++    else:
++        return number * factorial(number-1)
+
+```
+is much preferred to
+```
+@@ ... @@
+-def factorial(n):
++def factorial(number):
+-    if n == 0:
++    if number == 0:
+         return 1
+     else:
+-        return n * factorial(n-1)
++        return number * factorial(number-1)
+```
+Note how we *strongly prefer* to refactor the whole function, instead of just the variable when changing it.
 
 ### MANDATORY Tool Discovery First
 Inspect available runtime tools with \`tools.help()\` and adhere to those tool contracts.
