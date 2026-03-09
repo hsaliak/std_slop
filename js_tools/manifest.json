@@ -1,63 +1,38 @@
 [
   {
     "name": "apply_patch",
-    "description": "Applies exact-match text patches or unified diffs to file content.",
+    "description": "Applies a unified diff to a file. The diff should be a valid unified diff string. Note: When passing the diff in JSON/JS, ensure newlines are escaped as \\n and backslashes as \\\\.",
     "json_schema": {
       "type": "object",
       "properties": {
         "path": {
           "type": "string",
-          "description": "string"
-        },
-        "patches": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "find": {
-                "type": "string"
-              },
-              "replace": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "find",
-              "replace"
-            ]
-          }
-        },
-        "dry_run": {
-          "type": "boolean",
-          "description": "boolean (optional, default false); when true, validate patches without writing file"
+          "description": "The path to the file to be patched."
         },
         "unified_diff": {
           "type": "string",
-          "description": "string (optional); unified diff text using ---/+++ and @@ hunks"
+          "description": "The unified diff content to apply."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "If true, only check if the patch can be applied without modifying the file."
         },
         "strip": {
           "type": "integer",
-          "description": "integer (optional, default 0); patch -p strip count"
-        },
-        "ignore_whitespace": {
-          "type": "boolean",
-          "description": "boolean (optional, default true); enables patch -l"
+          "description": "The number of leading components to strip from file names (-p argument)."
         },
         "fuzz": {
           "type": "integer",
-          "description": "integer (optional, default 3); patch -F fuzz factor"
+          "description": "The maximum fuzz factor (-F argument)."
         },
-        "forward": {
+        "ignore_whitespace": {
           "type": "boolean",
-          "description": "boolean (optional, default true); enables --forward"
-        },
-        "batch": {
-          "type": "boolean",
-          "description": "boolean (optional, default true); enables --batch"
+          "description": "If true, ignore changes in whitespace (-l argument)."
         }
       },
       "required": [
-        "path"
+        "path",
+        "unified_diff"
       ]
     },
     "implementation": "apply_patch.js"

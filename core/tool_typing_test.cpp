@@ -113,10 +113,16 @@ TEST_F(ToolTypingTest, GitGrepTypedArgs) {
 }
 
 TEST_F(ToolTypingTest, ApplyPatchTyped) {
-  nlohmann::json args = {{"path", "test_patch.txt"}, {"patches", {{{"find", "old"}, {"replace", "new"}}}}};
+  std::string unified_diff =
+      "--- test_patch.txt\n"
+      "+++ test_patch.txt\n"
+      "@@ -1,1 +1,1 @@\n"
+      "-old content\n"
+      "+new content\n";
+  nlohmann::json args = {{"path", "test_patch.txt"}, {"unified_diff", unified_diff}};
 
   std::ofstream ofs("test_patch.txt");
-  ofs << "old content";
+  ofs << "old content\n";
   ofs.close();
 
   auto res = executor_->Execute("apply_patch", args);
@@ -133,5 +139,6 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
+
 
 

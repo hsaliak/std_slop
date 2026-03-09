@@ -332,11 +332,8 @@ TEST(DatabaseTest, ApplyPatchToolSchema) {
   ASSERT_FALSE(schema.is_discarded());
   EXPECT_EQ(schema["type"], "object");
   EXPECT_TRUE(schema["properties"].contains("path"));
-  EXPECT_TRUE(schema["properties"].contains("patches"));
-  EXPECT_EQ(schema["properties"]["patches"]["type"], "array");
-  auto item_props = schema["properties"]["patches"]["items"]["properties"];
-  EXPECT_TRUE(item_props.contains("find"));
-  EXPECT_TRUE(item_props.contains("replace"));
+  EXPECT_TRUE(schema["properties"].contains("unified_diff"));
+  EXPECT_EQ(schema["properties"]["unified_diff"]["type"], "string");
 }
 TEST(DatabaseTest, ToolUsageCounters) {
   slop::Database db;
@@ -393,3 +390,4 @@ TEST(DatabaseTest, ConcurrentAccess) {
   }
   EXPECT_EQ(success_count, num_threads * iterations * 2);
 }
+

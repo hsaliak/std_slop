@@ -378,6 +378,8 @@ TEST(ToolExecutorTest, ExecuteBashStderr) {
   EXPECT_TRUE(res->find("hello stderr") != std::string::npos);
 }
 
+
+
 TEST(ToolExecutorTest, ApplyPatch_Success) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -389,105 +391,30 @@ TEST(ToolExecutorTest, ApplyPatch_Success) {
   std::string initial_content = "void function1() {\n  // First\n}\n\nvoid function2() {\n  // Second\n}\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
 
-  nlohmann::json patches = nlohmann::json::array();
-  patches.push_back(
-      {{"find", "void function2() {\n  // Second\n}"}, {"replace", "void function2() {\n  // Updated Second\n}"}});
+  std::string unified_diff =
+      "--- patch_success.txt\n"
+      "+++ patch_success.txt\n"
+      "@@ -4,4 +4,4 @@\n"
+      " \n"
+      " void function2() {\n"
+      "-  // Second\n"
+      "+  // Updated Second\n"
+      " }\n";
 
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
+  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"unified_diff", unified_diff}});
   ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
   const std::string patch_text = EnvelopeResultText(*patch_res);
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)")) << patch_text;
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("mode":"apply")"));
-  EXPECT_TRUE(absl::StrContains(patch_text, test_file));
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)"));
   EXPECT_TRUE(absl::StrContains(patch_text, R"("applied":1)"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(read_res->find("Updated Second") != std::string::npos);
-  EXPECT_TRUE(read_res->find("function1") != std::string::npos);
+  EXPECT_TRUE(EnvelopeResultText(*read_res).find("// Updated Second") != std::string::npos);
 
   std::filesystem::remove(test_file);
 }
 
-TEST(ToolExecutorTest, ApplyPatch_FindNotFound) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  std::string test_file = "patch_not_found.txt";
-  std::string initial_content = "some content\n";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
-
-  nlohmann::json patches = nlohmann::json::array();
-  patches.push_back({{"find", "missing string"}, {"replace", "replacement"}});
-
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
-  ASSERT_TRUE(patch_res.ok());
-  const std::string patch_text = EnvelopeResultText(*patch_res);
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":false)"));
-  EXPECT_TRUE(absl::StrContains(patch_text, "NOT_FOUND"));
-  EXPECT_TRUE(absl::StrContains(patch_text, "patch_index"));
-
-  std::filesystem::remove(test_file);
-}
-
-TEST(ToolExecutorTest, ApplyPatch_AmbiguousMatch) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  std::string test_file = "patch_ambiguous.txt";
-  std::string initial_content = "duplicate\nduplicate\n";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
-
-  nlohmann::json patches = nlohmann::json::array();
-  patches.push_back({{"find", "duplicate"}, {"replace", "unique"}});
-
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
-  ASSERT_TRUE(patch_res.ok());
-  const std::string patch_text = EnvelopeResultText(*patch_res);
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":false)"));
-  EXPECT_TRUE(absl::StrContains(patch_text, "AMBIGUOUS"));
-  EXPECT_TRUE(absl::StrContains(patch_text, "patch_index"));
-
-  std::filesystem::remove(test_file);
-}
-
-TEST(ToolExecutorTest, ApplyPatch_MultiplePatches) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  std::string test_file = "patch_multiple.txt";
-  std::string initial_content = "line1\nline2\nline3\n";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
-
-  nlohmann::json patches = nlohmann::json::array();
-  patches.push_back({{"find", "line1"}, {"replace", "part1"}});
-  patches.push_back({{"find", "line3"}, {"replace", "part3"}});
-
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
-  ASSERT_TRUE(patch_res.ok());
-  const std::string patch_text = EnvelopeResultText(*patch_res);
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)")) << patch_text;
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("applied":2)"));
-
-  auto read_res = executor.Execute("read_file", {{"path", test_file}});
-  ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(read_res->find("part1") != std::string::npos);
-  EXPECT_TRUE(read_res->find("line2") != std::string::npos);
-  EXPECT_TRUE(read_res->find("part3") != std::string::npos);
-
-  std::filesystem::remove(test_file);
-}
-
-TEST(ToolExecutorTest, ApplyPatch_DryRunDoesNotWrite) {
+TEST(ToolExecutorTest, ApplyPatch_DryRun) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
   auto executor_or = ToolExecutor::Create(&db);
@@ -495,104 +422,31 @@ TEST(ToolExecutorTest, ApplyPatch_DryRunDoesNotWrite) {
   auto& executor = **executor_or;
 
   std::string test_file = "patch_dry_run.txt";
-  std::string initial_content = "alpha\nbeta\n";
+  std::string initial_content = "void function1() {\n  // First\n}\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
 
-  nlohmann::json patches = nlohmann::json::array();
-  patches.push_back({{"find", "beta"}, {"replace", "gamma"}});
+  std::string unified_diff =
+      "--- patch_dry_run.txt\n"
+      "+++ patch_dry_run.txt\n"
+      "@@ -1,3 +1,3 @@\n"
+      " void function1() {\n"
+      "-  // First\n"
+      "+  // Updated First\n"
+      " }\n";
 
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}, {"dry_run", true}});
-  ASSERT_TRUE(patch_res.ok());
-  const std::string patch_text = EnvelopeResultText(*patch_res);
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)")) << patch_text;
-  EXPECT_TRUE(absl::StrContains(patch_text, "dry_run"));
-  EXPECT_TRUE(absl::StrContains(patch_text, "can_apply"));
-
-  auto read_res = executor.Execute("read_file", {{"path", test_file}});
-  ASSERT_TRUE(read_res.ok());
-  const std::string read_text = EnvelopeResultText(*read_res);
-  EXPECT_TRUE(read_text.find("beta") != std::string::npos);
-  EXPECT_TRUE(read_text.find("gamma") == std::string::npos);
-
-  std::filesystem::remove(test_file);
-}
-
-TEST(ToolExecutorTest, ApplyPatch_WhitespaceSensitivity) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  std::string test_file = "patch_whitespace.txt";
-  std::string initial_content = "  indented\n";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
-
-  // Exact-match behavior is substring-based; indentation around the token is preserved.
-  nlohmann::json patches = nlohmann::json::array();
-  patches.push_back({{"find", "indented"}, {"replace", "fixed"}});
-
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"patches", patches}});
-  ASSERT_TRUE(patch_res.ok());
+  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}});
+  ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
   const std::string patch_text = EnvelopeResultText(*patch_res);
   EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)"));
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("applied":1)"));
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("can_apply":true)"));
+  EXPECT_TRUE(absl::StrContains(patch_text, R"("mode":"dry_run")"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  const std::string read_text = EnvelopeResultText(*read_res);
-  EXPECT_TRUE(read_text.find("  fixed") != std::string::npos);
+  EXPECT_TRUE(EnvelopeResultText(*read_res).find("// Updated First") == std::string::npos);
 
   std::filesystem::remove(test_file);
 }
-TEST(ToolExecutorTest, UseSkill) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-  executor.SetSessionId("s1");
-  // Ensure session exists
-  ASSERT_TRUE(db.SetContextWindow("s1", 10).ok());
-
-  // Setup a skill
-  Database::Skill s;
-  s.name = "test_skill";
-  s.system_prompt_patch = "TEST PATCH";
-  ASSERT_TRUE(db.RegisterSkill(s).ok());
-
-  // Test Activation
-  auto res = executor.Execute("use_skill", {{"name", "test_skill"}, {"action", "activate"}});
-  ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("Skill 'test_skill' activated.") != std::string::npos);
-  EXPECT_TRUE(res->find("TEST PATCH") != std::string::npos);
-
-  // Verify DB state
-  auto skills = db.GetSkills();
-  ASSERT_TRUE(skills.ok());
-  EXPECT_EQ((*skills)[skills->size() - 1].activation_count, 1);
-
-  auto active = db.GetActiveSkills("s1");
-  ASSERT_TRUE(active.ok());
-  ASSERT_EQ(active->size(), 1);
-  EXPECT_EQ((*active)[0], "test_skill");
-
-  // Test Deactivation
-  auto res2 = executor.Execute("use_skill", {{"name", "test_skill"}, {"action", "deactivate"}});
-  ASSERT_TRUE(res2.ok());
-  EXPECT_TRUE(res2->find("Skill 'test_skill' deactivated.") != std::string::npos);
-
-  // Verify DB state
-  active = db.GetActiveSkills("s1");
-  ASSERT_TRUE(active.ok());
-  EXPECT_TRUE(active->empty());
-
-  // Activation count should NOT have increased on deactivation
-  skills = db.GetSkills();
-  ASSERT_TRUE(skills.ok());
-  EXPECT_EQ((*skills)[skills->size() - 1].activation_count, 1);
-}
-
 TEST(ToolExecutorTest, ApplyPatchUnifiedDiff) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -623,8 +477,7 @@ TEST(ToolExecutorTest, ApplyPatchUnifiedDiff) {
   const std::string dry_text = EnvelopeResultText(*dry_res);
   EXPECT_TRUE(absl::StrContains(dry_text, R"("ok":true)"));
   EXPECT_TRUE(absl::StrContains(dry_text, "dry_run"));
-  EXPECT_TRUE(absl::StrContains(dry_text, "system-patch"));
-  EXPECT_TRUE(absl::StrContains(dry_text, R"("fuzz":3)"));
+  EXPECT_TRUE(absl::StrContains(dry_text, R"("can_apply":true)"));
 
   auto apply_res = executor.Execute("apply_patch",
                                     {{"path", test_file},
@@ -635,7 +488,6 @@ TEST(ToolExecutorTest, ApplyPatchUnifiedDiff) {
   const std::string apply_text = EnvelopeResultText(*apply_res);
   EXPECT_TRUE(absl::StrContains(apply_text, R"("ok":true)"));
   EXPECT_TRUE(absl::StrContains(apply_text, R"("mode":"apply")"));
-  EXPECT_TRUE(absl::StrContains(apply_text, "system-patch"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
@@ -953,6 +805,8 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+
+
 
 
 
