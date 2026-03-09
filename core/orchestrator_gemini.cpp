@@ -242,4 +242,3 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::GetQuota(const std::string& o
 }
 
 }  // namespace slop
-

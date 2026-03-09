@@ -137,7 +137,7 @@ Ensuring the agent cannot bypass the Mail Model by accident.
 ### 8.1 Tool Interception
 - **Logic**: The `ToolExecutor::Execute` method acts as a central dispatcher.
 - **Protection List**: 
-    - **Modifying Tools**: `write_file`, `apply_patch`, `execute_bash`.
+    - **Modifying Tools**: `write_file`, `patch_tool`, `execute_bash`.
     - **Mail Model Tools**: `git_commit_patch`, `git_reroll_patch`, `git_verify_series`, `git_format_patch_series`, `git_finalize_series`.
 - **Enforcement Rules**:
     1. Before executing any "Protected" tool, the system verifies the current branch.
@@ -170,3 +170,4 @@ Hardening the finalization step to prevent accidental merges of unreviewed or mo
 3. **Traceability**: Every commit has a clear rationale recorded in its body.
 4. **Approval-Locked**: Finalization is impossible without an explicit user signature of the exact commit hash.
 5. **Clean Exit**: Merging the series cleans up the staging branch and returns the user to a clean workspace.
+

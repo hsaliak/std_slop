@@ -1,7 +1,7 @@
 [
   {
-    "name": "apply_patch",
-    "description": "Applies a unified diff to a file. The diff should be a valid unified diff string. Note: When passing the diff in JSON/JS, ensure newlines are escaped as \\n and backslashes as \\\\.",
+    "name": "patch_tool",
+    "description": "Applies a unified diff to a file using in-process matching that ignores hunk line numbers.",
     "json_schema": {
       "type": "object",
       "properties": {
@@ -17,17 +17,9 @@
           "type": "boolean",
           "description": "If true, only check if the patch can be applied without modifying the file."
         },
-        "strip": {
-          "type": "integer",
-          "description": "The number of leading components to strip from file names (-p argument)."
-        },
-        "fuzz": {
-          "type": "integer",
-          "description": "The maximum fuzz factor (-F argument)."
-        },
         "ignore_whitespace": {
           "type": "boolean",
-          "description": "If true, ignore changes in whitespace (-l argument)."
+          "description": "If true, ignore whitespace differences while matching hunk lines."
         }
       },
       "required": [
@@ -35,7 +27,7 @@
         "unified_diff"
       ]
     },
-    "implementation": "apply_patch.js"
+    "implementation": "patch_tool.js"
   },
   {
     "name": "execute_bash_async",
@@ -616,3 +608,4 @@
     "native": true
   }
 ]
+

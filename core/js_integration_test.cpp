@@ -66,7 +66,7 @@ TEST_F(JsIntegrationTest, TopLevelNativeToolContractsAreManifestBacked) {
     for (const auto& row : help_json) {
       if (row.is_object() && row.value("name", std::string{}) == name) return row;
     }
-    return nlohmann::json();
+    return {};
   };
 
   EXPECT_TRUE(has_name("ask_user"));
@@ -98,8 +98,8 @@ TEST_F(JsIntegrationTest, TopLevelNativeToolContractsAreManifestBacked) {
 
   // 4) Regression: these top-level tools are static manifest contracts and should
   // not have JS shim code persisted in js_functions.
-  auto rows_json = db_.Query(
-      "SELECT name, code FROM js_functions WHERE name IN ('ask_user','llm_query','query_db') ORDER BY name");
+  auto rows_json =
+      db_.Query("SELECT name, code FROM js_functions WHERE name IN ('ask_user','llm_query','query_db') ORDER BY name");
   ASSERT_TRUE(rows_json.ok()) << rows_json.status().ToString();
   auto rows = nlohmann::json::parse(*rows_json, nullptr, false);
   ASSERT_TRUE(rows.is_array());
@@ -470,10 +470,3 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 }
 
 }  // namespace slop
-
-
-
-
-
-
-

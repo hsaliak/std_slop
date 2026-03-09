@@ -321,7 +321,7 @@ TEST(DatabaseTest, ApplyPatchToolSchema) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
-  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions WHERE name = 'apply_patch'");
+  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions WHERE name = 'patch_tool'");
   ASSERT_TRUE(funcs_or.ok());
   auto funcs_json = slop::json_parse(*funcs_or).value_or(nlohmann::json::array());
   ASSERT_TRUE(funcs_json.is_array());
@@ -390,4 +390,3 @@ TEST(DatabaseTest, ConcurrentAccess) {
   }
   EXPECT_EQ(success_count, num_threads * iterations * 2);
 }
-

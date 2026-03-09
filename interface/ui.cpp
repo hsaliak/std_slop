@@ -114,7 +114,8 @@ std::string FormatToolEnvelopeAsMarkdown(const nlohmann::json& envelope) {
     bool ok_value = json_get_or(envelope, "ok", false);
     ss << "- ok: `" << (ok_value ? "true" : "false") << "`\n";
     if (!ok_value) {
-      ss << "\n❌ **error**" << "\n\n";
+      ss << "\n❌ **error**"
+         << "\n\n";
     } else {
       ss << "\n";
     }
@@ -190,7 +191,6 @@ std::string ExtractToolName(const std::string& tool_call_id) {
   }
   return tool_call_id;
 }
-
 
 }  // namespace
 
@@ -625,17 +625,3 @@ void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
 }
 
 }  // namespace slop
-
-
-
-
-
-
-
-
-
-
-
-
-
-

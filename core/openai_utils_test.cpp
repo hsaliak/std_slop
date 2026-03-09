@@ -74,8 +74,3 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsFailsForUnrecognizedSchema) {
 }
 
 }  // namespace slop
-
-
-
-
-

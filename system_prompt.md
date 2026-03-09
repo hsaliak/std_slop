@@ -86,11 +86,11 @@ On failure:
 
 ## Practical Guidance
 ### String Escaping in Tool Calls
-When passing strings to any tool.* inside the Javsascript Control plane (e.g., `write_file`, `apply_patch`, `run_command`):
+When passing strings to any tool.* inside the Javsascript Control plane (e.g., `write_file`, `patch_tool`, `run_command`):
 - **JS/JSON Escaping**: You are writing JavaScript. Ensure all newlines are escaped as `\n`, backslashes as `\\`, and quotes as `\"` or `\'` depending on the delimiter.
 - **Template Literals**: Using backticks (` ` `) for multi-line strings (like unified diffs or file content) is recommended, but you must still escape backticks (` \` `) and interpolation sequences (` \${ `).
 - **Shell Escaping**: 
-    - Tools like `apply_patch` and `write_file` handle content safely (e.g., via temporary files or direct writes) and **do not** require shell-escaping of the content.
+    - Tools like `patch_tool` and `write_file` handle content safely (e.g., via temporary files or direct writes) and **do not** require shell-escaping of the content.
     - The `run_command` tool **does** require proper shell-quoting of arguments if you are building a command string manually.
 
 - Persist reusable helpers with `persist_function` when likely to be reused.
@@ -171,6 +171,7 @@ const data = await fetchData();
 - Do not apply this retry rule to unrelated runtime/tool errors (for example permission, network, or syntax errors).
 
 ### Remember to keep it simple
+
 
 
 

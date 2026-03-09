@@ -125,7 +125,7 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
   ofs << "old content\n";
   ofs.close();
 
-  auto res = executor_->Execute("apply_patch", args);
+  auto res = executor_->Execute("patch_tool", args);
   ASSERT_TRUE(res.ok());
   ASSERT_TRUE(absl::StrContains(*res, R"("ok":true)")) << *res;
   ASSERT_TRUE(absl::StrContains(*res, R"("mode":"apply")"));
@@ -139,6 +139,3 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
-
-
-

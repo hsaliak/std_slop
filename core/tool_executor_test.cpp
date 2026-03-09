@@ -1,3 +1,4 @@
+#include "absl/strings/match.h"
 #include "core/tool_executor.h"
 
 #include <cstdlib>
@@ -44,7 +45,6 @@ std::string EnvelopeResultText(const std::string& raw) {
   }
   return raw;
 }
-
 
 }  // namespace
 
@@ -378,8 +378,6 @@ TEST(ToolExecutorTest, ExecuteBashStderr) {
   EXPECT_TRUE(res->find("hello stderr") != std::string::npos);
 }
 
-
-
 TEST(ToolExecutorTest, ApplyPatch_Success) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -401,7 +399,7 @@ TEST(ToolExecutorTest, ApplyPatch_Success) {
       "+  // Updated Second\n"
       " }\n";
 
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"unified_diff", unified_diff}});
+  auto patch_res = executor.Execute("patch_tool", {{"path", test_file}, {"unified_diff", unified_diff}});
   ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
   const std::string patch_text = EnvelopeResultText(*patch_res);
   EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)"));
@@ -409,7 +407,7 @@ TEST(ToolExecutorTest, ApplyPatch_Success) {
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(EnvelopeResultText(*read_res).find("// Updated Second") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "// Updated Second"));
 
   std::filesystem::remove(test_file);
 }
@@ -434,7 +432,8 @@ TEST(ToolExecutorTest, ApplyPatch_DryRun) {
       "+  // Updated First\n"
       " }\n";
 
-  auto patch_res = executor.Execute("apply_patch", {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}});
+  auto patch_res =
+      executor.Execute("patch_tool", {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}});
   ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
   const std::string patch_text = EnvelopeResultText(*patch_res);
   EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)"));
@@ -443,7 +442,7 @@ TEST(ToolExecutorTest, ApplyPatch_DryRun) {
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(EnvelopeResultText(*read_res).find("// Updated First") == std::string::npos);
+  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*read_res), "// Updated First"));
 
   std::filesystem::remove(test_file);
 }
@@ -467,23 +466,17 @@ TEST(ToolExecutorTest, ApplyPatchUnifiedDiff) {
       "+beta patched\n"
       " gamma\n";
 
-  auto dry_res = executor.Execute("apply_patch",
-                                  {{"path", test_file},
-                                   {"unified_diff", unified_diff},
-                                   {"dry_run", true},
-                                   {"ignore_whitespace", true},
-                                   {"fuzz", 3}});
+  auto dry_res = executor.Execute(
+      "patch_tool",
+      {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}, {"ignore_whitespace", true}});
   ASSERT_TRUE(dry_res.ok()) << dry_res.status().message();
   const std::string dry_text = EnvelopeResultText(*dry_res);
   EXPECT_TRUE(absl::StrContains(dry_text, R"("ok":true)"));
   EXPECT_TRUE(absl::StrContains(dry_text, "dry_run"));
   EXPECT_TRUE(absl::StrContains(dry_text, R"("can_apply":true)"));
 
-  auto apply_res = executor.Execute("apply_patch",
-                                    {{"path", test_file},
-                                     {"unified_diff", unified_diff},
-                                     {"ignore_whitespace", true},
-                                     {"fuzz", 3}});
+  auto apply_res = executor.Execute("patch_tool",
+                                    {{"path", test_file}, {"unified_diff", unified_diff}, {"ignore_whitespace", true}});
   ASSERT_TRUE(apply_res.ok()) << apply_res.status().message();
   const std::string apply_text = EnvelopeResultText(*apply_res);
   EXPECT_TRUE(absl::StrContains(apply_text, R"("ok":true)"));
@@ -491,7 +484,76 @@ TEST(ToolExecutorTest, ApplyPatchUnifiedDiff) {
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(EnvelopeResultText(*read_res).find("beta patched") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "beta patched"));
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, ApplyPatch_IgnoresLineNumbersAndWhitespace) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string test_file = "patch_relaxed_match.txt";
+  std::string initial_content =
+      "alpha\n"
+      "beta    value\n"
+      "gamma\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
+
+  // Deliberately wrong line numbers and different spacing in the removal line.
+  std::string unified_diff =
+      "--- patch_relaxed_match.txt\n"
+      "+++ patch_relaxed_match.txt\n"
+      "@@ -90,5 +90,5 @@\n"
+      " alpha\n"
+      "-beta value\n"
+      "+beta patched value\n"
+      " gamma\n";
+
+  auto apply_res = executor.Execute("patch_tool",
+                                    {{"path", test_file}, {"unified_diff", unified_diff}, {"ignore_whitespace", true}});
+  ASSERT_TRUE(apply_res.ok()) << apply_res.status().message();
+  const std::string apply_text = EnvelopeResultText(*apply_res);
+  EXPECT_TRUE(absl::StrContains(apply_text, "\"ok\":true"));
+  EXPECT_TRUE(absl::StrContains(apply_text, "\"mode\":\"apply\""));
+
+  auto read_res = executor.Execute("read_file", {{"path", test_file}});
+  ASSERT_TRUE(read_res.ok());
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "beta patched value"));
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, ApplyPatch_DryRunFailureForUnmatchedHunk) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  std::string test_file = "patch_unmatched.txt";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "alpha\nbeta\n"}}).ok());
+
+  std::string unified_diff =
+      "--- patch_unmatched.txt\n"
+      "+++ patch_unmatched.txt\n"
+      "@@ -1,2 +1,2 @@\n"
+      "-does-not-exist\n"
+      "+replacement\n";
+
+  auto patch_res =
+      executor.Execute("patch_tool", {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}});
+  ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
+  const std::string patch_text = EnvelopeResultText(*patch_res);
+  EXPECT_TRUE(absl::StrContains(patch_text, "\"ok\":false"));
+  EXPECT_TRUE(absl::StrContains(patch_text, "PATCH_DRY_RUN_FAILED"));
+
+  auto read_res = executor.Execute("read_file", {{"path", test_file}});
+  ASSERT_TRUE(read_res.ok());
+  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*read_res), "replacement"));
 
   std::filesystem::remove(test_file);
 }
@@ -805,8 +867,3 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
-
-
-
-
-

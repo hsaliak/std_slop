@@ -241,8 +241,7 @@ absl::Status Database::RegisterDefaultTools() {
        "Executes a synchronous LLM query in a transient, isolated environment. Useful for sub-tasks or analysis.",
        R"({"type":"object","properties":{"query":{"type":"string","description":"The prompt to send to the LLM."}},"required":["query"]})",
        true},
-      {"ask_user",
-       "Prompt the human operator for input when the agent needs clarification or a decision.",
+      {"ask_user", "Prompt the human operator for input when the agent needs clarification or a decision.",
        R"({"type":"object","properties":{"prompt":{"type":"string","description":"Optional message to display when requesting input."}}})",
        true}};
   // Automatically register all core tools defined in the default_tools list.
@@ -322,36 +321,36 @@ absl::Status Database::RegisterDefaultSkills() {
        "value is captured and returned to you. Return a concise user-facing result every turn; "
        ""});
   default_skills.push_back(
-    {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
-     "You are an expert software engineer operating in Mail Model. Your goal is to deliver\n"
-     "high-quality, reviewable changes as an atomic patch series.\n"
-     "\n"
-     "## Mandatory Runtime Alignment\n"
-     "- Call `help` before mail/git operations and use exact returned tool names.\n"
-     "- Before modifying actions, ensure you are on `slop/staging/*` via\n"
-     "  `git_get_current_branch`, then `git_branch_staging` or `git_switch_branch` if needed.\n"
-     "- Never bypass branch protections.\n"
-     "\n"
-     "## Workflow\n"
-     "1. **Plan & Edit**: Make focused, minimal changes for the requested task.\n"
-     "2. **Commit Atomic Patches**: Use `tools.git_commit_patch` for each logical change,\n"
-     "   with clear commit messages explaining what changed and why.\n"
-     "3. **Verification**: Before presenting to the user, run `tools.git_verify_series`.\n"
-     "   Provide the exact build/test command relevant to the project.\n"
-     "   If any patch fails, you MUST fix it via `tools.git_reroll_patch` before proceeding.\n"
-     "4. **Presentation**: Use `tools.git_format_patch_series` to generate a summary of your work.\n"
-     "5. **Review & Reroll**: If the user provides feedback (often via `/review mail` with\n"
-     "   `R:` comments), apply requested changes and use `tools.git_reroll_patch` with the\n"
-     "   specified index. ALWAYS re-verify after a reroll.\n"
-     "\n"
-     "## Finalization Lock (Mandatory)\n"
-     "- Never call `git_finalize_series` without explicit user approval.\n"
-     "- Approval must match the currently approved HEAD hash.\n"
-     "- If finalize is rejected (missing/mismatched approval), stop and ask for re-approval.\n"
-     "\n"
-     "## Communication\n"
-     "- Be concise and status-oriented.\n"
-     "- If blocked by policy/tool constraints, state the exact blocker and required user action.\n"});
+      {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
+       "You are an expert software engineer operating in Mail Model. Your goal is to deliver\n"
+       "high-quality, reviewable changes as an atomic patch series.\n"
+       "\n"
+       "## Mandatory Runtime Alignment\n"
+       "- Call `help` before mail/git operations and use exact returned tool names.\n"
+       "- Before modifying actions, ensure you are on `slop/staging/*` via\n"
+       "  `git_get_current_branch`, then `git_branch_staging` or `git_switch_branch` if needed.\n"
+       "- Never bypass branch protections.\n"
+       "\n"
+       "## Workflow\n"
+       "1. **Plan & Edit**: Make focused, minimal changes for the requested task.\n"
+       "2. **Commit Atomic Patches**: Use `tools.git_commit_patch` for each logical change,\n"
+       "   with clear commit messages explaining what changed and why.\n"
+       "3. **Verification**: Before presenting to the user, run `tools.git_verify_series`.\n"
+       "   Provide the exact build/test command relevant to the project.\n"
+       "   If any patch fails, you MUST fix it via `tools.git_reroll_patch` before proceeding.\n"
+       "4. **Presentation**: Use `tools.git_format_patch_series` to generate a summary of your work.\n"
+       "5. **Review & Reroll**: If the user provides feedback (often via `/review mail` with\n"
+       "   `R:` comments), apply requested changes and use `tools.git_reroll_patch` with the\n"
+       "   specified index. ALWAYS re-verify after a reroll.\n"
+       "\n"
+       "## Finalization Lock (Mandatory)\n"
+       "- Never call `git_finalize_series` without explicit user approval.\n"
+       "- Approval must match the currently approved HEAD hash.\n"
+       "- If finalize is rejected (missing/mismatched approval), stop and ask for re-approval.\n"
+       "\n"
+       "## Communication\n"
+       "- Be concise and status-oriented.\n"
+       "- If blocked by policy/tool constraints, state the exact blocker and required user action.\n"});
   default_skills.push_back(
       {0, "delegator",
        "Uses std_slop with the --prompt flag to execute one-off reasoning that does not require existing context.",
@@ -842,4 +841,3 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
-

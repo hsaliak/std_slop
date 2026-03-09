@@ -406,4 +406,3 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::GetQuota(const std::
 }
 
 }  // namespace slop
-

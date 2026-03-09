@@ -29,12 +29,12 @@ print(text);
 
 ### Exception-Throwing Tools
 
-Some helpers fail by throwing exceptions (for example, `persist_function` and `apply_patch`).
+Some helpers fail by throwing exceptions (for example, `persist_function` and `patch_tool`).
 Wrap these calls in `try/catch` when building robust scripts:
 
 ```javascript
 try {
-  tools.apply_patch({
+  tools.patch_tool({
     path: "README.md",
     patches: [{ find: "foo", replace: "bar" }],
     dry_run: true
@@ -44,9 +44,9 @@ try {
 }
 ```
 
-### `apply_patch` Dry Run
+### `patch_tool` Dry Run
 
-When orchestrating edits, the LLM can set `dry_run: true` on `apply_patch` to validate
+When orchestrating edits, the LLM can set `dry_run: true` on `patch_tool` to validate
 patch anchors and replacements without writing file content.
 
 ## Installation
@@ -332,5 +332,6 @@ If a tool is taking too long (e.g., a massive `grep` or a complex build), or if 
   - Network requests are immediately aborted.
   - The results are returned to the LLM with a `[Cancelled]` status, allowing it to recover or ask for clarification.
 - **Press `[Ctrl+C]`**: Triggers a graceful shutdown of the entire application, ensuring the database is committed and the terminal state is restored.
+
 
 

@@ -245,4 +245,3 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
-
