@@ -1,6 +1,5 @@
-## v0.14.2 - 2026-03-10
-- Removed JavaScript control-plane migration artifacts: `JCP_REMOVAL.md` and `TOOL_MIGRATION.md`. This is unfortunate, but models are RLed so hard, that such an approach is inferior. QuickJS-NG is an excellent project to integrate with but we must stay on our path.
-- Removed stray `patch_demo.txt` artifact from the repository.
+## v0.15 - 2026-03-10
+- Removed JavaScript control-plane migration artifacts: This is unfortunate, but models are RLed so hard, that such an approach is inferior. QuickJS-NG is an excellent project to integrate with but we must stay on our path.
 - Completed post-migration prompt/skill cleanup to align with the native tool interface and current mail-model git tool names.
 - Confirmed no residual JS-control-plane anchors remain (`run_js`, `persist_function`, `js_functions`, `js-bridge`, `generate_js_tools`, `generate_js_preamble`, `GetDefaultJsFunctions`).
 
