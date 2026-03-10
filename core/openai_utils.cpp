@@ -8,6 +8,47 @@
 
 namespace slop {
 
+namespace {
+
+// Some providers reject array schemas that omit `items`.
+// To be robust against stale DB rows or future schema drift, normalize every
+// array node to include a permissive `items` schema before sending tools.
+void EnsureArrayItems(nlohmann::json* node) {
+  if (!node || node->is_null()) return;
+
+  if (node->is_object()) {
+    auto type_it = node->find("type");
+    if (type_it != node->end() && type_it->is_string() && *type_it == "array") {
+      if (!node->contains("items")) {
+        (*node)["items"] = nlohmann::json::object();
+      }
+    }
+    for (const auto& item : node->items()) {
+      EnsureArrayItems(&item.value());
+    }
+    return;
+  }
+
+  if (node->is_array()) {
+    for (auto& v : *node) {
+      EnsureArrayItems(&v);
+    }
+  }
+}
+
+nlohmann::json NormalizeToolSchemaForProvider(nlohmann::json schema) {
+  if (schema.is_object()) {
+    auto type_it = schema.find("type");
+    if (type_it != schema.end() && type_it->is_string() && *type_it == "object" && !schema.contains("properties")) {
+      schema["properties"] = nlohmann::json::object();
+    }
+  }
+  EnsureArrayItems(&schema);
+  return schema;
+}
+
+}  // namespace
+
 absl::flat_hash_set<std::string> GetEnabledToolNames(Database* db) {
   absl::flat_hash_set<std::string> enabled_tool_names;
   auto tools_or = db->GetEnabledTools();
@@ -31,8 +72,9 @@ nlohmann::json BuildOpenAiChatTools(Database* db) {
     if (!schema_opt) {
       continue;
     }
+    auto schema = NormalizeToolSchemaForProvider(*schema_opt);
     tools.push_back({{"type", "function"},
-                     {"function", {{"name", t.name}, {"description", t.description}, {"parameters", *schema_opt}}}});
+                     {"function", {{"name", t.name}, {"description", t.description}, {"parameters", schema}}}});
   }
   return tools;
 }
@@ -48,8 +90,9 @@ nlohmann::json BuildOpenAiResponsesTools(Database* db) {
     if (!schema_opt) {
       continue;
     }
+    auto schema = NormalizeToolSchemaForProvider(*schema_opt);
     tools.push_back(
-        {{"type", "function"}, {"name", t.name}, {"description", t.description}, {"parameters", *schema_opt}});
+        {{"type", "function"}, {"name", t.name}, {"description", t.description}, {"parameters", schema}});
   }
   return tools;
 }
@@ -184,3 +227,6 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
 }
 
 }  // namespace slop
+
+
+

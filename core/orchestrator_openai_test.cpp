@@ -33,7 +33,7 @@ TEST_F(OpenAiOrchestratorTest, PayloadStructureBasic) {
 TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
   OpenAiOrchestrator orchestrator(&db, &http, "gpt-4", "https://api.openai.com/v1");
 
-  // Only run_js is exposed at top-level. tool1 is preserved; tool2 is filtered.
+  // Only first registered tool is exposed at top-level. tool1 is preserved; tool2 is filtered.
   ASSERT_TRUE(db.RegisterTool({"tool1", "desc1", "{}", true}).ok());
 
   // Add "tool1" (preserved) and "tool2" (suppressed) calls.

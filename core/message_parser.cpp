@@ -60,18 +60,6 @@ absl::StatusOr<std::vector<ToolCall>> MessageParser::ExtractToolCalls(const Mess
             } else {
               tc.args = nlohmann::json::object();
             }
-            if (tc.name == "run_js" && (arguments->is_string() || arguments->is_object())) {
-              const auto script = json_get<std::string>(tc.args, "script");
-              if (!script || script->empty()) {
-                std::string arg_shape = arguments->is_string() ? json_getter<std::string>::get(*arguments).value_or("")
-                                                               : json_dump(*arguments);
-                if (arg_shape.size() > 256) {
-                  arg_shape = arg_shape.substr(0, 256) + "...";
-                }
-                LOG(WARNING) << "run_js tool call missing script field. call_id=" << tc.id
-                             << " raw_arguments=" << arg_shape;
-              }
-            }
           } else {
             tc.args = nlohmann::json::object();
           }

@@ -328,9 +328,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
 
             std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
             auto args_opt = json_parse(args_str);
-            if (args_opt && name == "run_js") {
-              ss << "```javascript\n" << json_get_or(*args_opt, "script", std::string{}) << "\n```\n\n";
-            } else if (args_opt) {
+            if (args_opt) {
               ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
             } else {
               ss << "```\n" << args_str << "\n```\n\n";
@@ -383,53 +381,6 @@ std::string FlattenJsonArgs(const std::string& json_str) {
 }
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix, int tokens) {
   absl::MutexLock lock(&g_ui_mu);
-  if (name == "run_js") {
-    auto j_opt = json_parse(args);
-    if (!j_opt) return;
-    auto& j = *j_opt;
-    if (!j.is_discarded() && j.is_object() && j.contains("script")) {
-      std::string script = j["script"];
-      // Escape any existing backticks to avoid breaking our markdown code fence
-      std::string escaped_script;
-      escaped_script.reserve(script.size() + 64);
-      size_t backtick_run = 0;
-      for (char c : script) {
-        if (c == '`') {
-          backtick_run++;
-          if (backtick_run == 3) {
-            // We've hit 3 backticks, escape by inserting zero-width space
-            escaped_script += "\xE2\x80\x8B";  // Zero-width space
-            backtick_run = 1;
-          }
-          // Don't add the backtick yet
-        } else {
-          // Add any pending backticks
-          for (size_t i = 0; i < backtick_run; i++) escaped_script += '`';
-          backtick_run = 0;
-          escaped_script += c;
-        }
-      }
-      // Handle trailing backticks
-      for (size_t i = 0; i < backtick_run; i++) escaped_script += '`';
-      // Wrap in markdown code fence with javascript syntax highlighting
-      std::string markdown = absl::StrCat("```javascript\n", escaped_script, "\n```");
-      std::string summary = absl::StrCat(icons::Tool, " ", name, " (control plane)");
-      std::cout << prefix << "    " << Colorize(summary, "", ansi::Metadata);
-      if (tokens > 0) {
-        std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
-      }
-      std::cout << std::endl;
-      // Render the markdown (which includes syntax-highlighted JavaScript code)
-      std::string rendered;
-      RenderMarkdown(markdown, prefix, &rendered);
-      // Split rendered output and print with prefix
-      std::vector<std::string> rendered_lines = absl::StrSplit(rendered, '\n');
-      for (const auto& line : rendered_lines) {
-        std::cout << prefix << "      " << Colorize("│", "", ansi::Metadata) << " " << line << std::endl;
-      }
-      return;
-    }
-  }
   std::string display_args = FlattenJsonArgs(args);
   if (display_args.length() > 60) {
     display_args = display_args.substr(0, 57) + "...";

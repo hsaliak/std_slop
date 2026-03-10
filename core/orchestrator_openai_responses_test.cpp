@@ -21,8 +21,8 @@ class OpenAiResponsesOrchestratorTest : public ::testing::Test {
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   ASSERT_TRUE(
-      db.RegisterTool({"run_js", "Run JavaScript",
-                       R"({"type":"object","properties":{"script":{"type":"string"}},"required":["script"]})", true})
+      db.RegisterTool({"query_db", "Query database",
+                       R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true})
           .ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
 
@@ -44,7 +44,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   for (const auto& tool : payload["tools"]) {
     tool_names.insert(json_get_or(tool, "name", std::string{}));
   }
-  EXPECT_TRUE(tool_names.find("run_js") != tool_names.end());
+  EXPECT_TRUE(tool_names.find("query_db") != tool_names.end());
   EXPECT_TRUE(tool_names.find("llm_query") != tool_names.end());
   EXPECT_TRUE(tool_names.find("ask_user") != tool_names.end());
 }
@@ -143,10 +143,10 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseDedupesSseFunctionCallIte
   const std::string sse_payload =
       "event: response.output_item.added\n"
       "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"call_id\":\"call_1\","
-      "\"name\":\"run_js\",\"arguments\":\"\"}}\n\n"
+      "\"name\":\"query_db\",\"arguments\":\"\"}}\n\n"
       "event: response.output_item.done\n"
       "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"call_id\":\"call_1\","
-      "\"name\":\"run_js\",\"arguments\":\"{\\\"script\\\":\\\"return 7;\\\"}\"}}\n\n"
+      "\"name\":\"query_db\",\"arguments\":\"{\\\"sql\\\":\\\"SELECT 7\\\"}\"}}\n\n"
       "event: response.completed\n"
       "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\"}}\n\n";
 
@@ -162,8 +162,8 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseDedupesSseFunctionCallIte
   ASSERT_TRUE(calls_or.ok());
   ASSERT_EQ(calls_or->size(), 1);
   EXPECT_EQ((*calls_or)[0].id, "call_1");
-  EXPECT_EQ((*calls_or)[0].name, "run_js");
-  EXPECT_EQ(json_get_or((*calls_or)[0].args, "script", std::string{}), "return 7;");
+  EXPECT_EQ((*calls_or)[0].name, "query_db");
+  EXPECT_EQ(json_get_or((*calls_or)[0].args, "sql", std::string{}), "SELECT 7");
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseStoresAssistantText) {
@@ -228,8 +228,8 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
       {
         "type": "function_call",
         "call_id": "call_obj",
-        "name": "run_js",
-        "arguments": { "script": "return 1 + 1;" }
+        "name": "query_db",
+        "arguments": { "sql": "SELECT 1 + 1" }
       }
     ]
   })";
@@ -244,8 +244,8 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
   auto calls_or = orchestrator.ParseToolCalls((*history_or)[0]);
   ASSERT_TRUE(calls_or.ok());
   ASSERT_EQ(calls_or->size(), 1);
-  EXPECT_EQ((*calls_or)[0].name, "run_js");
-  EXPECT_EQ(json_get_or((*calls_or)[0].args, "script", std::string{}), "return 1 + 1;");
+  EXPECT_EQ((*calls_or)[0].name, "query_db");
+  EXPECT_EQ(json_get_or((*calls_or)[0].args, "sql", std::string{}), "SELECT 1 + 1");
 }
 
 }  // namespace slop

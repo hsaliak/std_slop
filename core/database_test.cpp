@@ -1,6 +1,7 @@
 #include "core/database.h"
 
 #include <atomic>
+#include <map>
 #include <thread>
 #include <vector>
 
@@ -49,7 +50,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
     if (t.name == "write_file") found_write_file = true;
     if (t.name == "ask_user") found_ask_user = true;
   }
-  EXPECT_TRUE(found_run_js);
+  EXPECT_FALSE(found_run_js);
   EXPECT_TRUE(found_query_db);
   EXPECT_TRUE(found_read_file);
   EXPECT_TRUE(found_execute_bash);
@@ -58,10 +59,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(found_ask_user);
 
   auto js_functions_res = db.Query("SELECT name FROM js_functions");
-  ASSERT_TRUE(js_functions_res.ok());
-  EXPECT_TRUE(js_functions_res->find("execute_bash") != std::string::npos);
-  EXPECT_TRUE(js_functions_res->find("read_file") != std::string::npos);
-  EXPECT_TRUE(js_functions_res->find("persist_function") != std::string::npos);
+  EXPECT_FALSE(js_functions_res.ok());
   bool found_planner = false;
   bool found_code_reviewer = false;
   for (const auto& s : *skills) {
@@ -335,24 +333,47 @@ TEST(DatabaseTest, SkillTracking) {
   EXPECT_EQ((*restored)[0], "skill1");
   EXPECT_EQ((*restored)[1], "skill2");
 }
-TEST(DatabaseTest, ApplyPatchToolSchema) {
+TEST(DatabaseTest, JsFunctionsTableRemoved) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
   auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions WHERE name = 'patch_tool'");
-  ASSERT_TRUE(funcs_or.ok());
-  auto funcs_json = slop::json_parse(*funcs_or).value_or(nlohmann::json::array());
-  ASSERT_TRUE(funcs_json.is_array());
-  ASSERT_EQ(funcs_json.size(), 1);
-
-  nlohmann::json schema =
-      slop::json_parse(funcs_json[0].value("json_schema", std::string{})).value_or(nlohmann::json::object());
-  ASSERT_FALSE(schema.is_discarded());
-  EXPECT_EQ(schema["type"], "object");
-  EXPECT_TRUE(schema["properties"].contains("path"));
-  EXPECT_TRUE(schema["properties"].contains("unified_diff"));
-  EXPECT_EQ(schema["properties"]["unified_diff"]["type"], "string");
+  EXPECT_FALSE(funcs_or.ok());
 }
+
+TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  auto tools_or = db.Query(
+      "SELECT name, json_schema FROM tools WHERE name IN ('query_db','parse_tool_rows','git_commit_patch') ORDER BY name");
+  ASSERT_TRUE(tools_or.ok());
+  auto rows = slop::json_parse(*tools_or).value_or(nlohmann::json::array());
+  ASSERT_TRUE(rows.is_array());
+  ASSERT_EQ(rows.size(), 3);
+
+  std::map<std::string, nlohmann::json> by_name;
+  for (const auto& row : rows) {
+    ASSERT_TRUE(row.is_object());
+    const std::string name = row.value("name", "");
+    auto schema = slop::json_parse(row.value("json_schema", std::string{})).value_or(nlohmann::json::object());
+    ASSERT_TRUE(schema.is_object());
+    by_name[name] = schema;
+  }
+
+  ASSERT_TRUE(by_name.find("query_db") != by_name.end());
+  ASSERT_TRUE(by_name["query_db"]["properties"].contains("params"));
+  EXPECT_TRUE(by_name["query_db"]["properties"]["params"].contains("items"));
+
+  ASSERT_TRUE(by_name.find("parse_tool_rows") != by_name.end());
+  EXPECT_TRUE(by_name["parse_tool_rows"]["properties"].contains("value"));
+  EXPECT_FALSE(by_name["parse_tool_rows"].contains("required"));
+
+  ASSERT_TRUE(by_name.find("git_commit_patch") != by_name.end());
+  EXPECT_TRUE(by_name["git_commit_patch"]["properties"].contains("summary"));
+  EXPECT_FALSE(by_name["git_commit_patch"]["properties"].contains("message"));
+}
+
 TEST(DatabaseTest, ToolUsageCounters) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -408,4 +429,8 @@ TEST(DatabaseTest, ConcurrentAccess) {
   }
   EXPECT_EQ(success_count, num_threads * iterations * 2);
 }
+
+
+
+
 

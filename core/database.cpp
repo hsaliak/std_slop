@@ -8,7 +8,6 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 
-#include "core/js_tools_data.h"
 #include "core/status_macros.h"
 #include "json_utils.h"
 
@@ -162,13 +161,6 @@ absl::Status Database::Init(const std::string& db_path) {
         state_blob TEXT
     );
         CREATE TABLE IF NOT EXISTS agent_md (path TEXT PRIMARY KEY, content TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
-    CREATE TABLE IF NOT EXISTS js_functions (
-        name TEXT PRIMARY KEY,
-        code TEXT,
-        description TEXT,
-        json_schema TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
   )";
   rc = sqlite3_exec(raw_db, schema, nullptr, nullptr, nullptr);
   if (rc != SQLITE_OK) {
@@ -186,8 +178,6 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
-  (void)sqlite3_exec(raw_db, "ALTER TABLE js_functions ADD COLUMN description TEXT;", nullptr, nullptr, nullptr);
-  (void)sqlite3_exec(raw_db, "ALTER TABLE js_functions ADD COLUMN json_schema TEXT;", nullptr, nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (
@@ -214,15 +204,6 @@ absl::Status Database::Init(const std::string& db_path) {
     db_.reset(raw_db);
   }
 
-  // Insert default JS functions into js_functions table
-  for (const auto& func : GetDefaultJsFunctions()) {
-    std::string sql =
-        "INSERT INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?) "
-        "ON CONFLICT(name) DO UPDATE SET code=excluded.code, description=excluded.description, "
-        "json_schema=excluded.json_schema;";
-    (void)Execute(sql, func.name, func.code, func.description, func.json_schema);
-  }
-
   absl::Status s = RegisterDefaultTools();
   if (!s.ok()) return s;
   s = RegisterDefaultSkills();
@@ -233,23 +214,23 @@ absl::Status Database::RegisterDefaultTools() {
   std::vector<Tool> default_tools = {
       {"query_db",
        "Execute a SQL query against the internal SQLite database.",
-       R"({"type":"object","properties":{"sql":{"type":"string"},"params":{"type":"array"}},"required":["sql"]})",
+       R"({"type":"object","properties":{"sql":{"type":"string"},"params":{"type":"array","items":{}}},"required":["sql"]})",
        true},
       {"read_file",
        "Read file content with optional line range and line numbers.",
-       R"({"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"line_numbers":{"type":"boolean"}},"required":["path"]})",
+       R"({"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"line_numbers":{"type":"boolean"}}})",
        true},
       {"list_directory",
        "List files and folders in a directory.",
-       R"({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]})",
+       R"({"type":"object","properties":{"path":{"type":"string"},"depth":{"type":["integer","string"]},"include_ignored":{"type":"boolean"}}})",
        true},
       {"describe_db",
        "Describe database schema objects and columns.",
-       R"({"type":"object"})",
+       R"({"type":"object","properties":{}})",
        true},
       {"grep",
        "Search for a pattern in files.",
-       R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"glob":{"type":"string"},"fixed_strings":{"type":"boolean"},"line_numbers":{"type":"boolean"},"max_results":{"type":"integer"}},"required":["pattern"]})",
+       R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":["integer","string"]},"limit":{"type":["integer","string"]},"include_ignored":{"type":"boolean"},"fixed_strings":{"type":"boolean"}},"required":["pattern"]})",
        true},
       {"execute_bash",
        "Execute a shell command.",
@@ -257,7 +238,7 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"patch_tool",
        "Apply a unified diff patch to a file.",
-       R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff","dry_run","ignore_whitespace"]})",
+       R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff"]})",
        true},
       {"write_file",
        "Create or overwrite a file.",
@@ -265,41 +246,35 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"parse_tool_rows",
        "Parse a tool's row-oriented textual output into JSON.",
-       R"({"type":"object","properties":{"text":{"type":"string"}},"required":["text"]})",
+       R"({"type":"object","properties":{"value":{},"context":{"type":"string"}}})",
        true},
       {"use_skill",
        "Activate or run a skill by name.",
-       R"({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]})",
+       R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"]}},"required":["name"]})",
        true},
       {"git_create_staging_branch",
        "Create or switch to a staging branch in mail mode.",
-       R"({"type":"object","properties":{"base":{"type":"string"}}})",
+       R"({"type":"object","properties":{"name":{"type":"string"},"base_branch":{"type":"string"}},"required":["name"]})",
        true},
       {"git_commit_patch",
        "Commit a patch with a message in mail mode.",
-       R"({"type":"object","properties":{"message":{"type":"string"},"patch":{"type":"string"}},"required":["message","patch"]})",
+       R"({"type":"object","properties":{"summary":{"type":"string"},"rationale":{"type":"string"}},"required":["summary"]})",
        true},
       {"git_format_patch_series",
        "Generate a patch series for review.",
-       R"({"type":"object","properties":{"base":{"type":"string"},"output_dir":{"type":"string"}}})",
+       R"({"type":"object","properties":{"base_branch":{"type":"string"}}})",
        true},
       {"git_reroll_patch",
        "Reroll an existing patch series.",
-       R"({"type":"object","properties":{"revision":{"type":"integer"}}})",
+       R"({"type":"object","properties":{"index":{"type":["integer","string"]},"base_branch":{"type":"string"}}})",
        true},
       {"git_finalize_series",
        "Finalize a patch series workflow.",
-       R"({"type":"object","properties":{"base":{"type":"string"}}})",
+       R"({"type":"object","properties":{"target_branch":{"type":"string"}}})",
        true},
       {"grep_tool",
        "Search tool output using grep semantics.",
-       R"({"type":"object","properties":{"pattern":{"type":"string"},"input":{"type":"string"}},"required":["pattern"]})",
-       true},
-      {"run_js",
-       "Execute a JavaScript (ES2020+) script acting as a high-level 'control plane' with access to a "
-       "'tools' object (supporting async variants), and global variable 'state'; optional "
-       "Output and return values are captured.",
-       R"({"type":"object","properties":{"script":{"type":"string","description":"The JavaScript script to execute."}},"required":["script"]})",
+       R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"paths":{"type":"string"},"context":{"type":"integer"},"limit":{"type":"integer"},"include_ignored":{"type":"boolean"},"ignore":{"type":"string"}},"required":["pattern"]})",
        true},
       {"llm_query",
        "Executes a synchronous LLM query in a transient, isolated environment. Useful for sub-tasks or analysis.",
@@ -322,10 +297,10 @@ absl::Status Database::RegisterDefaultSkills() {
   std::vector<Skill> default_skills = {
       {0, "planner", "Strategic Tech Lead specialized in architectural decomposition and iterative feature delivery.",
        "You are a Strategic Tech Lead specialized in architectural decomposition. Before planning, always check for "
-       "iterative checklist. You MUST NOT implement code; you must provide a plan and request feedback. Your job is "
+       "an iterative checklist. You MUST NOT implement code; you must provide a plan and request feedback. Your job is "
        "to break down a large or abstract request into a plan that is composed of smaller, iterable tasks. You ask "
-       "questions and feedback to refine the plan, you iterate with the user until youa are absolutely convinced that "
-       "all details have been finalized. Then and only then do you recommend proceeding with implementation."},
+       "questions and gather feedback to refine the plan, iterating with the user until you are absolutely convinced "
+       "that all details have been finalized. Then and only then do you recommend proceeding with implementation."},
       {0, "dba", "Database Administrator specializing in SQLite schema design, optimization, and data integrity.",
        "As a DBA, you are the steward of the project's data. You focus on efficient schema design, precise query "
        "construction, and maintaining data integrity. When interacting with the database: 1. Always verify schema "
@@ -354,37 +329,6 @@ absl::Status Database::RegisterDefaultSkills() {
        "can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, "
        "use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary."}};
   default_skills.push_back(
-      {0, "js_control_plane", "Constrains the agent to use the 'run_js' control plane for all operations.",
-       "### Skill: js_control_plane\n"
-       "DANGER: You are in **JS CONTROL PLANE** mode.\n"
-       "- You MUST NOT use any tools directly EXCEPT for `run_js`.\n"
-       "- All other operations (file manipulation, searching, bash execution, etc.) MUST be performed by writing and "
-       "executing a JavaScript script via `run_js`.\n"
-       "- Use `tools.query_db` from inside JCP scripts only when schema or metadata inspection is needed.\n"
-       "- This mode ensures all actions are documented, reproducible, and orchestrated via the control plane.\n"
-       "- If you need to search, read files, or apply patches, write a JavaScript script that calls the appropriate "
-       "`tools` "
-       "functions."});
-  default_skills.push_back(
-      {0, "run_js", "Expert JavaScript scripter capable of orchestrating complex tasks using the JavaScript bridge.",
-       "You are a JavaScript scripting expert. You use 'run_js' to orchestrate complex tasks.\n"
-       "### ENVIRONMENT\n"
-       "- **'tools'**: Table of all tool functions. Every tool takes a SINGLE table argument "
-       "(e.g., `tools.read_file({path='foo.txt'})`).\n"
-       "- **'tools.help()'**: Call this early to fetch the JSON API manifest, canonical names, "
-       "and aliases.\n"
-       "- **No 'history' global**: Conversation history is not exposed as a JS global in this runtime.\n"
-       "- Use database APIs when prior messages are needed.\n"
-       "- **'state'**: Global context string.\n"
-       ""
-       "### PARALLELISM\n"
-       "Use `tools.execute_bash_async` to launch parallel jobs, then "
-       "`job:wait()` to block and collect results.\n"
-       "### OUTPUT\n"
-       "Use `print()` for debugging/logging. The script's final expression or explicit `return` "
-       "value is captured and returned to you. Return a concise user-facing result every turn; "
-       ""});
-  default_skills.push_back(
       {0, "patcher", "Expert at atomic commits and the \"Mail Model\" workflow.",
        "You are an expert software engineer operating in Mail Model. Your goal is to deliver\n"
        "high-quality, reviewable changes as an atomic patch series.\n"
@@ -392,15 +336,15 @@ absl::Status Database::RegisterDefaultSkills() {
        "## Mandatory Runtime Alignment\n"
        "- Call `help` before mail/git operations and use exact returned tool names.\n"
        "- Before modifying actions, ensure you are on `slop/staging/*` via\n"
-       "  `git_get_current_branch`, then `git_branch_staging` or `git_switch_branch` if needed.\n"
+       "  `git_create_staging_branch` (using `base_branch` when needed).\n"
        "- Never bypass branch protections.\n"
        "\n"
        "## Workflow\n"
        "1. **Plan & Edit**: Make focused, minimal changes for the requested task.\n"
        "2. **Commit Atomic Patches**: Use `tools.git_commit_patch` for each logical change,\n"
        "   with clear commit messages explaining what changed and why.\n"
-       "3. **Verification**: Before presenting to the user, run `tools.git_verify_series`.\n"
-       "   Provide the exact build/test command relevant to the project.\n"
+       "3. **Verification**: Before presenting to the user, run the exact build/test command\n"
+       "   relevant to the project and report results.\n"
        "   If any patch fails, you MUST fix it via `tools.git_reroll_patch` before proceeding.\n"
        "4. **Presentation**: Use `tools.git_format_patch_series` to generate a summary of your work.\n"
        "5. **Review & Reroll**: If the user provides feedback (often via `/review mail` with\n"
@@ -905,6 +849,11 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
+
+
+
+
+
 
 
 

@@ -8,6 +8,7 @@
 #include "gtest/gtest.h"
 
 #include "core/http_client.h"
+#include "core/database.h"
 
 namespace slop {
 
@@ -73,4 +74,56 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsFailsForUnrecognizedSchema) {
   EXPECT_TRUE(absl::StrContains(models_or.status().message(), "Unrecognized models response schema"));
 }
 
+TEST(OpenAiUtilsTest, BuildOpenAiToolsNormalizesArraySchemasWithItems) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  auto tools = BuildOpenAiResponsesTools(&db);
+  ASSERT_TRUE(tools.is_array());
+
+  nlohmann::json query_db_tool;
+  bool found = false;
+  for (const auto& t : tools) {
+    if (!t.is_object()) continue;
+    if (t.value("name", "") == "query_db") {
+      query_db_tool = t;
+      found = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(found);
+  ASSERT_TRUE(query_db_tool.contains("parameters"));
+  auto params = query_db_tool["parameters"]["properties"]["params"];
+  ASSERT_TRUE(params.is_object());
+  EXPECT_EQ(params.value("type", ""), "array");
+  EXPECT_TRUE(params.contains("items"));
+}
+
+TEST(OpenAiUtilsTest, BuildOpenAiToolsNormalizesObjectSchemasWithProperties) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  auto tools = BuildOpenAiResponsesTools(&db);
+  ASSERT_TRUE(tools.is_array());
+
+  nlohmann::json describe_tool;
+  bool found = false;
+  for (const auto& t : tools) {
+    if (!t.is_object()) continue;
+    if (t.value("name", "") == "describe_db") {
+      describe_tool = t;
+      found = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(found);
+  ASSERT_TRUE(describe_tool.contains("parameters"));
+  auto parameters = describe_tool["parameters"];
+  ASSERT_TRUE(parameters.is_object());
+  EXPECT_EQ(parameters.value("type", ""), "object");
+  EXPECT_TRUE(parameters.contains("properties"));
+}
+
 }  // namespace slop
+
+

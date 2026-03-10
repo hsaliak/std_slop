@@ -286,56 +286,6 @@ TEST(UiTest, PrintToolResultMessageQuotaError) {
   EXPECT_TRUE(absl::StrContains(output, "exhausted your capacity"));
   EXPECT_TRUE(absl::StrContains(output, "RESOURCE_EXHAUSTED"));
 }
-TEST(UiTest, PrintToolCallMessageRunJs) {
-  std::string name = "run_js";
-  std::string args = R"raw({"script": "print('hello')\nprint('world')" })raw";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolCallMessage(name, args);
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-  EXPECT_TRUE(absl::StrContains(output, "run_js (control plane)"));
-  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
-  EXPECT_TRUE(absl::StrContains(output, "print"));
-}
-TEST(UiTest, PrintToolCallMessageRunJsLong) {
-  std::string name = "run_js";
-  std::string args = R"raw({"script": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11" })raw";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolCallMessage(name, args);
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
-  EXPECT_TRUE(absl::StrContains(output, "10"));
-  EXPECT_TRUE(absl::StrContains(output, "11"));
-}
-TEST(UiTest, PrintToolCallMessageRunJsRendersMarkdown) {
-  std::string name = "run_js";
-  std::string args = R"raw({"script": "local x = 1\nprint(x)"})raw";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolCallMessage(name, args);
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-  // Should contain the markdown code fence with lua
-  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
-  EXPECT_TRUE(absl::StrContains(output, "run_js"));
-  EXPECT_TRUE(absl::StrContains(output, "control plane"));
-}
-TEST(UiTest, PrintToolCallMessageRunJsWithFunction) {
-  std::string name = "run_js";
-  std::string args = R"raw({"script": "local function hello()\n  print('world')\nend\nhello()"})raw";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolCallMessage(name, args);
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-  // New behavior: renders as markdown with code fence
-  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
-  EXPECT_TRUE(absl::StrContains(output, "local"));
-  EXPECT_TRUE(absl::StrContains(output, "function"));
-}
 TEST(UiTest, RenderMarkdownWithJsCodeBlock) {
   // Test the markdown rendering directly
   std::string markdown = "```javascript\nlocal x = 1\nprint(x)\n```";

@@ -32,8 +32,8 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   // Check for core content from system_prompt.md.
   // Since kBuiltinSystemPrompt is baked in at compile time from system_prompt.md,
   // verify key contract guidance is present.
-  EXPECT_TRUE(absl::StrContains(instr, "run_js")) << "Missing run_js entrypoint guidance";
-  EXPECT_TRUE(absl::StrContains(instr, "dispatch_async")) << "Missing async guidance";
+  EXPECT_TRUE(absl::StrContains(instr, "execute_bash")) << "Missing execute_bash guidance";
+  EXPECT_TRUE(absl::StrContains(instr, "patch_tool")) << "Missing patch_tool guidance";
 }
 
 }  // namespace slop

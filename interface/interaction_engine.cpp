@@ -320,7 +320,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             if (enabled_tool_names.find(call.name) == enabled_tool_names.end()) {
               results.push_back(
                   {combined_id, call.name,
-                   absl::NotFoundError("Tool not found: " + call.name + ". Use run_js with tools.<name>.")});
+                   absl::NotFoundError("Tool not found: " + call.name + ".")});
               continue;
             }
             dispatcher_calls.push_back({combined_id, call.name, call.args});

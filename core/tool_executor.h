@@ -12,7 +12,6 @@
 
 #include "core/cancellation.h"
 #include "core/database.h"
-#include "core/tool_types.h"
 
 #include <nlohmann/json.hpp>
 
@@ -68,22 +67,6 @@ class ToolExecutor {
 
   void RegisterTools();
 
-  struct JsResult {
-    std::string stdout_out;
-    std::string return_value;
-    bool has_js_return_value = false;
-
-    std::string FullOutput() const {
-      if (stdout_out.empty()) {
-        return return_value;
-      }
-      if (return_value.empty()) {
-        return stdout_out;
-      }
-      return stdout_out + "\n" + return_value;
-    }
-  };
-
   absl::StatusOr<std::string> HandleQueryDb(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleReadFile(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleListDirectory(const nlohmann::json& args);
@@ -103,11 +86,6 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleWriteFile(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleParseToolRows(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleUseSkill(const nlohmann::json& args);
-  absl::StatusOr<std::string> HandleRunLua(const nlohmann::json& args,
-                                           std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<std::string> HandleRunJs(const nlohmann::json& args,
-                                          std::shared_ptr<CancellationRequest> cancellation);
-  absl::StatusOr<JsResult> RunJs(const RunJsRequest& req, std::shared_ptr<CancellationRequest> cancellation);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   std::unique_ptr<ToolDispatcher> dispatcher_;

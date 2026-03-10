@@ -1,6 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@aspect_rules_lint//format:defs.bzl", "format_test")
-load("//scripts:js_tools_bundle.bzl", "generate_js_tools_header")
 
 genrule(
  name = "generate_system_prompt",
@@ -13,16 +12,6 @@ genrule(
  "echo '}' >> $@ ",
 )
 
-genrule(
-    name = "generate_js_preamble",
-    srcs = ["//js-bridge:preamble.js"],
-    outs = ["js_preamble_data.h"],
-    cmd = "echo 'namespace slop {' > $@ && " +
-          "echo 'static const char* kJsPreamble = R\"JS(' >> $@ && " +
-          "cat $< >> $@ && " +
-          "echo ')JS\";' >> $@ && " +
-          "echo '}' >> $@ ",
-)
 
 cc_library(
  name = "cancellation",
@@ -75,7 +64,6 @@ cc_library(
  srcs = [
  "config.cpp",
  "database.cpp",
- ":generate_js_tools",
  "http_client.cpp",
  "message_parser.cpp",
  "oauth_handler.cpp",
@@ -84,6 +72,22 @@ cc_library(
  "orchestrator_gemini.cpp",
  "orchestrator_openai.cpp",
  "orchestrator_openai_responses.cpp",
+ "tools/common.cpp",
+ "tools/query_db.cpp",
+ "tools/read_file.cpp",
+ "tools/list_directory.cpp",
+ "tools/grep.cpp",
+ "tools/git_create_staging_branch.cpp",
+ "tools/write_file.cpp",
+ "tools/parse_tool_rows.cpp",
+ "tools/execute_bash.cpp",
+ "tools/patch_tool.cpp",
+ "tools/git_commit_patch.cpp",
+ "tools/git_format_patch_series.cpp",
+ "tools/git_reroll_patch.cpp",
+ "tools/git_finalize_series.cpp",
+ "tools/describe_db.cpp",
+ "tools/use_skill.cpp",
  "tool_executor.cpp",
  ],
  hdrs = [
@@ -99,12 +103,10 @@ cc_library(
  "orchestrator_openai_responses.h",
  "orchestrator_strategy.h",
  "tool_executor.h",
- "tool_types.h",
+ "tools/common.h",
  "constants.h",
  "status_macros.h",
  ":generate_system_prompt",
- ":generate_js_preamble",
- ":generate_js_tools",
  ],
  visibility = ["//visibility:public"],
 
@@ -115,7 +117,6 @@ cc_library(
  defines = ["HAVE_SYSTEM_PROMPT_H"],
  deps = [
         ":json_utils",
-        "//js-bridge:js-bridge",
  ":cancellation",
  ":dispatcher",
  ":shell_lib",
@@ -180,7 +181,6 @@ cc_library(
  "ui_thread_safety_test",
  "mail_model_test",
  "json_utils_test",
- "js_integration_test",
  ]
 ]
 
@@ -218,26 +218,8 @@ cc_test(
 format_test(
  name = "format_test",
  cc = "//:clang_format_hermetic", # Point back to your root tool
- srcs = glob(["*.cpp", "*.h"]),
+ srcs = glob(["*.cpp", "*.h", "tools/*.cpp", "tools/*.h"]),
 )
 
-
-cc_test(
-    name = "auto_load_test",
-    srcs = ["auto_load_test.cpp"],
-    deps = [
-        ":core",
-        "@googletest//:gtest_main",
-    ],
-)
-
-
-
-generate_js_tools_header(
-    name = "generate_js_tools",
-    manifest = "//js_tools:manifest.json",
-    js_files = ["//js_tools:js_files"],
-    out = "js_tools_data.h",
-)
 
 

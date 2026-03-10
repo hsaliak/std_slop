@@ -281,8 +281,8 @@ TEST_F(OrchestratorTest, AssemblePromptWithTools) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
-  Database::Tool tool = {"run_js", "Run JavaScript",
-                         R"({"type":"object","properties":{"script":{"type":"string"}},"required":["script"]})", true};
+  Database::Tool tool = {"query_db", "Query database",
+                         R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true};
   ASSERT_TRUE(db.RegisterTool(tool).ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Use the tool").ok());
   auto result = orchestrator->AssemblePrompt("s1");
@@ -292,7 +292,7 @@ TEST_F(OrchestratorTest, AssemblePromptWithTools) {
   ASSERT_TRUE(prompt["tools"][0].contains("function_declarations"));
   bool found = false;
   for (const auto& decl : prompt["tools"][0]["function_declarations"]) {
-    if (decl["name"] == "run_js") {
+    if (decl["name"] == "query_db") {
       found = true;
       break;
     }
