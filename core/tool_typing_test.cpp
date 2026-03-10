@@ -89,8 +89,8 @@ TEST_F(ToolTypingTest, OptionalHandling) {
 }
 
 
-TEST_F(ToolTypingTest, GrepToolDirectTypedArgs) {
-  auto res_ok = executor_->Execute("grep_tool", {{"pattern", "foo"}, {"path", "core"}});
+TEST_F(ToolTypingTest, GrepDirectTypedArgs) {
+  auto res_ok = executor_->Execute("grep", {{"pattern", "foo"}, {"path", "core"}});
   EXPECT_TRUE(res_ok.ok() || res_ok.status().code() == absl::StatusCode::kNotFound);
 }
 

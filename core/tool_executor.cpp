@@ -77,28 +77,6 @@ void ToolExecutor::RegisterTools() {
                [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
                  return HandleGitFinalizeSeries(args, cancellation);
                });
-  RegisterTool("grep_tool", [this](const nlohmann::json& args,
-                                    std::shared_ptr<CancellationRequest> cancellation)
-                                 -> absl::StatusOr<std::string> {
-    if (!args.is_object() || !json_get<std::string>(args, "pattern")) {
-      return absl::InvalidArgumentError("Missing mandatory field: pattern");
-    }
-    nlohmann::json simplified = {
-        {"pattern", *json_get<std::string>(args, "pattern")},
-    };
-    if (auto path = json_get<std::string>(args, "path")) {
-      simplified["path"] = *path;
-    } else if (auto paths = json_get<std::string>(args, "paths")) {
-      simplified["path"] = *paths;
-    }
-    if (auto context = json_get<int>(args, "context")) simplified["context"] = *context;
-    if (auto limit = json_get<int>(args, "limit")) simplified["limit"] = *limit;
-    if (auto include_ignored = json_get<bool>(args, "include_ignored")) simplified["include_ignored"] = *include_ignored;
-    if (auto ignore = json_get<std::string>(args, "ignore")) simplified["ignore"] = *ignore;
-    // Delegate to canonical grep implementation (currently JS-backed) to avoid behavior drift.
-    return Execute("grep", simplified, cancellation);
-  });
-
   RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
     std::string prompt_text = "Input required: ";
     if (auto p = json_get<std::string>(args, "prompt")) {

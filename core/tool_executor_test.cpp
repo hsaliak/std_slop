@@ -301,7 +301,7 @@ TEST(ToolExecutorTest, PromotedCoreToolsAreRegisteredTopLevel) {
   auto& executor = **executor_or;
 
   const std::vector<std::string> core_tools = {
-      "describe_db", "git_create_staging_branch", "grep", "grep_tool", "list_directory", "read_file", "use_skill"};
+      "describe_db", "git_create_staging_branch", "grep", "list_directory", "read_file", "use_skill"};
 
   for (const auto& name : core_tools) {
     auto res = executor.Execute(name, nlohmann::json::object());
@@ -347,7 +347,6 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "git_format_patch_series",
       "git_reroll_patch",
       "grep",
-      "grep_tool",
       "list_directory",
       "parse_tool_rows",
       "patch_tool",
@@ -391,20 +390,6 @@ TEST(ToolExecutorTest, DescribeDbTopLevelReturnsSchemaRows) {
   ASSERT_TRUE(res.ok()) << res.status().message();
   // Stable parity anchor: sqlite schema includes sessions table in initialized DB.
   EXPECT_TRUE(absl::StrContains(*res, "sessions")) << *res;
-}
-
-TEST(ToolExecutorTest, GrepToolTopLevelRequiresPattern) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  auto res = executor.Execute("grep_tool", nlohmann::json::object());
-  ASSERT_FALSE(res.ok());
-  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
-  EXPECT_TRUE(absl::StrContains(res.status().message(), "Missing mandatory field: pattern"))
-      << res.status().message();
 }
 
 TEST(ToolExecutorTest, UseSkillTopLevelRequiresActiveSession) {

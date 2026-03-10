@@ -136,7 +136,7 @@ TEST_F(ContextManagementTest, GrepTruncation) {
   }
   f.close();
 
-  auto res = executor.Execute("grep_tool", {{"pattern", "match"}, {"path", "large_grep.txt"}, {"limit", 50}});
+  auto res = executor.Execute("grep", {{"pattern", "match"}, {"path", "large_grep.txt"}, {"limit", 50}});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res), "[TRUNCATED"));
 
