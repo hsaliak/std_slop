@@ -68,6 +68,17 @@ bool ShouldUseResponsesModelVariants(const Orchestrator* orchestrator) {
   return orchestrator->GetProvider() == Orchestrator::Provider::OPENAI &&
          orchestrator->GetOpenAiApiStyle() == Orchestrator::OpenAiApiStyle::RESPONSES;
 }
+
+bool IsSafeBranchToken(std::string_view name) {
+  if (name.empty()) return false;
+  for (char c : name) {
+    const bool is_alpha_num = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+    if (!is_alpha_num && c != '-' && c != '_' && c != '.') {
+      return false;
+    }
+  }
+  return true;
+}
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
                                std::string google_api_key, std::string openai_api_key)
@@ -994,8 +1005,18 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
   return Result::PROCEED_TO_LLM;
 }
 CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
-  std::string mode = std::string(absl::StripAsciiWhitespace(args.args));
+  std::vector<std::string> mode_parts = absl::StrSplit(args.args, ' ', absl::SkipEmpty());
+  std::string mode = mode_parts.empty() ? "" : mode_parts[0];
   if (mode == "mail") {
+    std::string requested_staging_name = mode_parts.size() > 1 ? mode_parts[1] : "";
+    if (mode_parts.size() > 2) {
+      std::cout << "Usage: /mode mail [branchname]" << std::endl;
+      return Result::HANDLED;
+    }
+    if (!requested_staging_name.empty() && !IsSafeBranchToken(requested_staging_name)) {
+      std::cout << "Error: Invalid branch name. Use only letters, numbers, '.', '_' or '-'" << std::endl;
+      return Result::HANDLED;
+    }
     // Check if it's a git repo
     auto git_check = ExecuteCommand("git rev-parse --is-inside-work-tree");
     if (!git_check.ok()) {
@@ -1015,14 +1036,45 @@ CommandHandler::Result CommandHandler::HandleMode(CommandArgs& args) {
       std::cout << "\nDirty files:\n" << *status_check << std::endl;
       return Result::HANDLED;
     }
-    mail_mode_ = true;
-    (void)db_->Query("UPDATE settings SET mode = 'mail' WHERE id = 1");
     auto current_branch_res = ExecuteCommand("git rev-parse --abbrev-ref HEAD");
     std::string current_branch = current_branch_res.ok() ? *current_branch_res : "";
     absl::StripAsciiWhitespace(&current_branch);
     std::string base = ResolveBaseBranch(current_branch);
+    std::string active_branch = current_branch;
+
+    if (!requested_staging_name.empty()) {
+      if (current_branch.empty()) {
+        std::cout << "Error: Failed to resolve current git branch." << std::endl;
+        return Result::HANDLED;
+      }
+      std::string base_branch = current_branch;
+      if (absl::StartsWith(current_branch, "slop/staging/")) {
+        base_branch = ResolveBaseBranch(current_branch);
+      }
+      std::string staging_branch = absl::StrCat("slop/staging/", requested_staging_name);
+      bool created = true;
+      auto create_res = ExecuteCommand(absl::StrCat("git checkout -b ", staging_branch, " ", base_branch));
+      if (!create_res.ok()) {
+        auto checkout_existing = ExecuteCommand(absl::StrCat("git checkout ", staging_branch));
+        if (!checkout_existing.ok()) {
+          std::cout << "Error: Failed to create or switch to staging branch '" << staging_branch
+                    << "': " << create_res.status().message() << std::endl;
+          return Result::HANDLED;
+        }
+        created = false;
+      }
+      (void)db_->Execute("INSERT OR REPLACE INTO staging_branches (branch_name, parent_branch) VALUES (?, ?);", staging_branch,
+                         base_branch);
+      active_branch = staging_branch;
+      base = base_branch;
+      std::cout << (created ? "Created" : "Switched to existing") << " staging branch: " << staging_branch << std::endl;
+    }
+
+    mail_mode_ = true;
+    (void)db_->Query("UPDATE settings SET mode = 'mail' WHERE id = 1");
     std::cout << "Switched to MAIL mode." << std::endl;
     std::cout << "  - Modeline: std::slop<MAIL, ...>" << std::endl;
+    std::cout << "  - Branch: " << active_branch << std::endl;
     std::cout << "  - Base Branch: " << base << std::endl;
     std::cout << "  - Workflow: Use /review mail [index] to iterate on patches." << std::endl;
     // Auto-activate patcher skill if it exists

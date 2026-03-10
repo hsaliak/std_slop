@@ -739,4 +739,60 @@ TEST_F(CommandHandlerTest, ModeMailResolvesCorrectBaseBranch) {
     EXPECT_TRUE(absl::StrContains(output, "Base Branch: main"));
   }
 }
+
+TEST_F(CommandHandlerTest, ModeMailWithBranchNameCreatesStagingAndSetsBase) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git status --porcelain"] = "";
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "develop";
+  handler.command_responses["git checkout -b slop/staging/feature123 develop"] = "";
+
+  testing::internal::CaptureStdout();
+  std::string input = "/mode mail feature123";
+  handler.Handle(input, sid, active_skills, []() {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_TRUE(absl::StrContains(output, "Created staging branch: slop/staging/feature123"));
+  EXPECT_TRUE(absl::StrContains(output, "Branch: slop/staging/feature123"));
+  EXPECT_TRUE(absl::StrContains(output, "Base Branch: develop"));
+
+  auto rows_or = db.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {"slop/staging/feature123"});
+  ASSERT_TRUE(rows_or.ok());
+  EXPECT_TRUE(absl::StrContains(*rows_or, "develop"));
+}
+
+TEST_F(CommandHandlerTest, ModeMailWithBranchNameFallsBackToExistingStagingBranch) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git status --porcelain"] = "";
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "main";
+  handler.command_responses["git checkout -b slop/staging/featureabc main"] = absl::InternalError("already exists");
+  handler.command_responses["git checkout slop/staging/featureabc"] = "";
+
+  testing::internal::CaptureStdout();
+  std::string input = "/mode mail featureabc";
+  handler.Handle(input, sid, active_skills, []() {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_TRUE(absl::StrContains(output, "Switched to existing staging branch: slop/staging/featureabc"));
+  EXPECT_TRUE(absl::StrContains(output, "Branch: slop/staging/featureabc"));
+  EXPECT_TRUE(absl::StrContains(output, "Base Branch: main"));
+}
+
+TEST_F(CommandHandlerTest, ModeMailWithInvalidBranchNameIsRejected) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  testing::internal::CaptureStdout();
+  std::string input = "/mode mail feature/name";
+  handler.Handle(input, sid, active_skills, []() {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_TRUE(absl::StrContains(output, "Error: Invalid branch name"));
+}
 }  // namespace slop
