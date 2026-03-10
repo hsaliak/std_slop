@@ -43,6 +43,14 @@ std::string TruncateForLog(const std::string& s, size_t max_len = 240) {
   return s.substr(0, max_len) + "...";
 }
 
+// Only this hardcoded subset of JS-backed tools is promoted to top-level
+// executor dispatch outside of run_js.
+bool IsTopLevelPromotedJsTool(const std::string& name) {
+  static const absl::flat_hash_set<std::string>* kAllowlist =
+      new absl::flat_hash_set<std::string>({"patch_tool", "read_file", "write_file", "execute_bash"});
+  return kAllowlist->contains(name);
+}
+
 }  // namespace
 
 ToolExecutor::ToolExecutor(Database* db) : db_(db) { RegisterTools(); }
@@ -134,6 +142,12 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
       (void)db_->IncrementToolCallCount(name);
     }
     return res;
+  }
+
+  // Restrict top-level JS fallback to a hardcoded promotion allowlist.
+  // Non-allowlisted JS tools remain callable from inside run_js via tools.*.
+  if (!IsTopLevelPromotedJsTool(name)) {
+    return absl::NotFoundError(absl::StrCat("NOT_FOUND: Tool not found: ", name));
   }
 
   RunJsRequest req;
@@ -382,3 +396,4 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
+

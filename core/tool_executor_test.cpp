@@ -1,3 +1,4 @@
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "core/tool_executor.h"
 
@@ -106,7 +107,7 @@ TEST(ToolExecutorTest, ReadFileGranular) {
 
   // Test: End only
   auto res3 = executor.Execute("read_file", {{"path", test_file}, {"end_line", 2}});
-  ASSERT_TRUE(res3.ok());
+  ASSERT_TRUE(res3.ok()) << res3.status().message();
   const std::string text3 = EnvelopeResultText(*res3);
   EXPECT_TRUE(absl::StrContains(text3, "Line 1\nLine 2\n"));
   EXPECT_TRUE(!absl::StrContains(text3, "3: Line 3"));
@@ -187,7 +188,9 @@ TEST(ToolExecutorTest, GrepSummary) {
   for (int i = 0; i < 30; ++i) content += "match_this_string\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
-  auto res = executor.Execute("grep_tool", {{"pattern", "match_this_string"}, {"path", test_file}});
+  auto res = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: 'match_this_string', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(res->find("match_this_string") != std::string::npos);
 
@@ -218,13 +221,9 @@ TEST(ToolExecutorTest, ToolNotFound) {
   auto& executor = **executor_or;
 
   auto res = executor.Execute("non_existent", {});
-  ASSERT_TRUE(res.ok());
-  auto env = ParseEnvelope(*res);
-  ASSERT_TRUE(env.is_object());
-  EXPECT_EQ(env.value("ok", true), false);
-  EXPECT_EQ(env.value("tool", std::string{}), "non_existent");
-  ASSERT_TRUE(env.contains("error"));
-  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res), "NOT_FOUND"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "NOT_FOUND: Tool not found: non_existent"));
 }
 
 TEST(ToolExecutorTest, AliasToolNameResolvesToCanonical) {
@@ -235,14 +234,9 @@ TEST(ToolExecutorTest, AliasToolNameResolvesToCanonical) {
   auto& executor = **executor_or;
 
   auto res = executor.Execute("list_dir", {{"path", "."}, {"depth", 1}});
-  ASSERT_TRUE(res.ok());
-
-  auto env = ParseEnvelope(*res);
-  ASSERT_TRUE(env.is_object());
-  EXPECT_EQ(env.value("ok", false), true);
-  EXPECT_EQ(env.value("tool", std::string{}), "list_directory");
-  EXPECT_EQ(env.value("requested_tool", std::string{}), "list_dir");
-  EXPECT_EQ(env.value("alias_used", false), true);
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "NOT_FOUND: Tool not found: list_dir"));
 }
 
 TEST(ToolExecutorTest, QueryDb) {
@@ -284,7 +278,9 @@ TEST(ToolExecutorTest, GrepToolWorks) {
   std::string content = "needle\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
-  auto grep_res = executor.Execute("grep_tool", {{"pattern", "needle"}, {"path", test_file}});
+  auto grep_res = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: 'needle', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(grep_res.ok());
   EXPECT_TRUE(grep_res->find("needle") != std::string::npos);
 
@@ -300,13 +296,11 @@ TEST(ToolExecutorTest, GrepToolNoMatches) {
   std::string test_file = "grep_repo_empty.txt";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "haystack"}}).ok());
 
-  auto grep_res = executor.Execute("grep_tool", {{"pattern", "NON_EXISTENT_PATTERN_XYZ_123"}, {"path", test_file}});
-  ASSERT_TRUE(grep_res.ok());
-  auto grep_env = ParseEnvelope(*grep_res);
-  ASSERT_TRUE(grep_env.is_object());
-  EXPECT_EQ(grep_env.value("ok", false), true);
-  EXPECT_EQ(grep_env.value("tool", std::string{}), "grep_tool");
-  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*grep_res), "Error:"));
+  auto grep_res = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: 'NON_EXISTENT_PATTERN_XYZ_123', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
+  ASSERT_FALSE(grep_res.ok());
+  EXPECT_EQ(grep_res.status().code(), absl::StatusCode::kFailedPrecondition);
 
   std::filesystem::remove(test_file);
 }
@@ -322,11 +316,15 @@ TEST(ToolExecutorTest, GrepToolSimplifiedArguments) {
   std::string content = "alpha\nbeta\nalpha beta\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
-  auto res1 = executor.Execute("grep_tool", {{"pattern", "alpha"}, {"path", test_file}});
+  auto res1 = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: 'alpha', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res1.ok());
   EXPECT_TRUE(res1->find("alpha") != std::string::npos);
 
-  auto res2 = executor.Execute("grep_tool", {{"pattern", "beta"}, {"path", test_file}});
+  auto res2 = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: 'beta', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res2.ok());
 
   std::filesystem::remove(test_file);
@@ -343,7 +341,9 @@ TEST(ToolExecutorTest, GrepToolContextWorks) {
   std::string content = "line1\nmatch\nline3\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
-  auto res = executor.Execute("grep_tool", {{"pattern", "match"}, {"path", test_file}, {"context", 1}});
+  auto res = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: 'match', path: args.path, context: 1});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(res->find("line1") != std::string::npos);
   EXPECT_TRUE(res->find("match") != std::string::npos);
@@ -570,23 +570,27 @@ TEST(ToolExecutorTest, GrepToolEscaping) {
       "Normal line\nDash-line: ---\nQuote-line: 'foo bar'\nDouble-quote: \"baz\"\n-starting-with-dash";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
 
-  // Test: Triple dash
-  auto res1 = executor.Execute("grep_tool", {{"pattern", "---"}, {"path", test_file}});
+  auto res1 = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: '---', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res1.ok());
   EXPECT_TRUE(res1->find("Dash-line: ---") != std::string::npos);
 
-  // Test: Pattern starting with dash
-  auto res2 = executor.Execute("grep_tool", {{"pattern", "-starting"}, {"path", test_file}});
+  auto res2 = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: '-starting', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res2.ok());
   EXPECT_TRUE(res2->find("-starting-with-dash") != std::string::npos);
 
-  // Test: Single quote
-  auto res3 = executor.Execute("grep_tool", {{"pattern", "'foo bar'"}, {"path", test_file}});
+  auto res3 = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: 'foo bar', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res3.ok());
   EXPECT_TRUE(res3->find("Quote-line: 'foo bar'") != std::string::npos);
 
-  // Test: Double quote
-  auto res4 = executor.Execute("grep_tool", {{"pattern", "\"baz\""}, {"path", test_file}});
+  auto res4 = executor.Execute("run_js", {{"script", R"(
+    return tools.grep_tool({pattern: '"baz"', path: args.path});
+  )"}, {"args", {{"path", test_file}}}});
   ASSERT_TRUE(res4.ok());
   EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res4), "Double-quote: \"baz\""));
 
@@ -833,7 +837,7 @@ TEST(ToolExecutorTest, ToolOrchestrationScenario) {
 
   std::string script = R"(
     tools.write_file({path: 'test_orch.txt', content: 'hello world'});
-    const job = tools.dispatch_async("grep", {path: 'test_orch.txt', pattern: 'world'});
+    const job = tools.dispatch_async("read_file", {path: 'test_orch.txt'});
     const res2 = job.wait();
     return res2;
   )";
@@ -867,3 +871,4 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "absl/strings/match.h"
+#include "absl/status/status.h"
 
 #include "core/database.h"
 #include "core/tool_executor.h"
@@ -39,20 +40,10 @@ TEST_F(JsIntegrationTest, RunJsBasic) {
 
 TEST_F(JsIntegrationTest, TopLevelNativeToolContractsAreManifestBacked) {
   // 1) Discoverability smoke test: help should list targeted top-level contracts.
-  auto help_res = executor_->Execute("help", nlohmann::json::object());
+  auto help_res = executor_->Execute("run_js", {{"script", "return tools.help({});"}});
   ASSERT_TRUE(help_res.ok()) << help_res.status().ToString();
 
-  auto help_envelope = nlohmann::json::parse(*help_res, nullptr, false);
-  ASSERT_TRUE(help_envelope.is_object());
-  ASSERT_TRUE(help_envelope.value("ok", false));
-  ASSERT_TRUE(help_envelope.contains("result"));
-
-  nlohmann::json help_json;
-  if (help_envelope["result"].is_string()) {
-    help_json = nlohmann::json::parse(help_envelope["result"].get<std::string>(), nullptr, false);
-  } else {
-    help_json = help_envelope["result"];
-  }
+  auto help_json = nlohmann::json::parse(*help_res, nullptr, false);
   ASSERT_TRUE(help_json.is_array());
 
   auto has_name = [&help_json](const std::string& name) {
@@ -69,46 +60,49 @@ TEST_F(JsIntegrationTest, TopLevelNativeToolContractsAreManifestBacked) {
     return {};
   };
 
-  EXPECT_TRUE(has_name("ask_user"));
-  EXPECT_TRUE(has_name("llm_query"));
-  EXPECT_TRUE(has_name("query_db"));
+  EXPECT_TRUE(has_name("execute_bash"));
+  EXPECT_TRUE(has_name("read_file"));
+  EXPECT_TRUE(has_name("write_file"));
+  EXPECT_TRUE(has_name("patch_tool"));
 
-  // 2) Execution smoke test for direct native tool call path.
-  auto query_ok = executor_->Execute("query_db", {{"sql", "SELECT 1 AS v;"}});
-  ASSERT_TRUE(query_ok.ok()) << query_ok.status().ToString();
-  EXPECT_TRUE(absl::StrContains(*query_ok, "1"));
+  // 2) Execution smoke test for direct top-level promoted JS tool path.
+  auto write_ok = executor_->Execute("write_file", {{"path", "manifest_contract_test.txt"}, {"content", "ok"}});
+  ASSERT_TRUE(write_ok.ok()) << write_ok.status().ToString();
+  auto read_ok = executor_->Execute("read_file", {{"path", "manifest_contract_test.txt"}});
+  ASSERT_TRUE(read_ok.ok()) << read_ok.status().ToString();
+  EXPECT_TRUE(absl::StrContains(*read_ok, "ok"));
+  std::filesystem::remove("manifest_contract_test.txt");
 
-  // 3) Contract smoke test for llm_query entry: schema requires "query".
-  auto llm_row = find_row("llm_query");
-  ASSERT_TRUE(llm_row.is_object());
-  ASSERT_TRUE(llm_row.contains("json_schema"));
-  auto schema = llm_row["json_schema"];
+  // 3) Contract smoke test for write_file entry: schema requires path + content.
+  auto write_row = find_row("write_file");
+  ASSERT_TRUE(write_row.is_object());
+  ASSERT_TRUE(write_row.contains("json_schema"));
+  auto schema = write_row["json_schema"];
   ASSERT_TRUE(schema.is_object());
   ASSERT_TRUE(schema.contains("required"));
   ASSERT_TRUE(schema["required"].is_array());
 
-  bool requires_query = false;
+  bool requires_path = false;
+  bool requires_content = false;
   for (const auto& req : schema["required"]) {
-    if (req.is_string() && req.get<std::string>() == "query") {
-      requires_query = true;
-      break;
-    }
+    if (req.is_string() && req.get<std::string>() == "path") requires_path = true;
+    if (req.is_string() && req.get<std::string>() == "content") requires_content = true;
   }
-  EXPECT_TRUE(requires_query);
+  EXPECT_TRUE(requires_path);
+  EXPECT_TRUE(requires_content);
 
-  // 4) Regression: these top-level tools are static manifest contracts and should
-  // not have JS shim code persisted in js_functions.
+  // 4) Regression: promoted top-level tools are implemented in js_functions.
   auto rows_json =
-      db_.Query("SELECT name, code FROM js_functions WHERE name IN ('ask_user','llm_query','query_db') ORDER BY name");
+      db_.Query("SELECT name, code FROM js_functions WHERE name IN ('execute_bash','read_file','write_file','patch_tool') ORDER BY name");
   ASSERT_TRUE(rows_json.ok()) << rows_json.status().ToString();
   auto rows = nlohmann::json::parse(*rows_json, nullptr, false);
   ASSERT_TRUE(rows.is_array());
-  ASSERT_EQ(rows.size(), 3);
+  ASSERT_EQ(rows.size(), 4);
   for (const auto& row : rows) {
     ASSERT_TRUE(row.is_object());
     ASSERT_TRUE(row.contains("code"));
     EXPECT_TRUE(row["code"].is_string());
-    EXPECT_TRUE(row["code"].get<std::string>().empty());
+    EXPECT_FALSE(row["code"].get<std::string>().empty());
   }
 }
 
@@ -262,13 +256,17 @@ TEST_F(JsIntegrationTest, ListDirectoryIgnoresCommonDirsByDefault) {
     std::ofstream(root + "/node_modules/pkg.js") << "x";
   }
 
-  auto res_default = executor_->Execute("list_directory", {{"path", root}, {"depth", 2}});
+  auto res_default = executor_->Execute("run_js", {{"script", R"(
+    return tools.list_directory({path: args.root, depth: 2});
+  )"}, {"args", {{"root", root}}}});
   ASSERT_TRUE(res_default.ok()) << res_default.status().message();
   EXPECT_TRUE(absl::StrContains(*res_default, "Directory: src/"));
   EXPECT_FALSE(absl::StrContains(*res_default, ".git/"));
   EXPECT_FALSE(absl::StrContains(*res_default, "node_modules/"));
 
-  auto res_all = executor_->Execute("list_directory", {{"path", root}, {"depth", 2}, {"include_ignored", true}});
+  auto res_all = executor_->Execute("run_js", {{"script", R"(
+    return tools.list_directory({path: args.root, depth: 2, include_ignored: true});
+  )"}, {"args", {{"root", root}}}});
   ASSERT_TRUE(res_all.ok()) << res_all.status().message();
   EXPECT_TRUE(absl::StrContains(*res_all, "Directory: .git/"));
   EXPECT_TRUE(absl::StrContains(*res_all, "Directory: node_modules/"));
@@ -286,12 +284,16 @@ TEST_F(JsIntegrationTest, GrepIgnoresCommonDirsByDefault) {
     std::ofstream(root + "/node_modules/lib.js") << "needle_ignore";
   }
 
-  auto res_default = executor_->Execute("grep", {{"pattern", "needle_ignore"}, {"path", root}});
+  auto res_default = executor_->Execute("run_js", {{"script", R"(
+    return tools.grep({pattern: 'needle_ignore', path: args.root});
+  )"}, {"args", {{"root", root}}}});
   ASSERT_TRUE(res_default.ok()) << res_default.status().message();
   EXPECT_TRUE(absl::StrContains(*res_default, "src/app.js"));
   EXPECT_FALSE(absl::StrContains(*res_default, "node_modules/lib.js"));
 
-  auto res_all = executor_->Execute("grep", {{"pattern", "needle_ignore"}, {"path", root}, {"include_ignored", true}});
+  auto res_all = executor_->Execute("run_js", {{"script", R"(
+    return tools.grep({pattern: 'needle_ignore', path: args.root, include_ignored: true});
+  )"}, {"args", {{"root", root}}}});
   ASSERT_TRUE(res_all.ok()) << res_all.status().message();
   EXPECT_TRUE(absl::StrContains(*res_all, "node_modules/lib.js"));
 
@@ -348,7 +350,9 @@ TEST_F(JsIntegrationTest, GitGrepStructuredAndRawModes) {
     std::ofstream(root + "/b.txt") << "beta\n";
   }
 
-  auto structured = executor_->Execute("git_grep", {{"pattern", "needle"}, {"paths", nlohmann::json::array({root})}});
+  auto structured = executor_->Execute("run_js", {{"script", R"(
+    return tools.git_grep({pattern: 'needle', paths: [args.root]});
+  )"}, {"args", {{"root", root}}}});
   ASSERT_TRUE(structured.ok()) << structured.status().message();
   auto structured_json = nlohmann::json::parse(*structured, nullptr, false);
   ASSERT_TRUE(structured_json.is_object());
@@ -362,8 +366,9 @@ TEST_F(JsIntegrationTest, GitGrepStructuredAndRawModes) {
   ASSERT_TRUE(structured_payload["data"].is_array());
   EXPECT_FALSE(structured_payload["data"].empty());
 
-  auto raw = executor_->Execute("git_grep",
-                                {{"pattern", "needle"}, {"paths", nlohmann::json::array({root})}, {"format", "raw"}});
+  auto raw = executor_->Execute("run_js", {{"script", R"(
+    return tools.git_grep({pattern: 'needle', paths: [args.root], format: 'raw'});
+  )"}, {"args", {{"root", root}}}});
   ASSERT_TRUE(raw.ok()) << raw.status().message();
   auto raw_json = nlohmann::json::parse(*raw, nullptr, false);
   ASSERT_TRUE(raw_json.is_object());
@@ -382,8 +387,9 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
   std::filesystem::create_directories(root);
   std::ofstream(root + "/c.txt") << "gamma line\n";
 
-  auto no_match = executor_->Execute(
-      "git_grep", {{"pattern", "definitely_not_present_token"}, {"paths", nlohmann::json::array({"core"})}});
+  auto no_match = executor_->Execute("run_js", {{"script", R"(
+    return tools.git_grep({pattern: 'definitely_not_present_token', paths: ['core']});
+  )"}});
   ASSERT_TRUE(no_match.ok()) << no_match.status().message();
   auto no_match_json = nlohmann::json::parse(*no_match, nullptr, false);
   ASSERT_TRUE(no_match_json.is_object());
@@ -394,8 +400,9 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
   ASSERT_TRUE(no_match_payload["data"].is_array());
   EXPECT_TRUE(no_match_payload["data"].empty());
 
-  auto no_index =
-      executor_->Execute("git_grep", {{"pattern", "gamma"}, {"cwd", root}, {"paths", nlohmann::json::array({"."})}});
+  auto no_index = executor_->Execute("run_js", {{"script", R"(
+    return tools.git_grep({pattern: 'gamma', cwd: args.root, paths: ['.']});
+  )"}, {"args", {{"root", root}}}});
   ASSERT_TRUE(no_index.ok()) << no_index.status().message();
   auto no_index_json = nlohmann::json::parse(*no_index, nullptr, false);
   ASSERT_TRUE(no_index_json.is_object());
@@ -405,6 +412,21 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
   EXPECT_EQ(no_index_payload.value("exitCode", -1), 0);
 
   std::filesystem::remove_all(root);
+}
+
+TEST_F(JsIntegrationTest, TopLevelNonAllowlistedJsToolIsNotFound) {
+  auto res = executor_->Execute("list_directory", {{"path", "."}});
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "NOT_FOUND: Tool not found: list_directory"));
+}
+
+TEST_F(JsIntegrationTest, RunJsStillCanCallNonAllowlistedJsTool) {
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    return tools.list_directory({path: '.', depth: 1});
+  )"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "Directory:"));
 }
 
 TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
@@ -470,3 +492,4 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 }
 
 }  // namespace slop
+

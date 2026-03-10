@@ -49,7 +49,9 @@ TEST_F(ToolTypingTest, DefaultValues) {
   ofs << "test";
   ofs.close();
 
-  auto res = executor_->Execute("list_directory", {{"path", "."}});
+  auto res = executor_->Execute("run_js", {{"script", R"(
+    return tools.list_directory({path: '.'});
+  )"}});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(res->find("test_dir_file.txt") != std::string::npos);
 
@@ -90,11 +92,12 @@ TEST_F(ToolTypingTest, OptionalHandling) {
 
 TEST_F(ToolTypingTest, GrepFlexiblePath) {
   nlohmann::json args_str = {{"pattern", "foo"}, {"path", "core"}};
-  nlohmann::json args_arr = {{"pattern", "foo"}, {"path", "core"}};
 
   auto res_git = executor_->Execute("execute_bash", {{"command", "git rev-parse --is-inside-work-tree"}});
   if (res_git.ok() && res_git->find("true") != std::string::npos) {
-    auto res1 = executor_->Execute("grep_tool", args_str);
+    auto res1 = executor_->Execute("run_js", {{"script", R"(
+      return tools.grep_tool(args.payload);
+    )"}, {"args", {{"payload", args_str}}}});
     EXPECT_TRUE(res1.ok());
     EXPECT_TRUE(res1->find("Error: INVALID_ARGUMENT") == std::string::npos);
 
@@ -103,13 +106,17 @@ TEST_F(ToolTypingTest, GrepFlexiblePath) {
 }
 
 TEST_F(ToolTypingTest, GitGrepTypedArgs) {
-  auto res_ok = executor_->Execute("git_grep", {{"pattern", "foo"}});
+  auto res_ok = executor_->Execute("run_js", {{"script", R"(
+    return tools.git_grep({pattern: 'foo', paths: ['core']});
+  )"}});
   ASSERT_TRUE(res_ok.ok());
   EXPECT_TRUE(res_ok->find("INVALID_ARGUMENT") == std::string::npos);
 
-  auto res_bad = executor_->Execute("git_grep", {{"pattern", "foo"}, {"paths", "core"}});
-  ASSERT_TRUE(res_bad.ok());
-  EXPECT_TRUE(absl::StrContains(*res_bad, "paths must be an array of strings"));
+  auto res_bad = executor_->Execute("run_js", {{"script", R"(
+    return tools.git_grep({pattern: 'foo', paths: 'core'});
+  )"}});
+  ASSERT_FALSE(res_bad.ok());
+  EXPECT_TRUE(absl::StrContains(res_bad.status().message(), "paths must be an array of strings"));
 }
 
 TEST_F(ToolTypingTest, ApplyPatchTyped) {
@@ -139,3 +146,4 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
+
