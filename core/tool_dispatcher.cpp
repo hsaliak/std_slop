@@ -9,10 +9,18 @@ namespace slop {
 ToolDispatcher::ToolDispatcher(ToolFunc executor_func) : executor_func_(std::move(executor_func)) {}
 
 ToolDispatcher::~ToolDispatcher() {
-  absl::MutexLock lock(&mu_);
-  for (auto& jt : threads_) {
-    if (jt.thread.joinable()) {
-      jt.thread.join();
+  std::vector<std::thread> threads_to_join;
+  {
+    absl::MutexLock lock(&mu_);
+    threads_to_join.reserve(threads_.size());
+    for (auto& jt : threads_) {
+      threads_to_join.push_back(std::move(jt.thread));
+    }
+    threads_.clear();
+  }
+  for (auto& thread : threads_to_join) {
+    if (thread.joinable()) {
+      thread.join();
     }
   }
 }
@@ -23,12 +31,10 @@ ToolDispatcher::~ToolDispatcher() {
 // of a detached thread while ensuring that we don't leak thread handles.
 // This also ensures that any resources held by the ToolJob are released
 // promptly after completion.
-void ToolDispatcher::PruneThreads() {
+void ToolDispatcher::PruneThreads(std::vector<std::thread>* threads_to_join) {
   for (auto it = threads_.begin(); it != threads_.end();) {
     if (it->job->IsReady()) {
-      if (it->thread.joinable()) {
-        it->thread.join();
-      }
+      threads_to_join->push_back(std::move(it->thread));
       it = threads_.erase(it);
     } else {
       ++it;
@@ -37,7 +43,7 @@ void ToolDispatcher::PruneThreads() {
 }
 
 std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation,
-                                                int64_t delay_ms) {
+                                                 int64_t delay_ms) {
   auto job = std::make_shared<ToolJob>(call.id, call.name);
   auto task = [job, cancellation, this, call, delay_ms]() {
     if (delay_ms > 0) {
@@ -53,9 +59,18 @@ std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_pt
     job->SetResult(executor_func_(call.name, call.args, cancellation));
   };
 
-  absl::MutexLock lock(&mu_);
-  PruneThreads();
-  threads_.push_back({std::thread(std::move(task)), job});
+  std::vector<std::thread> threads_to_join;
+  {
+    absl::MutexLock lock(&mu_);
+    threads_to_join.reserve(threads_.size());
+    PruneThreads(&threads_to_join);
+    threads_.push_back({std::thread(std::move(task)), job});
+  }
+  for (auto& thread : threads_to_join) {
+    if (thread.joinable()) {
+      thread.join();
+    }
+  }
   return job;
 }
 

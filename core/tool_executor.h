@@ -8,6 +8,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 
 #include "core/cancellation.h"
@@ -25,7 +26,7 @@ class ToolExecutor {
     if (db == nullptr) {
       return absl::InvalidArgumentError("Database cannot be null");
     }
-    return std::unique_ptr<ToolExecutor>(new ToolExecutor(db));
+    return absl::WrapUnique(new ToolExecutor(db));
   }
 
   void SetSessionId(const std::string& session_id);

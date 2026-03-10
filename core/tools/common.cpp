@@ -74,11 +74,11 @@ absl::Status MaybeEnforceMailStagingGuard(bool mail_mode) {
 }
 
 absl::StatusOr<nlohmann::json> ParseDbRows(const std::string& rows_json, const std::string& context) {
-  auto rows = nlohmann::json::parse(rows_json, nullptr, false);
-  if (rows.is_discarded() || !rows.is_array()) {
+  auto rows = json_parse(rows_json);
+  if (!rows.has_value() || !rows->is_array()) {
     return absl::InternalError(absl::StrCat("Failed to parse DB rows for ", context));
   }
-  return rows;
+  return *rows;
 }
 
 absl::StatusOr<std::string> ResolveBaseBranch(Database* db, const std::string& requested_base) {

@@ -31,10 +31,9 @@ class ToolJob {
   }
 
   absl::StatusOr<std::string> Wait() {
-    mu_.LockWhen(absl::Condition(&ready_));
-    auto res = result_;
-    mu_.Unlock();
-    return res;
+    absl::MutexLock lock(&mu_);
+    mu_.Await(absl::Condition(&ready_));
+    return result_;
   }
 
   void SetResult(absl::StatusOr<std::string> res) {
@@ -99,7 +98,7 @@ class ToolDispatcher {
                                int throttle_seconds = 0);
 
  private:
-  void PruneThreads() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
+  void PruneThreads(std::vector<std::thread>* threads_to_join) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
   ToolFunc executor_func_;
 

@@ -1,24 +1,14 @@
 #include "core/tool_executor.h"
 
-#include <fstream>
 #include <sstream>
 #include <vector>
 
-#include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
-#include "core/database.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/tool_dispatcher.h"
-#include "core/tools/common.h"
-#include "interface/color.h"
-#include "interface/renderer.h"
-#include "interface/terminal.h"
 #include "core/json_utils.h"
 
 namespace slop {
@@ -39,11 +29,12 @@ absl::StatusOr<std::string> ToolExecutor::HandleListDirectory(const nlohmann::js
   std::vector<std::string> ignore_patterns;
   if (!include_ignored) {
     ignore_patterns = {".git", "node_modules", "bazel-*", "dist", "build", ".cache", ".next", "target"};
-    if (args.contains("ignore") && !args["ignore"].is_null()) {
-      if (!args["ignore"].is_array()) {
+    const auto* ignore_json = json_at(args, "ignore");
+    if (ignore_json && !ignore_json->is_null()) {
+      if (!ignore_json->is_array()) {
         return absl::InvalidArgumentError("ignore must be an array of strings");
       }
-      for (const auto& it : args["ignore"]) {
+      for (const auto& it : *ignore_json) {
         if (it.is_string() && !it.get<std::string>().empty()) {
           ignore_patterns.push_back(it.get<std::string>());
         }

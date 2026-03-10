@@ -1,25 +1,10 @@
 #include "core/tool_executor.h"
 
-#include <fstream>
-#include <sstream>
-#include <vector>
-
-#include "absl/log/log.h"
-#include "absl/status/status.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
-
-#include "core/database.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/tool_dispatcher.h"
-#include "core/tools/common.h"
-#include "interface/color.h"
-#include "interface/renderer.h"
-#include "interface/terminal.h"
 #include "core/json_utils.h"
+#include "core/tools/common.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleGitFormatPatchSeries(
@@ -38,13 +23,13 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFormatPatchSeries(
 
   std::string log_output;
   std::string diff_output;
-  auto parsed_log = nlohmann::json::parse(log_res, nullptr, false);
-  auto parsed_diff = nlohmann::json::parse(diff_res, nullptr, false);
-  if (parsed_log.is_object() && parsed_log.contains("output") && parsed_log["output"].is_string()) {
-    log_output = parsed_log["output"].get<std::string>();
+  const auto parsed_log = json_parse(log_res);
+  const auto parsed_diff = json_parse(diff_res);
+  if (parsed_log.has_value()) {
+    log_output = json_get_or<std::string>(*parsed_log, "output", "");
   }
-  if (parsed_diff.is_object() && parsed_diff.contains("output") && parsed_diff["output"].is_string()) {
-    diff_output = parsed_diff["output"].get<std::string>();
+  if (parsed_diff.has_value()) {
+    diff_output = json_get_or<std::string>(*parsed_diff, "output", "");
   }
 
   return absl::StrCat("--- MAIL SERIES ---\nBase: ", base_branch, "\n\n", log_output, "\n\n--- FULL DIFF ---\n", diff_output);

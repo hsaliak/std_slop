@@ -1,24 +1,11 @@
 #include "core/tool_executor.h"
 
-#include <fstream>
-#include <sstream>
-#include <vector>
+#include <algorithm>
 
-#include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
 
-#include "core/database.h"
-#include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/tool_dispatcher.h"
-#include "core/tools/common.h"
-#include "interface/color.h"
-#include "interface/renderer.h"
-#include "interface/terminal.h"
 #include "core/json_utils.h"
 
 namespace slop {
@@ -49,11 +36,11 @@ absl::StatusOr<std::string> ToolExecutor::HandleUseSkill(const nlohmann::json& a
 
   // Match historical JS behavior: fail when current session row does not exist.
   ASSIGN_OR_RETURN(auto session_rows_json, db_->Query("SELECT id, active_skills FROM sessions WHERE id = ?", {session_id_}));
-  auto session_rows = nlohmann::json::parse(session_rows_json, nullptr, false);
-  if (session_rows.is_discarded() || !session_rows.is_array()) {
+  const auto session_rows = json_parse(session_rows_json);
+  if (!session_rows.has_value() || !session_rows->is_array()) {
     return absl::InternalError("Invalid session lookup response");
   }
-  if (session_rows.empty()) {
+  if (session_rows->empty()) {
     return absl::FailedPreconditionError(absl::StrCat("Session not found: ", session_id_));
   }
 
