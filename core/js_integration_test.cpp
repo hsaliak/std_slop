@@ -91,7 +91,7 @@ TEST_F(JsIntegrationTest, TopLevelNativeToolContractsAreManifestBacked) {
   EXPECT_TRUE(requires_path);
   EXPECT_TRUE(requires_content);
 
-  // 4) Regression: promoted top-level tools are implemented in js_functions.
+  // 4) Regression: canonical tools are present in js_functions where expected.
   auto rows_json =
       db_.Query("SELECT name, code FROM js_functions WHERE name IN ('execute_bash','read_file','write_file','patch_tool') ORDER BY name");
   ASSERT_TRUE(rows_json.ok()) << rows_json.status().ToString();
@@ -414,11 +414,17 @@ TEST_F(JsIntegrationTest, GitGrepNoMatchAndNoIndexFallback) {
   std::filesystem::remove_all(root);
 }
 
-TEST_F(JsIntegrationTest, TopLevelNonAllowlistedJsToolIsNotFound) {
+TEST_F(JsIntegrationTest, TopLevelPromotedCoreToolIsCallable) {
   auto res = executor_->Execute("list_directory", {{"path", "."}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_TRUE(absl::StrContains(*res, "Directory:"));
+}
+
+TEST_F(JsIntegrationTest, TopLevelDroppedToolIsNotFound) {
+  auto res = executor_->Execute("help", nlohmann::json::object());
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
-  EXPECT_TRUE(absl::StrContains(res.status().message(), "NOT_FOUND: Tool not found: list_directory"));
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "NOT_FOUND: Tool not found: help"));
 }
 
 TEST_F(JsIntegrationTest, RunJsStillCanCallNonAllowlistedJsTool) {
@@ -492,4 +498,6 @@ TEST_F(JsIntegrationTest, RootGitignoreSafeSubsetTranslationMatrix) {
 }
 
 }  // namespace slop
+
+
 

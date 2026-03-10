@@ -1,5 +1,6 @@
 #include <fstream>
 
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "nlohmann/json.hpp"
 
@@ -29,18 +30,17 @@ TEST_F(ToolTypingTest, InvalidTypeHandling) {
   f.close();
   // read_file expects 'start_line' to be an int, pass a string
   auto res = executor_->Execute("read_file", {{"path", "test.txt"}, {"start_line", "invalid"}});
-  ASSERT_TRUE(res.ok());
-  std::cerr << "RES: " << *res << std::endl;
-  EXPECT_TRUE(res->find("Error: INVALID_ARGUMENT") != std::string::npos);
-  EXPECT_TRUE(res->find("must be an integer") != std::string::npos);
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "must be an integer"));
 }
 
 TEST_F(ToolTypingTest, MissingMandatoryField) {
   // write_file expects 'path' and 'content'
   auto res = executor_->Execute("write_file", {{"path", "test.txt"}});
-  ASSERT_TRUE(res.ok());
-  EXPECT_TRUE(res->find("Error: INVALID_ARGUMENT") != std::string::npos);
-  EXPECT_TRUE(res->find("Missing mandatory field") != std::string::npos);
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "Missing mandatory field: content"));
 }
 
 TEST_F(ToolTypingTest, DefaultValues) {
@@ -146,4 +146,6 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
+
+
 

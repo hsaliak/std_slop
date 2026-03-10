@@ -222,6 +222,31 @@ TEST_F(MailModelTest, BranchStagingNormalizesAlreadyPrefixedName) {
   (void)executor_->Execute("execute_bash", {{"command", "git branch -D slop/staging/prefixed-name"}});
 }
 
+TEST_F(MailModelTest, GitCreateStagingBranchDirectSupportsExistingBranchAndDbRecord) {
+  const std::string prefixed = "slop/staging/direct-prefixed";
+
+  auto create1 = executor_->Execute("git_create_staging_branch", {{"name", prefixed}, {"base_branch", "HEAD"}});
+  ASSERT_TRUE(create1.ok()) << create1.status().message();
+  EXPECT_TRUE(create1->find("slop/staging/direct-prefixed") != std::string::npos);
+
+  auto current1 = executor_->Execute("execute_bash", {{"command", "git rev-parse --abbrev-ref HEAD"}});
+  ASSERT_TRUE(current1.ok());
+  EXPECT_TRUE(current1->find("slop/staging/direct-prefixed") != std::string::npos);
+
+  auto db_res = db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;",
+                          {"slop/staging/direct-prefixed"});
+  ASSERT_TRUE(db_res.ok());
+  EXPECT_TRUE(db_res->find("parent_branch") != std::string::npos);
+
+  // Call again with same name to exercise existing-branch fallback path.
+  auto create2 = executor_->Execute("git_create_staging_branch", {{"name", prefixed}, {"base_branch", "HEAD"}});
+  ASSERT_TRUE(create2.ok()) << create2.status().message();
+  EXPECT_TRUE(create2->find("slop/staging/direct-prefixed") != std::string::npos);
+
+  (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
+  (void)executor_->Execute("execute_bash", {{"command", "git branch -D slop/staging/direct-prefixed"}});
+}
+
 TEST_F(MailModelTest, FinalizeSeriesSucceedsWhenAlreadyLandedWithoutApproval) {
   std::string staging_name = "feat-already-landed";
   auto branch_res = executor_->Execute("git_branch_staging", {{"name", staging_name}});
@@ -344,3 +369,4 @@ TEST_F(MailModelTest, GetBaseBranchResolution) {
 }
 
 }  // namespace slop
+

@@ -193,6 +193,16 @@ const git = {
   get is_staging_branch() { return globalThis.git_is_staging_branch; }
 };
 
+// Native slop-guard bridge.
+// Canonical policy now lives in C++ guarded handlers (execute_bash/write_file/
+// patch_tool and git mail-model operations). Keep a compatibility symbol for
+// legacy JS helper scripts that still call `slop_guard()`.
+if (typeof globalThis.slop_guard !== "function") {
+  globalThis.slop_guard = function() {
+    return "";
+  };
+}
+
 const _original_ask_user = tools.ask_user;
 if (_original_ask_user) {
   tools.ask_user = function(args) {
@@ -206,6 +216,8 @@ if (_original_ask_user) {
     return _original_ask_user(args);
   };
 }
+
+
 
 
 

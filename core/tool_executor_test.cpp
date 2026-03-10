@@ -1,5 +1,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include <vector>
 #include "core/tool_executor.h"
 
 #include <cstdlib>
@@ -61,18 +63,12 @@ TEST(ToolExecutorTest, ReadWriteFile) {
 
   auto write_res = executor.Execute("write_file", {{"path", test_file}, {"content", content}});
   ASSERT_TRUE(write_res.ok());
-  auto write_env = ParseEnvelope(*write_res);
-  ASSERT_TRUE(write_env.is_object());
-  EXPECT_EQ(write_env.value("ok", false), true);
-  EXPECT_EQ(write_env.value("tool", std::string{}), "write_file");
+  EXPECT_TRUE(absl::StrContains(*write_res, "File written successfully:"));
+  EXPECT_TRUE(absl::StrContains(*write_res, "Path: test_executor.txt"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  auto read_env = ParseEnvelope(*read_res);
-  ASSERT_TRUE(read_env.is_object());
-  EXPECT_EQ(read_env.value("ok", false), true);
-  EXPECT_EQ(read_env.value("tool", std::string{}), "read_file");
-  const std::string read_text = EnvelopeResultText(*read_res);
+  const std::string read_text = *read_res;
   EXPECT_TRUE(read_text.find(content) != std::string::npos);
   EXPECT_TRUE(!absl::StrContains(read_text, "1: "));
 
@@ -114,13 +110,13 @@ TEST(ToolExecutorTest, ReadFileGranular) {
 
   // Test: Out of bounds
   auto res4 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 10}});
-  ASSERT_TRUE(res4.ok());
-  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*res4), "10: "));
+  ASSERT_FALSE(res4.ok());
+  EXPECT_EQ(res4.status().code(), absl::StatusCode::kInvalidArgument);
 
   // Test: Invalid range
   auto res5 = executor.Execute("read_file", {{"path", test_file}, {"start_line", 5}, {"end_line", 2}});
-  ASSERT_TRUE(res5.ok());
-  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res5), "Error: INVALID_ARGUMENT"));
+  ASSERT_FALSE(res5.ok());
+  EXPECT_EQ(res5.status().code(), absl::StatusCode::kInvalidArgument);
 
   std::filesystem::remove(test_file);
 }
@@ -176,6 +172,84 @@ TEST(ToolExecutorTest, MailModelEnforcement) {
   setenv("SLOP_SKIP_STAGING_CHECK", "1", 1);  // Restore for other tests if they run in same process
 }
 
+TEST(ToolExecutorTest, MailModelEnforcementExactDenialString) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.SetMailMode(true);
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+  unsetenv("SLOP_SKIP_STAGING_CHECK");
+
+  auto res = executor.Execute("write_file", {{"path", "deny_exact.txt"}, {"content", "x"}});
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kFailedPrecondition);
+  EXPECT_TRUE(absl::StrContains(
+      res.status().message(),
+      "Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: main"))
+      << res.status().message();
+
+  unsetenv("SLOP_FORCE_BRANCH_NAME");
+  setenv("SLOP_SKIP_STAGING_CHECK", "1", 1);
+}
+
+TEST(ToolExecutorTest, MailModelEnforcementAppliesToAllMailTools) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+  executor.SetMailMode(true);
+
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+  unsetenv("SLOP_SKIP_STAGING_CHECK");
+
+  const std::vector<std::pair<std::string, nlohmann::json>> mail_tools = {
+      {"write_file", {{"path", "mm_guard.txt"}, {"content", "x"}}},
+      {"patch_tool", {{"path", "mm_guard.txt"}, {"unified_diff", "--- a\n+++ a\n@@ -1 +1 @@\n-x\n+y\n"}}},
+      {"execute_bash", {{"command", "echo guard"}}},
+      {"git_commit_patch", {{"summary", "s"}, {"rationale", "r"}}},
+      {"git_format_patch_series", nlohmann::json::object()},
+      {"git_finalize_series", nlohmann::json::object()},
+      {"git_reroll_patch", {{"index", 1}}},
+  };
+
+  for (const auto& [name, args] : mail_tools) {
+    auto res = executor.Execute(name, args);
+    ASSERT_FALSE(res.ok()) << "expected slop-guard denial for: " << name;
+    EXPECT_EQ(res.status().code(), absl::StatusCode::kFailedPrecondition) << name;
+    EXPECT_TRUE(absl::StrContains(
+        res.status().message(),
+        "Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: main"))
+        << name << " -> " << res.status().message();
+  }
+
+  unsetenv("SLOP_FORCE_BRANCH_NAME");
+  setenv("SLOP_SKIP_STAGING_CHECK", "1", 1);
+}
+
+TEST(ToolExecutorTest, StandardModeBypassesStagingGuardForMailTools) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // Standard mode should bypass staging-branch restriction.
+  executor.SetMailMode(false);
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+  unsetenv("SLOP_SKIP_STAGING_CHECK");
+
+  auto res = executor.Execute("write_file", {{"path", "standard_mode_ok.txt"}, {"content", "ok"}});
+  ASSERT_TRUE(res.ok()) << res.status().message();
+
+  std::filesystem::remove("standard_mode_ok.txt");
+  unsetenv("SLOP_FORCE_BRANCH_NAME");
+  setenv("SLOP_SKIP_STAGING_CHECK", "1", 1);
+}
+
 TEST(ToolExecutorTest, GrepSummary) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -205,12 +279,9 @@ TEST(ToolExecutorTest, ExecuteBash) {
 
   auto res = executor.Execute("execute_bash", {{"command", "echo 'slop'"}});
   ASSERT_TRUE(res.ok());
-  auto env = ParseEnvelope(*res);
-  ASSERT_TRUE(env.is_object());
-  std::cout << "RES: " << *res << std::endl;
-  EXPECT_EQ(env.value("ok", false), true);
-  EXPECT_EQ(env.value("tool", std::string{}), "execute_bash");
-  EXPECT_TRUE(res->find("slop") != std::string::npos);
+  EXPECT_TRUE(absl::StrContains(*res, "\"stdout\":\"slop\\n\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"stderr\":\"\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"exit_code\":0"));
 }
 
 TEST(ToolExecutorTest, ToolNotFound) {
@@ -224,6 +295,249 @@ TEST(ToolExecutorTest, ToolNotFound) {
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
   EXPECT_TRUE(absl::StrContains(res.status().message(), "NOT_FOUND: Tool not found: non_existent"));
+}
+
+TEST(ToolExecutorTest, DroppedToolsAreNotFoundTopLevel) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  for (const std::string& dropped : {"execute_bash_async", "help", "llm_query_async", "shell_escape"}) {
+    auto res = executor.Execute(dropped, nlohmann::json::object());
+    ASSERT_FALSE(res.ok()) << "expected NOT_FOUND for dropped tool: " << dropped;
+    EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
+    EXPECT_TRUE(absl::StrContains(res.status().message(), absl::StrCat("NOT_FOUND: Tool not found: ", dropped)))
+        << res.status().message();
+  }
+}
+
+TEST(ToolExecutorTest, PromotedCoreToolsAreRegisteredTopLevel) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::vector<std::string> core_tools = {
+      "describe_db", "git_create_staging_branch", "grep", "grep_tool", "list_directory", "read_file", "use_skill"};
+
+  for (const auto& name : core_tools) {
+    auto res = executor.Execute(name, nlohmann::json::object());
+    EXPECT_NE(res.status().code(), absl::StatusCode::kNotFound) << "expected registered top-level tool: " << name;
+  }
+}
+
+TEST(ToolExecutorTest, PromotedMailToolsAreRegisteredTopLevel) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // Keep standard mode so registration checks are not blocked by staging-branch policy.
+  executor.SetMailMode(false);
+
+  const std::vector<std::string> mail_tools = {
+      "execute_bash",        "git_commit_patch",      "git_finalize_series", "git_format_patch_series",
+      "git_reroll_patch",    "parse_tool_rows",       "patch_tool",          "write_file",
+  };
+
+  for (const auto& name : mail_tools) {
+    auto res = executor.Execute(name, nlohmann::json::object());
+    EXPECT_NE(res.status().code(), absl::StatusCode::kNotFound) << "expected registered top-level tool: " << name;
+  }
+}
+
+TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::vector<std::string> expected = {
+      "ask_user",
+      "describe_db",
+      "execute_bash",
+      "git_commit_patch",
+      "git_create_staging_branch",
+      "git_finalize_series",
+      "git_format_patch_series",
+      "git_reroll_patch",
+      "grep",
+      "grep_tool",
+      "list_directory",
+      "parse_tool_rows",
+      "patch_tool",
+      "query_db",
+      "read_file",
+      "run_js",
+      "use_skill",
+      "write_file",
+  };
+
+  EXPECT_EQ(executor.GetRegisteredToolNamesForTest(), expected);
+
+  for (const std::string& dropped : {"execute_bash_async", "help", "llm_query_async", "shell_escape"}) {
+    auto res = executor.Execute(dropped, nlohmann::json::object());
+    ASSERT_FALSE(res.ok()) << "expected NOT_FOUND for dropped tool: " << dropped;
+    EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
+  }
+}
+
+TEST(ToolExecutorTest, SlopGuardIsInternalOnlyAndNotTopLevelCallable) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  // Guard helper is an internal C++ function and must not be callable as a
+  // top-level tool.
+  auto top_level = executor.Execute("slop_guard", nlohmann::json::object());
+  ASSERT_FALSE(top_level.ok());
+  EXPECT_EQ(top_level.status().code(), absl::StatusCode::kNotFound);
+}
+
+TEST(ToolExecutorTest, DescribeDbTopLevelReturnsSchemaRows) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("describe_db", nlohmann::json::object());
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  // Stable parity anchor: sqlite schema includes sessions table in initialized DB.
+  EXPECT_TRUE(absl::StrContains(*res, "sessions")) << *res;
+}
+
+TEST(ToolExecutorTest, GrepToolTopLevelRequiresPattern) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("grep_tool", nlohmann::json::object());
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "Missing mandatory field: pattern"))
+      << res.status().message();
+}
+
+TEST(ToolExecutorTest, UseSkillTopLevelRequiresActiveSession) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("use_skill", {{"name", "test_skill"}, {"action", "activate"}});
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kFailedPrecondition);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "No active session")) << res.status().message();
+}
+
+TEST(ToolExecutorTest, GrepTopLevelRequiresPattern) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("grep", nlohmann::json::object());
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "Missing mandatory field: pattern"));
+}
+
+TEST(ToolExecutorTest, GrepTopLevelFixedStringsAndTruncation) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::string test_file = "grep_fixed_truncate.txt";
+  std::string content;
+  for (int i = 0; i < 20; ++i) {
+    content += "a+b\n";
+  }
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", content}}).ok());
+
+  auto regex_res = executor.Execute("grep", {{"pattern", "a+b"}, {"path", test_file}});
+  ASSERT_TRUE(regex_res.ok());
+  EXPECT_TRUE(regex_res->empty()) << *regex_res;
+
+  auto fixed_res = executor.Execute("grep",
+                                    {{"pattern", "a+b"}, {"path", test_file}, {"fixed_strings", true}, {"limit", 5}});
+  ASSERT_TRUE(fixed_res.ok()) << fixed_res.status().message();
+  EXPECT_TRUE(absl::StrContains(*fixed_res, "a+b"));
+  EXPECT_TRUE(absl::StrContains(*fixed_res,
+                                "[TRUNCATED: Use a more specific pattern or path to narrow results]"));
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, GrepTopLevelIgnoreArrayRespected) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  ASSERT_TRUE(executor.Execute("execute_bash", {{"command", "mkdir -p grep_ignore_dir/ignoredir && printf 'needle\n' > grep_ignore_dir/ignoredir/file.txt"}}).ok());
+
+  auto include_res = executor.Execute("grep", {{"pattern", "needle"}, {"path", "grep_ignore_dir"}});
+  ASSERT_TRUE(include_res.ok());
+  EXPECT_TRUE(absl::StrContains(*include_res, "needle"));
+
+  auto ignore_res = executor.Execute("grep", {{"pattern", "needle"}, {"path", "grep_ignore_dir"}, {"ignore", nlohmann::json::array({"ignoredir"})}});
+  ASSERT_TRUE(ignore_res.ok());
+  EXPECT_TRUE(ignore_res->empty()) << *ignore_res;
+
+  (void)executor.Execute("execute_bash", {{"command", "rm -rf grep_ignore_dir"}});
+}
+
+TEST(ToolExecutorTest, GitCreateStagingBranchRequiresName) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("git_create_staging_branch", nlohmann::json::object());
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "name is required"));
+}
+
+TEST(ToolExecutorTest, ParseToolRowsTopLevelBehavior) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto arr = executor.Execute("parse_tool_rows", {{"value", nlohmann::json::array({{{"x", 1}}})}, {"context", "rows"}});
+  ASSERT_TRUE(arr.ok()) << arr.status().message();
+  EXPECT_TRUE(absl::StrContains(*arr, "\"x\":1"));
+
+  auto str = executor.Execute("parse_tool_rows", {{"value", "[{\"a\":2}]"}, {"context", "rows"}});
+  ASSERT_TRUE(str.ok()) << str.status().message();
+  EXPECT_TRUE(absl::StrContains(*str, "\"a\":2"));
+
+  auto obj = executor.Execute("parse_tool_rows", {{"value", {"rows", nlohmann::json::array({{{"b", 3}}})}}, {"context", "rows"}});
+  ASSERT_TRUE(obj.ok()) << obj.status().message();
+  EXPECT_TRUE(absl::StrContains(*obj, "\"b\":3"));
+
+  auto bad = executor.Execute("parse_tool_rows", {{"value", "not-json"}, {"context", "rows"}});
+  ASSERT_FALSE(bad.ok());
+  EXPECT_EQ(bad.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(bad.status().message(), "Failed to parse rows"));
 }
 
 TEST(ToolExecutorTest, AliasToolNameResolvesToCanonical) {
@@ -547,9 +861,9 @@ TEST(ToolExecutorTest, ApplyPatch_DryRunFailureForUnmatchedHunk) {
   auto patch_res =
       executor.Execute("patch_tool", {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}});
   ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
-  const std::string patch_text = EnvelopeResultText(*patch_res);
+  const std::string patch_text = *patch_res;
   EXPECT_TRUE(absl::StrContains(patch_text, "\"ok\":false"));
-  EXPECT_TRUE(absl::StrContains(patch_text, "PATCH_DRY_RUN_FAILED"));
+  EXPECT_TRUE(absl::StrContains(patch_text, "PATCH_DRY_RUN_FAILED")) << patch_text;
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
@@ -871,4 +1185,26 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

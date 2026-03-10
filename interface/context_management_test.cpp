@@ -63,7 +63,7 @@ TEST_F(ContextManagementTest, ListDirectoryBasic) {
   std::filesystem::create_directory("test_dir/subdir");
   std::ofstream("test_dir/subdir/subfile.txt") << "content";
 
-  auto res = executor.Execute("list_directory", {{"path", "test_dir"}, {"depth", 1}});
+  auto res = executor.Execute("run_js", {{"script", "return core.dispatch_tool(\"list_directory\", { path: \"test_dir\", depth: 1 });"}});
   ASSERT_TRUE(res.ok());
   const std::string output = EnvelopeResultText(*res);
   EXPECT_TRUE(absl::StrContains(output, "File: file1.txt"));
@@ -82,7 +82,7 @@ TEST_F(ContextManagementTest, ListDirectoryRecursive) {
   std::filesystem::create_directory("test_dir_rec/subdir");
   std::ofstream("test_dir_rec/subdir/subfile.txt") << "content";
 
-  auto res = executor.Execute("list_directory", {{"path", "test_dir_rec"}, {"depth", 2}});
+  auto res = executor.Execute("run_js", {{"script", "return core.dispatch_tool(\"list_directory\", { path: \"test_dir_rec\", depth: 2 });"}});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res), "subdir/subfile.txt"));
 
@@ -94,7 +94,7 @@ TEST_F(ContextManagementTest, DescribeDb) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  auto res = executor.Execute("describe_db", {});
+  auto res = executor.Execute("run_js", {{"script", "return core.dispatch_tool(\"describe_db\", {});"}});
   ASSERT_TRUE(res.ok());
   const std::string output = EnvelopeResultText(*res);
   EXPECT_TRUE(absl::StrContains(output, "\"name\":\"messages\""));
@@ -136,7 +136,7 @@ TEST_F(ContextManagementTest, GrepTruncation) {
   }
   f.close();
 
-  auto res = executor.Execute("grep_tool", {{"pattern", "match"}, {"path", "large_grep.txt"}, {"limit", 50}});
+  auto res = executor.Execute("run_js", {{"script", "return core.dispatch_tool(\"grep_tool\", { pattern: \"match\", path: \"large_grep.txt\", limit: 50 });"}});
   ASSERT_TRUE(res.ok());
   EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*res), "[TRUNCATED"));
 
@@ -144,3 +144,4 @@ TEST_F(ContextManagementTest, GrepTruncation) {
 }
 
 }  // namespace slop
+

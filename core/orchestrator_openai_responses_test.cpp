@@ -6,6 +6,7 @@
 #include "core/http_client.h"
 #include "core/json_utils.h"
 
+#include <set>
 #include <gtest/gtest.h>
 
 namespace slop {
@@ -39,10 +40,13 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   ASSERT_TRUE(payload["input"].is_array());
   ASSERT_TRUE(payload.contains("tools"));
   ASSERT_TRUE(payload["tools"].is_array());
-  ASSERT_EQ(payload["tools"].size(), 3);
-  EXPECT_EQ(json_get_or(payload["tools"][0], "name", std::string{}), "run_js");
-  EXPECT_EQ(json_get_or(payload["tools"][1], "name", std::string{}), "llm_query");
-  EXPECT_EQ(json_get_or(payload["tools"][2], "name", std::string{}), "ask_user");
+  std::set<std::string> tool_names;
+  for (const auto& tool : payload["tools"]) {
+    tool_names.insert(json_get_or(tool, "name", std::string{}));
+  }
+  EXPECT_TRUE(tool_names.find("run_js") != tool_names.end());
+  EXPECT_TRUE(tool_names.find("llm_query") != tool_names.end());
+  EXPECT_TRUE(tool_names.find("ask_user") != tool_names.end());
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndReasoning) {
@@ -245,3 +249,5 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
+
+

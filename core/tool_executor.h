@@ -7,7 +7,6 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 
@@ -36,6 +35,7 @@ class ToolExecutor {
 
   bool IsSkillActive(const std::string& name);
   std::vector<std::string> GetActiveSkills();
+  std::vector<std::string> GetRegisteredToolNamesForTest() const;
 
   void SetAskUserHandler(std::function<std::string(const std::string&)> handler) {
     ask_user_handler_ = std::move(handler);
@@ -85,11 +85,28 @@ class ToolExecutor {
   };
 
   absl::StatusOr<std::string> HandleQueryDb(const nlohmann::json& args);
+  absl::StatusOr<std::string> HandleReadFile(const nlohmann::json& args);
+  absl::StatusOr<std::string> HandleListDirectory(const nlohmann::json& args);
+  absl::StatusOr<std::string> HandleDescribeDb(const nlohmann::json& args);
+  absl::StatusOr<std::string> HandleGrep(const nlohmann::json& args);
+  absl::StatusOr<std::string> HandleGitCreateStagingBranch(const nlohmann::json& args);
+  absl::StatusOr<std::string> HandleGitCommitPatch(const nlohmann::json& args,
+                                                   std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> HandleGitFormatPatchSeries(const nlohmann::json& args,
+                                                         std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> HandleGitRerollPatch(const nlohmann::json& args,
+                                                   std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> HandleGitFinalizeSeries(const nlohmann::json& args,
+                                                      std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> HandleExecuteBash(const nlohmann::json& args) const;
+  absl::StatusOr<std::string> HandlePatchTool(const nlohmann::json& args) const;
+  absl::StatusOr<std::string> HandleWriteFile(const nlohmann::json& args) const;
+  absl::StatusOr<std::string> HandleParseToolRows(const nlohmann::json& args) const;
+  absl::StatusOr<std::string> HandleUseSkill(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleRunLua(const nlohmann::json& args,
                                            std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> HandleRunJs(const nlohmann::json& args,
                                           std::shared_ptr<CancellationRequest> cancellation);
-
   absl::StatusOr<JsResult> RunJs(const RunJsRequest& req, std::shared_ptr<CancellationRequest> cancellation);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
@@ -99,3 +116,15 @@ class ToolExecutor {
 }  // namespace slop
 
 #endif  // SLOP_SQL_TOOL_EXECUTOR_H_
+
+
+
+
+
+
+
+
+
+
+
+

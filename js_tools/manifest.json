@@ -68,27 +68,6 @@
     "implementation": "git_branch_staging.js"
   },
   {
-    "name": "git_commit_patch",
-    "description": "Commits staged changes with a summary and optional rationale.",
-    "json_schema": {
-      "type": "object",
-      "properties": {
-        "summary": {
-          "type": "string",
-          "description": "string (<=50 characters)"
-        },
-        "rationale": {
-          "type": "string",
-          "description": "string (optional)"
-        }
-      },
-      "required": [
-        "summary"
-      ]
-    },
-    "implementation": "git_commit_patch.js"
-  },
-  {
     "name": "git_create_staging_branch",
     "description": "Creates or reuses a staging branch (unguarded).",
     "json_schema": {
@@ -108,57 +87,6 @@
       ]
     },
     "implementation": "git_create_staging_branch.js"
-  },
-  {
-    "name": "git_finalize_series",
-    "description": "Finalizes the patch series by merging the staged branch after approval.",
-    "json_schema": {
-      "type": "object",
-      "properties": {
-        "target_branch": {
-          "type": "string",
-          "description": "string (optional)"
-        }
-      },
-      "required": []
-    },
-    "implementation": "git_finalize_series.js"
-  },
-  {
-    "name": "git_format_patch_series",
-    "description": "Formats the patch series as a mail-thread style summary.",
-    "json_schema": {
-      "type": "object",
-      "properties": {
-        "base_branch": {
-          "type": "string",
-          "description": "string (optional)"
-        }
-      },
-      "required": []
-    },
-    "implementation": "git_format_patch_series.js"
-  },
-  {
-    "name": "git_reroll_patch",
-    "description": "Creates a fixup and rebases to reroll the specified patch.",
-    "json_schema": {
-      "type": "object",
-      "properties": {
-        "index": {
-          "type": "string",
-          "description": "number (1-based chunk index)"
-        },
-        "base_branch": {
-          "type": "string",
-          "description": "string (optional)"
-        }
-      },
-      "required": [
-        "index"
-      ]
-    },
-    "implementation": "git_reroll_patch.js"
   },
   {
     "name": "git_verify_series",
@@ -465,12 +393,6 @@
     "implementation": "shell_escape.js"
   },
   {
-    "name": "slop_guard",
-    "description": "Guard for destructive operations",
-    "json_schema": "",
-    "implementation": "slop_guard.js"
-  },
-  {
     "name": "git_get_current_branch",
     "description": "Gets the current git branch",
     "json_schema": "",
@@ -487,12 +409,6 @@
     "description": "Resolves the base branch",
     "json_schema": "",
     "implementation": "git_resolve_base_branch.js"
-  },
-  {
-    "name": "git_assert_clean_workspace",
-    "description": "Asserts that the git workspace is clean",
-    "json_schema": "",
-    "implementation": "git_assert_clean_workspace.js"
   },
   {
     "name": "git_is_staging_branch",

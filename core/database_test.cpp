@@ -34,10 +34,28 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());
   bool found_run_js = false;
+  bool found_query_db = false;
+  bool found_read_file = false;
+  bool found_execute_bash = false;
+  bool found_patch_tool = false;
+  bool found_write_file = false;
+  bool found_ask_user = false;
   for (const auto& t : *tools) {
     if (t.name == "run_js") found_run_js = true;
+    if (t.name == "query_db") found_query_db = true;
+    if (t.name == "read_file") found_read_file = true;
+    if (t.name == "execute_bash") found_execute_bash = true;
+    if (t.name == "patch_tool") found_patch_tool = true;
+    if (t.name == "write_file") found_write_file = true;
+    if (t.name == "ask_user") found_ask_user = true;
   }
   EXPECT_TRUE(found_run_js);
+  EXPECT_TRUE(found_query_db);
+  EXPECT_TRUE(found_read_file);
+  EXPECT_TRUE(found_execute_bash);
+  EXPECT_TRUE(found_patch_tool);
+  EXPECT_TRUE(found_write_file);
+  EXPECT_TRUE(found_ask_user);
 
   auto js_functions_res = db.Query("SELECT name FROM js_functions");
   ASSERT_TRUE(js_functions_res.ok());
@@ -390,3 +408,4 @@ TEST(DatabaseTest, ConcurrentAccess) {
   }
   EXPECT_EQ(success_count, num_threads * iterations * 2);
 }
+
