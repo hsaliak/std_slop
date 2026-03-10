@@ -15,7 +15,6 @@
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
 - **🏷️ Memo System**: Tag-based knowledge persistence that survives across sessions. Think of these as your project's long-term memory.
-- **📜 [JavaScript Control Plane](docs/js_integration.md)**: Programmatic orchestration via a QuickJS bridge, allowing scripts, staging, and execution. std::slop uses this REPL to accomplish all it's tasks.
 - **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval.  Use this if you want a clean, bisect-safe view of changes, and want to be 'in the loop'. You can, of course offload the reviews to a `code_reviewer` skill as well.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.).
 - **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax. Eg: "hey code_reviewer review these patches".
@@ -92,7 +91,6 @@ See [docs/example_config.ini](docs/example_config.ini) for a full list of option
 - Exceptions: Disabled (-fno-exceptions).
 - Memory: RAII and std::unique_ptr exclusively.
 - Error Handling: absl::Status and absl::StatusOr.
-- Concurrency: Parallel tool execution is managed through the JavaScript control plane using `_async` variants and a job-based wait system. This allows for granular control over concurrent operations. (`absl::Mutex`, `absl::Notification`). Thread safety is enforced via Absl thread-safety annotations (`ABSL_GUARDED_BY`) and verified with TSAN tests.
 - Asan and Tsan clean at all times.
 
 ## 📚 Documentation
@@ -103,7 +101,6 @@ See [docs/example_config.ini](docs/example_config.ini) for a full list of option
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
-- **[JavaScript Integration](docs/js_integration.md)**: high-level orchestration and task safety via the QuickJS bridge.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
 ## 🏗️ Architecture & Codebase Layout
@@ -118,10 +115,6 @@ The core logic is divided into modules:
 - **`shell_util.h`**: Executes shell commands in a separate process group, with support for live output polling and termination on cancellation.
 - **`http_client.h`**: A minimalist, cancellation-aware HTTP client used for all model API calls.
 
-### `js-bridge/` - Orchestration Layer
-- **`interpreter.h`**: Implements the QuickJS environment. Provides the `run_js` tool and manages the injection of global context (`tools`, `history`, `state`).
-- **`preamble.js`**: The embedded standard library for the agent's JavaScript environment. Implements high-level helpers and the `slop_guard` safety mechanism.
-
 ### Interface & Display
 - **`interface/`**: Implements the terminal UI. The UI is minimal but clean, uses readline for user input, color codes and ASCII Codes.
 - **`markdown/`**: Uses `tree-sitter-markdown` to provide syntax highlighting (C++, Python, Go, JS, Rust, Bash) and structured rendering for agent responses. This is a stand alone Markdown  parser / renderer library in C++.
@@ -130,16 +123,5 @@ The core logic is divided into modules:
 
 
 
-### Persistent JavaScript Functions
-You can persist custom JavaScript functions to the database using `tools.persist_function`. These functions are automatically loaded into the global scope of every `run_js` execution and are discoverable via `tools.help()` (JSON manifest with tool aliases and contracts).
 
-```javascript
-tools.persist_function({
-  name: "calculate_tax",
-  code: "return function(amount) { return amount * 0.15; }",
-  description: "Calculates a 15% tax on the given amount.",
-  test_args: [100],
-  expected_result: 15
-});
-```
 
