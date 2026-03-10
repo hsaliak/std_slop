@@ -1,10 +1,6 @@
 # std::slop User Guide
 ## Overview
 `std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
-## The JavaScript Control Plane
-`std::slop` uses QuickJS to orchestrate tool calls. This allows the agent to handle complex logic, loops, and parallel execution without multiple model round-trips for every small step.
-### `run_js`
-The primary tool used by the agent. It takes a `script` string. The LLM will implement your request by writing JavaScript scripts. For detailed documentation on orchestration patterns, parallel execution, and the RLM paradigm, see [js_integration.md](js_integration.md).
 ## Tool Contracts and Error Handling
 
 Tool contracts are runtime-defined. Always call `tools.help()` to confirm exact names,
@@ -151,21 +147,6 @@ bazel run //:std_slop -- --session "my_project" --prompt "What was the last thin
 - **Skills**: Persona patches that inject specific instructions into the system prompt. These can be manually activated or automatically orchestrated by the agent.
 - **Tools**: Executable functions (grep, git_grep, file read, write_file, etc.) that the LLM can call.
 - **Historical Retrieval**: The agent's ability to query its own database to find old context that has fallen out of the rolling window.
-## Orchestration & JavaScript Integration
-`std::slop` makes the LLM orchestrate work through JavaScript in the JCP. This is particularly useful for parallel operations, complex logic, or tasks that require multiple tool calls in a single turn.
-### The `run_js` Tool
-The `run_js` tool allows the agent to execute orchestrated scripts. It has access to:
-- **`tools`**: Runtime tool registry exposed to scripts (discoverable via `tools.help()`).
-- **`llm_query`**: Synchronous and asynchronous helpers for isolated LLM sub-tasks.
-- **Async Execution**: `tools.execute_bash_async` and `tools.llm_query_async` allow for parallel execution (e.g., running multiple tests at once).
-- **Tool Manifest**: `tools.help({})` returns JSON with canonical tool names, aliases, and contracts.
-- **`git_grep`**: Git-backed code search with default structured JSON (`format: "structured"`) and optional raw text (`format: "raw"`). Returns `ok: true` for both matches and no-match (`exitCode: 1` with empty data).
-For more details, see the **[JavaScript Integration Documentation](js_integration.md)**.
-
-### Migration notes (v0.1.9 -> current)
-- Tool discovery is dynamic via `js_functions`; use `tools.help()` for current contracts instead of assuming a static tool list.
-- Tool results are JSON-framed by default; prefer object-aware handling in scripts.
-- Legacy scratchpad/history globals are removed from the default bridge contract; use explicit tools for retrieval and state workflows.
 ## Slash Commands
 > **Note**: Slash commands are unavailable while the agent is explicitly requesting input via a prompt (e.g., when it uses the `ask_user` tool). If you enter a slash command during such a prompt, the system will display an error and re-prompt you for a direct response.
 ### Session Management
@@ -316,7 +297,7 @@ When enabled, the final assembled prompt will be logged via `absl::LOG(INFO)`. T
 ## Concurrency & Control
 ### Parallel Tool Execution
 `std::slop` executes tool calls in parallel by spawning a new thread for each tool call. This allows the agent to perform multiple searches or file reads simultaneously, significantly reducing turn-around time for complex tasks.
-All concurrent tasks are managed via the JavaScript Control Plane and can be cancelled individually or as a group.
+All concurrent tasks can be cancelled individually or as a group.
 ### Mail Mode (Patch-Based Workflow)
 For complex features that require multiple iterations and commit history, use **Mail Mode**.
 1. **Activate**: `/mode mail` (Requires a Git repository).

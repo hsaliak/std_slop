@@ -3,7 +3,7 @@ This document outlines the context management strategy in `std::slop`. We focus 
 The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
 ## 1. Static Anchor (Global State)
 To prevent the model from "losing the thread" during long sessions, the orchestrator injects two persistent blocks at the top of every prompt, immediately after the system instructions:
-1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. In the JavaScript Control Plane (RLM paradigm), this is accessible via the global `state` handle and is typically updated at the end of a response.
+1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. This is accessible via the global `state` handle and is typically updated at the end of a response.
 2.  **Text Messages**: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.
 2.  **Tool Isolation**: Messages with a `role` of `tool` or a `status` of `tool_call` are only included if their `parsing_strategy` matches the currently active one.
 3.  **Rationale**: Providers (like Google and OpenAI) use vastly different JSON schemas and sequences for tool interactions. Attempting to "translate" a complex tool chain from one provider to another often leads to hallucinations or API errors. Isolation ensures that the LLM only sees tool interactions it is capable of understanding and continuing.

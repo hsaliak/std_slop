@@ -1,6 +1,6 @@
 # Semantic-Aware Tooling with Tree-sitter
 
-This document outlines the proposed integration of Tree-sitter into the JavaScript Control Plane (JCP) to enable structural understanding of the codebase.
+This document outlines the proposed integration of Tree-sitter into the tooling stack to enable structural understanding of the codebase.
 
 ## Proposed Tools
 
@@ -31,6 +31,6 @@ This document outlines the proposed integration of Tree-sitter into the JavaScri
 ## Implementation Roadmap
 
 1. **C++ Foundation**: Create a `TreeSitterTool` in `core/` to expose `ts_query`.
-2. **JavaScript Preamble Support**: Add higher-level wrappers in `js-bridge/preamble.js`.
+2. **Tooling Integration**: Add higher-level wrappers for agent-facing usage.
 3. **Integration**: Update the `planner` skill to utilize these tools for discovery and refactoring.
 

@@ -13,7 +13,7 @@ The `AGENTS.md` file in the root directory defines the global instructions and p
 This follows the specification at [https://agentskills.io/](https://agentskills.io/).
 Skills are located in the `.agents/skills/` directory. Each skill is defined by a directory containing a `SKILL.md` file.
 - **On-Demand**: Skills must be explicitly activated using `/skill activate <name>`. The `hey` hotword can be used to activate a skill for a single turn.
-- **Automatic**: Skills can also be activated by the LLM using `tools.use_skill` in the JavaScript Control Plane.
+- **Automatic**: Skills can also be activated by the LLM using `tools.use_skill`.
 - **Structured**: Uses YAML frontmatter for metadata (name, description).
 - **Extensible**: Allows adding specialized knowledge (e.g., C++ expert, DBA) without bloating the global context.
 

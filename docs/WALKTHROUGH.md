@@ -145,32 +145,6 @@ For non-trivial features, it's recommended to use the **Mail Model**.
 This workflow ensures bisect-safe history and high-quality rationale for every change. See [mail_model.md](mail_model.md) for a full example.
 ### Finishing Up
 Once you are done, you can exit the session with `/exit` or `/quit`. Happy development!
-### Example: Complex Orchestration via JavaScript
-In this example, the agent needs to find all instances of a deprecated function and replace them, but only after verifying the changes don't break the build.
-**Agent Command:**
-```javascript
-run_js({
-  script = [[
-    -- 1. Find occurrences
-    local grep_res = tools.grep({pattern = 'old_func', path = 'core/'})
-    for line in grep_res:lines() do
-        print(line)
-    end
-    -- 2. Apply replacements (sequential example using tools.file)
-    local files = {"core/file1.cpp", "core/file2.cpp"}
-    for _, path in ipairs(files) do
-        tools.file(path):patch({find = "old_func", replace = "new_func"})
-    end
-    -- 3. Verify build (using dispatch_async for background execution)
-    local job = tools.dispatch_async("execute_bash", {command = "bazel build //..."})
-    local build_res = job:wait()
-    if build_res:find("FAILED") then
-        print("Build failed!")
-    else
-        print("Build successful.")
-    end
-  ]]
-})
-```
+
 
 
