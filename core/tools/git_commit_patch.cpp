@@ -32,8 +32,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitCommitPatch(
   if (!summary || summary->empty()) {
     return absl::InvalidArgumentError("Summary is required");
   }
-  if (summary->size() > 50) {
-    return absl::InvalidArgumentError("Summary must be <= 50 characters");
+  if (summary->size() > 500) {
+    return absl::InvalidArgumentError("Summary must be <= 500 characters");
   }
 
   const std::string full_msg = absl::StrCat(*summary, "\n\n", rationale);
