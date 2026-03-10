@@ -71,13 +71,10 @@ bool ShouldUseResponsesModelVariants(const Orchestrator* orchestrator) {
 
 bool IsSafeBranchToken(std::string_view name) {
   if (name.empty()) return false;
-  for (char c : name) {
+  return std::all_of(name.begin(), name.end(), [](char c) {
     const bool is_alpha_num = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
-    if (!is_alpha_num && c != '-' && c != '_' && c != '.') {
-      return false;
-    }
-  }
-  return true;
+    return is_alpha_num || c == '-' || c == '_' || c == '.';
+  });
 }
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
