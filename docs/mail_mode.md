@@ -1,12 +1,12 @@
-# The Mail Model: Patch-Based Development Workflow
+# The Mail Mode: Patch-Based Development Workflow
 
-This document describes the "Mail Model" workflow for `std::slop`, a Git-native, iteration-first development process inspired by the Linux Kernel / Git email workflow.
+This document describes the "Mail Mode" workflow for `std::slop`, a Git-native, iteration-first development process inspired by the Linux Kernel / Git email workflow.
 
 ## 1. Core Philosophy
 The agent acts as a **Remote Contributor**. Instead of directly modifying the project's main files, it submits a **Patch Series** for review. This forces architectural thinking, atomic changes, and a clear audit trail of design decisions.
 ## 2. The Four Stages
 
-![Mail Model](mail_model.png)
+![Mail Mode](mail_model.png)
 ### Stage 1: The Staging Layer (The Sandbox)
 - **Branching**: All work happens on a dedicated staging branch (e.g., `slop/staging/feature-name`) branched from the current HEAD.
 - **Atomic Commits**: Every logical change (e.g., "Defined Interface", "Added Implementation", "Updated Tests") is a separate Git commit.
@@ -74,7 +74,7 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 ## 4. Required Tooling & Commands
 
 ### Mode Activation
-- **`/mode mail`**: Enables the "Mail Model" persona. This activates the `patcher` skill and injects the corresponding system prompt. The modeline will update to show a green `📬 MAIL_MODEL` indicator.
+- **`/mode mail [branchname]`**: Enables the "Mail Mode" persona. You can optionally provide a staging branch name directly (for example, `/mode mail feature-x`). This activates the `patcher` skill and injects the corresponding system prompt. The modeline will update to show a green `📬 MAIL_MODEL` indicator.
 - **Session Toggle**: This mode can be toggled on/off. When off, the agent reverts to direct file modification. When on, all modifications must go through the staging/patch loop.
 - The Mode state (Standard vs Mail) is shown in the modeline of the UI using icons (`🤖` vs `📬`) and colorization.
 - When the /mode mail is toggled in a directory that is not a valid git repository, it should ask the user to git init, if not, it should not toggle the mode. 
@@ -108,9 +108,9 @@ The agent acts as a **Remote Contributor**. Instead of directly modifying the pr
 
 ## 5. Persistence and Sticky Context
 
-To streamline the development flow, the Mail Model maintains a "sticky" relationship between a staging branch and its parent.
+To streamline the development flow, the Mail Mode maintains a "sticky" relationship between a staging branch and its parent.
 
 - **Storage**: When `git_branch_staging` is called, the mapping is stored in the `staging_branches` table in the database.
-- **Resolution**: All Mail Model tools (`git_reroll_patch`, `git_verify_series`, etc.) automatically query this table if a base/target branch is not explicitly provided.
+- **Resolution**: All Mail Mode tools (`git_reroll_patch`, `git_verify_series`, etc.) automatically query this table if a base/target branch is not explicitly provided.
 - **Workflow Benefit**: This ensures that even if an agent session restarts or context is lost, the tool suite "remembers" where the patches should be applied and verified against.
 

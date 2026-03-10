@@ -38,7 +38,7 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
       {"/models", {}, {}, {"/models [filter]"}, "Model & Configuration"},
       {"/throttle", {}, {}, {"/throttle [N]"}, "Model & Configuration"},
       {"/schema", {}, {}, {"Show schema"}, "Model & Configuration"},
-      {"/mode", {"mail", "standard"}, {}, {"/mode [mail|standard]"}, "Model & Configuration"},
+      {"/mode", {"mail", "standard"}, {}, {"/mode [mail|standard] [branchname]"}, "Model & Configuration"},
       {"/tool", {"list", "show"}, {}, {"/tool list", "/tool show <name>"}, "Agent Capabilities"},
       {"/skill",
        {"list", "activate", "deactivate", "add", "edit", "delete"},

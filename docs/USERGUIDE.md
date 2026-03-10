@@ -237,7 +237,7 @@ Standards to follow:
 You do NOT implement changes. You ONLY provide an annotated set of required changes or comments. Only after explicit user approval can you proceed with addressing the issues identified. Focus on style, safety, and readability. For new files, use `git add --intent-to-add` before `git diff`. Always list the files reviewed in your summary.
 ```
 ### Reviewing Changes
-`std::slop` provides two primary ways to review code changes before they are finalized. See also the [mail model](mail_model.md). The Mail Model is the recommended  way to use std::slop to code your project without losing your mind.
+`std::slop` provides two primary ways to review code changes before they are finalized. See also the [mail mode](mail_mode.md). The Mail Mode is the recommended  way to use std::slop to code your project without losing your mind.
 #### 1. Automated Review (via `code_reviewer` skill)
 This flow uses the LLM's knowledge of industry standards (like the Google C++ Style Guide) to automatically identify issues.
 - **Activate**: Run `/skill activate code_reviewer`.
@@ -305,7 +305,7 @@ For complex features that require multiple iterations and commit history, use **
 3. **Tooling**: Use `git_branch_staging`, `git_commit_patch`, `git_format_patch_series`, `git_verify_series`, `git_reroll_patch`, and `git_finalize_series`.
 4. **Review**: Use `/review mail [index]` to review specific patches. Use `R:` comments in the editor for feedback.
 5. **Approval**: Run `/review mail approve` to sign the current patchset. This is **required** before calling `git_finalize_series`. Approval is non-sticky; any new commit or reroll will invalidate it.
-For more details, see [mail_model.md](mail_model.md).
+For more details, see [mail_mode.md](mail_mode.md).
 ### Interrupting Active Tasks
 If a tool is taking too long (e.g., a massive `grep` or a complex build), or if you realize the agent is going in the wrong direction, you can interrupt the current turn.
 - **Press `[Esc]`**: Cancels all currently executing tools.
