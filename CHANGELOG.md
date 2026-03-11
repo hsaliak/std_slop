@@ -1,3 +1,9 @@
+## v0.15.1 - 2026-03-11
+- **Gemini Integration**: Normalized Gemini tool schemas and added union-type regression tests to ensure robust tool calling.
+- **Tooling Improvements**: Increased the `git_commit_patch` summary limit to 500 characters to allow for more descriptive commit messages.
+- **Documentation**: Refreshed the README and removed obsolete JavaScript control plane references.
+- **Maintenance**: Fixed clang-tidy `qualified-auto` warnings in schema traversal and performed general code cleanup.
+
 ## v0.15 - 2026-03-10
 - Removed JavaScript control-plane migration artifacts: This is unfortunate, but models are RLed so hard, that such an approach is inferior. QuickJS-NG is an excellent project to integrate with but we must stay on our path.
 - Completed post-migration prompt/skill cleanup to align with the native tool interface and current mail-model git tool names.
