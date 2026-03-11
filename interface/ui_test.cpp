@@ -209,6 +209,23 @@ TEST(UiTest, PrintToolResultMessageEnvelopeJsonErrorFormatting) {
   EXPECT_TRUE(absl::StrContains(output, "TOOL_ERROR"));
   EXPECT_TRUE(absl::StrContains(output, "boom"));
 }
+
+TEST(UiTest, PrintToolResultMessageExecuteBashEnvelopeFormatsOutputField) {
+  std::string name = "execute_bash";
+  std::string result =
+      R"({"stdout":"line1\nline2","stderr":"","exit_code":0,"output":"line1\nline2","command":"echo hi","executed_command":"echo hi"})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolResultMessage(name, result, "completed");
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "exit_code"));
+  EXPECT_TRUE(absl::StrContains(output, "Output"));
+  EXPECT_TRUE(absl::StrContains(output, "line1"));
+  EXPECT_TRUE(absl::StrContains(output, "line2"));
+}
+
 TEST(UiTest, PrintToolResultMessageNestedJsonStringFormatting) {
   std::string name = "dynamic_tool";
   std::string result = R"("{\"alpha\":1,\"beta\":\"two\"}")";

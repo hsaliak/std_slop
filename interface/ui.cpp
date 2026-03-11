@@ -106,6 +106,45 @@ bool IsToolResultEnvelope(const nlohmann::json& value) {
          json_at(value, "error") != nullptr;
 }
 
+bool IsCommandOutputEnvelope(const nlohmann::json& value) {
+  if (!json_is<nlohmann::json::object_t>(value)) return false;
+  return json_at(value, "output") != nullptr &&
+         (json_at(value, "stdout") != nullptr || json_at(value, "exit_code") != nullptr ||
+          json_at(value, "exitCode") != nullptr);
+}
+
+std::string FormatCommandOutputEnvelopeAsMarkdown(const nlohmann::json& envelope) {
+  std::stringstream ss;
+
+  if (auto exit_code = json_get<int>(envelope, "exit_code")) {
+    ss << "- exit_code: `" << *exit_code << "`\n";
+  } else if (auto exit_code_alt = json_get<int>(envelope, "exitCode")) {
+    ss << "- exit_code: `" << *exit_code_alt << "`\n";
+  }
+  if (auto command = json_get<std::string>(envelope, "command")) {
+    ss << "- command: `" << *command << "`\n";
+  }
+  if (auto executed = json_get<std::string>(envelope, "executed_command")) {
+    ss << "- executed_command: `" << *executed << "`\n";
+  }
+  ss << "\n";
+
+  if (const auto* output = json_at(envelope, "output")) {
+    ss << FormatJsonValueBlock("Output", *output);
+  }
+  if (const auto* stderr = json_at(envelope, "stderr")) {
+    const std::string stderr_text = json_get_or<std::string>(envelope, "stderr", "");
+    if (!absl::StripAsciiWhitespace(stderr_text).empty()) {
+      ss << FormatJsonValueBlock("Stderr", *stderr);
+    }
+  }
+
+  if (ss.str().empty()) {
+    return JsonToMarkdownFence(envelope);
+  }
+  return ss.str();
+}
+
 std::string FormatToolEnvelopeAsMarkdown(const nlohmann::json& envelope) {
   std::stringstream ss;
 
@@ -174,12 +213,18 @@ std::string FormatToolStdoutForMarkdown(const std::string& stdout_part) {
       if (IsToolResultEnvelope(*nested)) {
         return FormatToolEnvelopeAsMarkdown(*nested);
       }
+      if (IsCommandOutputEnvelope(*nested)) {
+        return FormatCommandOutputEnvelopeAsMarkdown(*nested);
+      }
       return JsonToMarkdownFence(*nested);
     }
   }
 
   if (IsToolResultEnvelope(*parsed)) {
     return FormatToolEnvelopeAsMarkdown(*parsed);
+  }
+  if (IsCommandOutputEnvelope(*parsed)) {
+    return FormatCommandOutputEnvelopeAsMarkdown(*parsed);
   }
   return JsonToMarkdownFence(*parsed);
 }
