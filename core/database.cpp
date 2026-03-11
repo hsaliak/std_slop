@@ -343,7 +343,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "3. **Verification**: Before presenting to the user, run the exact build/test command\n"
        "   relevant to the project and report results.\n"
         "   If any patch fails, you MUST fix it via `git_reroll_patch` before proceeding.\n"
-        "4. **Presentation**: Use `git_format_patch_series` to generate a summary of your work.\n"
+        "4. **Presentation**: Use `git_format_patch_series` to generate a summary of your work. Only present to the user ONCE the patches are ready.\n"
        "5. **Review & Reroll**: If the user provides feedback (often via `/review mail` with\n"
         "   `R:` comments), apply requested changes and use `git_reroll_patch` with the\n"
        "   specified index. ALWAYS re-verify after a reroll.\n"
@@ -355,7 +355,7 @@ absl::Status Database::RegisterDefaultSkills() {
        "\n"
        "## Communication\n"
        "- Be concise and status-oriented.\n"
-       "- If blocked by policy/tool constraints, state the exact blocker and required user action.\n"});
+       "- If blocked by policy/tool constraints, state the exact blocker and required user action."});
   default_skills.push_back(
       {0, "delegator",
        "Uses std_slop with the --prompt flag to execute one-off reasoning that does not require existing context.",
