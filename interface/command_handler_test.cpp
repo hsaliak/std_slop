@@ -81,7 +81,6 @@ TEST_F(CommandHandlerTest, ReturnsScratchpadSubCommands) {
   ASSERT_NE(it, handler.GetSubCommandMap().end());
   const auto& subs = it->second;
   EXPECT_FALSE(subs.empty());
-  EXPECT_NE(std::find(subs.begin(), subs.end(), "show"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "edit"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "save"), subs.end());
 }

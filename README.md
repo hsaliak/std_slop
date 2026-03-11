@@ -13,6 +13,7 @@
 
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
+- **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
 - **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval.  Use this if you want a clean, bisect-safe view of changes, and want to be 'in the loop'. You can, of course offload the reviews to a `code_reviewer` skill as well.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.) and OpenAI Responses API (with chatgpt plus/pro oauth).

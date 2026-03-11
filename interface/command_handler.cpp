@@ -462,20 +462,6 @@ CommandHandler::Result CommandHandler::HandleScratchpad(CommandArgs& args) {
   std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
   std::string sub_cmd = sub_parts[0];
 
-  if (sub_cmd == "show") {
-    auto scratchpad_or = db_->GetScratchpad(args.session_id);
-    if (!scratchpad_or.ok()) {
-      HandleStatus(scratchpad_or.status(), "Failed to read scratchpad");
-      return Result::HANDLED;
-    }
-    if (scratchpad_or->empty()) {
-      std::cout << "Scratchpad is empty." << std::endl;
-    } else {
-      PrintMarkdown(*scratchpad_or);
-    }
-    return Result::HANDLED;
-  }
-
   if (sub_cmd == "edit") {
     auto scratchpad_or = db_->GetScratchpad(args.session_id);
     if (!scratchpad_or.ok()) {
@@ -510,7 +496,7 @@ CommandHandler::Result CommandHandler::HandleScratchpad(CommandArgs& args) {
   }
 
   std::cerr << "Unknown /scratchpad sub-command: " << sub_cmd << std::endl;
-  std::cerr << "Usage: /scratchpad [show|edit|save]" << std::endl;
+  std::cerr << "Usage: /scratchpad [edit|save]" << std::endl;
   return Result::HANDLED;
 }
 /**

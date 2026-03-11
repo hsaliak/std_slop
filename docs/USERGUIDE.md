@@ -185,7 +185,6 @@ Memos are long-term, cross-session pieces of knowledge. While you can manage the
 - `/skill delete <name|id>`: Permanently remove a skill from the database.
 
 ### Scratchpad
-- `/scratchpad show`: Display the current session scratchpad.
 - `/scratchpad edit`: Open and edit the session scratchpad in your `$EDITOR`.
 - `/scratchpad save`: Save the last assistant message into the session scratchpad.
 
