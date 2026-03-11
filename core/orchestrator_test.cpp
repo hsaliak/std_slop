@@ -299,6 +299,40 @@ TEST_F(OrchestratorTest, AssemblePromptWithTools) {
   }
   EXPECT_TRUE(found);
 }
+
+TEST_F(OrchestratorTest, GeminiToolSchemasNormalizeUnionTypes) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+
+  Database::Tool tool = {"union_tool", "Union test",
+                         R"({"type":"object","properties":{"index":{"type":["integer","string"]}}})", true};
+  ASSERT_TRUE(db.RegisterTool(tool).ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Use the tool").ok());
+
+  auto result = orchestrator->AssemblePrompt("s1", {});
+  ASSERT_TRUE(result.ok());
+  nlohmann::json prompt = *result;
+
+  ASSERT_TRUE(prompt.contains("tools"));
+  ASSERT_TRUE(prompt["tools"][0].contains("function_declarations"));
+  const nlohmann::json* decl = nullptr;
+  for (const auto& d : prompt["tools"][0]["function_declarations"]) {
+    if (d.value("name", "") == "union_tool") {
+      decl = &d;
+      break;
+    }
+  }
+  ASSERT_NE(decl, nullptr);
+
+  const auto& parameters = (*decl)["parameters"];
+  ASSERT_TRUE(parameters.contains("properties"));
+  ASSERT_TRUE(parameters["properties"].contains("index"));
+  ASSERT_TRUE(parameters["properties"]["index"].contains("type"));
+  EXPECT_TRUE(parameters["properties"]["index"]["type"].is_string());
+  EXPECT_EQ(parameters["properties"]["index"]["type"], "integer");
+}
+
 TEST_F(OrchestratorTest, AssembleOpenAIPrompt) {
   auto orchestrator_or =
       Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).WithModel("gpt-4o").Build();

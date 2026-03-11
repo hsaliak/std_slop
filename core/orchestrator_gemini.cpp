@@ -13,6 +13,56 @@
 #include "json_utils.h"
 namespace slop {
 
+namespace {
+
+void NormalizeGeminiToolSchemaInPlace(nlohmann::json* node) {
+  if (node == nullptr || node->is_null()) {
+    return;
+  }
+
+  if (node->is_object()) {
+    auto type_it = node->find("type");
+    if (type_it != node->end()) {
+      if (type_it->is_array()) {
+        std::string fallback = "string";
+        for (const auto& t : *type_it) {
+          if (t.is_string()) {
+            fallback = t.get<std::string>();
+            if (fallback != "null") break;
+          }
+        }
+        LOG(WARNING) << "Normalizing Gemini tool schema union type to single type: " << fallback;
+        *type_it = fallback;
+      }
+      if (type_it->is_string() && *type_it == "object" && !node->contains("properties")) {
+        (*node)["properties"] = nlohmann::json::object();
+      }
+      if (type_it->is_string() && *type_it == "array" && !node->contains("items")) {
+        (*node)["items"] = nlohmann::json::object();
+      }
+    }
+
+    for (auto& [k, v] : node->items()) {
+      (void)k;
+      NormalizeGeminiToolSchemaInPlace(&v);
+    }
+    return;
+  }
+
+  if (node->is_array()) {
+    for (auto& v : *node) {
+      NormalizeGeminiToolSchemaInPlace(&v);
+    }
+  }
+}
+
+nlohmann::json NormalizeGeminiToolSchema(nlohmann::json schema) {
+  NormalizeGeminiToolSchemaInPlace(&schema);
+  return schema;
+}
+
+}  // namespace
+
 GeminiOrchestrator::GeminiOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                                        const std::string& base_url)
     : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {}
@@ -113,7 +163,8 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
       if (it == tool_schema_cache_.end()) {
         auto schema_opt = json_parse(t.json_schema);
         if (schema_opt) {
-          it = tool_schema_cache_.emplace(t.name, std::move(*schema_opt)).first;
+          auto schema = NormalizeGeminiToolSchema(std::move(*schema_opt));
+          it = tool_schema_cache_.emplace(t.name, std::move(schema)).first;
         }
       }
       if (it != tool_schema_cache_.end()) {
