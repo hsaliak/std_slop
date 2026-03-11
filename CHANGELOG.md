@@ -1,3 +1,10 @@
+## v0.15.2 - 2026-03-11
+- **Mail mode UX and flow improvements**: Added `/mode mail <branchname>` auto-staging with validation, then refined mail model smoothness and formatting through follow-up rerolls.
+- **Scratchpad support restored**: Reintroduced the session scratchpad table plus commands/tools, and followed up with scratchpad-focused fixes and README guidance.
+- **Patch tool output rendering**: Added markdown diff rendering for `patch_tool` unified diffs in the UI while preserving existing truncation behavior.
+- **Tooling/docs cleanup**: Removed an unnecessary tool, updated `/mode` help text, and renamed mail model docs to `mail_mode` for consistency.
+- **Maintenance**: Applied style and clang-format cleanup commits.
+
 ## v0.15.1 - 2026-03-11
 - **Gemini Integration**: Normalized Gemini tool schemas and added union-type regression tests to ensure robust tool calling.
 - **Tooling Improvements**: Increased the `git_commit_patch` summary limit to 500 characters to allow for more descriptive commit messages.
