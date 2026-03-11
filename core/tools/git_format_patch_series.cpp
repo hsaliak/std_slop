@@ -1,9 +1,9 @@
-#include "core/tool_executor.h"
-
 #include "absl/strings/str_cat.h"
+
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/json_utils.h"
+#include "core/tool_executor.h"
 #include "core/tools/common.h"
 
 namespace slop {
@@ -14,9 +14,10 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFormatPatchSeries(
   ASSIGN_OR_RETURN(const std::string base_branch,
                    ResolveBaseBranch(db_, json_get_or<std::string>(args, "base_branch", "")));
 
-  const std::string log_cmd =
-      absl::StrCat("git log --reverse --format='### Patch [%n/%N]: %s ###%ncommit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n    %s%n%n%b' ",
-                   EscapeShellArg(base_branch), "..HEAD");
+  const std::string log_cmd = absl::StrCat(
+      "git log --reverse --format='### Patch [%n/%N]: %s ###%ncommit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n    "
+      "%s%n%n%b' ",
+      EscapeShellArg(base_branch), "..HEAD");
   ASSIGN_OR_RETURN(auto log_res, HandleExecuteBash({{"command", log_cmd}}));
   ASSIGN_OR_RETURN(auto diff_res,
                    HandleExecuteBash({{"command", absl::StrCat("git diff ", EscapeShellArg(base_branch), "..HEAD")}}));
@@ -32,7 +33,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFormatPatchSeries(
     diff_output = json_get_or<std::string>(*parsed_diff, "output", "");
   }
 
-  return absl::StrCat("--- MAIL SERIES ---\nBase: ", base_branch, "\n\n", log_output, "\n\n--- FULL DIFF ---\n", diff_output);
+  return absl::StrCat("--- MAIL SERIES ---\nBase: ", base_branch, "\n\n", log_output, "\n\n--- FULL DIFF ---\n",
+                      diff_output);
 }
 
 }  // namespace slop

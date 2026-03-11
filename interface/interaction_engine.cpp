@@ -318,9 +318,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
               combined_id = call.id + "|" + call.name;
             }
             if (enabled_tool_names.find(call.name) == enabled_tool_names.end()) {
-              results.push_back(
-                  {combined_id, call.name,
-                   absl::NotFoundError("Tool not found: " + call.name + ".")});
+              results.push_back({combined_id, call.name, absl::NotFoundError("Tool not found: " + call.name + ".")});
               continue;
             }
             dispatcher_calls.push_back({combined_id, call.name, call.args});

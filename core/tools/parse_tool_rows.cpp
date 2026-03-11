@@ -1,10 +1,9 @@
-#include "core/tool_executor.h"
-
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "core/status_macros.h"
 #include "core/json_utils.h"
+#include "core/status_macros.h"
+#include "core/tool_executor.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleParseToolRows(const nlohmann::json& args) const {
@@ -15,8 +14,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleParseToolRows(const nlohmann::js
   nlohmann::json value = nlohmann::json();
   if (auto it = args.find("value"); it != args.end()) value = *it;
 
-  auto parse_for_context = [](const nlohmann::json& v, const std::string& context)
-      -> absl::StatusOr<nlohmann::json> {
+  auto parse_for_context = [](const nlohmann::json& v, const std::string& context) -> absl::StatusOr<nlohmann::json> {
     if (v.is_array()) return v;
     if (v.is_null()) return nlohmann::json::array();
     if (v.is_string()) {

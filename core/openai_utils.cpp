@@ -91,8 +91,7 @@ nlohmann::json BuildOpenAiResponsesTools(Database* db) {
       continue;
     }
     auto schema = NormalizeToolSchemaForProvider(*schema_opt);
-    tools.push_back(
-        {{"type", "function"}, {"name", t.name}, {"description", t.description}, {"parameters", schema}});
+    tools.push_back({{"type", "function"}, {"name", t.name}, {"description", t.description}, {"parameters", schema}});
   }
   return tools;
 }
@@ -227,6 +226,3 @@ absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, 
 }
 
 }  // namespace slop
-
-
-

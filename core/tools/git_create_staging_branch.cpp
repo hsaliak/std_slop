@@ -1,12 +1,11 @@
-#include "core/tool_executor.h"
-
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/json_utils.h"
+#include "core/tool_executor.h"
 #include "core/tools/common.h"
 
 namespace slop {
@@ -30,7 +29,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitCreateStagingBranch(const nlo
     ASSIGN_OR_RETURN(base_branch, GetCurrentBranchName());
   }
 
-  auto res_or = RunCommand(absl::StrCat("git checkout -b ", EscapeShellArg(staging_name), " ", EscapeShellArg(base_branch)));
+  auto res_or =
+      RunCommand(absl::StrCat("git checkout -b ", EscapeShellArg(staging_name), " ", EscapeShellArg(base_branch)));
   if (!res_or.ok()) return res_or.status();
   auto res = *res_or;
   if (res.exit_code != 0 &&
@@ -38,8 +38,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitCreateStagingBranch(const nlo
     ASSIGN_OR_RETURN(res, RunCommand(absl::StrCat("git checkout ", EscapeShellArg(staging_name))));
   }
   if (res.exit_code != 0) {
-    return absl::InternalError(
-        absl::StrCat("Failed to create staging branch: ", res.stdout_out, res.stderr_out));
+    return absl::InternalError(absl::StrCat("Failed to create staging branch: ", res.stdout_out, res.stderr_out));
   }
 
   if (db_) {

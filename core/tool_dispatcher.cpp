@@ -43,7 +43,7 @@ void ToolDispatcher::PruneThreads(std::vector<std::thread>* threads_to_join) {
 }
 
 std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation,
-                                                 int64_t delay_ms) {
+                                                int64_t delay_ms) {
   auto job = std::make_shared<ToolJob>(call.id, call.name);
   auto task = [job, cancellation, this, call, delay_ms]() {
     if (delay_ms > 0) {

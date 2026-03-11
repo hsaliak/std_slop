@@ -1,19 +1,18 @@
-#include "core/tool_executor.h"
-
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/json_utils.h"
+#include "core/tool_executor.h"
 #include "core/tools/common.h"
 
 namespace slop {
-absl::StatusOr<std::string> ToolExecutor::HandleGitRerollPatch(
-    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::HandleGitRerollPatch(const nlohmann::json& args,
+                                                               std::shared_ptr<CancellationRequest> cancellation) {
   RETURN_IF_ERROR(MaybeEnforceMailStagingGuard(mail_mode_));
   std::optional<int> idx;
   if (auto i = json_get<int>(args, "index")) {
@@ -25,10 +24,10 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitRerollPatch(
   ASSIGN_OR_RETURN(const std::string base_branch,
                    ResolveBaseBranch(db_, json_get_or<std::string>(args, "base_branch", "")));
 
-  ASSIGN_OR_RETURN(auto log_res, HandleExecuteBash({{"command", absl::StrCat("git log --reverse --format=%H ", EscapeShellArg(base_branch), "..HEAD")}}));
+  ASSIGN_OR_RETURN(auto log_res, HandleExecuteBash({{"command", absl::StrCat("git log --reverse --format=%H ",
+                                                                             EscapeShellArg(base_branch), "..HEAD")}}));
   const auto parsed_log = json_parse(log_res);
-  const std::string hashes =
-      parsed_log.has_value() ? json_get_or<std::string>(*parsed_log, "stdout", "") : "";
+  const std::string hashes = parsed_log.has_value() ? json_get_or<std::string>(*parsed_log, "stdout", "") : "";
   std::vector<std::string> commits;
   std::string token;
   for (char c : hashes) {
@@ -55,8 +54,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitRerollPatch(
     return absl::InternalError("Failed to create fixup commit. Are there any changes staged?");
   }
 
-  ASSIGN_OR_RETURN(auto rebase_res,
-                   RunCommand(absl::StrCat("GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash ", EscapeShellArg(base_branch))));
+  ASSIGN_OR_RETURN(auto rebase_res, RunCommand(absl::StrCat("GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash ",
+                                                            EscapeShellArg(base_branch))));
   if (rebase_res.exit_code != 0) {
     (void)RunCommand("git rebase --abort");
     return absl::InternalError(

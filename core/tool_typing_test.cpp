@@ -88,7 +88,6 @@ TEST_F(ToolTypingTest, OptionalHandling) {
   std::filesystem::remove("test_optional.txt");
 }
 
-
 TEST_F(ToolTypingTest, GrepDirectTypedArgs) {
   auto res_ok = executor_->Execute("grep", {{"pattern", "foo"}, {"path", "core"}});
   EXPECT_TRUE(res_ok.ok() || res_ok.status().code() == absl::StatusCode::kNotFound);
@@ -121,6 +120,3 @@ TEST_F(ToolTypingTest, ApplyPatchTyped) {
 }
 
 }  // namespace slop
-
-
-

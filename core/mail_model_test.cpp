@@ -233,8 +233,8 @@ TEST_F(MailModelTest, GitCreateStagingBranchDirectSupportsExistingBranchAndDbRec
   ASSERT_TRUE(current1.ok());
   EXPECT_TRUE(current1->find("slop/staging/direct-prefixed") != std::string::npos);
 
-  auto db_res = db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;",
-                          {"slop/staging/direct-prefixed"});
+  auto db_res =
+      db_.Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ?;", {"slop/staging/direct-prefixed"});
   ASSERT_TRUE(db_res.ok());
   EXPECT_TRUE(db_res->find("parent_branch") != std::string::npos);
 
@@ -369,4 +369,3 @@ TEST_F(MailModelTest, GetBaseBranchResolution) {
 }
 
 }  // namespace slop
-

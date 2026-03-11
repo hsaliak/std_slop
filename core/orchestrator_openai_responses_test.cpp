@@ -1,12 +1,13 @@
 #include "core/orchestrator_openai_responses.h"
 
+#include <set>
+
 #include "absl/status/status.h"
 
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/json_utils.h"
 
-#include <set>
 #include <gtest/gtest.h>
 
 namespace slop {
@@ -20,10 +21,9 @@ class OpenAiResponsesOrchestratorTest : public ::testing::Test {
 };
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
-  ASSERT_TRUE(
-      db.RegisterTool({"query_db", "Query database",
-                       R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true})
-          .ok());
+  ASSERT_TRUE(db.RegisterTool({"query_db", "Query database",
+                               R"({"type":"object","properties":{"sql":{"type":"string"}},"required":["sql"]})", true})
+                  .ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
 
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
@@ -249,5 +249,3 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArg
 }
 
 }  // namespace slop
-
-

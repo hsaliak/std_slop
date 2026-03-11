@@ -1,15 +1,14 @@
-#include "absl/status/status.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
-#include <vector>
 #include "core/tool_executor.h"
 
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <vector>
 
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
 #include "core/tool_dispatcher.h"
 
@@ -186,9 +185,9 @@ TEST(ToolExecutorTest, MailModelEnforcementExactDenialString) {
   auto res = executor.Execute("write_file", {{"path", "deny_exact.txt"}, {"content", "x"}});
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kFailedPrecondition);
-  EXPECT_TRUE(absl::StrContains(
-      res.status().message(),
-      "Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: main"))
+  EXPECT_TRUE(
+      absl::StrContains(res.status().message(),
+                        "Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: main"))
       << res.status().message();
 
   unsetenv("SLOP_FORCE_BRANCH_NAME");
@@ -220,9 +219,9 @@ TEST(ToolExecutorTest, MailModelEnforcementAppliesToAllMailTools) {
     auto res = executor.Execute(name, args);
     ASSERT_FALSE(res.ok()) << "expected slop-guard denial for: " << name;
     EXPECT_EQ(res.status().code(), absl::StatusCode::kFailedPrecondition) << name;
-    EXPECT_TRUE(absl::StrContains(
-        res.status().message(),
-        "Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: main"))
+    EXPECT_TRUE(
+        absl::StrContains(res.status().message(),
+                          "Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: main"))
         << name << " -> " << res.status().message();
   }
 
@@ -320,8 +319,8 @@ TEST(ToolExecutorTest, PromotedMailToolsAreRegisteredTopLevel) {
   executor.SetMailMode(false);
 
   const std::vector<std::string> mail_tools = {
-      "execute_bash",        "git_commit_patch",      "git_finalize_series", "git_format_patch_series",
-      "git_reroll_patch",    "parse_tool_rows",       "patch_tool",          "write_file",
+      "execute_bash",     "git_commit_patch", "git_finalize_series", "git_format_patch_series",
+      "git_reroll_patch", "parse_tool_rows",  "patch_tool",          "write_file",
   };
 
   for (const auto& name : mail_tools) {
@@ -436,12 +435,11 @@ TEST(ToolExecutorTest, GrepTopLevelFixedStringsAndTruncation) {
   ASSERT_TRUE(regex_res.ok());
   EXPECT_TRUE(regex_res->empty()) << *regex_res;
 
-  auto fixed_res = executor.Execute("grep",
-                                    {{"pattern", "a+b"}, {"path", test_file}, {"fixed_strings", true}, {"limit", 5}});
+  auto fixed_res =
+      executor.Execute("grep", {{"pattern", "a+b"}, {"path", test_file}, {"fixed_strings", true}, {"limit", 5}});
   ASSERT_TRUE(fixed_res.ok()) << fixed_res.status().message();
   EXPECT_TRUE(absl::StrContains(*fixed_res, "a+b"));
-  EXPECT_TRUE(absl::StrContains(*fixed_res,
-                                "[TRUNCATED: Use a more specific pattern or path to narrow results]"));
+  EXPECT_TRUE(absl::StrContains(*fixed_res, "[TRUNCATED: Use a more specific pattern or path to narrow results]"));
 
   std::filesystem::remove(test_file);
 }
@@ -453,13 +451,19 @@ TEST(ToolExecutorTest, GrepTopLevelIgnoreArrayRespected) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  ASSERT_TRUE(executor.Execute("execute_bash", {{"command", "mkdir -p grep_ignore_dir/ignoredir && printf 'needle\n' > grep_ignore_dir/ignoredir/file.txt"}}).ok());
+  ASSERT_TRUE(
+      executor
+          .Execute("execute_bash",
+                   {{"command",
+                     "mkdir -p grep_ignore_dir/ignoredir && printf 'needle\n' > grep_ignore_dir/ignoredir/file.txt"}})
+          .ok());
 
   auto include_res = executor.Execute("grep", {{"pattern", "needle"}, {"path", "grep_ignore_dir"}});
   ASSERT_TRUE(include_res.ok());
   EXPECT_TRUE(absl::StrContains(*include_res, "needle"));
 
-  auto ignore_res = executor.Execute("grep", {{"pattern", "needle"}, {"path", "grep_ignore_dir"}, {"ignore", nlohmann::json::array({"ignoredir"})}});
+  auto ignore_res = executor.Execute(
+      "grep", {{"pattern", "needle"}, {"path", "grep_ignore_dir"}, {"ignore", nlohmann::json::array({"ignoredir"})}});
   ASSERT_TRUE(ignore_res.ok());
   EXPECT_TRUE(ignore_res->empty()) << *ignore_res;
 
@@ -494,7 +498,8 @@ TEST(ToolExecutorTest, ParseToolRowsTopLevelBehavior) {
   ASSERT_TRUE(str.ok()) << str.status().message();
   EXPECT_TRUE(absl::StrContains(*str, "\"a\":2"));
 
-  auto obj = executor.Execute("parse_tool_rows", {{"value", {"rows", nlohmann::json::array({{{"b", 3}}})}}, {"context", "rows"}});
+  auto obj = executor.Execute("parse_tool_rows",
+                              {{"value", {"rows", nlohmann::json::array({{{"b", 3}}})}}, {"context", "rows"}});
   ASSERT_TRUE(obj.ok()) << obj.status().message();
   EXPECT_TRUE(absl::StrContains(*obj, "\"b\":3"));
 
@@ -760,26 +765,3 @@ TEST(ToolExecutorTest, AskUser) {
 }
 
 }  // namespace slop
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

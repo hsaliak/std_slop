@@ -740,6 +740,3 @@ TEST_F(CommandHandlerTest, ModeMailResolvesCorrectBaseBranch) {
   }
 }
 }  // namespace slop
-
-
-

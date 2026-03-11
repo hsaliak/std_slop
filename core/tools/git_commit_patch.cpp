@@ -1,16 +1,15 @@
-#include "core/tool_executor.h"
-
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
+#include "core/tool_executor.h"
 #include "core/tools/common.h"
-#include "core/json_utils.h"
 
 namespace slop {
-absl::StatusOr<std::string> ToolExecutor::HandleGitCommitPatch(
-    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::HandleGitCommitPatch(const nlohmann::json& args,
+                                                               std::shared_ptr<CancellationRequest> cancellation) {
   (void)cancellation;
   RETURN_IF_ERROR(MaybeEnforceMailStagingGuard(mail_mode_));
 

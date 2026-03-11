@@ -1,5 +1,3 @@
-#include "core/tool_executor.h"
-
 #include <sstream>
 #include <vector>
 
@@ -7,9 +5,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/json_utils.h"
+#include "core/tool_executor.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleListDirectory(const nlohmann::json& args) {
@@ -53,9 +52,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleListDirectory(const nlohmann::js
   }
 
   const std::string cmd = absl::StrCat(
-      "cd ", EscapeShellArg(path), " && find . ",
-      " -mindepth 1 -maxdepth ", depth,
-      prune_clause,
+      "cd ", EscapeShellArg(path), " && find . ", " -mindepth 1 -maxdepth ", depth, prune_clause,
       " -mindepth 1 -maxdepth ", depth,
       " -exec sh -c 'for f; do rel=\"${f#./}\"; if [ -d \"$f\" ]; then printf \"d\\t%s\\n\" \"$rel\"; else "
       "printf \"f\\t%s\\n\" \"$rel\"; fi; done' sh {} +");

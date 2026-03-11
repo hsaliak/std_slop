@@ -95,15 +95,3 @@ class ToolExecutor {
 }  // namespace slop
 
 #endif  // SLOP_SQL_TOOL_EXECUTOR_H_
-
-
-
-
-
-
-
-
-
-
-
-

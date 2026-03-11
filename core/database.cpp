@@ -212,66 +212,46 @@ absl::Status Database::Init(const std::string& db_path) {
 }
 absl::Status Database::RegisterDefaultTools() {
   std::vector<Tool> default_tools = {
-      {"query_db",
-       "Execute a SQL query against the internal SQLite database.",
+      {"query_db", "Execute a SQL query against the internal SQLite database.",
        R"({"type":"object","properties":{"sql":{"type":"string"},"params":{"type":"array","items":{}}},"required":["sql"]})",
        true},
-      {"read_file",
-       "Read file content with optional line range and line numbers.",
+      {"read_file", "Read file content with optional line range and line numbers.",
        R"({"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"line_numbers":{"type":"boolean"}}})",
        true},
-      {"list_directory",
-       "List files and folders in a directory.",
+      {"list_directory", "List files and folders in a directory.",
        R"({"type":"object","properties":{"path":{"type":"string"},"depth":{"type":["integer","string"]},"include_ignored":{"type":"boolean"}}})",
        true},
-      {"describe_db",
-       "Describe database schema objects and columns.",
-       R"({"type":"object","properties":{}})",
-       true},
-      {"grep",
-       "Search for a pattern in files.",
+      {"describe_db", "Describe database schema objects and columns.", R"({"type":"object","properties":{}})", true},
+      {"grep", "Search for a pattern in files.",
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":["integer","string"]},"limit":{"type":["integer","string"]},"include_ignored":{"type":"boolean"},"fixed_strings":{"type":"boolean"}},"required":["pattern"]})",
        true},
-      {"execute_bash",
-       "Execute a shell command.",
+      {"execute_bash", "Execute a shell command.",
        R"({"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string"},"allow_nonzero_exit":{"type":"boolean"}},"required":["command"]})",
        true},
-      {"patch_tool",
-       "Apply a unified diff patch to a file.",
+      {"patch_tool", "Apply a unified diff patch to a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff"]})",
        true},
-      {"write_file",
-       "Create or overwrite a file.",
+      {"write_file", "Create or overwrite a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",
        true},
-      {"parse_tool_rows",
-       "Parse a tool's row-oriented textual output into JSON.",
-       R"({"type":"object","properties":{"value":{},"context":{"type":"string"}}})",
-       true},
-      {"use_skill",
-       "Activate or run a skill by name.",
+      {"parse_tool_rows", "Parse a tool's row-oriented textual output into JSON.",
+       R"({"type":"object","properties":{"value":{},"context":{"type":"string"}}})", true},
+      {"use_skill", "Activate or run a skill by name.",
        R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"]}},"required":["name"]})",
        true},
-      {"git_create_staging_branch",
-       "Create or switch to a staging branch in mail mode.",
+      {"git_create_staging_branch", "Create or switch to a staging branch in mail mode.",
        R"({"type":"object","properties":{"name":{"type":"string"},"base_branch":{"type":"string"}},"required":["name"]})",
        true},
-      {"git_commit_patch",
-       "Commit a patch with a message in mail mode.",
+      {"git_commit_patch", "Commit a patch with a message in mail mode.",
        R"({"type":"object","properties":{"summary":{"type":"string"},"rationale":{"type":"string"}},"required":["summary"]})",
        true},
-      {"git_format_patch_series",
-       "Generate a patch series for review.",
-       R"({"type":"object","properties":{"base_branch":{"type":"string"}}})",
-       true},
-      {"git_reroll_patch",
-       "Reroll an existing patch series.",
+      {"git_format_patch_series", "Generate a patch series for review.",
+       R"({"type":"object","properties":{"base_branch":{"type":"string"}}})", true},
+      {"git_reroll_patch", "Reroll an existing patch series.",
        R"({"type":"object","properties":{"index":{"type":["integer","string"]},"base_branch":{"type":"string"}}})",
        true},
-      {"git_finalize_series",
-       "Finalize a patch series workflow.",
-       R"({"type":"object","properties":{"target_branch":{"type":"string"}}})",
-       true},
+      {"git_finalize_series", "Finalize a patch series workflow.",
+       R"({"type":"object","properties":{"target_branch":{"type":"string"}}})", true},
       {"llm_query",
        "Executes a synchronous LLM query in a transient, isolated environment. Useful for sub-tasks or analysis.",
        R"({"type":"object","properties":{"query":{"type":"string","description":"The prompt to send to the LLM."}},"required":["query"]})",
@@ -335,17 +315,19 @@ absl::Status Database::RegisterDefaultSkills() {
        "  `git_create_staging_branch` (using `base_branch` when needed).\n"
        "- Never bypass branch protections.\n"
        "\n"
-        "## Workflow\n"
-        "Pre-step: Start by creating or checking out your staging branch using `git_create_staging_branch` (base_branch when needed).\n"
-        "1. **Plan & Edit**: Make focused, minimal changes for the requested task.\n"
-        "2. **Commit Atomic Patches**: Use `git_commit_patch` for each logical change,\n"
+       "## Workflow\n"
+       "Pre-step: Start by creating or checking out your staging branch using `git_create_staging_branch` (base_branch "
+       "when needed).\n"
+       "1. **Plan & Edit**: Make focused, minimal changes for the requested task.\n"
+       "2. **Commit Atomic Patches**: Use `git_commit_patch` for each logical change,\n"
        "   with clear commit messages explaining what changed and why.\n"
        "3. **Verification**: Before presenting to the user, run the exact build/test command\n"
        "   relevant to the project and report results.\n"
-        "   If any patch fails, you MUST fix it via `git_reroll_patch` before proceeding.\n"
-        "4. **Presentation**: Use `git_format_patch_series` to generate a summary of your work. Only present to the user ONCE the patches are ready.\n"
+       "   If any patch fails, you MUST fix it via `git_reroll_patch` before proceeding.\n"
+       "4. **Presentation**: Use `git_format_patch_series` to generate a summary of your work. Only present to the "
+       "user ONCE the patches are ready.\n"
        "5. **Review & Reroll**: If the user provides feedback (often via `/review mail` with\n"
-        "   `R:` comments), apply requested changes and use `git_reroll_patch` with the\n"
+       "   `R:` comments), apply requested changes and use `git_reroll_patch` with the\n"
        "   specified index. ALWAYS re-verify after a reroll.\n"
        "\n"
        "## Finalization Lock (Mandatory)\n"
@@ -846,11 +828,3 @@ absl::StatusOr<std::string> Database::GetAgentMd(const std::string& path) {
   return absl::NotFoundError("No context for: " + path);
 }
 }  // namespace slop
-
-
-
-
-
-
-
-

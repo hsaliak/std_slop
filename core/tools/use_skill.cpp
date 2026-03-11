@@ -1,12 +1,11 @@
-#include "core/tool_executor.h"
-
 #include <algorithm>
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "core/status_macros.h"
 #include "core/json_utils.h"
+#include "core/status_macros.h"
+#include "core/tool_executor.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleUseSkill(const nlohmann::json& args) {
@@ -35,7 +34,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleUseSkill(const nlohmann::json& a
   }
 
   // Match historical JS behavior: fail when current session row does not exist.
-  ASSIGN_OR_RETURN(auto session_rows_json, db_->Query("SELECT id, active_skills FROM sessions WHERE id = ?", {session_id_}));
+  ASSIGN_OR_RETURN(auto session_rows_json,
+                   db_->Query("SELECT id, active_skills FROM sessions WHERE id = ?", {session_id_}));
   const auto session_rows = json_parse(session_rows_json);
   if (!session_rows.has_value() || !session_rows->is_array()) {
     return absl::InternalError("Invalid session lookup response");

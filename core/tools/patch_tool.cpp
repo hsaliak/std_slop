@@ -1,5 +1,3 @@
-#include "core/tool_executor.h"
-
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -9,9 +7,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
-#include "core/status_macros.h"
-#include "core/tools/common.h"
 #include "core/json_utils.h"
+#include "core/status_macros.h"
+#include "core/tool_executor.h"
+#include "core/tools/common.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& args) const {
@@ -24,7 +23,8 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
   const bool ignore_whitespace = json_get_or<bool>(in, "ignore_whitespace", true);
 
   if (!path || path->empty()) {
-    return nlohmann::json({{"ok", false}, {"code", "INVALID_ARGUMENT"}, {"error", {"message", "path is required"}}}).dump();
+    return nlohmann::json({{"ok", false}, {"code", "INVALID_ARGUMENT"}, {"error", {"message", "path is required"}}})
+        .dump();
   }
   if (!unified_diff || unified_diff->empty()) {
     return nlohmann::json(
@@ -200,9 +200,10 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
       return nlohmann::json({{"ok", false},
                              {"path", *path},
                              {"code", "PATCH_DRY_RUN_FAILED"},
-                             {"error", {{"message", "Unable to match hunk in target file"},
-                                        {"detail", hunks[h].header},
-                                        {"hunk_index", static_cast<int>(h)}}}})
+                             {"error",
+                              {{"message", "Unable to match hunk in target file"},
+                               {"detail", hunks[h].header},
+                               {"hunk_index", static_cast<int>(h)}}}})
           .dump();
     }
     working_lines.erase(working_lines.begin() + at, working_lines.begin() + at + static_cast<int>(old_lines.size()));

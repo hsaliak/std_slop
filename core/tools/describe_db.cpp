@@ -1,6 +1,6 @@
-#include "core/tool_executor.h"
-
 #include "absl/status/status.h"
+
+#include "core/tool_executor.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleDescribeDb(const nlohmann::json& args) {

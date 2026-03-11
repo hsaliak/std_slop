@@ -16,6 +16,7 @@
 #include "absl/strings/str_join.h"
 
 #include "core/database.h"
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
 #include "core/tool_dispatcher.h"
@@ -23,7 +24,6 @@
 #include "interface/color.h"
 #include "interface/renderer.h"
 #include "interface/terminal.h"
-#include "core/json_utils.h"
 
 namespace slop {
 
@@ -48,8 +48,6 @@ std::vector<std::string> ToolExecutor::GetRegisteredToolNamesForTest() const {
   return names;
 }
 
-
-
 void ToolExecutor::RegisterTools() {
   RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
   RegisterTool("read_file", [this](const nlohmann::json& args, auto) { return HandleReadFile(args); });
@@ -63,16 +61,18 @@ void ToolExecutor::RegisterTools() {
   RegisterTool("use_skill", [this](const nlohmann::json& args, auto) { return HandleUseSkill(args); });
   RegisterTool("git_create_staging_branch",
                [this](const nlohmann::json& args, auto) { return HandleGitCreateStagingBranch(args); });
-  RegisterTool("git_commit_patch", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
-    return HandleGitCommitPatch(args, cancellation);
-  });
+  RegisterTool("git_commit_patch",
+               [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+                 return HandleGitCommitPatch(args, cancellation);
+               });
   RegisterTool("git_format_patch_series",
                [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
                  return HandleGitFormatPatchSeries(args, cancellation);
                });
-  RegisterTool("git_reroll_patch", [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
-    return HandleGitRerollPatch(args, cancellation);
-  });
+  RegisterTool("git_reroll_patch",
+               [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+                 return HandleGitRerollPatch(args, cancellation);
+               });
   RegisterTool("git_finalize_series",
                [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
                  return HandleGitFinalizeSeries(args, cancellation);
@@ -103,7 +103,6 @@ void ToolExecutor::RegisterTools() {
                 << std::endl;
     }
   });
-
 }
 
 absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const nlohmann::json& args,
@@ -156,59 +155,3 @@ absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& reque
 }
 
 }  // namespace slop
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

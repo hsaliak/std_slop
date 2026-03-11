@@ -1,5 +1,3 @@
-#include "core/tool_executor.h"
-
 #include <sstream>
 #include <vector>
 
@@ -9,10 +7,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
+#include "core/tool_executor.h"
 #include "core/tools/common.h"
-#include "core/json_utils.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleGrep(const nlohmann::json& args) {
@@ -54,7 +53,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleGrep(const nlohmann::json& args)
     if (root_or.ok() && root_or->exit_code == 0) {
       std::string repo_root = TrimNewlines(root_or->stdout_out);
       if (!repo_root.empty()) {
-        auto cat_or = RunCommand(absl::StrCat("cat ", EscapeShellArg(absl::StrCat(repo_root, "/.gitignore")), " 2>/dev/null"));
+        auto cat_or =
+            RunCommand(absl::StrCat("cat ", EscapeShellArg(absl::StrCat(repo_root, "/.gitignore")), " 2>/dev/null"));
         if (cat_or.ok() && cat_or->exit_code == 0) {
           std::stringstream gs(cat_or->stdout_out);
           std::string line;
@@ -94,14 +94,15 @@ absl::StatusOr<std::string> ToolExecutor::HandleGrep(const nlohmann::json& args)
   const bool fixed_strings = json_get_or<bool>(args, "fixed_strings", false);
   const std::string mode_flag = fixed_strings ? "-F" : "-E";
   const std::string context_arg = context > 0 ? absl::StrCat(" -C ", context) : "";
-  const std::string cmd = absl::StrCat("grep -rn ", mode_flag, " -I --color=never", context_arg,
-                                       (exclude_args.empty() ? "" : absl::StrCat(" ", absl::StrJoin(exclude_args, " "))),
-                                       " -e ", EscapeShellArg(*pattern), " ", EscapeShellArg(search_path));
+  const std::string cmd =
+      absl::StrCat("grep -rn ", mode_flag, " -I --color=never", context_arg,
+                   (exclude_args.empty() ? "" : absl::StrCat(" ", absl::StrJoin(exclude_args, " "))), " -e ",
+                   EscapeShellArg(*pattern), " ", EscapeShellArg(search_path));
 
   ASSIGN_OR_RETURN(auto res, RunCommand(cmd));
   if (res.exit_code != 0 && res.exit_code != 1) {
-    return absl::InternalError(
-        absl::StrCat("INTERNAL: Command failed with status ", res.exit_code, "\nOutput:\n", res.stdout_out, res.stderr_out));
+    return absl::InternalError(absl::StrCat("INTERNAL: Command failed with status ", res.exit_code, "\nOutput:\n",
+                                            res.stdout_out, res.stderr_out));
   }
 
   std::string output = res.stdout_out;

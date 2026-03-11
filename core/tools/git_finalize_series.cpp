@@ -1,17 +1,16 @@
-#include "core/tool_executor.h"
-
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
+#include "core/tool_executor.h"
 #include "core/tools/common.h"
-#include "core/json_utils.h"
 
 namespace slop {
-absl::StatusOr<std::string> ToolExecutor::HandleGitFinalizeSeries(
-    const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+absl::StatusOr<std::string> ToolExecutor::HandleGitFinalizeSeries(const nlohmann::json& args,
+                                                                  std::shared_ptr<CancellationRequest> cancellation) {
   (void)cancellation;
   RETURN_IF_ERROR(MaybeEnforceMailStagingGuard(mail_mode_));
   RETURN_IF_ERROR(AssertCleanWorkspace());
@@ -23,8 +22,9 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFinalizeSeries(
   ASSIGN_OR_RETURN(auto hash_res, RunCommand("git rev-parse HEAD"));
   const std::string hash = std::string(absl::StripAsciiWhitespace(hash_res.stdout_out));
 
-  ASSIGN_OR_RETURN(auto approval_rows_json,
-                   db_->Query("SELECT branch_name, approved_hash FROM patch_approvals WHERE approved_hash = ?", {hash}));
+  ASSIGN_OR_RETURN(
+      auto approval_rows_json,
+      db_->Query("SELECT branch_name, approved_hash FROM patch_approvals WHERE approved_hash = ?", {hash}));
   ASSIGN_OR_RETURN(auto approval_rows, ParseDbRows(approval_rows_json, "approval lookup"));
   const std::string canonical_current = CanonicalStagingBranch(current_branch);
   bool approved = false;
@@ -38,14 +38,12 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFinalizeSeries(
     }
   }
 
-  ASSIGN_OR_RETURN(auto landed_res,
-                   RunCommand(absl::StrCat("git merge-base --is-ancestor ", EscapeShellArg(hash), " ",
-                                           EscapeShellArg(target_branch))));
+  ASSIGN_OR_RETURN(auto landed_res, RunCommand(absl::StrCat("git merge-base --is-ancestor ", EscapeShellArg(hash), " ",
+                                                            EscapeShellArg(target_branch))));
   const bool already_landed = landed_res.exit_code == 0;
   if (!approved && !already_landed) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("Patch series not approved or hash mismatch. Please obtain approval for hash ", hash,
-                     " before finalizing."));
+    return absl::FailedPreconditionError(absl::StrCat(
+        "Patch series not approved or hash mismatch. Please obtain approval for hash ", hash, " before finalizing."));
   }
 
   ASSIGN_OR_RETURN(auto checkout_res, RunCommand(absl::StrCat("git checkout ", EscapeShellArg(target_branch))));
@@ -78,23 +76,22 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFinalizeSeries(
   ASSIGN_OR_RETURN(auto final_head_res, RunCommand("git rev-parse HEAD"));
   const std::string final_head = std::string(absl::StripAsciiWhitespace(final_head_res.stdout_out));
 
-  return nlohmann::json({{"ok", true},
-                         {"action", "finalize_series"},
-                         {"mail_mode", "off"},
-                         {"previous_branch", current_branch},
-                         {"current_branch", target_branch},
-                         {"head", final_head},
-                         {"approved", approved},
-                         {"already_landed", already_landed},
-                         {"merged", !already_landed},
-                         {"deleted_staging_branch", deleted_staging_branch},
-                         {"cleaned_metadata", true},
-                         {"notes",
-                          already_landed
-                              ? nlohmann::json::array({"Patch already landed on target branch", "Cleaned staging metadata",
-                                                       "Mail mode disabled"})
-                              : nlohmann::json::array({"Series finalized and merged", "Cleaned staging metadata",
-                                                       "Mail mode disabled"})}})
+  return nlohmann::json(
+             {{"ok", true},
+              {"action", "finalize_series"},
+              {"mail_mode", "off"},
+              {"previous_branch", current_branch},
+              {"current_branch", target_branch},
+              {"head", final_head},
+              {"approved", approved},
+              {"already_landed", already_landed},
+              {"merged", !already_landed},
+              {"deleted_staging_branch", deleted_staging_branch},
+              {"cleaned_metadata", true},
+              {"notes", already_landed ? nlohmann::json::array({"Patch already landed on target branch",
+                                                                "Cleaned staging metadata", "Mail mode disabled"})
+                                       : nlohmann::json::array({"Series finalized and merged",
+                                                                "Cleaned staging metadata", "Mail mode disabled"})}})
       .dump();
 }
 

@@ -42,8 +42,7 @@ void NormalizeGeminiToolSchemaInPlace(nlohmann::json* node) {
       }
     }
 
-    for (auto it = node->begin(); it != node->end(); ++it)
-      NormalizeGeminiToolSchemaInPlace(&it.value());
+    for (auto it = node->begin(); it != node->end(); ++it) NormalizeGeminiToolSchemaInPlace(&it.value());
     return;
   }
 

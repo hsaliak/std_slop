@@ -7,8 +7,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "core/http_client.h"
 #include "core/database.h"
+#include "core/http_client.h"
 
 namespace slop {
 
@@ -125,5 +125,3 @@ TEST(OpenAiUtilsTest, BuildOpenAiToolsNormalizesObjectSchemasWithProperties) {
 }
 
 }  // namespace slop
-
-

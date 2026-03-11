@@ -28,5 +28,3 @@ std::string CanonicalStagingBranch(const std::string& branch);
 }  // namespace slop
 
 #endif  // SLOP_CORE_TOOLS_COMMON_H_
-
-

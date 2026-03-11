@@ -7,10 +7,11 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+
 #include "core/database.h"
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/json_utils.h"
 
 namespace slop {
 
@@ -67,8 +68,7 @@ absl::Status MaybeEnforceMailStagingGuard(bool mail_mode) {
   ASSIGN_OR_RETURN(const std::string branch, GetCurrentBranchName());
   if (!absl::StartsWith(branch, "slop/staging/")) {
     return absl::FailedPreconditionError(
-        absl::StrCat("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: ",
-                     branch));
+        absl::StrCat("Destructive operations are only allowed on 'slop/staging/*' branches. Current branch: ", branch));
   }
   return absl::OkStatus();
 }
@@ -97,8 +97,7 @@ absl::StatusOr<std::string> ResolveBaseBranch(Database* db, const std::string& r
   }
 
   if (absl::StartsWith(current, "slop/staging/")) {
-    return absl::InternalError(
-        absl::StrCat("Base branch not found in database for staging branch '", current, "'."));
+    return absl::InternalError(absl::StrCat("Base branch not found in database for staging branch '", current, "'."));
   }
   return std::string("main");
 }
@@ -122,8 +121,3 @@ std::string CanonicalStagingBranch(const std::string& branch) {
 }
 
 }  // namespace slop
-
-
-
-
-

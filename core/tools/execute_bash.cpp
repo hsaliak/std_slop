@@ -1,12 +1,11 @@
-#include "core/tool_executor.h"
-
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
+#include "core/tool_executor.h"
 #include "core/tools/common.h"
-#include "core/json_utils.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json& args) const {
@@ -33,8 +32,8 @@ absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json
   }
 
   if (run_res.exit_code != 0 && !allow_nonzero_exit) {
-    std::string msg = absl::StrCat("INTERNAL: Command failed with status ", run_res.exit_code,
-                                   "\nCommand:\n", command_to_run);
+    std::string msg =
+        absl::StrCat("INTERNAL: Command failed with status ", run_res.exit_code, "\nCommand:\n", command_to_run);
     if (!stdout_text.empty()) {
       absl::StrAppend(&msg, "\n\nStdout:\n", stdout_text);
     }
