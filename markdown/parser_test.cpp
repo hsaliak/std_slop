@@ -1,5 +1,8 @@
 #include "markdown/parser.h"
 
+#include <string>
+#include <string_view>
+
 #include <gtest/gtest.h>
 
 namespace slop::markdown {
@@ -33,6 +36,33 @@ TEST(MarkdownParserTest, EmptyInput) {
   ASSERT_TRUE(result.ok());
   auto parsed = std::move(result.value());
   EXPECT_EQ(parsed->source(), "");
+}
+
+TEST(MarkdownParserTest, DiffFenceCreatesUnifiedDiffInjection) {
+  constexpr std::string_view kMarkdown =
+      "```diff\n"
+      "--- a/file.txt\n"
+      "+++ b/file.txt\n"
+      "@@ -1 +1 @@\n"
+      "-old\n"
+      "+new\n"
+      "```\n";
+
+  MarkdownParser parser;
+  auto result = parser.Parse(std::string(kMarkdown));
+  ASSERT_TRUE(result.ok());
+
+  auto parsed = std::move(result.value());
+  const size_t content_start = kMarkdown.find("--- a/file.txt");
+  ASSERT_NE(content_start, std::string_view::npos);
+  const size_t content_end = kMarkdown.rfind("\n```");
+  ASSERT_NE(content_end, std::string_view::npos);
+
+  const Injection* injection = parsed->GetInjection({static_cast<uint32_t>(content_start),
+                                                     static_cast<uint32_t>(content_end + 1)});
+  ASSERT_NE(injection, nullptr);
+  EXPECT_EQ(injection->language, "diff");
+  EXPECT_NE(injection->tree, nullptr);
 }
 
 }  // namespace slop::markdown

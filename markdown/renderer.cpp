@@ -127,6 +127,13 @@ Style GetNodeStyle(std::string_view type) {
       {"label", {Label, ansi::Reset}},
       {"preproc", {Preproc, ansi::Reset}},
       {"macro", {Preproc, ansi::Reset}},
+      {"addition_line", {ansi::theme::syntax::String, ansi::Reset}},
+      {"deletion_line", {ansi::theme::syntax::Constant, ansi::Reset}},
+      {"hunk_header", {ansi::theme::syntax::Preproc, ansi::Reset}},
+      {"from_file_line", {ansi::theme::syntax::Type, ansi::Reset}},
+      {"to_file_line", {ansi::theme::syntax::Type, ansi::Reset}},
+      {"note_line", {ansi::theme::markdown::Quote, ansi::Reset}},
+      {"preamble_line", {ansi::theme::markdown::Quote, ansi::Reset}},
   };
 
   for (const auto& entry : kSyntaxStyles) {

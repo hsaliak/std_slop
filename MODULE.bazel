@@ -93,3 +93,11 @@ http_archive(
     urls = ["https://github.com/tree-sitter-grammars/tree-sitter-lua/archive/refs/tags/v0.2.0.tar.gz"],
 )
 
+http_archive(
+    name = "tree-sitter-unified-diff",
+    build_file = "//third_party:tree-sitter-unified-diff.BUILD",
+    sha256 = "c207d54f6935265dd35cdcf7bf8351c90af569d1ef8f1fcc0e9b1cd5ba469b05",
+    strip_prefix = "tree-sitter-unified-diff-master",
+    urls = ["https://github.com/hsaliak/tree-sitter-unified-diff/archive/refs/heads/master.tar.gz"],
+)
+

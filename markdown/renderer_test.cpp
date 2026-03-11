@@ -270,4 +270,20 @@ TEST(MarkdownRendererTest, LuaHighlighting) {
   EXPECT_NE(rendered.find("bar"), std::string::npos);
 }
 
+TEST(MarkdownRendererTest, DiffHighlighting) {
+  MarkdownParser parser;
+  auto p_res = parser.Parse("```diff\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n```\n");
+  ASSERT_TRUE(p_res.ok());
+
+  MarkdownRenderer renderer;
+  std::string rendered = renderer.Render(*p_res.value());
+
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Preproc), std::string::npos);
+  EXPECT_NE(rendered.find("@@ -1 +1 @@"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::Constant), std::string::npos);
+  EXPECT_NE(rendered.find("-old"), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::syntax::String), std::string::npos);
+  EXPECT_NE(rendered.find("+new"), std::string::npos);
+}
+
 }  // namespace slop::markdown
