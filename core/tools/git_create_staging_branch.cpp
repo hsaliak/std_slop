@@ -1,4 +1,5 @@
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 
@@ -27,10 +28,16 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitCreateStagingBranch(const nlo
     base_branch = *requested_base;
   } else {
     ASSIGN_OR_RETURN(base_branch, GetCurrentBranchName());
+    RETURN_IF_ERROR(RequireNamedBranch(base_branch,
+                                       "git_create_staging_branch requires a checked-out branch when base_branch is omitted"));
   }
+
+  RETURN_IF_ERROR(
+      RequireNamedBranch(base_branch, "git_create_staging_branch requires a named base branch, not detached HEAD"));
 
   auto res_or =
       RunCommand(absl::StrCat("git checkout -b ", EscapeShellArg(staging_name), " ", EscapeShellArg(base_branch)));
+
   if (!res_or.ok()) return res_or.status();
   auto res = *res_or;
   if (res.exit_code != 0 &&
@@ -47,7 +54,17 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitCreateStagingBranch(const nlo
                         .status());
   }
 
-  return absl::StrCat("Created and checked out staging branch: ", staging_name, " (base: ", base_branch, ")");
+  ASSIGN_OR_RETURN(auto head_res, RunCommand("git rev-parse HEAD"));
+  const std::string head = std::string(absl::StripAsciiWhitespace(head_res.stdout_out));
+  return nlohmann::json(
+             {{"ok", true},
+              {"status", "staging_ready"},
+              {"branch", staging_name},
+              {"base_branch", base_branch},
+              {"head", head},
+              {"message", absl::StrCat("Created and checked out staging branch: ", staging_name, " (base: ",
+                                        base_branch, ")")}})
+      .dump();
 }
 
 }  // namespace slop

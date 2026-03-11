@@ -22,6 +22,7 @@ absl::StatusOr<std::string> GetCurrentBranchName();
 absl::Status MaybeEnforceMailStagingGuard(bool mail_mode);
 absl::StatusOr<nlohmann::json> ParseDbRows(const std::string& rows_json, const std::string& context);
 absl::StatusOr<std::string> ResolveBaseBranch(Database* db, const std::string& requested_base);
+absl::Status RequireNamedBranch(const std::string& branch, const std::string& context);
 absl::Status AssertCleanWorkspace();
 std::string CanonicalStagingBranch(const std::string& branch);
 

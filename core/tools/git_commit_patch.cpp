@@ -1,4 +1,5 @@
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 
 #include "core/json_utils.h"
@@ -28,7 +29,27 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitCommitPatch(const nlohmann::j
     return absl::InternalError(absl::StrCat("Commit failed: ", commit_res.stdout_out, commit_res.stderr_out));
   }
 
-  return HandleGitFormatPatchSeries(nlohmann::json::object(), cancellation);
+  ASSIGN_OR_RETURN(auto head_res, RunCommand("git rev-parse HEAD"));
+  const std::string head = std::string(absl::StripAsciiWhitespace(head_res.stdout_out));
+  ASSIGN_OR_RETURN(const std::string current_branch, GetCurrentBranchName());
+
+  ASSIGN_OR_RETURN(auto series_json,
+                   HandleGitFormatPatchSeries(nlohmann::json::object(), cancellation));
+  const auto parsed_series = json_parse(series_json);
+  if (!parsed_series || !parsed_series->is_object()) {
+    return series_json;
+  }
+
+  nlohmann::json out = *parsed_series;
+  out["action"] = "commit_patch";
+  out["status"] = "awaiting_review";
+  out["summary"] = *summary;
+  out["rationale"] = rationale;
+  out["head"] = head;
+  out["current_branch"] = current_branch;
+  out["review_hint"] = "Patch committed. Run /review mail [index] and /review mail approve when ready.";
+  out["message"] = "Patch committed and formatted. Awaiting review.";
+  return out.dump();
 }
 
 }  // namespace slop

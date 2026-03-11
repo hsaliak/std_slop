@@ -87,19 +87,27 @@ absl::StatusOr<std::string> ResolveBaseBranch(Database* db, const std::string& r
   if (!db) return std::string("main");
 
   ASSIGN_OR_RETURN(auto rows_json,
-                   db->Query("SELECT base_branch FROM staging_branches WHERE branch_name = ? LIMIT 1", {current}));
+                   db->Query("SELECT parent_branch FROM staging_branches WHERE branch_name = ? LIMIT 1", {current}));
   ASSIGN_OR_RETURN(auto rows, ParseDbRows(rows_json, "staging branch base lookup"));
   if (!rows.empty() && rows[0].is_object()) {
-    std::string base = rows[0].value("base_branch", "");
+    std::string base = rows[0].value("parent_branch", "");
     if (!base.empty()) {
       return base;
     }
   }
 
   if (absl::StartsWith(current, "slop/staging/")) {
-    return absl::InternalError(absl::StrCat("Base branch not found in database for staging branch '", current, "'."));
+    return absl::InternalError(
+        absl::StrCat("Base branch not found in database for staging branch '", current, "'."));
   }
   return std::string("main");
+}
+
+absl::Status RequireNamedBranch(const std::string& branch, const std::string& context) {
+  if (branch == "HEAD") {
+    return absl::FailedPreconditionError(absl::StrCat(context, ": detached HEAD is not supported in mail workflow."));
+  }
+  return absl::OkStatus();
 }
 
 absl::Status AssertCleanWorkspace() {

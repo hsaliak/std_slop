@@ -1,6 +1,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
@@ -23,6 +24,11 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitRerollPatch(const nlohmann::j
   }
   ASSIGN_OR_RETURN(const std::string base_branch,
                    ResolveBaseBranch(db_, json_get_or<std::string>(args, "base_branch", "")));
+  ASSIGN_OR_RETURN(const std::string current_branch, GetCurrentBranchName());
+  RETURN_IF_ERROR(RequireNamedBranch(current_branch, "git_reroll_patch"));
+
+  ASSIGN_OR_RETURN(auto head_before_res, RunCommand("git rev-parse HEAD"));
+  const std::string head_before = std::string(absl::StripAsciiWhitespace(head_before_res.stdout_out));
 
   ASSIGN_OR_RETURN(auto log_res, HandleExecuteBash({{"command", absl::StrCat("git log --reverse --format=%H ",
                                                                              EscapeShellArg(base_branch), "..HEAD")}}));
@@ -63,7 +69,24 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitRerollPatch(const nlohmann::j
   }
 
   ASSIGN_OR_RETURN(auto series, HandleGitFormatPatchSeries({{"base_branch", base_branch}}, cancellation));
-  return absl::StrCat("Successfully rerolled patch ", index, "\n\n", series);
+  auto parsed_series = json_parse(series);
+  if (!parsed_series || !parsed_series->is_object()) {
+    return absl::StrCat("Successfully rerolled patch ", index, "\n\n", series);
+  }
+
+  ASSIGN_OR_RETURN(auto head_after_res, RunCommand("git rev-parse HEAD"));
+  const std::string head_after = std::string(absl::StripAsciiWhitespace(head_after_res.stdout_out));
+
+  nlohmann::json out = *parsed_series;
+  out["action"] = "reroll_patch";
+  out["status"] = "awaiting_review";
+  out["rerolled_index"] = index;
+  out["base_branch"] = base_branch;
+  out["current_branch"] = current_branch;
+  out["head_before"] = head_before;
+  out["head"] = head_after;
+  out["message"] = absl::StrCat("Successfully rerolled patch ", index, ". Awaiting review.");
+  return out.dump();
 }
 
 }  // namespace slop

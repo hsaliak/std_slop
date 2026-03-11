@@ -87,6 +87,7 @@ class CommandHandler {
   virtual std::string TriggerEditor(const std::string& initial_content, const std::string& extension);
   // Testing hook for shell commands.
   virtual absl::StatusOr<std::string> ExecuteCommand(const std::string& command);
+  bool IsDetachedHead(const std::string& branch) const;
   std::string ResolveBaseBranch(const std::string& current_branch);
   // Helper methods for Markdown editing
   static std::string SkillToMarkdown(const Database::Skill& skill);

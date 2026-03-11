@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "absl/strings/str_cat.h"
+#include "absl/strings/match.h"
 
 #include "json_utils.h"
 
@@ -62,12 +63,21 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_FALSE(js_functions_res.ok());
   bool found_planner = false;
   bool found_code_reviewer = false;
+  bool found_patcher = false;
+  std::string patcher_prompt;
   for (const auto& s : *skills) {
     if (s.name == "planner") found_planner = true;
     if (s.name == "code_reviewer") found_code_reviewer = true;
+    if (s.name == "patcher") {
+      found_patcher = true;
+      patcher_prompt = s.system_prompt_patch;
+    }
   }
   EXPECT_TRUE(found_planner);
   EXPECT_TRUE(found_code_reviewer);
+  EXPECT_TRUE(found_patcher);
+  EXPECT_TRUE(absl::StrContains(patcher_prompt, "/review mail"));
+  EXPECT_TRUE(absl::StrContains(patcher_prompt, "Do NOT declare completion"));
 }
 TEST(DatabaseTest, MessagePersistence) {
   slop::Database db;

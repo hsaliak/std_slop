@@ -2,6 +2,8 @@
 #include <fstream>
 
 #include "core/tool_executor.h"
+#include "core/json_utils.h"
+#include "absl/strings/match.h"
 
 #include <gtest/gtest.h>
 
@@ -52,12 +54,18 @@ TEST_F(MailModelTest, Phase1Tools) {
       "git_commit_patch",
       {{"summary", "test: add dummy patch"}, {"rationale", "Testing the patch commit tool functionality."}});
   ASSERT_TRUE(commit_res.ok()) << commit_res.status().message();
-  EXPECT_TRUE(commit_res->find("Committed patch") != std::string::npos);
+  auto commit_json = json_parse(*commit_res);
+  ASSERT_TRUE(commit_json.has_value() && commit_json->is_object());
+  EXPECT_EQ(json_get_or<std::string>(*commit_json, "status", ""), "awaiting_review");
 
   // 3. GitFormatPatchSeries
   auto format_res = executor_->Execute("git_format_patch_series", {{"base_branch", "HEAD~1"}});
   ASSERT_TRUE(format_res.ok()) << format_res.status().message();
-  EXPECT_TRUE(format_res->find("Rationale: Testing the patch commit tool functionality.") != std::string::npos);
+  auto format_json = json_parse(*format_res);
+  ASSERT_TRUE(format_json.has_value() && format_json->is_object());
+  EXPECT_EQ(json_get_or<std::string>(*format_json, "status", ""), "awaiting_review");
+  const std::string series = json_get_or<std::string>(*format_json, "series", "");
+  EXPECT_TRUE(series.find("Testing the patch commit tool functionality.") != std::string::npos);
 
   // 4. GitFinalizeSeries
   // Note: This will merge back to HEAD~1 or similar, but since we are on a new branch,
@@ -154,7 +162,10 @@ TEST_F(MailModelTest, RerollPatch) {
   // 5. Reroll into patch 1
   auto reroll_res = executor_->Execute("git_reroll_patch", {{"index", 1}, {"base_branch", "HEAD~2"}});
   ASSERT_TRUE(reroll_res.ok()) << reroll_res.status().message();
-  EXPECT_TRUE(reroll_res->find("Successfully rerolled") != std::string::npos);
+  auto reroll_json = json_parse(*reroll_res);
+  ASSERT_TRUE(reroll_json.has_value() && reroll_json->is_object());
+  EXPECT_EQ(json_get_or<std::string>(*reroll_json, "status", ""), "awaiting_review");
+  EXPECT_EQ(json_get_or<int>(*reroll_json, "rerolled_index", 0), 1);
 
   // 6. Verify the series still has 2 patches and file1.txt is v2 in both,
   // but specifically check that the change is now part of the first commit.
@@ -193,10 +204,12 @@ TEST_F(MailModelTest, FormatPatchSeries) {
   // 3. Format series
   auto format_res = executor_->Execute("git_format_patch_series", {{"base_branch", "HEAD~1"}});
   ASSERT_TRUE(format_res.ok());
-
-  EXPECT_TRUE(format_res->find("### Patch [1/1]: test summary ###") != std::string::npos);
-  EXPECT_TRUE(format_res->find("test rationale") != std::string::npos);
-  EXPECT_TRUE(format_res->find("+content") != std::string::npos);
+  auto format_json = json_parse(*format_res);
+  ASSERT_TRUE(format_json.has_value() && format_json->is_object());
+  const std::string series = json_get_or<std::string>(*format_json, "series", "");
+  EXPECT_TRUE(series.find("### Patch [1/1]: test summary ###") != std::string::npos);
+  EXPECT_TRUE(series.find("test rationale") != std::string::npos);
+  EXPECT_TRUE(series.find("+content") != std::string::npos);
 
   // Cleanup
   (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
@@ -301,7 +314,10 @@ TEST_F(MailModelTest, DynamicBaseBranchWorkflow) {
   // 4. Implicit Format: Should use 'test-base-develop' from config
   auto format_res = executor_->Execute("git_format_patch_series", {});
   ASSERT_TRUE(format_res.ok());
-  EXPECT_TRUE(format_res->find("add feature") != std::string::npos);
+  auto format_json = json_parse(*format_res);
+  ASSERT_TRUE(format_json.has_value() && format_json->is_object());
+  EXPECT_TRUE(absl::StrContains(json_get_or<std::string>(*format_json, "series", ""), "add feature"));
+
   // It should NOT show "range main..HEAD" if it correctly used the dynamic base
   // However, git_format_patch_series output doesn't explicitly print the range in the text,
   // it just uses it to generate the patches.
@@ -366,6 +382,38 @@ TEST_F(MailModelTest, GetBaseBranchResolution) {
   // But ToolExecutor calls git.get_current_branch in Lua which calls __os_run("git rev-parse --abbrev-ref HEAD")
   // Since we can't easily mock __os_run here without complex Lua injection, we'll rely on the existing unit tests
   // that already use git_branch_staging which populates the DB.
+}
+
+TEST_F(MailModelTest, CreateStagingBranchFailsInDetachedHeadWithoutExplicitBase) {
+  auto detach_res = executor_->Execute("execute_bash", {{"command", "git checkout --detach HEAD"}});
+  ASSERT_TRUE(detach_res.ok());
+
+  auto create_res = executor_->Execute("git_create_staging_branch", {{"name", "detached-head-test"}});
+  EXPECT_FALSE(create_res.ok());
+  EXPECT_TRUE(absl::StrContains(create_res.status().message(), "detached HEAD"));
+
+  (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
+}
+
+TEST_F(MailModelTest, FormatPatchSeriesFailsForMissingStagingMetadata) {
+  auto branch_res = executor_->Execute("execute_bash", {{"command", "git checkout -b slop/staging/no-metadata"}});
+  ASSERT_TRUE(branch_res.ok());
+
+  auto format_res = executor_->Execute("git_format_patch_series", {});
+  EXPECT_FALSE(format_res.ok());
+  EXPECT_TRUE(absl::StrContains(format_res.status().message(), "Base branch not found in database"));
+
+  (void)executor_->Execute("execute_bash", {{"command", "git checkout " + original_branch_}});
+  (void)executor_->Execute("execute_bash", {{"command", "git branch -D slop/staging/no-metadata"}});
+}
+
+TEST_F(MailModelTest, ResolveBaseBranchUsesParentBranchColumn) {
+  auto setup_branch = executor_->Execute("git_create_staging_branch", {{"name", "parent-branch-resolve"}});
+  ASSERT_TRUE(setup_branch.ok());
+
+  auto base = executor_->GetBaseBranch("");
+  ASSERT_TRUE(base.ok());
+  EXPECT_EQ(*base, original_branch_);
 }
 
 }  // namespace slop

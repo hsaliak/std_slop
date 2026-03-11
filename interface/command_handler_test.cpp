@@ -743,6 +743,25 @@ TEST_F(CommandHandlerTest, ReviewMailApproveProceedsToLLM) {
   ASSERT_TRUE(approved_hash.ok());
   EXPECT_EQ(*approved_hash, "abcd123");
 }
+
+TEST_F(CommandHandlerTest, ReviewMailDetachedHeadShowsRecoveryTip) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
+  handler.command_responses["git rev-parse --abbrev-ref HEAD"] = "HEAD";
+
+  std::string input = "/review mail";
+  testing::internal::CaptureStderr();
+  testing::internal::CaptureStdout();
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  std::string output = testing::internal::GetCapturedStdout();
+  std::string err = testing::internal::GetCapturedStderr();
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(err, "detached HEAD"));
+  EXPECT_TRUE(absl::StrContains(output, "/mode mail <name>"));
+}
+
 TEST_F(CommandHandlerTest, ReviewDashboard) {
   TestableCommandHandler handler(&db);
   handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";

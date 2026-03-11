@@ -782,6 +782,11 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     if (branch_res.ok()) {
       std::string branch = *branch_res;
       absl::StripAsciiWhitespace(&branch);
+      if (IsDetachedHead(branch)) {
+        std::cout << "[Mail]    Detached HEAD detected; mail review disabled." << std::endl;
+        std::cout << "          Tip: use '/mode mail <name>' to switch to a staging branch." << std::endl;
+      }
+
       if (absl::StartsWith(branch, "slop/staging/")) {
         std::string base = ResolveBaseBranch(branch);
         auto rev_res = ExecuteCommand("git rev-list --count " + base + "..HEAD");
@@ -824,6 +829,11 @@ CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
     if (current_res.ok()) {
       current_branch = *current_res;
       absl::StripAsciiWhitespace(&current_branch);
+    }
+    if (IsDetachedHead(current_branch)) {
+      std::cerr << "Error: /review mail is unavailable in detached HEAD." << std::endl;
+      std::cout << "Tip: switch to a staging branch (for example: '/mode mail <name>') and retry." << std::endl;
+      return Result::HANDLED;
     }
     // Handle approval
     if (patch_args.size() > 1 && patch_args[1] == "approve") {
@@ -1179,6 +1189,10 @@ Database::Skill CommandHandler::MarkdownToSkill(const std::string& md, int id) {
   s.system_prompt_patch = std::string(absl::StripAsciiWhitespace(s.system_prompt_patch));
   return s;
 }
+bool CommandHandler::IsDetachedHead(const std::string& branch) const {
+  return absl::StripAsciiWhitespace(branch) == "HEAD";
+}
+
 std::string CommandHandler::ResolveBaseBranch(const std::string& current_branch) {
   // If we are not on a staging branch, then we are on what will be the base branch
   // for any subsequent Mail Model actions.

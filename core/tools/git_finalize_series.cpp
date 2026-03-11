@@ -17,8 +17,11 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFinalizeSeries(const nlohmann
   if (!db_) return absl::FailedPreconditionError("Database not initialized");
 
   ASSIGN_OR_RETURN(const std::string current_branch, GetCurrentBranchName());
+  RETURN_IF_ERROR(RequireNamedBranch(current_branch, "git_finalize_series"));
   ASSIGN_OR_RETURN(const std::string target_branch,
                    ResolveBaseBranch(db_, json_get_or<std::string>(args, "target_branch", "")));
+  RETURN_IF_ERROR(RequireNamedBranch(target_branch, "git_finalize_series"));
+
   ASSIGN_OR_RETURN(auto hash_res, RunCommand("git rev-parse HEAD"));
   const std::string hash = std::string(absl::StripAsciiWhitespace(hash_res.stdout_out));
 
@@ -80,8 +83,10 @@ absl::StatusOr<std::string> ToolExecutor::HandleGitFinalizeSeries(const nlohmann
              {{"ok", true},
               {"action", "finalize_series"},
               {"mail_mode", "off"},
+              {"status", "finalized"},
               {"previous_branch", current_branch},
               {"current_branch", target_branch},
+              {"base_branch", target_branch},
               {"head", final_head},
               {"approved", approved},
               {"already_landed", already_landed},
