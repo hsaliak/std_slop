@@ -85,7 +85,6 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleExecuteBash(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandlePatchTool(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleWriteFile(const nlohmann::json& args) const;
-  absl::StatusOr<std::string> HandleParseToolRows(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleUseSkill(const nlohmann::json& args);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;

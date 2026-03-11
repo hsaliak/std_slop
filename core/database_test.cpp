@@ -346,12 +346,12 @@ TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {
   ASSERT_TRUE(db.Init(":memory:").ok());
 
   auto tools_or = db.Query(
-      "SELECT name, json_schema FROM tools WHERE name IN ('query_db','parse_tool_rows','git_commit_patch') ORDER BY "
+      "SELECT name, json_schema FROM tools WHERE name IN ('query_db','git_commit_patch') ORDER BY "
       "name");
   ASSERT_TRUE(tools_or.ok());
   auto rows = slop::json_parse(*tools_or).value_or(nlohmann::json::array());
   ASSERT_TRUE(rows.is_array());
-  ASSERT_EQ(rows.size(), 3);
+  ASSERT_EQ(rows.size(), 2);
 
   std::map<std::string, nlohmann::json> by_name;
   for (const auto& row : rows) {
@@ -365,10 +365,6 @@ TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {
   ASSERT_TRUE(by_name.find("query_db") != by_name.end());
   ASSERT_TRUE(by_name["query_db"]["properties"].contains("params"));
   EXPECT_TRUE(by_name["query_db"]["properties"]["params"].contains("items"));
-
-  ASSERT_TRUE(by_name.find("parse_tool_rows") != by_name.end());
-  EXPECT_TRUE(by_name["parse_tool_rows"]["properties"].contains("value"));
-  EXPECT_FALSE(by_name["parse_tool_rows"].contains("required"));
 
   ASSERT_TRUE(by_name.find("git_commit_patch") != by_name.end());
   EXPECT_TRUE(by_name["git_commit_patch"]["properties"].contains("summary"));

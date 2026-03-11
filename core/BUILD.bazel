@@ -79,7 +79,6 @@ cc_library(
  "tools/grep.cpp",
  "tools/git_create_staging_branch.cpp",
  "tools/write_file.cpp",
- "tools/parse_tool_rows.cpp",
  "tools/execute_bash.cpp",
  "tools/patch_tool.cpp",
  "tools/git_commit_patch.cpp",

@@ -320,7 +320,7 @@ TEST(ToolExecutorTest, PromotedMailToolsAreRegisteredTopLevel) {
 
   const std::vector<std::string> mail_tools = {
       "execute_bash",     "git_commit_patch", "git_finalize_series", "git_format_patch_series",
-      "git_reroll_patch", "parse_tool_rows",  "patch_tool",          "write_file",
+      "git_reroll_patch", "patch_tool",          "write_file",
   };
 
   for (const auto& name : mail_tools) {
@@ -347,7 +347,6 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "git_reroll_patch",
       "grep",
       "list_directory",
-      "parse_tool_rows",
       "patch_tool",
       "query_db",
       "read_file",
@@ -481,32 +480,6 @@ TEST(ToolExecutorTest, GitCreateStagingBranchRequiresName) {
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
   EXPECT_TRUE(absl::StrContains(res.status().message(), "name is required"));
-}
-
-TEST(ToolExecutorTest, ParseToolRowsTopLevelBehavior) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  auto arr = executor.Execute("parse_tool_rows", {{"value", nlohmann::json::array({{{"x", 1}}})}, {"context", "rows"}});
-  ASSERT_TRUE(arr.ok()) << arr.status().message();
-  EXPECT_TRUE(absl::StrContains(*arr, "\"x\":1"));
-
-  auto str = executor.Execute("parse_tool_rows", {{"value", "[{\"a\":2}]"}, {"context", "rows"}});
-  ASSERT_TRUE(str.ok()) << str.status().message();
-  EXPECT_TRUE(absl::StrContains(*str, "\"a\":2"));
-
-  auto obj = executor.Execute("parse_tool_rows",
-                              {{"value", {"rows", nlohmann::json::array({{{"b", 3}}})}}, {"context", "rows"}});
-  ASSERT_TRUE(obj.ok()) << obj.status().message();
-  EXPECT_TRUE(absl::StrContains(*obj, "\"b\":3"));
-
-  auto bad = executor.Execute("parse_tool_rows", {{"value", "not-json"}, {"context", "rows"}});
-  ASSERT_FALSE(bad.ok());
-  EXPECT_EQ(bad.status().code(), absl::StatusCode::kInvalidArgument);
-  EXPECT_TRUE(absl::StrContains(bad.status().message(), "Failed to parse rows"));
 }
 
 TEST(ToolExecutorTest, AliasToolNameResolvesToCanonical) {

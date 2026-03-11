@@ -57,7 +57,6 @@ void ToolExecutor::RegisterTools() {
   RegisterTool("execute_bash", [this](const nlohmann::json& args, auto) { return HandleExecuteBash(args); });
   RegisterTool("patch_tool", [this](const nlohmann::json& args, auto) { return HandlePatchTool(args); });
   RegisterTool("write_file", [this](const nlohmann::json& args, auto) { return HandleWriteFile(args); });
-  RegisterTool("parse_tool_rows", [this](const nlohmann::json& args, auto) { return HandleParseToolRows(args); });
   RegisterTool("use_skill", [this](const nlohmann::json& args, auto) { return HandleUseSkill(args); });
   RegisterTool("git_create_staging_branch",
                [this](const nlohmann::json& args, auto) { return HandleGitCreateStagingBranch(args); });
