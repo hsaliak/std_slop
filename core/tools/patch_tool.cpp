@@ -200,6 +200,7 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
       return nlohmann::json({{"ok", false},
                              {"path", *path},
                              {"code", "PATCH_DRY_RUN_FAILED"},
+                             {"unified_diff", *unified_diff},
                              {"error",
                               {{"message", "Unable to match hunk in target file"},
                                {"detail", hunks[h].header},
@@ -217,6 +218,7 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
                            {"path", *path},
                            {"can_apply", true},
                            {"applied", static_cast<int>(hunks.size())},
+                           {"unified_diff", *unified_diff},
                            {"options", {{"ignore_whitespace", ignore_whitespace}}}})
         .dump();
   }
@@ -236,6 +238,7 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
                          {"mode", "apply"},
                          {"path", *path},
                          {"applied", static_cast<int>(hunks.size())},
+                         {"unified_diff", *unified_diff},
                          {"options", {{"ignore_whitespace", ignore_whitespace}}}})
       .dump();
 }

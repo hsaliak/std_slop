@@ -145,6 +145,48 @@ std::string FormatCommandOutputEnvelopeAsMarkdown(const nlohmann::json& envelope
   return ss.str();
 }
 
+bool IsPatchToolEnvelope(const nlohmann::json& value) {
+  if (!json_is<nlohmann::json::object_t>(value)) return false;
+  const auto* diff = json_at(value, "unified_diff");
+  if (!diff || !json_is<std::string>(*diff)) return false;
+  auto tool = json_get<std::string>(value, "tool");
+  auto requested_tool = json_get<std::string>(value, "requested_tool");
+  return (tool && *tool == "patch_tool") || (requested_tool && *requested_tool == "patch_tool") ||
+         json_at(value, "applied") != nullptr || json_at(value, "mode") != nullptr || json_at(value, "path") != nullptr;
+}
+
+std::string FormatPatchToolEnvelopeAsMarkdown(const nlohmann::json& envelope) {
+  std::stringstream ss;
+  if (json_at(envelope, "ok") != nullptr) {
+    const bool ok_value = json_get_or(envelope, "ok", false);
+    ss << "- ok: `" << (ok_value ? "true" : "false") << "`\n";
+  }
+  if (auto mode = json_get<std::string>(envelope, "mode")) {
+    ss << "- mode: `" << *mode << "`\n";
+  }
+  if (auto path = json_get<std::string>(envelope, "path")) {
+    ss << "- path: `" << *path << "`\n";
+  }
+  if (auto applied = json_get<int>(envelope, "applied")) {
+    ss << "- applied: `" << *applied << "`\n";
+  }
+  if (const auto* error = json_at(envelope, "error")) {
+    ss << "\n" << FormatJsonValueBlock("Error", *error);
+  }
+
+  const std::string diff = json_get_or<std::string>(envelope, "unified_diff", "");
+  if (!absl::StripAsciiWhitespace(diff).empty()) {
+    ss << "\n### Diff\n\n```diff\n" << diff;
+    if (!absl::EndsWith(diff, "\n")) ss << "\n";
+    ss << "```\n";
+  }
+
+  if (ss.str().empty()) {
+    return JsonToMarkdownFence(envelope);
+  }
+  return ss.str();
+}
+
 std::string FormatToolEnvelopeAsMarkdown(const nlohmann::json& envelope) {
   std::stringstream ss;
 
@@ -210,6 +252,9 @@ std::string FormatToolStdoutForMarkdown(const std::string& stdout_part) {
     const std::string nested_text = std::string(absl::StripAsciiWhitespace(parsed->get<std::string>()));
     auto nested = json_parse(nested_text);
     if (nested) {
+      if (IsPatchToolEnvelope(*nested)) {
+        return FormatPatchToolEnvelopeAsMarkdown(*nested);
+      }
       if (IsToolResultEnvelope(*nested)) {
         return FormatToolEnvelopeAsMarkdown(*nested);
       }
@@ -220,6 +265,9 @@ std::string FormatToolStdoutForMarkdown(const std::string& stdout_part) {
     }
   }
 
+  if (IsPatchToolEnvelope(*parsed)) {
+    return FormatPatchToolEnvelopeAsMarkdown(*parsed);
+  }
   if (IsToolResultEnvelope(*parsed)) {
     return FormatToolEnvelopeAsMarkdown(*parsed);
   }
