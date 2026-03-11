@@ -280,10 +280,24 @@ TEST(MarkdownRendererTest, DiffHighlighting) {
 
   EXPECT_NE(rendered.find(ansi::theme::syntax::Preproc), std::string::npos);
   EXPECT_NE(rendered.find("@@ -1 +1 @@"), std::string::npos);
-  EXPECT_NE(rendered.find(ansi::theme::syntax::Constant), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::theme::markdown::Quote), std::string::npos);
   EXPECT_NE(rendered.find("-old"), std::string::npos);
-  EXPECT_NE(rendered.find(ansi::theme::syntax::String), std::string::npos);
+  EXPECT_NE(rendered.find(ansi::Green), std::string::npos);
   EXPECT_NE(rendered.find("+new"), std::string::npos);
+}
+
+TEST(MarkdownRendererTest, DiffAdditionLineRemainsGreenWithCodeTokens) {
+  MarkdownParser parser;
+  auto p_res =
+      parser.Parse("```diff\n+  EXPECT_NE(rendered.find(ansi::theme::markdown::Quote), std::string::npos);\n```");
+  ASSERT_TRUE(p_res.ok());
+
+  MarkdownRenderer renderer;
+  std::string rendered = renderer.Render(*p_res.value());
+
+  std::string expected = std::string(ansi::Green) +
+                         "+  EXPECT_NE(rendered.find(ansi::theme::markdown::Quote), std::string::npos);";
+  EXPECT_NE(rendered.find(expected), std::string::npos);
 }
 
 }  // namespace slop::markdown

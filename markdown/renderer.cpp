@@ -27,6 +27,30 @@ struct Style {
   const char* post;
 };
 
+void RenderDiffWithLinePrefixes(std::string_view text, std::string& output) {
+  size_t pos = 0;
+  while (pos < text.size()) {
+    size_t nl = text.find('\n', pos);
+    size_t end = (nl == std::string_view::npos) ? text.size() : nl + 1;
+    std::string_view line = text.substr(pos, end - pos);
+
+    const char* pre = "";
+    if (absl::StartsWith(line, "+++") || absl::StartsWith(line, "+")) {
+      pre = ansi::Green;
+    } else if (absl::StartsWith(line, "---") || absl::StartsWith(line, "-")) {
+      pre = ansi::theme::markdown::Quote;
+    } else if (absl::StartsWith(line, "@@")) {
+      pre = ansi::theme::syntax::Preproc;
+    }
+
+    output.append(pre);
+    output.append(line);
+    if (*pre != '\0') output.append(ansi::Reset);
+
+    pos = end;
+  }
+}
+
 Style GetNodeStyle(std::string_view type) {
   using namespace ansi::theme::markdown;
   if (type == "atx_heading") return {Header, ansi::Reset};
@@ -127,11 +151,11 @@ Style GetNodeStyle(std::string_view type) {
       {"label", {Label, ansi::Reset}},
       {"preproc", {Preproc, ansi::Reset}},
       {"macro", {Preproc, ansi::Reset}},
-      {"addition_line", {ansi::theme::syntax::String, ansi::Reset}},
-      {"deletion_line", {ansi::theme::syntax::Constant, ansi::Reset}},
+      {"addition_line", {ansi::Green, ansi::Reset}},
+      {"deletion_line", {ansi::theme::markdown::Quote, ansi::Reset}},
       {"hunk_header", {ansi::theme::syntax::Preproc, ansi::Reset}},
-      {"from_file_line", {ansi::theme::syntax::Type, ansi::Reset}},
-      {"to_file_line", {ansi::theme::syntax::Type, ansi::Reset}},
+      {"from_file_line", {ansi::theme::markdown::Quote, ansi::Reset}},
+      {"to_file_line", {ansi::Green, ansi::Reset}},
       {"note_line", {ansi::theme::markdown::Quote, ansi::Reset}},
       {"preamble_line", {ansi::theme::markdown::Quote, ansi::Reset}},
   };
@@ -162,8 +186,12 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
   if (current_tree == parsed.tree()) {
     if (const auto* inj = parsed.GetInjection({start, end})) {
       if (inj->tree) {
-        RenderNodeRecursive(ts_tree_root_node(inj->tree.get()), parsed, GetNodeText(node, current_source), output,
-                            depth + 1, inj->tree.get());
+        if (inj->language == "diff") {
+          RenderDiffWithLinePrefixes(GetNodeText(node, current_source), output);
+        } else {
+          RenderNodeRecursive(ts_tree_root_node(inj->tree.get()), parsed, GetNodeText(node, current_source), output,
+                              depth + 1, inj->tree.get());
+        }
       } else {
         output.append(GetNodeText(node, current_source));
       }
@@ -174,6 +202,17 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
   std::string_view type = ts_node_type(node);
   if (type == "pipe_table") {
     RenderTable(node, parsed, current_source, output, depth, current_tree);
+    return;
+  }
+
+  // Keep unified-diff line colors stable across entire lines.
+  // If we recurse into children, nested syntax tokens can override the
+  // addition/deletion color and make '+' lines appear as the wrong color.
+  if (type == "addition_line" || type == "deletion_line" || type == "from_file_line" || type == "to_file_line") {
+    Style line_style = GetNodeStyle(type);
+    output.append(line_style.pre);
+    output.append(GetNodeText(node, current_source));
+    output.append(line_style.post);
     return;
   }
 
