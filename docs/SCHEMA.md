@@ -93,6 +93,16 @@ Stores semantic memories created by the LLM.
 | semantic_tags | TEXT | Comma-separated tags for categorization. |
 | created_at | DATETIME | Timestamp. Default: `CURRENT_TIMESTAMP`. |
 
+### 7.5 scratchpads
+
+Stores a session-specific scratchpad buffer.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| session_id | TEXT | Primary Key. References `sessions.id`. |
+| content | TEXT | Scratchpad content. |
+| updated_at | DATETIME | Last write time. Default: `CURRENT_TIMESTAMP`. |
+
 ### 8. patch_approvals
 
 Tracks approved git patches for automated application.
@@ -197,6 +207,13 @@ CREATE TABLE IF NOT EXISTS session_state (
     session_id TEXT PRIMARY KEY,
     state_blob TEXT,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS scratchpads (
+    session_id TEXT PRIMARY KEY,
+    content TEXT NOT NULL DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS llm_memos (

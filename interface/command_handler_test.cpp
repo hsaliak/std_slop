@@ -72,6 +72,20 @@ TEST_F(CommandHandlerTest, ReturnsSubCommands) {
   EXPECT_NE(std::find(subs.begin(), subs.end(), "switch"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "clone"), subs.end());
 }
+
+TEST_F(CommandHandlerTest, ReturnsScratchpadSubCommands) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  auto it = handler.GetSubCommandMap().find("/scratchpad");
+  ASSERT_NE(it, handler.GetSubCommandMap().end());
+  const auto& subs = it->second;
+  EXPECT_FALSE(subs.empty());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "show"), subs.end());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "edit"), subs.end());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "save"), subs.end());
+}
+
 TEST_F(CommandHandlerTest, SessionClone) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());
@@ -312,6 +326,42 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
   ASSERT_TRUE(history.ok());
   EXPECT_EQ(history->size(), 0);
 }
+
+TEST_F(CommandHandlerTest, ScratchpadEditUsesExistingContent) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  ASSERT_TRUE(db.SetScratchpad(sid, "initial plan").ok());
+
+  handler.next_editor_output = "edited plan";
+  std::string input = "/scratchpad edit";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(handler.editor_was_called);
+  EXPECT_EQ(handler.last_initial_content, "initial plan");
+
+  auto content_or = db.GetScratchpad(sid);
+  ASSERT_TRUE(content_or.ok());
+  EXPECT_EQ(*content_or, "edited plan");
+}
+
+TEST_F(CommandHandlerTest, ScratchpadSaveStoresLastAssistantMessage) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "latest answer").ok());
+
+  std::string input = "/scratchpad save";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+
+  auto content_or = db.GetScratchpad(sid);
+  ASSERT_TRUE(content_or.ok());
+  EXPECT_EQ(*content_or, "latest answer");
+}
+
 TEST_F(CommandHandlerTest, SkillEditUsingEditor) {
   TestableCommandHandler handler(&db);
   std::string sid = "s1";

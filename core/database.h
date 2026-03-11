@@ -169,6 +169,10 @@ class Database {
   // Session State Management
   absl::Status SetSessionState(const std::string& session_id, const std::string& state_blob);
   absl::StatusOr<std::string> GetSessionState(const std::string& session_id);
+  // Session Scratchpad Management
+  absl::Status SetScratchpad(const std::string& session_id, const std::string& content);
+  absl::StatusOr<std::string> GetScratchpad(const std::string& session_id);
+  absl::StatusOr<std::string> GetLastAssistantMessage(const std::string& session_id);
   // Session Deletion
   absl::Status DeleteSession(const std::string& session_id);
   // Session Cloning

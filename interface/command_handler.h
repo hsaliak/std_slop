@@ -57,6 +57,7 @@ class CommandHandler {
   Result HandleContext(CommandArgs& args);
   Result HandleTool(CommandArgs& args);
   Result HandleSkill(CommandArgs& args);
+  Result HandleScratchpad(CommandArgs& args);
   Result HandleSession(CommandArgs& args);
   Result HandleStats(CommandArgs& args);
   Result HandleModels(CommandArgs& args);

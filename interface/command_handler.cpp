@@ -96,6 +96,7 @@ void CommandHandler::RegisterCommands() {
   commands_["/context"] = [this](CommandArgs& args) { return HandleContext(args); };
   commands_["/tool"] = [this](CommandArgs& args) { return HandleTool(args); };
   commands_["/skill"] = [this](CommandArgs& args) { return HandleSkill(args); };
+  commands_["/scratchpad"] = [this](CommandArgs& args) { return HandleScratchpad(args); };
   commands_["/session"] = [this](CommandArgs& args) { return HandleSession(args); };
   commands_["/stats"] = [this](CommandArgs& args) { return HandleStats(args); };
   commands_["/models"] = [this](CommandArgs& args) { return HandleModels(args); };
@@ -454,6 +455,62 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
       }
     }
   }
+  return Result::HANDLED;
+}
+
+CommandHandler::Result CommandHandler::HandleScratchpad(CommandArgs& args) {
+  std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
+  std::string sub_cmd = sub_parts[0];
+
+  if (sub_cmd == "show") {
+    auto scratchpad_or = db_->GetScratchpad(args.session_id);
+    if (!scratchpad_or.ok()) {
+      HandleStatus(scratchpad_or.status(), "Failed to read scratchpad");
+      return Result::HANDLED;
+    }
+    if (scratchpad_or->empty()) {
+      std::cout << "Scratchpad is empty." << std::endl;
+    } else {
+      PrintMarkdown(*scratchpad_or);
+    }
+    return Result::HANDLED;
+  }
+
+  if (sub_cmd == "edit") {
+    auto scratchpad_or = db_->GetScratchpad(args.session_id);
+    if (!scratchpad_or.ok()) {
+      HandleStatus(scratchpad_or.status(), "Failed to load scratchpad for edit");
+      return Result::HANDLED;
+    }
+    std::string edited = TriggerEditor(*scratchpad_or, ".md");
+    if (edited == *scratchpad_or) {
+      std::cout << "No changes made." << std::endl;
+      return Result::HANDLED;
+    }
+    auto status = db_->SetScratchpad(args.session_id, edited);
+    HandleStatus(status, "Failed to save scratchpad");
+    if (status.ok()) {
+      std::cout << "Scratchpad saved." << std::endl;
+    }
+    return Result::HANDLED;
+  }
+
+  if (sub_cmd == "save") {
+    auto last_or = db_->GetLastAssistantMessage(args.session_id);
+    if (!last_or.ok()) {
+      HandleStatus(last_or.status(), "Failed to read last assistant message");
+      return Result::HANDLED;
+    }
+    auto status = db_->SetScratchpad(args.session_id, *last_or);
+    HandleStatus(status, "Failed to save scratchpad");
+    if (status.ok()) {
+      std::cout << "Saved last assistant message to scratchpad." << std::endl;
+    }
+    return Result::HANDLED;
+  }
+
+  std::cerr << "Unknown /scratchpad sub-command: " << sub_cmd << std::endl;
+  std::cerr << "Usage: /scratchpad [show|edit|save]" << std::endl;
   return Result::HANDLED;
 }
 /**

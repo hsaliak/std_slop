@@ -183,6 +183,13 @@ Memos are long-term, cross-session pieces of knowledge. While you can manage the
 - `/skill add`: Interactive prompt to create a new skill.
 - `/skill edit <name|id>`: Modify an existing skill in your system `$EDITOR`. Skills are edited using Markdown format with YAML frontmatter for metadata (name, description) and the body for the system prompt patch.
 - `/skill delete <name|id>`: Permanently remove a skill from the database.
+
+### Scratchpad
+- `/scratchpad show`: Display the current session scratchpad.
+- `/scratchpad edit`: Open and edit the session scratchpad in your `$EDITOR`.
+- `/scratchpad save`: Save the last assistant message into the session scratchpad.
+
+The scratchpad is session-specific and intended as a task buffer for evolving plans.
 #### Dynamic Skill Orchestration
 `std::slop` is designed to be proactive. If you ask the agent to perform a task that requires a specialized persona (like "Plan a feature" or "Review this code"), it will:
 1.  **Search** the `skills` table for a matching persona (e.g., `planner`, `code_reviewer`).

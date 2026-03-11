@@ -396,6 +396,46 @@ TEST(DatabaseTest, ToolUsageCounters) {
   EXPECT_EQ(it->call_count, 2);
   EXPECT_EQ(it->description, "updated desc");
 }
+
+TEST(DatabaseTest, ScratchpadReadWrite) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  ASSERT_TRUE(db.SetScratchpad("s1", "plan v1").ok());
+  auto content_or = db.GetScratchpad("s1");
+  ASSERT_TRUE(content_or.ok());
+  EXPECT_EQ(*content_or, "plan v1");
+
+  ASSERT_TRUE(db.SetScratchpad("s1", "plan v2").ok());
+  content_or = db.GetScratchpad("s1");
+  ASSERT_TRUE(content_or.ok());
+  EXPECT_EQ(*content_or, "plan v2");
+}
+
+TEST(DatabaseTest, GetLastAssistantMessage) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "a1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "a2").ok());
+
+  auto last_or = db.GetLastAssistantMessage("s1");
+  ASSERT_TRUE(last_or.ok());
+  EXPECT_EQ(*last_or, "a2");
+}
+
+TEST(DatabaseTest, CloneSessionCopiesScratchpad) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "hello").ok());
+  ASSERT_TRUE(db.SetScratchpad("s1", "session plan").ok());
+
+  ASSERT_TRUE(db.CloneSession("s1", "s2").ok());
+  auto content_or = db.GetScratchpad("s2");
+  ASSERT_TRUE(content_or.ok());
+  EXPECT_EQ(*content_or, "session plan");
+}
+
 TEST(DatabaseTest, ConcurrentAccess) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

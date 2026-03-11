@@ -46,6 +46,11 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
        {"/skill list", "/skill activate <ID>", "/skill deactivate <ID>", "/skill add", "/skill edit <ID>",
         "/skill delete <ID>", "hey <skill> <query>"},
        "Agent Capabilities"},
+      {"/scratchpad",
+       {"show", "edit", "save"},
+       {},
+       {"/scratchpad show", "/scratchpad edit", "/scratchpad save"},
+       "Context & History"},
   };
   return kDefinitions;
 }

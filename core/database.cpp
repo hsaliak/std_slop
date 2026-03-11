@@ -160,6 +160,12 @@ absl::Status Database::Init(const std::string& db_path) {
         session_id TEXT PRIMARY KEY,
         state_blob TEXT
     );
+    CREATE TABLE IF NOT EXISTS scratchpads (
+        session_id TEXT PRIMARY KEY,
+        content TEXT NOT NULL DEFAULT '',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    );
         CREATE TABLE IF NOT EXISTS agent_md (path TEXT PRIMARY KEY, content TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
   )";
   rc = sqlite3_exec(raw_db, schema, nullptr, nullptr, nullptr);
@@ -231,12 +237,18 @@ absl::Status Database::RegisterDefaultTools() {
       {"patch_tool", "Apply a unified diff patch to a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff"]})",
        true},
-       {"write_file", "Create or overwrite a file.",
-        R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",
-        true},
-       {"use_skill", "Activate or run a skill by name.",
-        R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"]}},"required":["name"]})",
-        true},
+      {"write_file", "Create or overwrite a file.",
+       R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",
+       true},
+      {"read_scratchpad", "Read scratchpad content for the active session.",
+       R"({"type":"object","properties":{}})",
+       true},
+      {"write_scratchpad", "Write scratchpad content for the active session.",
+       R"({"type":"object","properties":{"content":{"type":"string"}},"required":["content"]})",
+       true},
+      {"use_skill", "Activate or run a skill by name.",
+       R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"]}},"required":["name"]})",
+       true},
       {"git_create_staging_branch", "Create or switch to a staging branch in mail mode.",
        R"({"type":"object","properties":{"name":{"type":"string"},"base_branch":{"type":"string"}},"required":["name"]})",
        true},
@@ -681,9 +693,41 @@ absl::StatusOr<std::string> Database::GetSessionState(const std::string& session
   }
   return absl::NotFoundError("Session state not found");
 }
+
+absl::Status Database::SetScratchpad(const std::string& session_id, const std::string& content) {
+  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
+  return Execute(
+      "INSERT INTO scratchpads (session_id, content, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+      "ON CONFLICT(session_id) DO UPDATE SET content = excluded.content, updated_at = CURRENT_TIMESTAMP;",
+      session_id, content);
+}
+
+absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_id) {
+  ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT content FROM scratchpads WHERE session_id = ?"));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  auto row_or = stmt->Step();
+  if (!row_or.ok()) return row_or.status();
+  if (!*row_or) return std::string{};
+  return stmt->ColumnText(0);
+}
+
+absl::StatusOr<std::string> Database::GetLastAssistantMessage(const std::string& session_id) {
+  ASSIGN_OR_RETURN(auto stmt,
+                   Prepare("SELECT content FROM messages WHERE session_id = ? AND role = 'assistant' "
+                           "ORDER BY id DESC LIMIT 1"));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  auto row_or = stmt->Step();
+  if (!row_or.ok()) return row_or.status();
+  if (!*row_or) {
+    return absl::NotFoundError("No assistant message found for this session.");
+  }
+  return stmt->ColumnText(0);
+}
+
 absl::Status Database::DeleteSession(const std::string& session_id) {
   RETURN_IF_ERROR(Execute("DELETE FROM messages WHERE session_id = ?;", session_id));
   RETURN_IF_ERROR(Execute("DELETE FROM usage WHERE session_id = ?;", session_id));
+  RETURN_IF_ERROR(Execute("DELETE FROM scratchpads WHERE session_id = ?;", session_id));
   RETURN_IF_ERROR(Execute("DELETE FROM sessions WHERE id = ?;", session_id));
   RETURN_IF_ERROR(Execute("DELETE FROM session_state WHERE session_id = ?;", session_id));
   return absl::OkStatus();
@@ -741,6 +785,12 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
   status = Execute(
       "INSERT INTO session_state (session_id, state_blob) "
       "SELECT ?, state_blob FROM session_state WHERE session_id = ?;",
+      {target_id, source_id});
+  if (!status.ok()) return rollback_on_failure(status);
+  status = Execute(
+      "INSERT INTO scratchpads (session_id, content, updated_at) "
+      "SELECT ?, content, updated_at FROM scratchpads WHERE session_id = ? "
+      "ON CONFLICT(session_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   return Execute("COMMIT;");

@@ -350,8 +350,10 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "patch_tool",
       "query_db",
       "read_file",
+      "read_scratchpad",
       "use_skill",
       "write_file",
+      "write_scratchpad",
   };
 
   EXPECT_EQ(executor.GetRegisteredToolNamesForTest(), expected);
@@ -735,6 +737,35 @@ TEST(ToolExecutorTest, AskUser) {
   EXPECT_TRUE(handler_called);
   EXPECT_EQ(received_prompt, "Are you sure?");
   EXPECT_TRUE(res->find("User typed this") != std::string::npos);
+}
+
+TEST(ToolExecutorTest, ScratchpadToolsReadWrite) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+  executor.SetSessionId("s1");
+
+  auto write_res = executor.Execute("write_scratchpad", {{"content", "plan step 1"}});
+  ASSERT_TRUE(write_res.ok()) << write_res.status().message();
+
+  auto read_res = executor.Execute("read_scratchpad", nlohmann::json::object());
+  ASSERT_TRUE(read_res.ok()) << read_res.status().message();
+  EXPECT_EQ(*read_res, "plan step 1");
+}
+
+TEST(ToolExecutorTest, WriteScratchpadRequiresContent) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+  executor.SetSessionId("s1");
+
+  auto write_res = executor.Execute("write_scratchpad", nlohmann::json::object());
+  EXPECT_FALSE(write_res.ok());
+  EXPECT_EQ(write_res.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
 }  // namespace slop
