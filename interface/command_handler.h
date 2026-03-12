@@ -45,6 +45,7 @@ class CommandHandler {
   std::vector<std::string> GetCommandNames() const;
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
   bool IsMailMode() const { return mail_mode_; }
+  void RefreshMailModeFromDb();
 
  private:
   void RegisterCommands();

@@ -84,7 +84,23 @@ CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHa
       oauth_handler_(oauth_handler),
       google_api_key_(std::move(google_api_key)),
       openai_api_key_(std::move(openai_api_key)) {
+  RefreshMailModeFromDb();
   RegisterCommands();
+}
+
+void CommandHandler::RefreshMailModeFromDb() {
+  auto mode_or = db_->Query("SELECT mode FROM settings WHERE id = 1");
+  if (!mode_or.ok()) {
+    mail_mode_ = false;
+    return;
+  }
+  auto parsed = json_parse(*mode_or).value_or(nlohmann::json::array());
+  if (!parsed.is_array() || parsed.empty()) {
+    mail_mode_ = false;
+    return;
+  }
+  auto mode = json_get<std::string>(parsed[0], "mode");
+  mail_mode_ = mode.has_value() && *mode == "mail";
 }
 void CommandHandler::RegisterCommands() {
   commands_.reserve(64);  // Allocate enough bucket space up front

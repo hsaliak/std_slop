@@ -641,6 +641,20 @@ TEST_F(CommandHandlerTest, ModeMailRequiresCleanRepo) {
   EXPECT_EQ(result, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
 }
+
+TEST_F(CommandHandlerTest, RefreshMailModeFromDbTracksSettingsMode) {
+  TestableCommandHandler handler(&db);
+  EXPECT_FALSE(handler.IsMailMode());
+
+  ASSERT_TRUE(db.Query("UPDATE settings SET mode = 'mail' WHERE id = 1").ok());
+  handler.RefreshMailModeFromDb();
+  EXPECT_TRUE(handler.IsMailMode());
+
+  ASSERT_TRUE(db.Query("UPDATE settings SET mode = 'standard' WHERE id = 1").ok());
+  handler.RefreshMailModeFromDb();
+  EXPECT_FALSE(handler.IsMailMode());
+}
+
 TEST_F(CommandHandlerTest, ReviewPatchUsesPatchExtension) {
   TestableCommandHandler handler(&db);
   std::string sid = "s1";

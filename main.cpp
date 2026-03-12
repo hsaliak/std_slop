@@ -107,6 +107,7 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
 
   while (true) {
     tool_executor.SetSessionId(session_id);
+    engine.GetCommandHandler().RefreshMailModeFromDb();
     std::vector<std::string> active_skills = tool_executor.GetActiveSkills();
 
     auto settings_or = db.GetContextSettings(session_id);
