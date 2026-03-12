@@ -261,6 +261,35 @@ TEST(ToolExecutorTest, ExecuteBash) {
   EXPECT_TRUE(absl::StrContains(*res, "\"stdout\":\"slop\\n\""));
   EXPECT_TRUE(absl::StrContains(*res, "\"stderr\":\"\""));
   EXPECT_TRUE(absl::StrContains(*res, "\"exit_code\":0"));
+  EXPECT_TRUE(absl::StrContains(*res, "\"timeout_seconds\":180"));
+}
+
+TEST(ToolExecutorTest, ExecuteBashRejectsNegativeTimeout) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("execute_bash", {{"command", "echo hi"}, {"timeout_seconds", -1}});
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "timeout_seconds must be >= 0"));
+}
+
+TEST(ToolExecutorTest, ExecuteBashTimeoutReturnsStructuredError) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto res = executor.Execute("execute_bash", {{"command", "sleep 2"}, {"timeout_seconds", 1}});
+  ASSERT_TRUE(res.ok());
+  EXPECT_TRUE(absl::StrContains(*res, "Error: {"));
+  EXPECT_TRUE(absl::StrContains(*res, "\"status\":\"DEADLINE_EXCEEDED\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"error\":\"Command timed out\""));
+  EXPECT_TRUE(absl::StrContains(*res, "\"timeout_seconds\":1"));
 }
 
 TEST(ToolExecutorTest, ToolNotFound) {

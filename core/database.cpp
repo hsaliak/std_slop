@@ -232,7 +232,7 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":["integer","string"]},"limit":{"type":["integer","string"]},"include_ignored":{"type":"boolean"},"fixed_strings":{"type":"boolean"}},"required":["pattern"]})",
        true},
       {"execute_bash", "Execute a shell command.",
-       R"({"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string"},"allow_nonzero_exit":{"type":"boolean"}},"required":["command"]})",
+       R"({"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string"},"allow_nonzero_exit":{"type":"boolean"},"timeout_seconds":{"type":"integer","minimum":0,"default":180,"description":"Maximum wall-clock time in seconds before the command is terminated. Set to 0 to disable timeout."}},"required":["command"]})",
        true},
       {"patch_tool", "Apply a unified diff patch to a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff"]})",

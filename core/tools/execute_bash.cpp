@@ -10,6 +10,7 @@
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json& args) const {
   RETURN_IF_ERROR(MaybeEnforceMailStagingGuard(mail_mode_));
+  constexpr int kDefaultTimeoutSeconds = 180;
 
   auto command = json_get<std::string>(args, "command");
   if (!command) {
@@ -17,12 +18,33 @@ absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json
   }
 
   const bool allow_nonzero_exit = json_get_or<bool>(args, "allow_nonzero_exit", false);
+  const int timeout_seconds = json_get_or<int>(args, "timeout_seconds", kDefaultTimeoutSeconds);
+  if (timeout_seconds < 0) {
+    return absl::InvalidArgumentError("Invalid arguments: timeout_seconds must be >= 0");
+  }
+
   std::string command_to_run = *command;
   if (auto cwd = json_get<std::string>(args, "cwd"); cwd && !cwd->empty()) {
     command_to_run = absl::StrCat("cd ", EscapeShellArg(*cwd), " && ", *command);
   }
 
-  ASSIGN_OR_RETURN(auto run_res, RunCommand(command_to_run));
+  auto run_or = RunCommand(command_to_run, /*cancellation=*/nullptr, /*input=*/"", timeout_seconds);
+  if (!run_or.ok()) {
+    const absl::Status status = run_or.status();
+    if (status.code() == absl::StatusCode::kDeadlineExceeded) {
+      const nlohmann::json timeout_payload = {
+          {"error", "Command timed out"},
+          {"status", "DEADLINE_EXCEEDED"},
+          {"command", *command},
+          {"executed_command", command_to_run},
+          {"timeout_seconds", timeout_seconds},
+      };
+      return absl::StrCat("Error: ", timeout_payload.dump());
+    }
+    return status;
+  }
+
+  const auto& run_res = *run_or;
   const std::string stdout_text = run_res.stdout_out;
   const std::string stderr_text = run_res.stderr_out;
   std::string out_text = stdout_text;
@@ -53,6 +75,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json
       {"output", out_text},
       {"command", *command},
       {"executed_command", command_to_run},
+      {"timeout_seconds", timeout_seconds},
       {"toString", out_text},
   };
   return payload.dump();
