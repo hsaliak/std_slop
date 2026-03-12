@@ -84,6 +84,7 @@ cc_library(
  "tools/git_commit_patch.cpp",
  "tools/git_format_patch_series.cpp",
  "tools/git_reroll_patch.cpp",
+ "tools/git_verify_series.cpp",
  "tools/git_finalize_series.cpp",
  "tools/describe_db.cpp",
  "tools/use_skill.cpp",

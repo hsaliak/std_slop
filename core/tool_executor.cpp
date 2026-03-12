@@ -74,6 +74,10 @@ void ToolExecutor::RegisterTools() {
                [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
                  return HandleGitRerollPatch(args, cancellation);
                });
+  RegisterTool("git_verify_series",
+               [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
+                 return HandleGitVerifySeries(args, cancellation);
+               });
   RegisterTool("git_finalize_series",
                [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
                  return HandleGitFinalizeSeries(args, cancellation);

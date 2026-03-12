@@ -80,8 +80,10 @@ class ToolExecutor {
                                                          std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> HandleGitRerollPatch(const nlohmann::json& args,
                                                    std::shared_ptr<CancellationRequest> cancellation);
+  absl::StatusOr<std::string> HandleGitVerifySeries(const nlohmann::json& args,
+                                                    std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> HandleGitFinalizeSeries(const nlohmann::json& args,
-                                                      std::shared_ptr<CancellationRequest> cancellation);
+                                                       std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> HandleExecuteBash(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandlePatchTool(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleWriteFile(const nlohmann::json& args) const;
