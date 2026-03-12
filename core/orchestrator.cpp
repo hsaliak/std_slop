@@ -62,7 +62,7 @@ absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
   }
   auto orchestrator = std::unique_ptr<Orchestrator>(new Orchestrator(db_, http_client_));
   (void)orchestrator->LoadAgentMd("./AGENTS.md");
-  (void)orchestrator->ReloadSkills("./.agents/skills");
+  (void)orchestrator->ReloadAllSkills();
   BuildInto(orchestrator.get());
   return orchestrator;
 }
