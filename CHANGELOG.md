@@ -1,3 +1,10 @@
+## v0.15.3 - 2026-03-12
+- **OpenAI Responses duplication fix**: Prevented duplicate final assistant messages when SSE streams include both `response.output_text.delta` and `response.output_item.done` output text; added a regression test for this flow.
+- **`execute_bash` timeout plumbing**: Added explicit `timeout_seconds` wiring with a 180s default and structured timeout handling to improve reliability and reporting.
+- **Diff rendering polish**: Improved unified-diff markdown highlighting and UI diff rendering behavior.
+- **Dependency maintenance**: Refreshed `tree-sitter-unified-diff` `master.tar.gz` checksum in `MODULE.bazel` to match the current upstream archive.
+- **Maintenance**: Included lint/style follow-up cleanup commits.
+
 ## v0.15.2 - 2026-03-11
 - **Mail mode UX and flow improvements**: Added `/mode mail <branchname>` auto-staging with validation, then refined mail model smoothness and formatting through follow-up rerolls.
 - **Scratchpad support restored**: Reintroduced the session scratchpad table plus commands/tools, and followed up with scratchpad-focused fixes and README guidance.
