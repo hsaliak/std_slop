@@ -374,6 +374,7 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "git_finalize_series",
       "git_format_patch_series",
       "git_reroll_patch",
+      "git_verify_series",
       "grep",
       "list_directory",
       "patch_tool",
