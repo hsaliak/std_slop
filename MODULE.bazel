@@ -96,7 +96,7 @@ http_archive(
 http_archive(
     name = "tree-sitter-unified-diff",
     build_file = "//third_party:tree-sitter-unified-diff.BUILD",
-    sha256 = "c207d54f6935265dd35cdcf7bf8351c90af569d1ef8f1fcc0e9b1cd5ba469b05",
+    sha256 = "5db02d324aa73056eb8e6181b22c18c5d2071be5ecd4efbdbdf36a06a53fbe8f",
     strip_prefix = "tree-sitter-unified-diff-master",
     urls = ["https://github.com/hsaliak/tree-sitter-unified-diff/archive/refs/heads/master.tar.gz"],
 )
