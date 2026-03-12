@@ -260,6 +260,9 @@ absl::Status Database::RegisterDefaultTools() {
       {"git_reroll_patch", "Reroll an existing patch series.",
        R"({"type":"object","properties":{"index":{"type":["integer","string"]},"base_branch":{"type":"string"}}})",
        true},
+      {"git_verify_series", "Verify each commit in a patch series by running a command per commit.",
+       R"({"type":"object","properties":{"command":{"type":"string"},"base_branch":{"type":"string"}},"required":["command"]})",
+       true},
       {"git_finalize_series", "Finalize a patch series workflow.",
        R"({"type":"object","properties":{"target_branch":{"type":"string"}}})", true},
       {"llm_query",
@@ -332,7 +335,8 @@ absl::Status Database::RegisterDefaultSkills() {
        "2. **Commit Atomic Patches**: Use `git_commit_patch` for each logical change,\n"
        "   with clear commit messages explaining what changed and why.\n"
        "3. **Verification**: Before presenting to the user, run the exact build/test command\n"
-       "   relevant to the project and report results.\n"
+       "   relevant to the project and report results. Then run `git_verify_series` with\n"
+       "   that deterministic validation command so every commit in the series is verified.\n"
        "   If any patch fails, you MUST fix it via `git_reroll_patch` before proceeding.\n"
        "4. **Presentation & Review Gate**: Use `git_format_patch_series` to generate a summary of your work, then "
        "hand off to `/review mail` for user review.\n"
