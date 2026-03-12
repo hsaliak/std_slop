@@ -30,8 +30,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json
 
   auto run_or = RunCommand(command_to_run, /*cancellation=*/nullptr, /*input=*/"", timeout_seconds);
   if (!run_or.ok()) {
-    const absl::Status status = run_or.status();
-    if (status.code() == absl::StatusCode::kDeadlineExceeded) {
+    if (run_or.status().code() == absl::StatusCode::kDeadlineExceeded) {
       const nlohmann::json timeout_payload = {
           {"error", "Command timed out"},
           {"status", "DEADLINE_EXCEEDED"},
@@ -41,7 +40,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json
       };
       return absl::StrCat("Error: ", timeout_payload.dump());
     }
-    return status;
+    return run_or.status();
   }
 
   const auto& run_res = *run_or;
