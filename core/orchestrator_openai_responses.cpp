@@ -57,9 +57,22 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
   nlohmann::json usage;
   bool saw_stream_event = false;
   std::string output_text_delta;
+  bool saw_output_text_item = false;
 
   const auto upsert_output_item = [&](const nlohmann::json& item) {
     const std::string type = json_get_or(item, "type", std::string{});
+    if (type == "message") {
+      const auto* content = json_at(item, "content");
+      if (content != nullptr && content->is_array()) {
+        for (const auto& part : *content) {
+          if (json_get_or(part, "type", std::string{}) == "output_text" &&
+              !json_get_or(part, "text", std::string{}).empty()) {
+            saw_output_text_item = true;
+            break;
+          }
+        }
+      }
+    }
     if (type != "function_call") {
       output.push_back(item);
       return;
@@ -169,7 +182,7 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
   if (!saw_stream_event) {
     return std::nullopt;
   }
-  if (!output_text_delta.empty()) {
+  if (!output_text_delta.empty() && !saw_output_text_item) {
     output.push_back({{"type", "message"},
                       {"role", "assistant"},
                       {"content", nlohmann::json::array({{{"type", "output_text"}, {"text", output_text_delta}}})}});

@@ -138,6 +138,31 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSseTextDeltas) {
   EXPECT_EQ((*history_or)[0].content, "Hello world");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseDoesNotDuplicateSseAssistantText) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
+  const std::string sse_payload =
+      "event: response.output_text.delta\n"
+      "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello\"}\n\n"
+      "event: response.output_text.delta\n"
+      "data: {\"type\":\"response.output_text.delta\",\"delta\":\" world\"}\n\n"
+      "event: response.output_item.done\n"
+      "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"role\":\"assistant\","
+      "\"content\":[{\"type\":\"output_text\",\"text\":\"Hello world\"}]}}\n\n"
+      "event: response.completed\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\","
+      "\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n";
+
+  auto st_or = orchestrator.ProcessResponse("s1", sse_payload, "g1");
+  ASSERT_TRUE(st_or.ok());
+  EXPECT_EQ(*st_or, 3);
+
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 1);
+  EXPECT_EQ((*history_or)[0].role, "assistant");
+  EXPECT_EQ((*history_or)[0].content, "Hello world");
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseDedupesSseFunctionCallItems) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex", "https://chatgpt.com/backend-api/codex");
   const std::string sse_payload =
