@@ -1,6 +1,7 @@
 #include "interface/animator.h"
 
 #include <chrono>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -33,6 +34,8 @@ void AsyncAnimator::Stop() {
 
 void AsyncAnimator::RenderLoop() {
   const char* spinner[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+  constexpr int kSpinnerFrames = 10;
+  constexpr int kTrailWidth = 5;
   int spinner_idx = 0;
   // Gruvbox colors
   const struct {
@@ -61,13 +64,18 @@ void AsyncAnimator::RenderLoop() {
     frame += std::to_string(colors[color_idx].r) + ";" + std::to_string(colors[color_idx].g) + ";" +
              std::to_string(colors[color_idx].b) + "m";
     frame += spinner[spinner_idx];
-    frame += " .....\033[0m";
-    frame += " Thinking";
+    frame += " ";
+    for (int i = 0; i < kTrailWidth; ++i) {
+      frame += spinner[(spinner_idx + i + 1) % kSpinnerFrames];
+    }
+    frame += "\033[0m";
+    frame += " \033[38;2;142;192;124m";
     frame += time_buf;
+    frame += "\033[0m";
 
     std::cout << frame << std::flush;
 
-    spinner_idx = (spinner_idx + 1) % 10;
+    spinner_idx = (spinner_idx + 1) % kSpinnerFrames;
     color_idx = (color_idx + 1) % num_colors;
 
     for (int i = 0; i < 10 && is_running_; ++i) {
