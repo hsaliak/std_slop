@@ -3,10 +3,12 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstdio>
 #include <iostream>
 #include <sstream>
 
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 
 #include "interface/color.h"
@@ -19,6 +21,21 @@ namespace slop {
 namespace {
 
 std::string g_readline_prefill;
+std::string g_history_path;
+
+std::string ResolveHistoryPath() {
+  const char* home = std::getenv("HOME");
+  if (home == nullptr || *home == '\0') {
+    return ".slop_history";
+  }
+  return std::string(home) + "/.slop_history";
+}
+
+void FlushReadlineHistory() {
+  if (g_history_path.empty()) return;
+  write_history(g_history_path.c_str());
+  history_truncate_file(g_history_path.c_str(), 2000);
+}
 
 int PrefillReadlineBuffer() {
   if (!g_readline_prefill.empty()) {
@@ -55,6 +72,14 @@ void SetupTerminal() {
     if (rl_variable_bind("enable-bracketed-paste", "on") != 0) {
       std::cerr << "warning: failed to enable readline bracketed paste" << std::endl;
     }
+    if (rl_variable_bind("horizontal-scroll-mode", "off") != 0) {
+      std::cerr << "warning: failed to disable readline horizontal scroll mode" << std::endl;
+    }
+    g_history_path = ResolveHistoryPath();
+    using_history();
+    stifle_history(2000);
+    read_history(g_history_path.c_str());
+    std::atexit(FlushReadlineHistory);
     readline_configured = true;
   }
 
@@ -163,8 +188,13 @@ std::string ReadLine(const std::string& modeline, const std::string& initial_inp
       continue;
     }
 
-    if (!line.empty()) {
-      add_history(line.c_str());
+    const absl::string_view stripped = absl::StripAsciiWhitespace(line);
+    if (!stripped.empty()) {
+      HIST_ENTRY* last = history_get(history_length);
+      const bool duplicate_of_last = (last != nullptr && last->line != nullptr && line == last->line);
+      if (!duplicate_of_last) {
+        add_history(line.c_str());
+      }
     }
     return line;
   }
