@@ -32,7 +32,7 @@ void AsyncAnimator::Stop() {
 }
 
 void AsyncAnimator::RenderLoop() {
-  const char* spinner[] = {"|", "/", "-", "\\"};
+  const char* spinner[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
   int spinner_idx = 0;
   // Gruvbox colors
   const struct {
@@ -67,7 +67,7 @@ void AsyncAnimator::RenderLoop() {
 
     std::cout << frame << std::flush;
 
-    spinner_idx = (spinner_idx + 1) % 4;
+    spinner_idx = (spinner_idx + 1) % 10;
     color_idx = (color_idx + 1) % num_colors;
 
     for (int i = 0; i < 10 && is_running_; ++i) {
