@@ -1,27 +1,12 @@
 #include "interface/animator.h"
 
 #include <chrono>
-#include <cstdio>
 #include <iostream>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include <sys/ioctl.h>
-#include <unistd.h>
-
 namespace slop {
-namespace {
-
-size_t GetTerminalWidthOrDefault() {
-  struct winsize w;
-  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) {
-    return static_cast<size_t>(w.ws_col);
-  }
-  return 80;
-}
-
-}  // namespace
 
 AsyncAnimator::AsyncAnimator() : is_running_(false) {}
 
@@ -47,17 +32,22 @@ void AsyncAnimator::Stop() {
 }
 
 void AsyncAnimator::RenderLoop() {
-  constexpr const char* kTimerColor = "\x1b[38;2;146;131;116m";   // Gruvbox gray
-  constexpr const char* kWaveColors[] = {
-      "\x1b[38;2;215;153;33m",   // Gruvbox yellow
-      "\x1b[38;2;142;192;124m",  // Gruvbox aqua
-      "\x1b[38;2;69;133;136m",   // Gruvbox blue
-      "\x1b[38;2;177;98;134m",   // Gruvbox purple
+  const char* spinner[] = {"|", "/", "-", "\\"};
+  int spinner_idx = 0;
+  // Gruvbox colors
+  const struct {
+    int r, g, b;
+  } colors[] = {
+      {204, 36, 29},    // Red
+      {152, 151, 26},   // Green
+      {215, 153, 33},   // Yellow
+      {69, 133, 136},   // Blue
+      {177, 98, 134},   // Purple
+      {104, 157, 106},  // Aqua
+      {214, 93, 14}     // Orange
   };
-  constexpr const char* kReset = "\033[0m";
-  const std::vector<std::string> wave = {"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"};
-  size_t phase = 0;
-  constexpr int kTickMs = 90;
+  int color_idx = 0;
+  int num_colors = sizeof(colors) / sizeof(colors[0]);
 
   while (is_running_) {
     auto now = std::chrono::steady_clock::now();
@@ -65,31 +55,22 @@ void AsyncAnimator::RenderLoop() {
     double seconds = elapsed_ms / 1000.0;
 
     char time_buf[32];
-    std::snprintf(time_buf, sizeof(time_buf), "[%.1fs] ", seconds);
-    const std::string prefix(time_buf);
+    snprintf(time_buf, sizeof(time_buf), " (%.1fs)", seconds);
 
-    const size_t terminal_width = GetTerminalWidthOrDefault();
-    const size_t prefix_width = prefix.size();
-    const size_t wave_width = terminal_width > prefix_width ? terminal_width - prefix_width : 1;
-
-    std::string frame = "\r\033[2K";
-    frame += kTimerColor;
-    frame += prefix;
-    frame += kReset;
-
-    for (size_t i = 0; i < wave_width; ++i) {
-      const size_t wave_idx = (phase + i) % wave.size();
-      const size_t color_idx = (phase + i) % (sizeof(kWaveColors) / sizeof(kWaveColors[0]));
-      frame += kWaveColors[color_idx];
-      frame += wave[wave_idx];
-    }
-    frame += kReset;
+    std::string frame = "\r\033[2K\033[38;2;";
+    frame += std::to_string(colors[color_idx].r) + ";" + std::to_string(colors[color_idx].g) + ";" +
+             std::to_string(colors[color_idx].b) + "m";
+    frame += spinner[spinner_idx];
+    frame += " .....\033[0m";
+    frame += " Thinking";
+    frame += time_buf;
 
     std::cout << frame << std::flush;
 
-    phase = (phase + 1) % wave.size();
+    spinner_idx = (spinner_idx + 1) % 4;
+    color_idx = (color_idx + 1) % num_colors;
 
-    for (int i = 0; i < kTickMs / 10 && is_running_; ++i) {
+    for (int i = 0; i < 10 && is_running_; ++i) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
