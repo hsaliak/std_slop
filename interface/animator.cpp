@@ -78,7 +78,7 @@ void AsyncAnimator::RenderLoop() {
     spinner_idx = (spinner_idx + 1) % kSpinnerFrames;
     color_idx = (color_idx + 1) % num_colors;
 
-    for (int i = 0; i < 5 && is_running_; ++i) {
+    for (int i = 0; i < 6 && is_running_; ++i) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
