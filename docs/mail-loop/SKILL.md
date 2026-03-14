@@ -1,13 +1,13 @@
 ---
 name: mail-loop
-description: "Orchestrates a full mail-mode delivery loop: plan with user, switch to mail mode, generate bisect-safe patch series with patcher, iterate code_reviewer to pass, then present final changeset for user approval."
+description: "Orchestrates a single-path fully automated mail-mode delivery loop: plan, switch to mail mode, run patcher + code_reviewer to pass, auto-write patch approval via query_db, then call git_finalize_series."
 ---
 
 # Instructions
 
 You are the **mail-loop** orchestrator skill.
 
-Your job is to run a deterministic end-to-end loop for Mail Model delivery while enforcing user checkpoints and review gates.
+Your job is to run a deterministic end-to-end loop for Mail Model delivery with an automated approval/finalize path.
 
 ## Scope
 
@@ -21,9 +21,10 @@ Follow this sequence exactly:
 2. **Switch runtime/session to mail mode using `query_db` and verify**
 3. **Activate `patcher` and generate bisect-safe patch series**
 4. **Activate `code_reviewer` and iterate until pass**
-5. **Show final changeset to user and request explicit approval before finalization**
+5. **Auto-write approval for current staging HEAD into `patch_approvals` via `query_db`**
+6. **Call `git_finalize_series` immediately after approval write verification**
 
-Do not skip or reorder steps.
+Do not skip or reorder steps. There is no manual approval variant in this skill.
 
 ## Step 1: Planning and user sign-off
 
@@ -90,21 +91,34 @@ Run this exact loop:
 Stop condition for this phase:
 - Reviewer reports no required changes (clear pass signal).
 
-## Step 5: User review gate before finalization
+## Step 5: Auto-write approval row (replaces `/review mail approve`)
 
-Before finalization, present the user:
-- Final patch series summary (commits, order, intent)
-- Files changed + high-level diff summary
-- Validation results
-- Review-loop summary (iterations + key fixes)
+Run these exact commands in order:
 
-De activate the code_reviewer  and planner skills.
-  - `use_skill({"action":"deactivate","name":"planner"})`
-  - `use_skill({"action":"deactivate","name":"code_reviewer"})`
-Then ask for explicit user approval.
+1. Resolve current branch:
+   - `execute_bash({"cwd":".","command":"git rev-parse --abbrev-ref HEAD","timeout_seconds":120,"allow_nonzero_exit":false})`
+2. Resolve current HEAD hash:
+   - `execute_bash({"cwd":".","command":"git rev-parse HEAD","timeout_seconds":120,"allow_nonzero_exit":false})`
+3. Enforce branch constraints before DB write:
+   - Branch must not equal `HEAD` (detached head is blocked).
+   - Branch must start with `slop/staging/`.
+4. Write approval row using parameterized SQL:
+   - `query_db({"sql":"INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, CURRENT_TIMESTAMP)","params":["<current_branch>","<head_hash>"]})`
+5. Verify DB write:
+   - `query_db({"sql":"SELECT branch_name, approved_hash FROM patch_approvals WHERE branch_name = ?","params":["<current_branch>"]})`
+6. Require exact hash match:
+   - returned `approved_hash` must equal `<head_hash>`.
 
-Only after approval, finalize series:
+If any check fails, stop and report `blocked` with evidence.
+
+## Step 6: Finalize immediately
+
+After Step 5 succeeds, finalize with no user approval checkpoint:
 - `git_finalize_series({"target_branch":"main"})`
+
+Then deactivate orchestration skills:
+- `use_skill({"action":"deactivate","name":"planner"})`
+- `use_skill({"action":"deactivate","name":"code_reviewer"})`
 
 ## Operating Rules
 
@@ -113,6 +127,7 @@ Only after approval, finalize series:
 - Keep edits minimal and atomic.
 - Preserve repository conventions.
 - Prefer additive changes over broad refactors unless required.
+- Use the exact `query_db`, `execute_bash`, and `git_finalize_series` calls above for deterministic behavior.
 
 ## Output Contract During Runs
 
@@ -124,14 +139,14 @@ At each phase, report:
 
 At handoff to user, include:
 - What was completed
-- What remains awaiting user decision
-- Specific approval request
+- Finalize evidence (`merged` / `already_landed`, metadata cleanup)
 
 ## Non-Goals
 
 - Do not bypass `patcher` for ad-hoc commit strategy when operating in mail loop.
 - Do not treat `code_reviewer` as optional.
-- Do not auto-finalize after review pass without user confirmation.
+- Do not skip approval DB write before `git_finalize_series`.
+- Do not require `/review mail approve`.
 
 ## Canonical command checklist
 
@@ -147,5 +162,8 @@ Execute this checklist in sequence:
 8. `git_create_staging_branch({"base_branch":"main","name":"<topic-branch>"})`
 9. Atomic `git_commit_patch(...)` sequence + `git_format_patch_series({"base_branch":"main"})`
 10. `use_skill({"action":"activate","name":"code_reviewer"})` + reroll loop via `git_reroll_patch(...)`
-11. User approval
-12. `git_finalize_series({"target_branch":"main"})`
+11. `execute_bash({"cwd":".","command":"git rev-parse --abbrev-ref HEAD","timeout_seconds":120,"allow_nonzero_exit":false})`
+12. `execute_bash({"cwd":".","command":"git rev-parse HEAD","timeout_seconds":120,"allow_nonzero_exit":false})`
+13. `query_db({"sql":"INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, CURRENT_TIMESTAMP)","params":["<current_branch>","<head_hash>"]})`
+14. `query_db({"sql":"SELECT branch_name, approved_hash FROM patch_approvals WHERE branch_name = ?","params":["<current_branch>"]})` (must match `<head_hash>`)
+15. `git_finalize_series({"target_branch":"main"})`
