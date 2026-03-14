@@ -120,7 +120,7 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
     std::string mode_label =
         is_mail ? absl::StrCat(icons::Mailbox, " MAIL_MODEL") : absl::StrCat(icons::Robot, " STANDARD");
     std::string modeline =
-        absl::StrCat(color, "── std::slop <", mode_label, " | W:", window_str, ", M:", model_name, ", P:", persona,
+        absl::StrCat(color, "── std::slop <", mode_label, ", W:", window_str, ", M:", model_name, ", P:", persona,
                      ", S:", session_id, ", T:", orchestrator.GetThrottle(), "s>", ansi::Reset);
 
     std::string input = slop::ReadLine(modeline);
