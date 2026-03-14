@@ -5,11 +5,14 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 
 #include "core/cancellation.h"
 #include "core/database.h"
@@ -57,6 +60,9 @@ class ToolExecutor {
 
   ~ToolExecutor();
 
+  void InvalidateActiveSkillsCache();
+  void RefreshActiveSkillsCacheIfNeeded();
+
  private:
   explicit ToolExecutor(Database* db);
 
@@ -92,6 +98,11 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleUseSkill(const nlohmann::json& args);
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
+  absl::Mutex active_skills_mu_;
+  bool active_skills_cache_valid_ ABSL_GUARDED_BY(active_skills_mu_) = false;
+  std::string active_skills_cache_session_id_ ABSL_GUARDED_BY(active_skills_mu_);
+  std::vector<std::string> active_skills_cache_ ABSL_GUARDED_BY(active_skills_mu_);
+  absl::flat_hash_set<std::string> active_skills_cache_set_ ABSL_GUARDED_BY(active_skills_mu_);
   std::unique_ptr<ToolDispatcher> dispatcher_;
 };
 

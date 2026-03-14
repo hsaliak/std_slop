@@ -131,7 +131,42 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   return absl::NotFoundError(absl::StrCat("NOT_FOUND: Tool not found: ", name));
 }
 
-void ToolExecutor::SetSessionId(const std::string& session_id) { session_id_ = session_id; }
+void ToolExecutor::InvalidateActiveSkillsCache() {
+  absl::MutexLock lock(&active_skills_mu_);
+  active_skills_cache_valid_ = false;
+  active_skills_cache_session_id_.clear();
+  active_skills_cache_.clear();
+  active_skills_cache_set_.clear();
+}
+
+void ToolExecutor::RefreshActiveSkillsCacheIfNeeded() {
+  if (session_id_.empty() || !db_) {
+    InvalidateActiveSkillsCache();
+    return;
+  }
+
+  {
+    absl::MutexLock lock(&active_skills_mu_);
+    if (active_skills_cache_valid_ && active_skills_cache_session_id_ == session_id_) return;
+  }
+
+  auto skills_or = db_->GetActiveSkills(session_id_);
+  std::vector<std::string> active_skills = skills_or.ok() ? *skills_or : std::vector<std::string>{};
+  absl::flat_hash_set<std::string> active_skill_set(active_skills.begin(), active_skills.end());
+
+  absl::MutexLock lock(&active_skills_mu_);
+  active_skills_cache_valid_ = true;
+  active_skills_cache_session_id_ = session_id_;
+  active_skills_cache_ = std::move(active_skills);
+  active_skills_cache_set_ = std::move(active_skill_set);
+}
+
+void ToolExecutor::SetSessionId(const std::string& session_id) {
+  if (session_id_ != session_id) {
+    session_id_ = session_id;
+    InvalidateActiveSkillsCache();
+  }
+}
 
 void ToolExecutor::SetMailMode(bool enabled) {
   mail_mode_ = enabled;
@@ -142,17 +177,19 @@ void ToolExecutor::SetMailMode(bool enabled) {
 }
 
 bool ToolExecutor::IsSkillActive(const std::string& name) {
-  auto active = GetActiveSkills();
-  return std::any_of(active.begin(), active.end(), [&name](const std::string& s) { return s == name; });
+  RefreshActiveSkillsCacheIfNeeded();
+  absl::MutexLock lock(&active_skills_mu_);
+  if (!active_skills_cache_valid_) return false;
+  return active_skills_cache_set_.contains(name);
 }
 
 std::vector<std::string> ToolExecutor::GetActiveSkills() {
-  if (session_id_.empty() || !db_) return {};
-  auto skills_or = db_->GetActiveSkills(session_id_);
-  if (skills_or.ok()) {
-    return *skills_or;
+  RefreshActiveSkillsCacheIfNeeded();
+  absl::MutexLock lock(&active_skills_mu_);
+  if (!active_skills_cache_valid_) {
+    return {};
   }
-  return {};
+  return active_skills_cache_;
 }
 
 absl::StatusOr<std::string> ToolExecutor::GetBaseBranch(const std::string& requested_base) {

@@ -71,6 +71,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleUseSkill(const nlohmann::json& a
   }
 
   RETURN_IF_ERROR(db_->SetActiveSkills(session_id_, active_skills));
+  InvalidateActiveSkillsCache();
   return absl::StrCat("Skill '", *name, "' ", (action == "activate" ? "activated" : "deactivated"), ".", prompt_patch);
 }
 
