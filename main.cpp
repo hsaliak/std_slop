@@ -107,6 +107,10 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
 
   while (true) {
     tool_executor.SetSessionId(session_id);
+    // Active skills can also be modified outside ToolExecutor (e.g. /skill, /mode).
+    // Invalidate once per turn so UI + prompt state always reflect the latest DB value,
+    // while still keeping intra-turn cache benefits.
+    tool_executor.InvalidateActiveSkillsCache();
     engine.GetCommandHandler().RefreshMailModeFromDb();
     std::vector<std::string> active_skills = tool_executor.GetActiveSkills();
 
