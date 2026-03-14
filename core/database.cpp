@@ -184,6 +184,17 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "CREATE INDEX IF NOT EXISTS idx_messages_session_created_id "
+                     "ON messages(session_id, created_at, id);",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "CREATE INDEX IF NOT EXISTS idx_messages_group_created_id ON messages(group_id, created_at, id);",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "CREATE INDEX IF NOT EXISTS idx_messages_session_created_id_desc_nonnull_group ON "
+                     "messages(session_id, created_at DESC, id DESC) WHERE group_id IS NOT NULL;",
+                     nullptr, nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (
