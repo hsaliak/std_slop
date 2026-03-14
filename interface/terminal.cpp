@@ -23,6 +23,13 @@ namespace {
 std::string g_readline_prefill;
 std::string g_history_path;
 
+std::string MakeRule(size_t count) {
+  std::string out;
+  out.reserve(count * 3);
+  for (size_t i = 0; i < count; ++i) out += "─";
+  return out;
+}
+
 std::string ResolveHistoryPath() {
   const char* home = std::getenv("HOME");
   if (home == nullptr || *home == '\0') {
@@ -94,15 +101,15 @@ void PrintHorizontalLine(size_t width, const char* color_fg, const std::string& 
 
   std::string line;
   if (header.empty()) {
-    line = std::string(width, '-');
+    line = MakeRule(width);
   } else {
     size_t header_len = VisibleLength(header);
     if (header_len + 4 >= width) {
       line = header;
     } else {
       size_t side = (width - header_len - 2) / 2;
-      line = std::string(side, '-') + " " + color_header + header + color_fg + " " +
-             std::string(width - side - header_len - 2, '-');
+      line = MakeRule(side) + " " + color_header + header + color_fg + " " +
+             MakeRule(width - side - header_len - 2);
     }
   }
   std::cout << color_fg << line << ansi::Reset << std::endl;
