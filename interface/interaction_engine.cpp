@@ -295,6 +295,13 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     auto history_after_or = db_.GetMessagesByGroups({group_id});
     if (!history_after_or.ok() || history_after_or->empty()) break;
     bool has_tool_calls = false;
+    absl::flat_hash_set<std::string> enabled_tool_names;
+    auto enabled_tools_or = db_.GetEnabledTools();
+    if (enabled_tools_or.ok()) {
+      for (const auto& t : *enabled_tools_or) {
+        enabled_tool_names.insert(t.name);
+      }
+    }
     for (size_t i = start_idx; i < history_after_or->size(); ++i) {
       const auto& msg = (*history_after_or)[i];
       if (!config.silent) {
@@ -305,13 +312,6 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         if (calls_or.ok() && !calls_or->empty()) {
           std::vector<slop::ToolDispatcher::Call> dispatcher_calls;
           std::vector<slop::ToolDispatcher::Result> results;
-          absl::flat_hash_set<std::string> enabled_tool_names;
-          auto enabled_tools_or = db_.GetEnabledTools();
-          if (enabled_tools_or.ok()) {
-            for (const auto& t : *enabled_tools_or) {
-              enabled_tool_names.insert(t.name);
-            }
-          }
           for (const auto& call : *calls_or) {
             std::string combined_id = call.id;
             if (call.id != call.name && !absl::StrContains(call.id, '|')) {
