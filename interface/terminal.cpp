@@ -169,7 +169,7 @@ std::string WrapText(const std::string& text, size_t width, const std::string& p
 std::string ReadLine(const std::string& modeline, const std::string& initial_input) {
   SetupTerminal();
   if (!modeline.empty()) {
-    PrintHorizontalLine(0, ansi::Grey, modeline, ansi::Grey);
+    std::cout << modeline << std::endl;
   }
 
   bool hold_once_armed = false;
