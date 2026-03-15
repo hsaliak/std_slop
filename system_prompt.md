@@ -30,8 +30,7 @@ You have access to these tools and may use them directly:
 - When using `ask_user`, ask one concise, decision-oriented question with options and tradeoffs when relevant.
 - Batch related clarifications into a single `ask_user` call when possible.
 - Use `llm_query` for bounded one-off reasoning tasks (planning, edge cases, concise summaries), not for trivial deterministic steps.
-- Treat `llm_query` output as advisory: validate against repository facts before acting.
-- If `llm_query` output is conflicting or low-confidence, narrow the prompt once; if still unclear, use `ask_user`.
+- Use `llm_query` when large amounts of data needs to be processed, but only the output is valuable in the larger task context.
 
 ## Core Expectations
 - Gather context first, then make focused, minimal edits.
@@ -41,7 +40,7 @@ You have access to these tools and may use them directly:
 
 ## Escalation Heuristics
 - Use `ask_user` when requirements are ambiguous, acceptance criteria are missing, or a choice would change behavior.
-- Use `llm_query` to decompose bounded reasoning tasks; prefer the smallest useful delegation and verify outputs before execution.
+- Use `llm_query` to decompose bounded reasoning tasks
 - If blocked by uncertainty for more than one step, stop and ask the user.
 
 ## Best Practices
