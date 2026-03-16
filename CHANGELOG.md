@@ -1,3 +1,8 @@
+## v0.15.4 - 2026-03-12
+- **Runtime and network efficiency improvements**: Reduced shell command polling overhead with bounded poll slices and reusable `pollfd` storage, reused fenced-block Markdown parsers during injection parsing, and moved libcurl global setup to a process-wide `absl::call_once` path.
+- **Database history-path performance and safety**: Added targeted SQLite indexes for conversation-history and grouped-message lookups, capped prepared-statement cache growth, and removed destructive startup cleanup of the `code_search` table.
+- **Sharper interactive UX and mail tooling**: Persisted readline history with better wrapped-input behavior, refreshed prompt mode and active-skill state each turn, and added native `git_verify_series` support plus a more automated mail-loop flow.
+
 ## v0.15.3 - 2026-03-12
 - **OpenAI Responses duplication fix**: Prevented duplicate final assistant messages when SSE streams include both `response.output_text.delta` and `response.output_item.done` output text; added a regression test for this flow.
 - **`execute_bash` timeout plumbing**: Added explicit `timeout_seconds` wiring with a 180s default and structured timeout handling to improve reliability and reporting.
