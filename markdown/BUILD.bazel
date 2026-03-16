@@ -13,6 +13,7 @@ cc_library(
     srcs = ["parser.cpp"],
     hdrs = ["parser.h"],
     deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@tree-sitter-bazel//:tree-sitter",
         "@tree-sitter-markdown//:tree-sitter-markdown",
         "@tree-sitter-markdown//:tree-sitter-markdown-inline",

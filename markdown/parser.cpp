@@ -1,7 +1,10 @@
 #include "markdown/parser.h"
 
 #include <iostream>
+#include <memory>
 #include <optional>
+
+#include "absl/container/flat_hash_map.h"
 
 extern "C" {
 const TSLanguage* tree_sitter_markdown(void);
@@ -61,6 +64,14 @@ class InjectionFinder {
  public:
   InjectionFinder(TSParser* inline_parser, ParsedMarkdown* parsed) : inline_parser_(inline_parser), parsed_(parsed) {}
 
+  ~InjectionFinder() {
+    for (auto& entry : fenced_block_parsers_) {
+      if (entry.second != nullptr) {
+        ts_parser_delete(entry.second);
+      }
+    }
+  }
+
   void Find(TSNode node) {
     std::string_view type = ts_node_type(node);
     if (type == "inline" || type == "pipe_table_cell") {
@@ -116,23 +127,43 @@ class InjectionFinder {
       uint32_t end = ts_node_end_byte(content_node);
       std::shared_ptr<TSTree> tree = nullptr;
 
-      std::optional<const TSLanguage*> lang = GetLanguageForName(lang_name);
-      if (lang) {
-        TSParser* p = ts_parser_new();
-        ts_parser_set_language(p, *lang);
-        TSTree* t = ts_parser_parse_string(p, nullptr, parsed_->source().c_str() + start, end - start);
+      TSParser* parser = GetOrCreateFencedBlockParser(lang_name);
+      if (parser != nullptr) {
+        TSTree* t = ts_parser_parse_string(parser, nullptr, parsed_->source().c_str() + start, end - start);
         if (t) {
           tree = std::shared_ptr<TSTree>(t, ts_tree_delete);
         }
-        ts_parser_delete(p);
       }
 
       parsed_->AddInjection({std::move(lang_name), {start, end}, std::move(tree)});
     }
   }
 
+  TSParser* GetOrCreateFencedBlockParser(const std::string& lang_name) {
+    auto it = fenced_block_parsers_.find(lang_name);
+    if (it != fenced_block_parsers_.end()) {
+      return it->second;
+    }
+
+    std::optional<const TSLanguage*> lang = GetLanguageForName(lang_name);
+    if (!lang) {
+      fenced_block_parsers_.emplace(lang_name, nullptr);
+      return nullptr;
+    }
+
+    TSParser* parser = ts_parser_new();
+    if (parser == nullptr) {
+      fenced_block_parsers_.emplace(lang_name, nullptr);
+      return nullptr;
+    }
+    ts_parser_set_language(parser, *lang);
+    fenced_block_parsers_.emplace(lang_name, parser);
+    return parser;
+  }
+
   TSParser* inline_parser_;
   ParsedMarkdown* parsed_;
+  absl::flat_hash_map<std::string, TSParser*> fenced_block_parsers_;
 };
 
 MarkdownParser::MarkdownParser() {
