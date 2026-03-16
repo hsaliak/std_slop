@@ -9,8 +9,8 @@
 
 #include "core/json_utils.h"
 #include "core/status_macros.h"
-#include "core/tool_executor.h"
-#include "core/tools/common.h"
+#include "tools/tool_executor.h"
+#include "tools/common.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& args) const {

@@ -1,0 +1,81 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@aspect_rules_lint//format:defs.bzl", "format_test")
+
+format_test(
+    name = "format_test",
+    cc = "//:clang_format_hermetic",
+    srcs = glob(["*.cpp", "*.h"]),
+)
+
+cc_library(
+    name = "dispatcher",
+    srcs = ["tool_dispatcher.cpp"],
+    hdrs = ["tool_dispatcher.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:cancellation",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "runtime",
+    srcs = [
+        "common.cpp",
+        "describe_db.cpp",
+        "execute_bash.cpp",
+        "git_commit_patch.cpp",
+        "git_create_staging_branch.cpp",
+        "git_finalize_series.cpp",
+        "git_format_patch_series.cpp",
+        "git_reroll_patch.cpp",
+        "git_verify_series.cpp",
+        "grep.cpp",
+        "list_directory.cpp",
+        "patch_tool.cpp",
+        "query_db.cpp",
+        "read_file.cpp",
+        "scratchpad.cpp",
+        "tool_executor.cpp",
+        "use_skill.cpp",
+        "write_file.cpp",
+    ],
+    hdrs = [
+        "common.h",
+        "tool_executor.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dispatcher",
+        "//core",
+        "//core:json_utils",
+        "//core:shell_lib",
+        "//interface:color",
+        "//interface:renderer",
+        "//interface:terminal",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "api",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dispatcher",
+        ":runtime",
+    ],
+)

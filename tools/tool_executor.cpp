@@ -1,4 +1,4 @@
-#include "core/tool_executor.h"
+#include "tools/tool_executor.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -19,8 +19,8 @@
 #include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "core/tool_dispatcher.h"
-#include "core/tools/common.h"
+#include "tools/tool_dispatcher.h"
+#include "tools/common.h"
 #include "interface/color.h"
 #include "interface/renderer.h"
 #include "interface/terminal.h"

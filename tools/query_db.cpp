@@ -3,7 +3,7 @@
 #include "absl/status/status.h"
 
 #include "core/json_utils.h"
-#include "core/tool_executor.h"
+#include "tools/tool_executor.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& args) {
