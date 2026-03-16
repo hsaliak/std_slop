@@ -14,6 +14,11 @@
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
 namespace slop {
+
+namespace {
+constexpr size_t kMaxCachedStatementsPerSql = 8;
+}  // namespace
+
 Database::Statement::~Statement() {
   if (stmt_) {
     db_wrapper_->ReturnStatement(sql_, stmt_);
@@ -93,7 +98,12 @@ void Database::ReturnStatement(const std::string& sql, sqlite3_stmt* stmt) {
   sqlite3_reset(stmt);
   sqlite3_clear_bindings(stmt);
   absl::MutexLock lock(&mu_);
-  stmt_cache_[sql].push_back(stmt);
+  auto& cached = stmt_cache_[sql];
+  if (cached.size() >= kMaxCachedStatementsPerSql) {
+    sqlite3_finalize(stmt);
+    return;
+  }
+  cached.push_back(stmt);
 }
 Database::~Database() {
   absl::MutexLock lock(&mu_);
@@ -114,7 +124,6 @@ absl::Status Database::Init(const std::string& db_path) {
     LOG(ERROR) << "Failed to open database: " << err;
     return absl::InternalError("Failed to open database: " + err);
   }
-  sqlite3_exec(raw_db, "DROP TABLE IF EXISTS code_search;", nullptr, nullptr, nullptr);
   const char* schema = R"(
     CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,6 +203,15 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(raw_db,
                      "CREATE INDEX IF NOT EXISTS idx_messages_session_created_id_desc_nonnull_group ON "
                      "messages(session_id, created_at DESC, id DESC) WHERE group_id IS NOT NULL;",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "CREATE INDEX IF NOT EXISTS idx_messages_session_created_id_not_dropped ON "
+                     "messages(session_id, created_at, id) WHERE status != 'dropped';",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "CREATE INDEX IF NOT EXISTS idx_messages_session_group_created_id_desc_not_dropped ON "
+                     "messages(session_id, group_id, created_at DESC, id DESC) "
+                     "WHERE group_id IS NOT NULL AND status != 'dropped';",
                      nullptr, nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
