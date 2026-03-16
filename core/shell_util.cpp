@@ -27,6 +27,8 @@
 namespace slop {
 
 namespace {
+constexpr int kPollSliceMs = 250;
+
 struct GlobalTerminalState {
   int refcount = 0;
   struct termios oldt;
@@ -142,12 +144,34 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
   };
 
   std::string stdout_str, stderr_str;
+  stdout_str.reserve(4096);
+  stderr_str.reserve(4096);
   std::vector<char> buffer(4096);
   size_t stdin_written = 0;
   bool stdin_open = !input.empty();
   if (!stdin_open) close_fd(stdin_pipe[1]);
 
   auto start_time = std::chrono::steady_clock::now();
+  auto compute_poll_timeout_ms = [&]() {
+    if (timeout_seconds <= 0) {
+      return kPollSliceMs;
+    }
+    auto now = std::chrono::steady_clock::now();
+    int64_t elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+    int64_t timeout_ms = static_cast<int64_t>(timeout_seconds) * 1000;
+    int64_t remaining_ms = timeout_ms - elapsed_ms;
+    if (remaining_ms <= 0) {
+      return 0;
+    }
+    return static_cast<int>(std::min<int64_t>(remaining_ms, kPollSliceMs));
+  };
+
+  std::array<struct pollfd, 3> p_fds = {{
+      {stdout_pipe[0], POLLIN, 0},
+      {stderr_pipe[0], POLLIN, 0},
+      {stdin_pipe[1], POLLOUT, 0},
+  }};
+
   while (stdout_pipe[0] != -1 || stderr_pipe[0] != -1 || stdin_open) {
     if (cancellation && cancellation->IsCancelled()) {
       exit_sig = SIGTERM;
@@ -161,15 +185,25 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
       }
     }
 
-    std::vector<struct pollfd> p_fds = {
-        {stdout_pipe[0], POLLIN, 0},
-        {stderr_pipe[0], POLLIN, 0},
-        {stdin_open ? stdin_pipe[1] : -1, POLLOUT, 0},
-    };
+    p_fds[0].fd = stdout_pipe[0];
+    p_fds[0].events = POLLIN;
+    p_fds[0].revents = 0;
+    p_fds[1].fd = stderr_pipe[0];
+    p_fds[1].events = POLLIN;
+    p_fds[1].revents = 0;
+    p_fds[2].fd = stdin_open ? stdin_pipe[1] : -1;
+    p_fds[2].events = POLLOUT;
+    p_fds[2].revents = 0;
 
-    int ret = poll(p_fds.data(), p_fds.size(), 50);
+    int ret = poll(p_fds.data(), p_fds.size(), compute_poll_timeout_ms());
     if (ret == -1 && errno == EINTR) continue;
-    if (ret <= 0) continue;
+    if (ret == 0) {
+      if (timeout_seconds > 0) {
+        return absl::DeadlineExceededError("Command timed out");
+      }
+      continue;
+    }
+    if (ret < 0) continue;
 
     for (int i = 0; i < 2; ++i) {
       if (p_fds[i].fd != -1 && (p_fds[i].revents & (POLLIN | POLLHUP))) {
