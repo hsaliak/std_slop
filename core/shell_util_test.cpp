@@ -97,4 +97,12 @@ TEST(ShellUtilTest, RunCommandTimeout) {
   EXPECT_EQ(res.status().code(), absl::StatusCode::kDeadlineExceeded);
 }
 
+TEST(ShellUtilTest, RunCommandQuietProcessWithinTimeoutDoesNotFail) {
+  auto res = RunCommand("sleep 1", nullptr, "", 5);
+  ASSERT_TRUE(res.ok());
+  EXPECT_EQ(res->stdout_out, "");
+  EXPECT_EQ(res->stderr_out, "");
+  EXPECT_EQ(res->exit_code, 0);
+}
+
 }  // namespace slop

@@ -197,13 +197,7 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
 
     int ret = poll(p_fds.data(), p_fds.size(), compute_poll_timeout_ms());
     if (ret == -1 && errno == EINTR) continue;
-    if (ret == 0) {
-      if (timeout_seconds > 0) {
-        return absl::DeadlineExceededError("Command timed out");
-      }
-      continue;
-    }
-    if (ret < 0) continue;
+    if (ret <= 0) continue;
 
     for (int i = 0; i < 2; ++i) {
       if (p_fds[i].fd != -1 && (p_fds[i].revents & (POLLIN | POLLHUP))) {
