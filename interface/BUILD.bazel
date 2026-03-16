@@ -129,11 +129,22 @@ cc_library(
         ":interface",
         ":ui",
         "//core",
-        "//core:dispatcher",
+        "//tools:dispatcher",
+        "//tools:runtime",
         "//core:shell_lib",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "app_api",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":interaction_engine",
+        ":interface",
+        ":ui",
     ],
 )
 

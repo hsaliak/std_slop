@@ -36,20 +36,6 @@ cc_library(
 )
 
 cc_library(
- name = "dispatcher",
- srcs = ["tool_dispatcher.cpp"],
- hdrs = ["tool_dispatcher.h"],
- visibility = ["//visibility:public"],
- deps = [
- ":cancellation",
- "@abseil-cpp//absl/log",
- "@abseil-cpp//absl/status",
- "@abseil-cpp//absl/status:statusor",
- "@abseil-cpp//absl/synchronization",
- "@nlohmann_json//:json",],
-)
-
-cc_library(
     name = "json_utils",
     hdrs = ["json_utils.h"],
     visibility = ["//visibility:public"],
@@ -72,24 +58,6 @@ cc_library(
  "orchestrator_gemini.cpp",
  "orchestrator_openai.cpp",
  "orchestrator_openai_responses.cpp",
- "tools/common.cpp",
- "tools/query_db.cpp",
- "tools/read_file.cpp",
- "tools/list_directory.cpp",
- "tools/grep.cpp",
- "tools/git_create_staging_branch.cpp",
- "tools/write_file.cpp",
- "tools/execute_bash.cpp",
- "tools/patch_tool.cpp",
- "tools/git_commit_patch.cpp",
- "tools/git_format_patch_series.cpp",
- "tools/git_reroll_patch.cpp",
- "tools/git_verify_series.cpp",
- "tools/git_finalize_series.cpp",
- "tools/describe_db.cpp",
- "tools/use_skill.cpp",
- "tools/scratchpad.cpp",
- "tool_executor.cpp",
   ],
  hdrs = [
  "config.h",
@@ -103,8 +71,6 @@ cc_library(
  "orchestrator_openai.h",
  "orchestrator_openai_responses.h",
  "orchestrator_strategy.h",
- "tool_executor.h",
- "tools/common.h",
  "constants.h",
  "status_macros.h",
  ":generate_system_prompt",
@@ -119,7 +85,6 @@ cc_library(
  deps = [
         ":json_utils",
  ":cancellation",
- ":dispatcher",
  ":shell_lib",
  "//ini:ini_parser",
  "@sqlite3//:sqlite3",
@@ -136,10 +101,15 @@ cc_library(
  "@abseil-cpp//absl/log:check",
  "@curl//:curl",
  "@nlohmann_json//:json",
- "@abseil-cpp//absl/random",
-        "//interface:terminal",
-        "//interface:renderer",
-        "//interface:color",],
+ "@abseil-cpp//absl/random",],
+)
+
+cc_library(
+ name = "api",
+ visibility = ["//visibility:public"],
+ deps = [
+ ":core",
+ ],
 )
 
 [
@@ -155,9 +125,10 @@ cc_library(
  },
  deps = [
  ":core",
- ":dispatcher",
  ":shell_lib",
  ":cancellation",
+ "//tools:runtime",
+ "//tools:dispatcher",
  "//interface:ui",
  "//interface:color",
  "@sqlite3//:sqlite3",
@@ -191,6 +162,7 @@ cc_test(
  copts = [],
  deps = [
  ":core",
+ "//tools:runtime",
  "//interface",
  "@googletest//:gtest_main",],
 )
@@ -219,7 +191,7 @@ cc_test(
 format_test(
  name = "format_test",
  cc = "//:clang_format_hermetic", # Point back to your root tool
- srcs = glob(["*.cpp", "*.h", "tools/*.cpp", "tools/*.h"]),
+ srcs = glob(["*.cpp", "*.h"]),
 )
 
 

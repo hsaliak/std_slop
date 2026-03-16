@@ -4,7 +4,7 @@
 #include "core/http_client.h"
 #include "core/orchestrator.h"
 #include "core/orchestrator_openai.h"
-#include "core/tool_executor.h"
+#include "tools/tool_executor.h"
 #include "interface/command_handler.h"
 
 #include <gtest/gtest.h>

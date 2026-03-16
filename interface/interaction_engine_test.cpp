@@ -11,7 +11,7 @@
 #include "core/database.h"
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
-#include "core/tool_executor.h"
+#include "tools/tool_executor.h"
 #include "interface/command_handler.h"
 
 #include <gmock/gmock.h>

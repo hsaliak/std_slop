@@ -1,4 +1,4 @@
-#include "core/tool_executor.h"
+#include "tools/tool_executor.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -10,7 +10,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 
-#include "core/tool_dispatcher.h"
+#include "tools/tool_dispatcher.h"
 
 #include <gtest/gtest.h>
 

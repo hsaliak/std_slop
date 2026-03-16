@@ -9,13 +9,12 @@ cc_binary(
     srcs = ["main.cpp"],
     copts = [],
     deps = [
-        "//core",
-        "//core:dispatcher",
+        "//core:api",
         "//core:cancellation",
         "//core:shell_lib",
-        "//interface",
+        "//interface:app_api",
         "//interface:color",
-        "//interface:interaction_engine",
+        "//tools:api",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",
@@ -31,6 +30,24 @@ cc_binary(
         "@nlohmann_json//:json",
         "@sqlite3//:sqlite3",
     ],
+)
+
+cc_library(
+    name = "core_api",
+    visibility = ["//visibility:public"],
+    deps = ["//core:api"],
+)
+
+cc_library(
+    name = "tools_api",
+    visibility = ["//visibility:public"],
+    deps = ["//tools:api"],
+)
+
+cc_library(
+    name = "app_api",
+    visibility = ["//visibility:public"],
+    deps = ["//interface:app_api"],
 )
 
 sh_binary(
@@ -66,6 +83,7 @@ clang_tidy_test(
     name = "clang_tidy_test",
     srcs = [
         "//core",
+        "//tools",
         "//interface",
         ":std_slop",
     ],

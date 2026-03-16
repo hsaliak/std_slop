@@ -9,8 +9,8 @@
 #include "core/http_client.h"
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
-#include "core/tool_dispatcher.h"
-#include "core/tool_executor.h"
+#include "tools/tool_dispatcher.h"
+#include "tools/tool_executor.h"
 #include "interface/command_handler.h"
 
 namespace slop {
