@@ -5,6 +5,7 @@
 #include <sstream>
 #include <thread>
 
+#include "absl/base/call_once.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -20,20 +21,34 @@
 
 namespace slop {
 
+namespace {
+absl::once_flag g_curl_init_once;
+bool g_curl_init_ok = false;
+
+void EnsureCurlGlobalInit() {
+  absl::call_once(g_curl_init_once, []() {
+    g_curl_init_ok = (curl_global_init(CURL_GLOBAL_ALL) == CURLE_OK);
+    if (!g_curl_init_ok) {
+      LOG(ERROR) << "curl_global_init failed";
+    }
+  });
+}
+}  // namespace
+
 // Helper to check SLOP_DEBUG_HTTP environment variable
 inline bool IsDebugHttpEnabled() {
   static bool enabled = (getenv("SLOP_DEBUG_HTTP") != nullptr);
   return enabled;
 }
 
-HttpClient::HttpClient() : max_retries_(5), initial_backoff_ms_(5000) { curl_global_init(CURL_GLOBAL_ALL); }
+HttpClient::HttpClient() : max_retries_(5), initial_backoff_ms_(5000) { EnsureCurlGlobalInit(); }
 
 HttpClient::HttpClient(int max_retries, int64_t initial_backoff_ms)
     : max_retries_(max_retries), initial_backoff_ms_(initial_backoff_ms) {
-  curl_global_init(CURL_GLOBAL_ALL);
+  EnsureCurlGlobalInit();
 }
 
-HttpClient::~HttpClient() { curl_global_cleanup(); }
+HttpClient::~HttpClient() = default;
 
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   static_cast<std::string*>(userp)->append(static_cast<char*>(contents), size * nmemb);
