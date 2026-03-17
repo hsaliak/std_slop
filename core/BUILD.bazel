@@ -12,10 +12,8 @@ genrule(
  "echo '}' >> $@ ",
 )
 
-
 cc_library(
  name = "cancellation",
-
  srcs = ["cancellation.cpp"],
  hdrs = ["cancellation.h"],
  visibility = ["//visibility:public"],
@@ -46,34 +44,14 @@ cc_library(
 )
 
 cc_library(
- name = "core",
+ name = "data",
  srcs = [
- "config.cpp",
  "database.cpp",
- "http_client.cpp",
- "message_parser.cpp",
- "oauth_handler.cpp",
- "openai_utils.cpp",
- "orchestrator.cpp",
- "orchestrator_gemini.cpp",
- "orchestrator_openai.cpp",
- "orchestrator_openai_responses.cpp",
-  ],
+ ],
  hdrs = [
- "config.h",
  "database.h",
- "http_client.h",
- "message_parser.h",
- "oauth_handler.h",
- "openai_utils.h",
- "orchestrator.h",
- "orchestrator_gemini.h",
- "orchestrator_openai.h",
- "orchestrator_openai_responses.h",
- "orchestrator_strategy.h",
  "constants.h",
  "status_macros.h",
- ":generate_system_prompt",
  ],
  visibility = ["//visibility:public"],
 
@@ -81,16 +59,89 @@ cc_library(
  "-DSQLITE_ENABLE_COLUMN_METADATA",
  "-DSQLITE_ENABLE_FTS5",
  ],
+ deps = [
+ ":json_utils",
+ "@sqlite3//:sqlite3",
+ "@abseil-cpp//absl/status",
+ "@abseil-cpp//absl/status:statusor",
+ "@abseil-cpp//absl/strings",
+ "@abseil-cpp//absl/container:flat_hash_map",
+ "@abseil-cpp//absl/container:flat_hash_set",
+ "@abseil-cpp//absl/synchronization",
+ "@abseil-cpp//absl/log",
+ "@nlohmann_json//:json",],
+)
+
+cc_library(
+ name = "transport",
+ srcs = [
+ "http_client.cpp",
+ ],
+ hdrs = [
+ "http_client.h",
+ ],
+ visibility = ["//visibility:public"],
+ deps = [
+ ":json_utils",
+ "@abseil-cpp//absl/container:flat_hash_map",
+ "@abseil-cpp//absl/log",
+ "@abseil-cpp//absl/status",
+ "@abseil-cpp//absl/status:statusor",
+ "@abseil-cpp//absl/strings",
+ "@abseil-cpp//absl/synchronization",
+ "@abseil-cpp//absl/time",
+ "@abseil-cpp//absl/random",
+ "@curl//:curl",
+ "@nlohmann_json//:json",],
+)
+
+cc_library(
+ name = "auth",
+ srcs = [
+ "oauth_handler.cpp",
+ ],
+ hdrs = [
+ "oauth_handler.h",
+ ],
+ visibility = ["//visibility:public"],
+ deps = [
+ ":data",
+ ":transport",
+ ":json_utils",
+ ":shell_lib",
+ "@abseil-cpp//absl/log",
+ "@abseil-cpp//absl/status",
+ "@abseil-cpp//absl/status:statusor",
+ "@abseil-cpp//absl/time",],
+)
+
+cc_library(
+ name = "orchestration",
+ srcs = [
+ "message_parser.cpp",
+ "openai_utils.cpp",
+ "orchestrator.cpp",
+ "orchestrator_gemini.cpp",
+ "orchestrator_openai.cpp",
+ "orchestrator_openai_responses.cpp",
+  ],
+ hdrs = [
+ "message_parser.h",
+ "openai_utils.h",
+ "orchestrator.h",
+ "orchestrator_gemini.h",
+ "orchestrator_openai.h",
+ "orchestrator_openai_responses.h",
+ "orchestrator_strategy.h",
+ ":generate_system_prompt",
+ ],
+ visibility = ["//visibility:public"],
+
  defines = ["HAVE_SYSTEM_PROMPT_H"],
  deps = [
-        ":json_utils",
- ":cancellation",
- ":shell_lib",
- "//ini:ini_parser",
- "@sqlite3//:sqlite3",
- "@abseil-cpp//absl/flags:flag",
- "@abseil-cpp//absl/flags:marshalling",
- "@abseil-cpp//absl/flags:reflection",
+        ":data",
+ ":transport",
+ ":json_utils",
  "@abseil-cpp//absl/status",
  "@abseil-cpp//absl/status:statusor",
  "@abseil-cpp//absl/strings",
@@ -99,16 +150,42 @@ cc_library(
  "@abseil-cpp//absl/container:flat_hash_set",
  "@abseil-cpp//absl/log",
  "@abseil-cpp//absl/log:check",
- "@curl//:curl",
- "@nlohmann_json//:json",
- "@abseil-cpp//absl/random",],
+ "@abseil-cpp//absl/random",
+ "@nlohmann_json//:json",],
+)
+
+cc_library(
+ name = "core",
+ srcs = [
+ "config.cpp",
+ ],
+ hdrs = [
+ "config.h",
+ ],
+ visibility = ["//visibility:public"],
+
+ deps = [
+        ":auth",
+ ":data",
+ ":orchestration",
+ ":shell_lib",
+ ":transport",
+ "//ini:ini_parser",
+ "@abseil-cpp//absl/flags:flag",
+ "@abseil-cpp//absl/flags:marshalling",
+ "@abseil-cpp//absl/flags:reflection",
+ "@abseil-cpp//absl/strings",],
 )
 
 cc_library(
  name = "api",
  visibility = ["//visibility:public"],
  deps = [
+ ":auth",
  ":core",
+ ":data",
+ ":orchestration",
+ ":transport",
  ],
 )
 
@@ -124,7 +201,7 @@ cc_library(
  "SLOP_SKIP_STAGING_CHECK": "1",
  },
  deps = [
- ":core",
+ ":api",
  ":shell_lib",
  ":cancellation",
  "//tools:runtime",
@@ -161,7 +238,7 @@ cc_test(
  srcs = ["check_macro_test.cpp"],
  copts = [],
  deps = [
- ":core",
+ ":api",
  "//tools:runtime",
  "//interface",
  "@googletest//:gtest_main",],
@@ -193,6 +270,3 @@ format_test(
  cc = "//:clang_format_hermetic", # Point back to your root tool
  srcs = glob(["*.cpp", "*.h"]),
 )
-
-
-
