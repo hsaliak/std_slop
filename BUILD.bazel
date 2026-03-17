@@ -83,7 +83,7 @@ clang_tidy_test(
     name = "clang_tidy_test",
     srcs = [
         "//core:api",
-        "//tools",
+        "//tools:api",
         "//interface",
         ":std_slop",
     ],
