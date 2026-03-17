@@ -72,7 +72,7 @@ cc_library(
         ":color",
         ":completer",
         ":command_definitions",
-        "//core",
+        "//core:api",
         "//markdown:parser",
         "//markdown:renderer",
         "@abseil-cpp//absl/base:no_destructor",
@@ -112,7 +112,7 @@ cc_library(
         ":command_definitions",
         "//markdown:parser",
         "//markdown:renderer",
-        "//core",
+        "//core:api",
         "@readline//:readline",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -128,7 +128,7 @@ cc_library(
     deps = [
         ":interface",
         ":ui",
-        "//core",
+        "//core:api",
         "//tools:dispatcher",
         "//tools:runtime",
         "//core:shell_lib",
@@ -155,7 +155,7 @@ cc_library(
         deps = [
             ":interface",
             ":interaction_engine",
-            "//core",
+            "//core:api",
             "@googletest//:gtest_main",
         ],
     )
