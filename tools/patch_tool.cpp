@@ -23,13 +23,13 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
   const bool ignore_whitespace = json_get_or<bool>(in, "ignore_whitespace", true);
 
   if (!path || path->empty()) {
-    return nlohmann::json({{"ok", false}, {"code", "INVALID_ARGUMENT"}, {"error", {"message", "path is required"}}})
-        .dump();
+    return json_dump(
+        nlohmann::json({{"ok", false}, {"code", "INVALID_ARGUMENT"}, {"error", {"message", "path is required"}}}));
   }
   if (!unified_diff || unified_diff->empty()) {
-    return nlohmann::json(
-               {{"ok", false}, {"code", "INVALID_ARGUMENT"}, {"error", {"message", "unified_diff is required"}}})
-        .dump();
+    return json_dump(
+        nlohmann::json(
+            {{"ok", false}, {"code", "INVALID_ARGUMENT"}, {"error", {"message", "unified_diff is required"}}}));
   }
   if (absl::StrContains(*path, "..") || absl::StartsWith(*path, "/")) {
     return absl::PermissionDeniedError("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
@@ -138,11 +138,10 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
 
   const auto hunks = parse_unified_diff(*unified_diff);
   if (hunks.empty()) {
-    return nlohmann::json({{"ok", false},
-                           {"path", *path},
-                           {"code", "PATCH_PARSE_FAILED"},
-                           {"error", {{"message", "No valid hunks found in unified_diff"}}}})
-        .dump();
+    return json_dump(nlohmann::json({{"ok", false},
+                                     {"path", *path},
+                                     {"code", "PATCH_PARSE_FAILED"},
+                                     {"error", {{"message", "No valid hunks found in unified_diff"}}}}));
   }
 
   std::ifstream file_in(*path, std::ios::binary);
@@ -197,15 +196,14 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
     const auto new_lines = new_from_ops(hunks[h].ops);
     const int at = find_hunk_start(working_lines, old_lines, cursor);
     if (at < 0) {
-      return nlohmann::json({{"ok", false},
-                             {"path", *path},
-                             {"code", "PATCH_DRY_RUN_FAILED"},
-                             {"unified_diff", *unified_diff},
-                             {"error",
-                              {{"message", "Unable to match hunk in target file"},
-                               {"detail", hunks[h].header},
-                               {"hunk_index", static_cast<int>(h)}}}})
-          .dump();
+      return json_dump(nlohmann::json({{"ok", false},
+                                       {"path", *path},
+                                       {"code", "PATCH_DRY_RUN_FAILED"},
+                                       {"unified_diff", *unified_diff},
+                                       {"error",
+                                        {{"message", "Unable to match hunk in target file"},
+                                         {"detail", hunks[h].header},
+                                         {"hunk_index", static_cast<int>(h)}}}}));
     }
     working_lines.erase(working_lines.begin() + at, working_lines.begin() + at + static_cast<int>(old_lines.size()));
     working_lines.insert(working_lines.begin() + at, new_lines.begin(), new_lines.end());
@@ -213,14 +211,13 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
   }
 
   if (dry_run) {
-    return nlohmann::json({{"ok", true},
-                           {"mode", "dry_run"},
-                           {"path", *path},
-                           {"can_apply", true},
-                           {"applied", static_cast<int>(hunks.size())},
-                           {"unified_diff", *unified_diff},
-                           {"options", {{"ignore_whitespace", ignore_whitespace}}}})
-        .dump();
+    return json_dump(nlohmann::json({{"ok", true},
+                                     {"mode", "dry_run"},
+                                     {"path", *path},
+                                     {"can_apply", true},
+                                     {"applied", static_cast<int>(hunks.size())},
+                                     {"unified_diff", *unified_diff},
+                                     {"options", {{"ignore_whitespace", ignore_whitespace}}}}));
   }
 
   std::string final_text = absl::StrJoin(working_lines, "\n");
@@ -234,13 +231,12 @@ absl::StatusOr<std::string> ToolExecutor::HandlePatchTool(const nlohmann::json& 
     return absl::InternalError("IO_ERROR: Failed to write to file");
   }
 
-  return nlohmann::json({{"ok", true},
-                         {"mode", "apply"},
-                         {"path", *path},
-                         {"applied", static_cast<int>(hunks.size())},
-                         {"unified_diff", *unified_diff},
-                         {"options", {{"ignore_whitespace", ignore_whitespace}}}})
-      .dump();
+  return json_dump(nlohmann::json({{"ok", true},
+                                   {"mode", "apply"},
+                                   {"path", *path},
+                                   {"applied", static_cast<int>(hunks.size())},
+                                   {"unified_diff", *unified_diff},
+                                   {"options", {{"ignore_whitespace", ignore_whitespace}}}}));
 }
 
 }  // namespace slop

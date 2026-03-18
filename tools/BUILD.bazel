@@ -96,6 +96,21 @@ cc_test(
 )
 
 cc_test(
+    name = "patch_tool_fuzz_test",
+    srcs = ["patch_tool_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "db_tool_args_fuzz_test",
     srcs = ["db_tool_args_fuzz_test.cpp"],
     copts = [
