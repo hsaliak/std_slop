@@ -223,7 +223,7 @@ int main(int argc, char* argv[]) {
       resolved_openai_base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
     }
     builder.WithProvider(slop::Orchestrator::Provider::OPENAI)
-        .WithModel(!model.empty() ? model : "gpt-5.1-codex-mini:high")
+        .WithModel(!model.empty() ? model : "gpt-5.4-mini:high")
         .WithBaseUrl(resolved_openai_base_url)
         .WithOpenAiApiStyle(openai_responses ? slop::Orchestrator::OpenAiApiStyle::RESPONSES
                                              : slop::Orchestrator::OpenAiApiStyle::CHAT_COMPLETIONS);
