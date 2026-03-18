@@ -44,10 +44,24 @@ jobs:
             bazel-disk-${{ matrix.os }}-
 
       - name: Bazel Test
+        shell: bash
         run: |
+          set -o pipefail
           bazel test //... \
             --repository_cache=~/.cache/bazel-repo \
-            --disk_cache=~/.cache/bazel-disk
+            --disk_cache=~/.cache/bazel-disk \
+            2>&1 | tee bazel-test.log
+
+      - name: Upload Bazel Failure Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bazel-test-logs-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            bazel-test.log
+            bazel-testlogs/**/test.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Build Optimized Binary
         if: startsWith(github.ref, 'refs/tags/v')
