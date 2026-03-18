@@ -26,6 +26,10 @@ absl::Status RequireNamedBranch(const std::string& branch, const std::string& co
 absl::Status AssertCleanWorkspace();
 std::string CanonicalStagingBranch(const std::string& branch);
 
+absl::Status ValidateReadFileArgs(const nlohmann::json& args);
+absl::Status ValidateQueryDbArgs(const nlohmann::json& args);
+absl::Status ValidateExecuteBashArgs(const nlohmann::json& args);
+
 }  // namespace slop
 
 #endif  // SLOP_CORE_TOOLS_COMMON_H_

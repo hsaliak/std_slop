@@ -9,19 +9,15 @@
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json& args) const {
+  RETURN_IF_ERROR(ValidateExecuteBashArgs(args));
   RETURN_IF_ERROR(MaybeEnforceMailStagingGuard(mail_mode_));
   constexpr int kDefaultTimeoutSeconds = 180;
 
   auto command = json_get<std::string>(args, "command");
-  if (!command) {
-    return absl::InvalidArgumentError("Invalid arguments: command is required and must be a string");
-  }
+  CHECK(command.has_value());
 
   const bool allow_nonzero_exit = json_get_or<bool>(args, "allow_nonzero_exit", false);
   const int timeout_seconds = json_get_or<int>(args, "timeout_seconds", kDefaultTimeoutSeconds);
-  if (timeout_seconds < 0) {
-    return absl::InvalidArgumentError("Invalid arguments: timeout_seconds must be >= 0");
-  }
 
   std::string command_to_run = *command;
   if (auto cwd = json_get<std::string>(args, "cwd"); cwd && !cwd->empty()) {

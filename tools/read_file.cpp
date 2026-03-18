@@ -13,13 +13,9 @@
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleReadFile(const nlohmann::json& args) {
+  RETURN_IF_ERROR(ValidateReadFileArgs(args));
   auto path = json_get<std::string>(args, "path");
-  if (!path || path->empty()) {
-    return absl::InvalidArgumentError("Missing mandatory field: path");
-  }
-  if (absl::StrContains(*path, "..") || (!path->empty() && (*path)[0] == '/')) {
-    return absl::PermissionDeniedError("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
-  }
+  CHECK(path.has_value());
 
   ASSIGN_OR_RETURN(auto start_opt, ParseOptionalInteger(args, "start_line"));
   ASSIGN_OR_RETURN(auto end_opt, ParseOptionalInteger(args, "end_line"));
@@ -37,12 +33,9 @@ absl::StatusOr<std::string> ToolExecutor::HandleReadFile(const nlohmann::json& a
 
   const int start_line = start_opt.has_value() ? *start_opt : 1;
   const int end_line = end_opt.has_value() ? *end_opt : static_cast<int>(lines.size());
-  if (start_line > end_line) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("start_line (", start_line, ") cannot be greater than end_line (", end_line, ")"));
-  }
   if (start_line > static_cast<int>(lines.size())) {
-    return std::string();
+    return absl::InvalidArgumentError(
+        absl::StrCat("start_line (", start_line, ") exceeds file length (", lines.size(), ")"));
   }
 
   const bool line_numbers = json_get_or<bool>(args, "line_numbers", false);

@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@aspect_rules_lint//format:defs.bzl", "format_test")
 
 format_test(
@@ -77,5 +77,50 @@ cc_library(
     deps = [
         ":dispatcher",
         ":runtime",
+    ],
+)
+
+cc_test(
+    name = "file_tool_args_fuzz_test",
+    srcs = ["file_tool_args_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "db_tool_args_fuzz_test",
+    srcs = ["db_tool_args_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "exec_tool_args_fuzz_test",
+    srcs = ["exec_tool_args_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
     ],
 )

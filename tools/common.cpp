@@ -128,4 +128,63 @@ std::string CanonicalStagingBranch(const std::string& branch) {
   return absl::StrCat(kPrefix, out);
 }
 
+absl::Status ValidateReadFileArgs(const nlohmann::json& args) {
+  if (!args.is_object()) {
+    return absl::InvalidArgumentError("Arguments must be a JSON object");
+  }
+  auto path = json_get<std::string>(args, "path");
+  if (!path || path->empty()) {
+    return absl::InvalidArgumentError("Missing mandatory field: path");
+  }
+  if (absl::StrContains(*path, "..") || (!path->empty() && (*path)[0] == '/')) {
+    return absl::PermissionDeniedError("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
+  }
+
+  ASSIGN_OR_RETURN(auto start_opt, ParseOptionalInteger(args, "start_line"));
+  ASSIGN_OR_RETURN(auto end_opt, ParseOptionalInteger(args, "end_line"));
+  if (start_opt.has_value() && end_opt.has_value() && *start_opt > *end_opt) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("start_line (", *start_opt, ") cannot be greater than end_line (", *end_opt, ")"));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ValidateQueryDbArgs(const nlohmann::json& args) {
+  if (!args.is_object()) {
+    return absl::InvalidArgumentError("Arguments must be a JSON object");
+  }
+  auto sql = json_get<std::string>(args, "sql");
+  if (!sql) {
+    return absl::InvalidArgumentError("'sql' must be a string");
+  }
+
+  if (const auto* params = json_at(args, "params"); params && !params->is_array()) {
+    return absl::InvalidArgumentError("'params' must be an array when present");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ValidateExecuteBashArgs(const nlohmann::json& args) {
+  if (!args.is_object()) {
+    return absl::InvalidArgumentError("Arguments must be a JSON object");
+  }
+  auto command = json_get<std::string>(args, "command");
+  if (!command || command->empty()) {
+    return absl::InvalidArgumentError("Missing mandatory field: command");
+  }
+
+  ASSIGN_OR_RETURN(auto timeout_opt, ParseOptionalInteger(args, "timeout_seconds"));
+  if (timeout_opt.has_value() && *timeout_opt < 0) {
+    return absl::InvalidArgumentError("timeout_seconds must be >= 0");
+  }
+
+  if (const auto* allow_nonzero = json_at(args, "allow_nonzero_exit"); allow_nonzero && !allow_nonzero->is_boolean()) {
+    return absl::InvalidArgumentError("allow_nonzero_exit must be a boolean");
+  }
+  if (const auto* cwd = json_at(args, "cwd"); cwd && !cwd->is_string()) {
+    return absl::InvalidArgumentError("cwd must be a string");
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace slop

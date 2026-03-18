@@ -3,21 +3,19 @@
 #include "absl/status/status.h"
 
 #include "core/json_utils.h"
+#include "core/status_macros.h"
+#include "tools/common.h"
 #include "tools/tool_executor.h"
 
 namespace slop {
 absl::StatusOr<std::string> ToolExecutor::HandleQueryDb(const nlohmann::json& args) {
+  RETURN_IF_ERROR(ValidateQueryDbArgs(args));
   if (!db_) {
     return absl::FailedPreconditionError("Database not initialized");
   }
-  if (!args.is_object()) {
-    return absl::InvalidArgumentError("Arguments must be a JSON object");
-  }
 
   auto sql = json_get<std::string>(args, "sql");
-  if (!sql) {
-    return absl::InvalidArgumentError("'sql' must be a string");
-  }
+  CHECK(sql.has_value());
 
   std::vector<std::string> params;
   if (auto p_array = json_get<nlohmann::json::array_t>(args, "params")) {
