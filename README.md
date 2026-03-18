@@ -101,6 +101,7 @@ See [docs/example_config.ini](docs/example_config.ini) for a full list of option
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
+- **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
 ## 🏗️ Architecture & Codebase Layout
