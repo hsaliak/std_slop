@@ -96,6 +96,51 @@ cc_test(
 )
 
 cc_test(
+    name = "dispatcher_executor_boundary_fuzz_test",
+    srcs = ["dispatcher_executor_boundary_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "grep_tool_fuzz_test",
+    srcs = ["grep_tool_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "path_range_tools_fuzz_test",
+    srcs = ["path_range_tools_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "patch_tool_fuzz_test",
     srcs = ["patch_tool_fuzz_test.cpp"],
     copts = [
