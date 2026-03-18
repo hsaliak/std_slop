@@ -11,7 +11,7 @@ ToolDispatcher::ToolDispatcher(ToolFunc executor_func) : executor_func_(std::mov
 ToolDispatcher::~ToolDispatcher() {
   std::vector<std::thread> threads_to_join;
   {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     threads_to_join.reserve(threads_.size());
     for (auto& jt : threads_) {
       threads_to_join.push_back(std::move(jt.thread));
@@ -61,7 +61,7 @@ std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_pt
 
   std::vector<std::thread> threads_to_join;
   {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     threads_to_join.reserve(threads_.size());
     PruneThreads(&threads_to_join);
     threads_.push_back({std::thread(std::move(task)), job});

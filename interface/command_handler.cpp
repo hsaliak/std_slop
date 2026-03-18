@@ -24,6 +24,7 @@
 #include "core/orchestrator.h"
 #include "core/shell_util.h"
 #include "interface/command_definitions.h"
+#include "interface/input_parsing.h"
 #include "interface/ui.h"
 namespace slop {
 namespace {
@@ -150,14 +151,13 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
                                               std::vector<std::string>& active_skills,
                                               std::function<void()> show_help_fn,
                                               const std::vector<std::string>& selected_groups) {
-  std::string trimmed = std::string(absl::StripLeadingAsciiWhitespace(input));
-  if (trimmed.empty()) return Result::NOT_A_COMMAND;
-  if (trimmed[0] != '/') {
+  ParsedCommand parsed = ParseCommandInput(input);
+  if (!parsed.is_command) {
     return Result::NOT_A_COMMAND;
   }
-  std::vector<std::string> parts = absl::StrSplit(trimmed, absl::MaxSplits(' ', 1));
-  std::string cmd = parts[0];
-  std::string args_str = (parts.size() > 1) ? parts[1] : "";
+
+  std::string cmd = std::move(parsed.command);
+  std::string args_str = std::move(parsed.args);
   auto it = commands_.find(cmd);
   if (it != commands_.end()) {
     LOG(INFO) << "Dispatching command: " << cmd << " (args: " << args_str << ")";

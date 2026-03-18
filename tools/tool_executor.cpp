@@ -132,7 +132,7 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
 }
 
 void ToolExecutor::InvalidateActiveSkillsCache() {
-  absl::MutexLock lock(&active_skills_mu_);
+  absl::MutexLock lock(active_skills_mu_);
   active_skills_cache_valid_ = false;
   active_skills_cache_session_id_.clear();
   active_skills_cache_.clear();
@@ -146,7 +146,7 @@ void ToolExecutor::RefreshActiveSkillsCacheIfNeeded() {
   }
 
   {
-    absl::MutexLock lock(&active_skills_mu_);
+    absl::MutexLock lock(active_skills_mu_);
     if (active_skills_cache_valid_ && active_skills_cache_session_id_ == session_id_) return;
   }
 
@@ -154,7 +154,7 @@ void ToolExecutor::RefreshActiveSkillsCacheIfNeeded() {
   std::vector<std::string> active_skills = skills_or.ok() ? *skills_or : std::vector<std::string>{};
   absl::flat_hash_set<std::string> active_skill_set(active_skills.begin(), active_skills.end());
 
-  absl::MutexLock lock(&active_skills_mu_);
+  absl::MutexLock lock(active_skills_mu_);
   active_skills_cache_valid_ = true;
   active_skills_cache_session_id_ = session_id_;
   active_skills_cache_ = std::move(active_skills);
@@ -178,14 +178,14 @@ void ToolExecutor::SetMailMode(bool enabled) {
 
 bool ToolExecutor::IsSkillActive(const std::string& name) {
   RefreshActiveSkillsCacheIfNeeded();
-  absl::MutexLock lock(&active_skills_mu_);
+  absl::MutexLock lock(active_skills_mu_);
   if (!active_skills_cache_valid_) return false;
   return active_skills_cache_set_.contains(name);
 }
 
 std::vector<std::string> ToolExecutor::GetActiveSkills() {
   RefreshActiveSkillsCacheIfNeeded();
-  absl::MutexLock lock(&active_skills_mu_);
+  absl::MutexLock lock(active_skills_mu_);
   if (!active_skills_cache_valid_) {
     return {};
   }

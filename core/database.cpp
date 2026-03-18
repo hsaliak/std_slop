@@ -78,7 +78,7 @@ int Database::Statement::ColumnType(int index) { return sqlite3_column_type(stmt
 const char* Database::Statement::ColumnName(int index) { return sqlite3_column_name(stmt_, index); }
 int Database::Statement::ColumnCount() { return sqlite3_column_count(stmt_); }
 absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std::string& sql) {
-  absl::MutexLock lock(&mu_);
+  absl::MutexLock lock(mu_);
   sqlite3_stmt* raw_stmt = nullptr;
   auto it = stmt_cache_.find(sql);
   if (it != stmt_cache_.end() && !it->second.empty()) {
@@ -97,7 +97,7 @@ absl::StatusOr<std::unique_ptr<Database::Statement>> Database::Prepare(const std
 void Database::ReturnStatement(const std::string& sql, sqlite3_stmt* stmt) {
   sqlite3_reset(stmt);
   sqlite3_clear_bindings(stmt);
-  absl::MutexLock lock(&mu_);
+  absl::MutexLock lock(mu_);
   auto& cached = stmt_cache_[sql];
   if (cached.size() >= kMaxCachedStatementsPerSql) {
     sqlite3_finalize(stmt);
@@ -106,7 +106,7 @@ void Database::ReturnStatement(const std::string& sql, sqlite3_stmt* stmt) {
   cached.push_back(stmt);
 }
 Database::~Database() {
-  absl::MutexLock lock(&mu_);
+  absl::MutexLock lock(mu_);
   for (auto& pair : stmt_cache_) {
     for (sqlite3_stmt* stmt : pair.second) {
       sqlite3_finalize(stmt);
@@ -235,7 +235,7 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(raw_db, "INSERT OR IGNORE INTO settings (id, mode) VALUES (1, 'standard');", nullptr, nullptr,
                      nullptr);
   {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     db_.reset(raw_db);
   }
 

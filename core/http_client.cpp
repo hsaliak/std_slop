@@ -94,7 +94,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
                                                          const std::string& body,
                                                          const std::vector<std::string>& headers) {
   {
-    absl::MutexLock lock(&abort_mutex_);
+    absl::MutexLock lock(abort_mutex_);
     abort_requested_.store(false);
   }
   int retry_count = 0;
@@ -211,14 +211,14 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
 void HttpClient::Abort() {
   {
-    absl::MutexLock lock(&abort_mutex_);
+    absl::MutexLock lock(abort_mutex_);
     abort_requested_.store(true);
   }
   abort_cv_.SignalAll();
 }
 
 void HttpClient::CancellableSleep(int64_t wait_ms) {
-  absl::MutexLock lock(&abort_mutex_);
+  absl::MutexLock lock(abort_mutex_);
   auto deadline = absl::Now() + absl::Milliseconds(wait_ms);
   while (!abort_requested_.load() && absl::Now() < deadline) {
     abort_cv_.WaitWithDeadline(&abort_mutex_, deadline);

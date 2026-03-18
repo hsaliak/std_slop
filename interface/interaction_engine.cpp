@@ -119,7 +119,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
   auto install_ask_user_handler = [&](AskState& ask_state) {
     tool_executor_.SetAskUserHandler([&ask_state](const std::string& prompt) -> std::string {
-      absl::MutexLock lock(&ask_state.mutex);
+      absl::MutexLock lock(ask_state.mutex);
       ask_state.prompt = prompt;
       ask_state.asking_user = true;
       ask_state.mutex.Await(absl::Condition(
@@ -133,7 +133,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                                           const std::function<void()>& after_read) -> bool {
     std::string current_prompt;
     {
-      absl::MutexLock lock(&ask_state.mutex);
+      absl::MutexLock lock(ask_state.mutex);
       if (!ask_state.asking_user) {
         return false;
       }
@@ -154,7 +154,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     }
 
     {
-      absl::MutexLock lock(&ask_state.mutex);
+      absl::MutexLock lock(ask_state.mutex);
       ask_state.response = response;
       ask_state.asking_user = false;
     }

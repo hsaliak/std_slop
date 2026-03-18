@@ -26,18 +26,18 @@ class ToolJob {
   ToolJob(const std::string& id, const std::string& name) : id_(id), name_(name) {}
 
   bool IsReady() {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     return ready_;
   }
 
   absl::StatusOr<std::string> Wait() {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     mu_.Await(absl::Condition(&ready_));
     return result_;
   }
 
   void SetResult(absl::StatusOr<std::string> res) {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     result_ = std::move(res);
     ready_ = true;
   }

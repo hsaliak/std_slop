@@ -3,8 +3,8 @@ build --cxxopt=-std=c++17
 build --cxxopt=-fno-exceptions
 build --features=-use_header_modules
 build --macos_minimum_os=10.15
-build --@curl//:http_only=False
-build --@curl//:use_mbedtls=True
+# NOTE: Do not pin curl build settings here; module upgrades may rename/remove
+# those build settings and break all Bazel invocations at analysis time.
 build --cxxopt="-Wall" --cxxopt="-Wextra" --cxxopt="-Werror"
 build --cxxopt="-Werror=unused-function"
 build --copt="-O2"
@@ -67,6 +67,11 @@ build --enable_platform_specific_config
 # 6. Per-file handling for external repos
 # Use the common Clang flag -Wno-uninitialized which works for most cases
 build --per_file_copt="external/.*@-Wno-uninitialized"
+build --per_file_copt="external/.*@-Wno-unused-parameter"
+build --per_file_copt="external/.*@-Wno-sign-compare"
+build --per_file_copt="external/.*@-Wno-deprecated-declarations"
+build --per_file_copt="external/.*@-Wno-missing-field-initializers"
+build --per_file_copt="external/.*@-Wno-unused-function"
 # Use the GCC-specific one only for GCC
 build:gcc --per_file_copt="external/.*@-Wno-maybe-uninitialized"
 

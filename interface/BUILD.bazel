@@ -93,6 +93,16 @@ cc_library(
 )
 
 cc_library(
+    name = "input_parsing",
+    srcs = ["input_parsing.cpp"],
+    hdrs = ["input_parsing.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "interface",
     srcs = [
         "command_handler.cpp",
@@ -108,6 +118,7 @@ cc_library(
         ":terminal",
         ":color",
         ":completer",
+        ":input_parsing",
         ":ui",
         ":command_definitions",
         "//markdown:parser",
@@ -168,3 +179,18 @@ cc_library(
         "interaction_engine_test",
     ]
 ]
+
+cc_test(
+    name = "input_parsing_fuzz_test",
+    srcs = ["input_parsing_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":input_parsing",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)

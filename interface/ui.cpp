@@ -448,7 +448,7 @@ void DisplayAssembledContext(const std::string& json_str) { SmartDisplay(FormatA
 
 void PrintAssistantMessage(const std::string& content, const std::string& prefix, int tokens) {
   if (content.empty()) return;
-  absl::MutexLock lock(&g_ui_mu);
+  absl::MutexLock lock(g_ui_mu);
   std::string rendered;
   Renderer::Get().RenderMarkdown(content, "", &rendered);
   PrintStyledBlock(rendered, prefix + "    ", ansi::Assistant);
@@ -473,7 +473,7 @@ std::string FlattenJsonArgs(const std::string& json_str) {
   return absl::StrJoin(parts, " | ");
 }
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix, int tokens) {
-  absl::MutexLock lock(&g_ui_mu);
+  absl::MutexLock lock(g_ui_mu);
   std::string display_args = FlattenJsonArgs(args);
   if (display_args.length() > 60) {
     display_args = display_args.substr(0, 57) + "...";
@@ -487,7 +487,7 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
 }
 void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result,
                             const std::string& status, const std::string& prefix) {
-  absl::MutexLock lock(&g_ui_mu);
+  absl::MutexLock lock(g_ui_mu);
   // Split into stdout and stderr
   std::string stdout_part = result;
   std::string stderr_part;

@@ -15,7 +15,7 @@ TEST(ToolDispatcherTest, ParallelExecution) {
   auto executor_func = [&](const std::string& name, const nlohmann::json& /*args*/,
                            std::shared_ptr<CancellationRequest> /*cancellation*/) {
     {
-      absl::MutexLock lock(&mu);
+      absl::MutexLock lock(mu);
       call_count++;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

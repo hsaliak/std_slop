@@ -265,6 +265,36 @@ cc_test(
  "@googletest//:gtest_main",],
 )
 
+cc_test(
+ name = "message_parser_fuzz_test",
+ srcs = ["message_parser_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ ":orchestration",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",],
+)
+
+cc_test(
+ name = "openai_utils_fuzz_test",
+ srcs = ["openai_utils_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ ":orchestration",
+ ":data",
+ ":transport",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",],
+)
+
 format_test(
  name = "format_test",
  cc = "//:clang_format_hermetic", # Point back to your root tool
