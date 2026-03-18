@@ -323,6 +323,22 @@ cc_test(
  "@googletest//:gtest",],
 )
 
+cc_test(
+ name = "orchestrator_normalization_fuzz_test",
+ srcs = ["orchestrator_normalization_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ ":orchestration",
+ ":data",
+ ":transport",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",],
+)
+
 format_test(
  name = "format_test",
  cc = "//:clang_format_hermetic", # Point back to your root tool
