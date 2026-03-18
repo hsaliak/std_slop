@@ -1,3 +1,9 @@
+## v0.16 - 2026-03-17
+- **Tooling split and API cleanup**: Moved the tool executor/dispatcher and built-in tool handlers out of `core/` into top-level `tools/`, then rewired the root, interface, and core build graph around new façade targets and shared dependencies.
+- **Fuzzing coverage expansion**: Added FuzzTest targets for core JSON helpers, dispatcher validation, orchestrator normalization, tool-argument validation, and interface input parsing to harden boundary code against malformed input.
+- **OpenAI default model update**: Bumped the default OpenAI model to `gpt-5.4-mini:high` for both standard OpenAI usage and Responses API routing.
+- **Docs and contributor guidance**: Added a dedicated fuzzing guide, linked it from the README, and tightened AGENTS.md guidance around JSON helpers, validation boundaries, and test selection.
+
 ## v0.15.4 - 2026-03-12
 - **Runtime and network efficiency improvements**: Reduced shell command polling overhead with bounded poll slices and reusable `pollfd` storage, reused fenced-block Markdown parsers during injection parsing, and moved libcurl global setup to a process-wide `absl::call_once` path.
 - **Database history-path performance and safety**: Added targeted SQLite indexes for conversation-history and grouped-message lookups, capped prepared-statement cache growth, and removed destructive startup cleanup of the `code_search` table.
