@@ -8,6 +8,19 @@ namespace slop {
 
 ToolDispatcher::ToolDispatcher(ToolFunc executor_func) : executor_func_(std::move(executor_func)) {}
 
+absl::Status ToolDispatcher::ValidateCall(const Call& call) {
+  if (call.id.empty()) {
+    return absl::InvalidArgumentError("Tool call id must be non-empty");
+  }
+  if (call.name.empty()) {
+    return absl::InvalidArgumentError("Tool call name must be non-empty");
+  }
+  if (call.args.is_discarded()) {
+    return absl::InvalidArgumentError("Tool call args cannot be discarded JSON");
+  }
+  return absl::OkStatus();
+}
+
 ToolDispatcher::~ToolDispatcher() {
   std::vector<std::thread> threads_to_join;
   {
@@ -44,7 +57,15 @@ void ToolDispatcher::PruneThreads(std::vector<std::thread>* threads_to_join) {
 
 std::shared_ptr<ToolJob> ToolDispatcher::Submit(const Call& call, std::shared_ptr<CancellationRequest> cancellation,
                                                 int64_t delay_ms) {
+  absl::Status validation = ValidateCall(call);
+  if (!cancellation) cancellation = std::make_shared<CancellationRequest>();
+
   auto job = std::make_shared<ToolJob>(call.id, call.name);
+  if (!validation.ok()) {
+    job->SetResult(validation);
+    return job;
+  }
+
   auto task = [job, cancellation, this, call, delay_ms]() {
     if (delay_ms > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));

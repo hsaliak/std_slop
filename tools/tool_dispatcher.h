@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "nlohmann/json.hpp"
@@ -78,6 +79,9 @@ class ToolDispatcher {
    */
   explicit ToolDispatcher(ToolFunc executor_func);
   ~ToolDispatcher();
+
+  // Validates a call before enqueueing it for execution.
+  static absl::Status ValidateCall(const Call& call);
 
   /**
    * @brief Submits a single tool call for background execution.

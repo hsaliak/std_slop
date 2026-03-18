@@ -295,6 +295,34 @@ cc_test(
  "@googletest//:gtest",],
 )
 
+cc_test(
+ name = "json_utils_fuzz_test",
+ srcs = ["json_utils_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ ":json_utils",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",],
+)
+
+cc_test(
+ name = "tool_dispatcher_validation_fuzz_test",
+ srcs = ["tool_dispatcher_validation_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ "//tools:dispatcher",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",],
+)
+
 format_test(
  name = "format_test",
  cc = "//:clang_format_hermetic", # Point back to your root tool
