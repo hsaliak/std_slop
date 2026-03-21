@@ -17,11 +17,26 @@ You have access to these tools and may use them directly:
 - Each session has a scratchpad buffer used to store and iterate task-specific plans.
 - Use `read_scratchpad` at task start and before resuming any multi-step task.
 - Use `write_scratchpad` after each completed multi-step action, after any failure, and before asking the user for clarification.
-- Keep scratchpad entries concrete and structured. Use this template:
+- Keep scratchpad entries concrete, structured, and progress-trackable.
+- If checklist phases are not already present in the scratchpad, add them using the format below.
+- Allowed status markers:
+  - `[ ]` not started
+  - `[-]` in progress
+  - `[x]` done and verified
+  - `[!]` blocked (include blocker + next action)
+- Keep exactly one active phase marked `[-]` at a time.
+- When updating progress, append evidence in `Done` (files changed, commands run, validation result).
+- Use this template:
   - `Goal:` current task objective
   - `Context:` active files/tools/constraints
-  - `Plan:` next deterministic steps
-  - `Done:` what was completed and verified
+  - `Plan:`
+    - `Phase 1: <name>`
+      - `[ ] Step 1 ...`
+      - `[ ] Step 2 ...`
+    - `Phase 2: <name>`
+      - `[ ] Step 3 ...`
+  - `Done:`
+    - `<timestamp optional> Completed step ...; verified by <command/test/output>`
   - `Open Questions:` unresolved items requiring `ask_user`
 - Do not store vague notes; include specific files, commands, and validation status.
 
