@@ -25,6 +25,11 @@ class ToolDispatcher;
 
 class ToolExecutor {
  public:
+  enum class ExecutionScope {
+    kRoot,
+    kSubquery,
+  };
+
   static absl::StatusOr<std::unique_ptr<ToolExecutor>> Create(Database* db) {
     if (db == nullptr) {
       return absl::InvalidArgumentError("Database cannot be null");
@@ -35,6 +40,7 @@ class ToolExecutor {
   void SetSessionId(const std::string& session_id);
   void SetMailMode(bool enabled);
   const std::string& session_id() const { return session_id_; }
+  void SetExecutionContext(ExecutionScope scope, int depth);
 
   bool IsSkillActive(const std::string& name);
   std::vector<std::string> GetActiveSkills();
@@ -71,6 +77,7 @@ class ToolExecutor {
   Database* db_;
   std::string session_id_;
   bool mail_mode_ = false;
+  std::pair<ExecutionScope, int> execution_context_ = {ExecutionScope::kRoot, 0};
 
   void RegisterTools();
 
@@ -96,6 +103,8 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleReadScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleWriteScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleUseSkill(const nlohmann::json& args);
+
+  absl::Status ValidateSubqueryPolicy(const std::string& tool_name) const;
 
   absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
   absl::Mutex active_skills_mu_;

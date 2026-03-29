@@ -115,6 +115,8 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   if (IsDebugToolsEnabled()) {
     LOG(INFO) << "[tool_debug] Execute name=" << name << " args_keys=" << JsonKeys(args);
   }
+  RETURN_IF_ERROR(ValidateSubqueryPolicy(name));
+
   auto it = dispatch_map_.find(name);
   if (it != dispatch_map_.end()) {
     auto res = it->second(args, cancellation);
@@ -174,6 +176,26 @@ void ToolExecutor::SetMailMode(bool enabled) {
     (void)db_->Query(enabled ? "UPDATE settings SET mode = 'mail' WHERE id = 1"
                              : "UPDATE settings SET mode = 'standard' WHERE id = 1");
   }
+}
+
+void ToolExecutor::SetExecutionContext(ExecutionScope scope, int depth) { execution_context_ = {scope, depth}; }
+
+absl::Status ToolExecutor::ValidateSubqueryPolicy(const std::string& tool_name) const {
+  const auto [scope, depth] = execution_context_;
+  if (depth > 1) {
+    return absl::InvalidArgumentError(
+        "Subquery policy violation: execution_depth must be <= 1 for llm_query specializations");
+  }
+
+  if (scope != ExecutionScope::kSubquery) {
+    return absl::OkStatus();
+  }
+
+  if (tool_name == "llm_query" || absl::StartsWith(tool_name, "llm_tool.")) {
+    return absl::InvalidArgumentError(absl::StrCat("Subquery policy violation: tool '", tool_name,
+                                                   "' is not allowed in subquery scope"));
+  }
+  return absl::OkStatus();
 }
 
 bool ToolExecutor::IsSkillActive(const std::string& name) {

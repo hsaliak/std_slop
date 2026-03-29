@@ -798,4 +798,71 @@ TEST(ToolExecutorTest, WriteScratchpadRequiresContent) {
   EXPECT_EQ(write_res.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(ToolExecutorTest, SubqueryScopeRejectsLlmQueryCalls) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
+  auto res = executor.Execute("llm_query", {{"query", "hi"}});
+
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "not allowed in subquery scope"));
+}
+
+TEST(ToolExecutorTest, SubqueryScopeRejectsSpecializationCalls) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.RegisterTool("llm_tool.reviewer", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
+    return absl::StatusOr<std::string>("ok");
+  });
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
+  auto res = executor.Execute("llm_tool.reviewer", nlohmann::json::object());
+
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "not allowed in subquery scope"));
+}
+
+TEST(ToolExecutorTest, RootScopeAllowsSpecializationCalls) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.RegisterTool("llm_tool.researcher", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
+    return absl::StatusOr<std::string>("ok");
+  });
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kRoot, 0);
+  auto res = executor.Execute("llm_tool.researcher", nlohmann::json::object());
+
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_EQ(EnvelopeResultText(*res), "ok");
+}
+
+TEST(ToolExecutorTest, DepthGreaterThanOneRejected) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 2);
+  auto res = executor.Execute("list_directory", {{"path", "."}});
+
+  ASSERT_FALSE(res.ok());
+  EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "execution_depth must be <= 1"));
+}
+
 }  // namespace slop

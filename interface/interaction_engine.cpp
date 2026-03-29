@@ -427,6 +427,12 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   auto sub_tool_executor = std::move(*sub_tool_executor_or);
   sub_tool_executor->SetSessionId(query_session_id);
   sub_tool_executor->SetMailMode(cmd_handler_.IsMailMode());
+  sub_tool_executor->SetExecutionContext(
+      options.execution_scope == QueryOptions::ExecutionScope::kSubquery
+          ? ToolExecutor::ExecutionScope::kSubquery
+          : ToolExecutor::ExecutionScope::kRoot,
+      options.execution_depth);
+
   sub_tool_executor->SetDispatcher(std::make_unique<ToolDispatcher>(
       [executor = sub_tool_executor.get()](const std::string& name, const nlohmann::json& args,
                                            std::shared_ptr<CancellationRequest> cancellation) {
