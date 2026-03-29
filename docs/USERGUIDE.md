@@ -102,6 +102,10 @@ model = gemini-2.0-flash-exp
 # openai_oauth_token_path = /custom/path/chatgpt_plus_token.json
 ```
 See [example_config.ini](example_config.ini) for a template with all supported options.
+
+For INI-based `llm_query` delegation specializations (`[llm_tool.*]` sections),
+see [example_subqueries.ini](example_subqueries.ini).
+
 ### Environment Variables
 For debugging purposes, you can use the following environment variable:
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).

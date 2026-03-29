@@ -28,6 +28,8 @@ This document outlines the implementation plan for adding INI configuration supp
 
 ### 4. Documentation
 - **`example_config.ini`**: Provide a template with all supported keys and descriptions.
+- **`example_subqueries.ini`**: Provide a focused template for
+  INI-based `llm_query` specialization sections (`[llm_tool.*]`).
 
 ### 5. Main Integration
 - Add `ABSL_FLAG(std::string, config, "", "Path to config INI file");`.
@@ -43,4 +45,6 @@ This document outlines the implementation plan for adding INI configuration supp
 Settings like `openai_api_key`, `openai_oauth`, and `use_responses` are managed by
 the runtime selection logic in `main.cpp` and `core/orchestrator.cpp`. The INI loader only populates flags; conflict
 resolution (including OAuth mode exclusivity) remains in runtime logic.
+
+See [example_subqueries.ini](example_subqueries.ini) for a working specialization example.
 

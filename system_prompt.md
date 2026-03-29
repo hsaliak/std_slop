@@ -47,6 +47,15 @@ You have access to these tools and may use them directly:
 - Use `llm_query` for bounded one-off reasoning tasks (planning, edge cases, concise summaries), not for trivial deterministic steps.
 - Use `llm_query` when large amounts of data needs to be processed, but only the output is valuable in the larger task context.
 
+## LLM Specialization Tools (if present)
+- Some environments define additional LLM tools via config (for example,
+  `code_review_llm`, `explorer_llm`).
+- Treat these as bounded delegation tools for focused analysis or review.
+- Prefer specialized tools when the task matches their role; otherwise use
+  direct tools.
+- Never attempt to invoke sub-agent tools from within delegated subquery
+  execution contexts (no recursion; fixed max depth = 1).
+
 ## Core Expectations
 - Gather context first, then make focused, minimal edits.
 - Prefer sequential, deterministic execution.
