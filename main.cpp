@@ -40,6 +40,7 @@
 #include "tools/tool_dispatcher.h"
 #include "tools/tool_executor.h"
 #include "interface/color.h"
+#include "startup_llm_tools.h"
 #include "interface/command_handler.h"
 #include "interface/completer.h"
 #include "interface/interaction_engine.h"
@@ -149,8 +150,15 @@ int main(int argc, char* argv[]) {
   bool db_on_cli = !absl::GetFlag(FLAGS_db).empty();
 
   slop::LoadConfigAndApply(absl::GetFlag(FLAGS_config));
+  auto llm_specializations_or = slop::LoadLlmToolSpecializations(absl::GetFlag(FLAGS_config));
+  if (!llm_specializations_or.ok()) {
+    std::cerr << "Failed to load llm tool specializations: " << llm_specializations_or.status().message()
+              << std::endl;
+    return 1;
+  }
   absl::InitializeLog();
 
+  const std::vector<slop::LlmToolSpecializationConfig> llm_specializations = *llm_specializations_or;
   std::string log_path = absl::GetFlag(FLAGS_log);
   std::unique_ptr<FileLogSink> log_sink;
   if (!log_path.empty()) {
@@ -297,16 +305,27 @@ int main(int argc, char* argv[]) {
   engine_config.openai_oauth = openai_oauth;
   engine_config.use_responses = openai_oauth || use_responses;
 
-  tool_executor->RegisterTool(
-      "llm_query",
-      [&engine, engine_config, active_skills](
-          const nlohmann::json& args, std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
-        auto query = slop::json_get<std::string>(args, "query");
-        if (!query) {
-          return absl::InvalidArgumentError("Missing 'query' argument");
-        }
-        return engine.Query(*query, engine_config, active_skills);
-      });
+  auto llm_query_invoker = [&engine, engine_config](const std::string& query,
+                                                     const std::vector<std::string>& skills)
+      -> absl::StatusOr<std::string> { return engine.Query(query, engine_config, skills); };
+
+  tool_executor->RegisterTool("llm_query",
+                              [llm_query_invoker, active_skills](
+                                  const nlohmann::json& args,
+                                  std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
+                                auto query = slop::json_get<std::string>(args, "query");
+                                if (!query) {
+                                  return absl::InvalidArgumentError("Missing 'query' argument");
+                                }
+                                return llm_query_invoker(*query, active_skills);
+                              });
+
+  auto register_status = slop::RegisterLlmToolSpecializations(&db, tool_executor.get(), llm_specializations,
+                                                              active_skills, llm_query_invoker);
+  if (!register_status.ok()) {
+    std::cerr << "Failed to register llm tool specializations: " << register_status.message() << std::endl;
+    return 1;
+  }
 
   std::string batch_prompt = absl::GetFlag(FLAGS_prompt);
   if (!batch_prompt.empty()) {
