@@ -1,5 +1,6 @@
 #include "interface/interaction_engine.h"
 
+#include <algorithm>
 #include <unistd.h>
 
 #include <fstream>
@@ -109,6 +110,59 @@ TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
   auto result = engine.Query("Query something", config);
   ASSERT_TRUE(result.ok());
   EXPECT_EQ(*result, "The result is 1");
+}
+
+TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  ASSERT_TRUE(
+      db.RegisterSkill({0, "code_reviewer", "code_reviewer", "You are a strict code reviewer.", 0}).ok());
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "code_review";
+  options.skill = "code_reviewer";
+  options.context_window = 8;
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::DoAll(
+          testing::WithArg<1>([](const std::string& body) {
+            auto body_json = nlohmann::json::parse(body);
+            ASSERT_TRUE(body_json.contains("system_instruction"));
+            ASSERT_TRUE(body_json.contains("contents"));
+            ASSERT_FALSE(body_json["contents"].empty());
+            const auto text = body_json["system_instruction"]["parts"][0]["text"].get<std::string>();
+            EXPECT_TRUE(absl::StrContains(text, "### Skill: code_reviewer"));
+          }),
+          testing::Return(GeminiResponse("specialized").dump())));
+
+  auto result = engine.Query("Review this patch", config, {}, options);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(*result, "specialized");
+}
+
+TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(GeminiResponse("legacy").dump()));
+
+  auto result = engine.Query("Legacy query", config);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(*result, "legacy");
+
+  auto history = db.GetConversationHistory("query");
+  ASSERT_TRUE(history.ok());
+  EXPECT_TRUE(history->empty());
 }
 
 TEST_F(InteractionEngineTest, ErrorHandlingTest) {

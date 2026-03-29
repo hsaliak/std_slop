@@ -2,6 +2,7 @@
 #define SLOP_INTERFACE_INTERACTION_ENGINE_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -35,8 +36,25 @@ class InteractionEngine {
   bool Process(std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
                const Config& config);
 
+  struct QueryOptions {
+    enum class ExecutionScope {
+      kRoot,
+      kSubquery,
+    };
+
+    std::string session_id = "query";
+    std::optional<std::string> skill;
+    std::optional<int> context_window;
+    ExecutionScope execution_scope = ExecutionScope::kRoot;
+    int execution_depth = 0;
+  };
+
   absl::StatusOr<std::string> Query(const std::string& prompt, const Config& config,
                                     const std::vector<std::string>& active_skills = {});
+
+  absl::StatusOr<std::string> Query(const std::string& prompt, const Config& config,
+                                    const std::vector<std::string>& active_skills,
+                                    const QueryOptions& options);
 
   CommandHandler& GetCommandHandler() { return cmd_handler_; }
 

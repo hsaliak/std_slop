@@ -40,11 +40,14 @@ TEST(StartupLlmToolsTest, RegistersConfiguredSpecializations) {
 
   std::string captured_query;
   std::vector<std::string> captured_skills;
+  LlmQueryOptions captured_options;
   auto status = RegisterLlmToolSpecializations(
       &db, &executor, configs, {"already_active"},
-      [&](const std::string& query, const std::vector<std::string>& skills) -> absl::StatusOr<std::string> {
+      [&](const std::string& query, const std::vector<std::string>& skills,
+          const LlmQueryOptions& options) -> absl::StatusOr<std::string> {
         captured_query = query;
         captured_skills = skills;
+        captured_options = options;
         return "ok";
       });
   ASSERT_TRUE(status.ok()) << status;
@@ -70,6 +73,11 @@ TEST(StartupLlmToolsTest, RegistersConfiguredSpecializations) {
   EXPECT_EQ(captured_query, "review this");
   EXPECT_NE(std::find(captured_skills.begin(), captured_skills.end(), "already_active"), captured_skills.end());
   EXPECT_NE(std::find(captured_skills.begin(), captured_skills.end(), "code_reviewer"), captured_skills.end());
+  EXPECT_EQ(captured_options.session_id, "code_review");
+  ASSERT_TRUE(captured_options.skill.has_value());
+  EXPECT_EQ(*captured_options.skill, "code_reviewer");
+  ASSERT_TRUE(captured_options.context_window.has_value());
+  EXPECT_EQ(*captured_options.context_window, 8);
 }
 
 TEST(StartupLlmToolsTest, EmptyConfigRegistersNothing) {
@@ -82,7 +90,8 @@ TEST(StartupLlmToolsTest, EmptyConfigRegistersNothing) {
   auto before = executor.GetRegisteredToolNamesForTest().size();
   auto status = RegisterLlmToolSpecializations(
       &db, &executor, {}, {},
-      [](const std::string&, const std::vector<std::string>&) -> absl::StatusOr<std::string> { return "ok"; });
+      [](const std::string&, const std::vector<std::string>&,
+         const LlmQueryOptions&) -> absl::StatusOr<std::string> { return "ok"; });
   ASSERT_TRUE(status.ok()) << status;
 
   auto after_names = executor.GetRegisteredToolNamesForTest();
@@ -105,7 +114,7 @@ TEST(StartupLlmToolsTest, RemovesStaleSpecializationToolsFromDatabase) {
   ASSERT_TRUE(db.RegisterTool({"query_db", "builtin", "{}", true}).ok());
 
   ASSERT_TRUE(RegisterLlmToolSpecializations(&db, &executor, {MakeConfig("llm_tool.keep", "p", "s", "k")}, {},
-                                             [](const std::string&, const std::vector<std::string>&)
+                                             [](const std::string&, const std::vector<std::string>&, const LlmQueryOptions&)
                                                  -> absl::StatusOr<std::string> { return "ok"; })
                   .ok());
 
@@ -129,7 +138,7 @@ TEST(StartupLlmToolsTest, MissingQueryArgumentRejected) {
   auto& executor = **executor_or;
 
   ASSERT_TRUE(RegisterLlmToolSpecializations(&db, &executor, {MakeConfig("llm_tool.x", "p", "s", "k")}, {},
-                                             [](const std::string&, const std::vector<std::string>&)
+                                             [](const std::string&, const std::vector<std::string>&, const LlmQueryOptions&)
                                                  -> absl::StatusOr<std::string> { return "ok"; })
                   .ok());
   auto args = json_parse("{}");

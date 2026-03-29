@@ -72,9 +72,9 @@ absl::Status RegisterLlmToolSpecializations(Database* db, ToolExecutor* tool_exe
 
     tool_executor->RegisterTool(
         cfg.tool_name,
-        [llm_query_invoker, active_skills, specialization_skill = cfg.skill](
-            const nlohmann::json& args,
-            std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
+        [llm_query_invoker, active_skills, specialization_skill = cfg.skill, context_window = cfg.context_window,
+         session_id = cfg.session_id](const nlohmann::json& args,
+                                      std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
           auto query = slop::json_get<std::string>(args, "query");
           if (!query) {
             return absl::InvalidArgumentError("Missing 'query' argument");
@@ -86,7 +86,13 @@ absl::Status RegisterLlmToolSpecializations(Database* db, ToolExecutor* tool_exe
             merged_skills.push_back(specialization_skill);
           }
 
-          return llm_query_invoker(*query, merged_skills);
+          LlmQueryOptions options;
+          options.session_id = session_id;
+          options.skill = specialization_skill;
+          options.context_window = context_window;
+          options.execution_scope = LlmQueryOptions::ExecutionScope::kSubquery;
+          options.execution_depth = 1;
+          return llm_query_invoker(*query, merged_skills, options);
         });
   }
 

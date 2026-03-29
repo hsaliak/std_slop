@@ -1,5 +1,6 @@
 #include "interface/interaction_engine.h"
 
+#include <algorithm>
 #include <atomic>
 #include <functional>
 #include <iostream>
@@ -385,11 +386,25 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
   return true;
 }
+
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
                                                      const std::vector<std::string>& active_skills) {
+  QueryOptions options;
+  return Query(prompt, config, active_skills, options);
+}
+
+absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
+                                                     const std::vector<std::string>& active_skills,
+                                                     const QueryOptions& options) {
   Database transient_db;
   auto status = transient_db.Init(":memory:");
   if (!status.ok()) return status;
+
+  const std::string query_session_id = options.session_id.empty() ? "query" : options.session_id;
+  if (options.context_window.has_value()) {
+    const absl::Status window_status = transient_db.SetContextWindow(query_session_id, *options.context_window);
+    if (!window_status.ok()) return window_status;
+  }
   (void)transient_db.Execute("UPDATE tools SET is_enabled = 0 WHERE name = 'ask_user'");
 
   auto sub_orch_or = orchestrator_.Update().WithDatabase(&transient_db).Build();
@@ -397,8 +412,20 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
 
   auto sub_tool_executor_or = ToolExecutor::Create(&transient_db);
   if (!sub_tool_executor_or.ok()) return sub_tool_executor_or.status();
+
+  if (options.skill.has_value() && !options.skill->empty()) {
+    auto skills_or = db_.GetSkills();
+    if (skills_or.ok()) {
+      for (const auto& s : *skills_or) {
+        if (s.name == *options.skill) {
+          (void)transient_db.RegisterSkill({0, s.name, s.description, s.system_prompt_patch, 0});
+          break;
+        }
+      }
+    }
+  }
   auto sub_tool_executor = std::move(*sub_tool_executor_or);
-  sub_tool_executor->SetSessionId("query");
+  sub_tool_executor->SetSessionId(query_session_id);
   sub_tool_executor->SetMailMode(cmd_handler_.IsMailMode());
   sub_tool_executor->SetDispatcher(std::make_unique<ToolDispatcher>(
       [executor = sub_tool_executor.get()](const std::string& name, const nlohmann::json& args,
@@ -411,8 +438,13 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   Config sub_config = config;
   sub_config.silent = true;
   std::string input = prompt;
-  std::string session_id = "query";
+  std::string session_id = query_session_id;
   std::vector<std::string> skills = active_skills;
+  if (options.skill.has_value() && !options.skill->empty() &&
+      std::find(skills.begin(), skills.end(), *options.skill) == skills.end()) {
+    skills.push_back(*options.skill);
+  }
+  (void)transient_db.SetActiveSkills(session_id, skills);
   (void)sub_engine.Process(input, session_id, skills, sub_config);
   // Get the last assistant message
   auto history_or = transient_db.GetConversationHistory(session_id, false, 1);
