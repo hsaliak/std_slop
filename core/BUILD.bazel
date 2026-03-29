@@ -311,6 +311,20 @@ cc_test(
 )
 
 cc_test(
+ name = "config_llm_specializations_fuzz_test",
+ srcs = ["config_llm_specializations_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ ":core",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",],
+)
+
+cc_test(
  name = "tool_dispatcher_validation_fuzz_test",
  srcs = ["tool_dispatcher_validation_fuzz_test.cpp"],
  copts = [

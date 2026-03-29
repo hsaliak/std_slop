@@ -18,6 +18,7 @@
 #include "core/cancellation.h"
 #include "core/constants.h"
 #include "core/shell_util.h"
+#include "core/status_macros.h"
 #include "interface/color.h"
 #include "interface/renderer.h"
 #include "interface/terminal.h"
@@ -387,6 +388,33 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   return true;
 }
 
+absl::StatusOr<InteractionEngine::QueryOptions> InteractionEngine::NormalizeQueryOptions(const QueryOptions& options) {
+  QueryOptions normalized = options;
+  if (normalized.session_id.empty()) {
+    normalized.session_id = "query";
+  }
+  if (normalized.skill.has_value() && normalized.skill->empty()) {
+    return absl::InvalidArgumentError("QueryOptions.skill must be non-empty when provided");
+  }
+  if (normalized.context_window.has_value() && *normalized.context_window <= 0) {
+    return absl::InvalidArgumentError("QueryOptions.context_window must be > 0 when provided");
+  }
+  if (!IsValidQueryExecutionContext(normalized)) {
+    return absl::InvalidArgumentError("QueryOptions execution context is invalid");
+  }
+  return normalized;
+}
+
+bool InteractionEngine::IsValidQueryExecutionContext(const QueryOptions& options) {
+  if (options.execution_depth < 0 || options.execution_depth > 1) {
+    return false;
+  }
+  if (options.execution_scope == QueryOptions::ExecutionScope::kRoot) {
+    return options.execution_depth == 0;
+  }
+  return options.execution_depth == 1;
+}
+
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
                                                      const std::vector<std::string>& active_skills) {
   QueryOptions options;
@@ -396,13 +424,17 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
                                                      const std::vector<std::string>& active_skills,
                                                      const QueryOptions& options) {
+  ASSIGN_OR_RETURN(QueryOptions normalized_options, NormalizeQueryOptions(options));
+  const QueryOptions& effective_options = normalized_options;
+
   Database transient_db;
   auto status = transient_db.Init(":memory:");
   if (!status.ok()) return status;
 
-  const std::string query_session_id = options.session_id.empty() ? "query" : options.session_id;
-  if (options.context_window.has_value()) {
-    const absl::Status window_status = transient_db.SetContextWindow(query_session_id, *options.context_window);
+  const std::string query_session_id = effective_options.session_id;
+  if (effective_options.context_window.has_value()) {
+    const absl::Status window_status =
+        transient_db.SetContextWindow(query_session_id, *effective_options.context_window);
     if (!window_status.ok()) return window_status;
   }
   (void)transient_db.Execute("UPDATE tools SET is_enabled = 0 WHERE name = 'ask_user'");
@@ -413,11 +445,11 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   auto sub_tool_executor_or = ToolExecutor::Create(&transient_db);
   if (!sub_tool_executor_or.ok()) return sub_tool_executor_or.status();
 
-  if (options.skill.has_value() && !options.skill->empty()) {
+  if (effective_options.skill.has_value() && !effective_options.skill->empty()) {
     auto skills_or = db_.GetSkills();
     if (skills_or.ok()) {
       for (const auto& s : *skills_or) {
-        if (s.name == *options.skill) {
+        if (s.name == *effective_options.skill) {
           (void)transient_db.RegisterSkill({0, s.name, s.description, s.system_prompt_patch, 0});
           break;
         }
@@ -427,11 +459,10 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   auto sub_tool_executor = std::move(*sub_tool_executor_or);
   sub_tool_executor->SetSessionId(query_session_id);
   sub_tool_executor->SetMailMode(cmd_handler_.IsMailMode());
-  sub_tool_executor->SetExecutionContext(
-      options.execution_scope == QueryOptions::ExecutionScope::kSubquery
-          ? ToolExecutor::ExecutionScope::kSubquery
-          : ToolExecutor::ExecutionScope::kRoot,
-      options.execution_depth);
+  sub_tool_executor->SetExecutionContext(effective_options.execution_scope == QueryOptions::ExecutionScope::kSubquery
+                                             ? ToolExecutor::ExecutionScope::kSubquery
+                                             : ToolExecutor::ExecutionScope::kRoot,
+                                         effective_options.execution_depth);
 
   sub_tool_executor->SetDispatcher(std::make_unique<ToolDispatcher>(
       [executor = sub_tool_executor.get()](const std::string& name, const nlohmann::json& args,
@@ -446,9 +477,9 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   std::string input = prompt;
   std::string session_id = query_session_id;
   std::vector<std::string> skills = active_skills;
-  if (options.skill.has_value() && !options.skill->empty() &&
-      std::find(skills.begin(), skills.end(), *options.skill) == skills.end()) {
-    skills.push_back(*options.skill);
+  if (effective_options.skill.has_value() && !effective_options.skill->empty() &&
+      std::find(skills.begin(), skills.end(), *effective_options.skill) == skills.end()) {
+    skills.push_back(*effective_options.skill);
   }
   (void)transient_db.SetActiveSkills(session_id, skills);
   (void)sub_engine.Process(input, session_id, skills, sub_config);

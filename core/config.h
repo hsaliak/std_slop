@@ -2,6 +2,7 @@
 #define SLOP_CORE_CONFIG_H_
 
 #include <optional>
+#include <string_view>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,10 @@ void LoadConfigAndApply(const std::string& override_path = "");
 // sections.
 absl::StatusOr<std::vector<LlmToolSpecializationConfig>>
 LoadLlmToolSpecializations(const std::string& override_path = "");
+
+// Parses llm_query tool specializations from raw INI content.
+absl::StatusOr<std::vector<LlmToolSpecializationConfig>>
+LoadLlmToolSpecializationsFromIni(std::string_view ini_content);
 
 }  // namespace slop
 

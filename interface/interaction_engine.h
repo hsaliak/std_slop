@@ -56,6 +56,12 @@ class InteractionEngine {
                                     const std::vector<std::string>& active_skills,
                                     const QueryOptions& options);
 
+  // Validates and normalizes untrusted query options before execution.
+  // Returns InvalidArgument on malformed values.
+  static absl::StatusOr<QueryOptions> NormalizeQueryOptions(const QueryOptions& options);
+
+  static bool IsValidQueryExecutionContext(const QueryOptions& options);
+
   CommandHandler& GetCommandHandler() { return cmd_handler_; }
 
  private:

@@ -96,6 +96,21 @@ cc_test(
 )
 
 cc_test(
+    name = "subquery_policy_fuzz_test",
+    srcs = ["subquery_policy_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "dispatcher_executor_boundary_fuzz_test",
     srcs = ["dispatcher_executor_boundary_fuzz_test.cpp"],
     copts = [

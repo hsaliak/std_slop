@@ -78,8 +78,7 @@ void LoadConfigAndApply(const std::string& override_path) {
   }
 }
 
-absl::StatusOr<std::vector<LlmToolSpecializationConfig>> LoadLlmToolSpecializations(
-    const std::string& override_path) {
+absl::StatusOr<std::vector<LlmToolSpecializationConfig>> LoadLlmToolSpecializations(const std::string& override_path) {
   std::string config_path = ResolveConfigPath(override_path);
   if (config_path.empty() || !std::filesystem::exists(config_path)) {
     return std::vector<LlmToolSpecializationConfig>{};
@@ -91,6 +90,12 @@ absl::StatusOr<std::vector<LlmToolSpecializationConfig>> LoadLlmToolSpecializati
   }
 
   std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  return LoadLlmToolSpecializationsFromIni(content);
+}
+
+absl::StatusOr<std::vector<LlmToolSpecializationConfig>> LoadLlmToolSpecializationsFromIni(
+    const std::string_view ini_content) {
+  std::string content(ini_content);
   IniConfig config = ParseIni(content);
 
   std::vector<LlmToolSpecializationConfig> specializations;

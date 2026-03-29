@@ -194,3 +194,18 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_test(
+    name = "query_options_fuzz_test",
+    srcs = ["query_options_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":interaction_engine",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
