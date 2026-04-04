@@ -1,3 +1,11 @@
+## v0.17 - 2026-04-04
+- **Config-defined `llm_query` sub-agents**: New feature - added INI-driven specialization loading for `llm_query` via `[llm_tool_<name>]` sections with required field validation (`system_prompt_patch`, `session_id`, `skill`) and optional `context_window`. These allow sub agetns to have specialized and persistent context windows that can be delegated into. 
+- **Startup registration for specializations**: Added startup wiring that registers each specialization as a first-class tool and keeps stale specialization tools in sync with active config.
+- **Delegation API and policy hardening**: Generalized `llm_query` execution options and centralized subquery policy checks to block recursion paths (`llm_query`/`llm_tool_*` in subquery scope) with fixed depth constraints.
+- **Fuzz + test coverage for subquery paths**: Added dedicated fuzz targets for specialization config parsing, subquery policy boundaries, and query options handling; expanded unit coverage around registration/validation behavior.
+- **Naming alignment to valid tool identifiers**: Standardized specialization naming and docs/tests from dot form to underscore form (`llm_tool_...`) to match tool-name constraints.
+- **Docs discoverability improvements**: Added/expanded `docs/subqueries.md`, `docs/example_subqueries.ini`, and prominent README/USERGUIDE guidance for configuring and invoking specialization tools.
+
 ## v0.16 - 2026-03-17
 - **Tooling split and API cleanup**: Moved the tool executor/dispatcher and built-in tool handlers out of `core/` into top-level `tools/`, then rewired the root, interface, and core build graph around new façade targets and shared dependencies.
 - **Fuzzing coverage expansion**: Added FuzzTest targets for core JSON helpers, dispatcher validation, orchestrator normalization, tool-argument validation, and interface input parsing to harden boundary code against malformed input.
