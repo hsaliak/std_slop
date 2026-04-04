@@ -80,6 +80,29 @@ openai_base_url = https://api.openai.com/v1
 
 See [docs/example_config.ini](docs/example_config.ini) for a full list of options.
 
+#### Configure LLM sub-agents (specialized `llm_query` tools)
+You can define config-based `llm_query` specializations as first-class tools. This
+is useful for role-focused delegation (for example: code review, repo exploration)
+without rewriting prompts each time.
+
+Add one INI section per specialization using the `llm_tool_` prefix:
+
+```ini
+[llm_tool_code_review_llm]
+system_prompt_patch = You are a strict code reviewer focused on correctness and regressions.
+session_id = code_review
+skill = code_reviewer
+context_window = 8
+```
+
+After startup, call the specialized tool directly by name (for example
+`llm_tool_code_review_llm`) with a `query` argument.
+
+For a complete multi-specialization example, see
+[docs/example_subqueries.ini](docs/example_subqueries.ini).
+Detailed behavior and policy constraints are documented in
+[docs/subqueries.md](docs/subqueries.md).
+
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
@@ -101,6 +124,7 @@ See [docs/example_config.ini](docs/example_config.ini) for a full list of option
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
+- **[Subquery Specializations](docs/subqueries.md)**: Configure and use `llm_query` sub-agents from INI.
 - **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 

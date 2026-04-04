@@ -106,6 +106,43 @@ See [example_config.ini](example_config.ini) for a template with all supported o
 For INI-based `llm_query` delegation specializations (`[llm_tool_*]` sections),
 see [example_subqueries.ini](example_subqueries.ini).
 
+### Configure `llm_query` sub-agents in INI
+You can register specialized `llm_query` tools from config by adding one section
+per specialization. Section names must start with `llm_tool_`.
+
+Minimal example:
+
+```ini
+[llm_tool_code_review_llm]
+system_prompt_patch = You are a strict code reviewer focused on correctness and regressions.
+session_id = code_review
+skill = code_reviewer
+context_window = 8
+```
+
+Required fields:
+- `system_prompt_patch`: extra instruction patch applied for this specialization.
+- `session_id`: subquery session identifier used for delegated calls.
+- `skill`: specialization skill/persona name to activate during delegation.
+
+Optional fields:
+- `context_window`: positive integer limiting delegated context depth/window.
+
+How to use:
+1. Start `std_slop` with your config (`--config=/path/to/config.ini`).
+2. Ask the agent to use the specialization tool by exact name
+   (`llm_tool_code_review_llm`, etc.).
+3. The tool accepts a `query` argument and returns delegated LLM output.
+
+Policy invariants (enforced):
+- No recursion through delegated tools.
+- Subquery execution depth is fixed to 1.
+- `llm_query` and `llm_tool_*` tools are blocked inside subquery scope.
+
+For a complete two-specialization config, see
+[example_subqueries.ini](example_subqueries.ini). For implementation details and
+validation behavior, see [subqueries.md](subqueries.md).
+
 ### Environment Variables
 For debugging purposes, you can use the following environment variable:
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
