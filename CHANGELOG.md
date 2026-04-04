@@ -1,6 +1,5 @@
 ## v0.17.2 - 2026-04-04
-- **Documentation alignment for app entrypoint move**: Updated architecture/config docs to reference `app/main.cpp` instead of the old root-level `main.cpp` path.
-- **Subquery specialization docs refreshed**: Updated specialization startup documentation to reflect the current flow (database reconcile + ToolExecutor handler registration) rather than direct tool registration wording.
+- **Documentation**: Updated architecture/config docs to reference `app/main.cpp` instead of the old root-level `main.cpp` path.
 
 ## v0.17.1 - 2026-04-04
 - **Subquery infinite-context support (`context_window = 0`)**: For context window configuration of llm_query subagents, 0 now means infinite, similar to how /context window 0 means infinite. This is useful for certain workflows.  `0` now explicitly means infinite history for delegated subqueries; added unit/fuzz coverage and updated subquery docs/examples accordingly.
