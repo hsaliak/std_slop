@@ -1,3 +1,7 @@
+## v0.17.1 - 2026-04-04
+- **Subquery infinite-context support (`context_window = 0`)**: For context window configuration of llm_query subagents, 0 now means infinite, similar to how /context window 0 means infinite. This is useful for certain workflows.  `0` now explicitly means infinite history for delegated subqueries; added unit/fuzz coverage and updated subquery docs/examples accordingly.
+
+
 ## v0.17 - 2026-04-04
 - **Config-defined `llm_query` sub-agents**: New feature - added INI-driven specialization loading for `llm_query` via `[llm_tool_<name>]` sections with required field validation (`system_prompt_patch`, `session_id`, `skill`) and optional `context_window`. These allow sub agetns to have specialized and persistent context windows that can be delegated into. 
 - **Startup registration for specializations**: Added startup wiring that registers each specialization as a first-class tool and keeps stale specialization tools in sync with active config.
