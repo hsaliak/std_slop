@@ -110,9 +110,10 @@ Read `[llm_tool_*]` sections from INI and validate them.
 Register specializations as tools before interaction loop starts.
 
 ### Changes
-- `main.cpp`
+- `app/main.cpp`
   - After existing `LoadConfigAndApply(...)`, load specialization config.
-  - Register each specialization with `ToolExecutor::RegisterTool`.
+  - Reconcile config-defined specialization tools in the database.
+  - Register specialization handlers with `ToolExecutor`.
   - Handler maps user input to generalized `InteractionEngine::Query` options:
     - fixed `session_id`
     - fixed `skill`

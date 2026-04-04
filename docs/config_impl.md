@@ -43,7 +43,7 @@ This document outlines the implementation plan for adding INI configuration supp
 
 ## Exclusive Flags Management
 Settings like `openai_api_key`, `openai_oauth`, and `use_responses` are managed by
-the runtime selection logic in `main.cpp` and `core/orchestrator.cpp`. The INI loader only populates flags; conflict
+the runtime selection logic in `app/main.cpp` and `core/orchestrator.cpp`. The INI loader only populates flags; conflict
 resolution (including OAuth mode exclusivity) remains in runtime logic.
 
 See [example_subqueries.ini](example_subqueries.ini) for a working specialization example.
