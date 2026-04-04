@@ -396,8 +396,8 @@ absl::StatusOr<InteractionEngine::QueryOptions> InteractionEngine::NormalizeQuer
   if (normalized.skill.has_value() && normalized.skill->empty()) {
     return absl::InvalidArgumentError("QueryOptions.skill must be non-empty when provided");
   }
-  if (normalized.context_window.has_value() && *normalized.context_window <= 0) {
-    return absl::InvalidArgumentError("QueryOptions.context_window must be > 0 when provided");
+  if (normalized.context_window.has_value() && *normalized.context_window < 0) {
+    return absl::InvalidArgumentError("QueryOptions.context_window must be >= 0 when provided");
   }
   if (!IsValidQueryExecutionContext(normalized)) {
     return absl::InvalidArgumentError("QueryOptions execution context is invalid");

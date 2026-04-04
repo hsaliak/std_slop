@@ -35,7 +35,7 @@ Required keys:
 
 Optional keys:
 
-- `context_window` (positive integer)
+- `context_window` (non-negative integer; `0` means infinite history)
 
 Example:
 
@@ -94,7 +94,7 @@ Read `[llm_tool_*]` sections from INI and validate them.
   - Validation:
     - non-empty specialization name
     - required keys present/non-empty
-    - `context_window > 0` if present
+    - `context_window >= 0` if present (`0` means infinite history)
     - no duplicate names
     - no conflicts with built-in tool names (`llm_query`, etc.)
 

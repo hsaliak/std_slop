@@ -32,11 +32,11 @@ std::string ResolveConfigPath(const std::string& override_path) {
   return config_path;
 }
 
-absl::StatusOr<int> ParsePositiveInt(const std::string& raw_value, const std::string& key,
+absl::StatusOr<int> ParseNonNegativeInt(const std::string& raw_value, const std::string& key,
                                      const std::string& section_name) {
   int value = 0;
   auto [ptr, ec] = std::from_chars(raw_value.data(), raw_value.data() + raw_value.size(), value);
-  if (ec != std::errc() || ptr != raw_value.data() + raw_value.size() || value <= 0) {
+  if (ec != std::errc() || ptr != raw_value.data() + raw_value.size() || value < 0) {
     return absl::InvalidArgumentError(
         absl::StrCat("Section [", section_name, "] has invalid ", key, ": '", raw_value, "'"));
   }
@@ -136,7 +136,7 @@ absl::StatusOr<std::vector<LlmToolSpecializationConfig>> LoadLlmToolSpecializati
     auto context_it = section.find("context_window");
     if (context_it != section.end()) {
       ASSIGN_OR_RETURN(cfg.context_window,
-                       ParsePositiveInt(std::string(absl::StripAsciiWhitespace(context_it->second)),
+                       ParseNonNegativeInt(std::string(absl::StripAsciiWhitespace(context_it->second)),
                                         "context_window", section_name));
     }
 

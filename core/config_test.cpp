@@ -76,7 +76,7 @@ session_id = code_review
   std::filesystem::remove(cfg_path);
 }
 
-TEST(ConfigSpecializationTest, InvalidContextWindowRejected) {
+TEST(ConfigSpecializationTest, ZeroContextWindowAcceptedAsInfinite) {
   std::string cfg_path = WriteTempConfig(R"ini(
 [llm_tool_code_review_llm]
 system_prompt_patch = review code carefully
@@ -86,9 +86,26 @@ context_window = 0
 )ini");
 
   auto res = LoadLlmToolSpecializations(cfg_path);
+  ASSERT_TRUE(res.ok()) << res.status();
+  ASSERT_EQ(res->size(), 1u);
+  ASSERT_TRUE((*res)[0].context_window.has_value());
+  EXPECT_EQ(*(*res)[0].context_window, 0);
+
+  std::filesystem::remove(cfg_path);
+}
+
+TEST(ConfigSpecializationTest, InvalidContextWindowRejected) {
+  std::string cfg_path = WriteTempConfig(R"ini(
+[llm_tool_code_review_llm]
+system_prompt_patch = review code carefully
+session_id = code_review
+skill = code_reviewer
+context_window = -1
+)ini");
+
+  auto res = LoadLlmToolSpecializations(cfg_path);
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
-
   std::filesystem::remove(cfg_path);
 }
 

@@ -126,7 +126,7 @@ Required fields:
 - `skill`: specialization skill/persona name to activate during delegation.
 
 Optional fields:
-- `context_window`: positive integer limiting delegated context depth/window.
+- `context_window`: non-negative integer limiting delegated context depth/window; `0` means infinite history.
 
 How to use:
 1. Start `std_slop` with your config (`--config=/path/to/config.ini`).

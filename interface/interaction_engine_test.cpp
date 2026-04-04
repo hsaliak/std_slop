@@ -146,6 +146,32 @@ TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
   EXPECT_EQ(*result, "specialized");
 }
 
+TEST_F(InteractionEngineTest, QueryOptionsContextWindowZeroAcceptedAsInfinite) {
+  InteractionEngine::QueryOptions options;
+  options.session_id = "code_review";
+  options.context_window = 0;
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+
+  auto normalized = InteractionEngine::NormalizeQueryOptions(options);
+  ASSERT_TRUE(normalized.ok()) << normalized.status();
+  ASSERT_TRUE(normalized->context_window.has_value());
+  EXPECT_EQ(*normalized->context_window, 0);
+}
+
+TEST_F(InteractionEngineTest, QueryOptionsContextWindowNegativeRejected) {
+  InteractionEngine::QueryOptions options;
+  options.session_id = "code_review";
+  options.context_window = -1;
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+
+  auto normalized = InteractionEngine::NormalizeQueryOptions(options);
+  ASSERT_FALSE(normalized.ok());
+  EXPECT_EQ(normalized.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(normalized.status().message(), "context_window must be >= 0"));
+}
+
 TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);

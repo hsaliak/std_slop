@@ -33,7 +33,7 @@ void NormalizeQueryOptionsNeverCrashes(const std::string& session_id, bool has_s
     EXPECT_FALSE(normalized->skill->empty());
   }
   if (normalized->context_window.has_value()) {
-    EXPECT_GT(*normalized->context_window, 0);
+    EXPECT_GE(*normalized->context_window, 0);
   }
   EXPECT_TRUE(InteractionEngine::IsValidQueryExecutionContext(*normalized));
 }
@@ -67,6 +67,7 @@ FUZZ_TEST(QueryOptionsFuzzTest, NormalizeQueryOptionsNeverCrashes)
         std::make_tuple(std::string(""), false, std::string(""), false, 0, 0, 0),
         std::make_tuple(std::string("query"), true, std::string("code_reviewer"), true, 20, 1, 1),
         std::make_tuple(std::string("code_review"), true, std::string(""), true, 0, 1, 1),
+        std::make_tuple(std::string("code_review"), false, std::string(""), true, 0, 1, 1),
         std::make_tuple(std::string("root"), false, std::string(""), false, 0, 1, 0),
     });
 
