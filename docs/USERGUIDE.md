@@ -103,7 +103,7 @@ model = gemini-2.0-flash-exp
 ```
 See [example_config.ini](example_config.ini) for a template with all supported options.
 
-For INI-based `llm_query` delegation specializations (`[llm_tool.*]` sections),
+For INI-based `llm_query` delegation specializations (`[llm_tool_*]` sections),
 see [example_subqueries.ini](example_subqueries.ini).
 
 ### Environment Variables

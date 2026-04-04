@@ -820,12 +820,12 @@ TEST(ToolExecutorTest, SubqueryScopeRejectsSpecializationCalls) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  executor.RegisterTool("llm_tool.reviewer", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
+  executor.RegisterTool("llm_tool_reviewer", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
     return absl::StatusOr<std::string>("ok");
   });
 
   executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
-  auto res = executor.Execute("llm_tool.reviewer", nlohmann::json::object());
+  auto res = executor.Execute("llm_tool_reviewer", nlohmann::json::object());
 
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
@@ -839,12 +839,12 @@ TEST(ToolExecutorTest, RootScopeAllowsSpecializationCalls) {
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  executor.RegisterTool("llm_tool.researcher", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
+  executor.RegisterTool("llm_tool_researcher", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
     return absl::StatusOr<std::string>("ok");
   });
 
   executor.SetExecutionContext(ToolExecutor::ExecutionScope::kRoot, 0);
-  auto res = executor.Execute("llm_tool.researcher", nlohmann::json::object());
+  auto res = executor.Execute("llm_tool_researcher", nlohmann::json::object());
 
   ASSERT_TRUE(res.ok()) << res.status().message();
   EXPECT_EQ(EnvelopeResultText(*res), "ok");

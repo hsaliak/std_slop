@@ -29,7 +29,7 @@ This document outlines the implementation plan for adding INI configuration supp
 ### 4. Documentation
 - **`example_config.ini`**: Provide a template with all supported keys and descriptions.
 - **`example_subqueries.ini`**: Provide a focused template for
-  INI-based `llm_query` specialization sections (`[llm_tool.*]`).
+  INI-based `llm_query` specialization sections (`[llm_tool_*]`).
 
 ### 5. Main Integration
 - Add `ABSL_FLAG(std::string, config, "", "Path to config INI file");`.

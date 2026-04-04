@@ -20,7 +20,7 @@ void ParseSpecializationsFromIniNeverCrashes(const std::string& ini_content) {
   }
 
   for (const auto& cfg : *result) {
-    EXPECT_TRUE(absl::StartsWith(cfg.tool_name, "llm_tool."));
+    EXPECT_TRUE(absl::StartsWith(cfg.tool_name, "llm_tool_"));
     EXPECT_FALSE(cfg.tool_name.empty());
     EXPECT_FALSE(cfg.system_prompt_patch.empty());
     EXPECT_FALSE(cfg.session_id.empty());
@@ -56,20 +56,20 @@ void ParseSpecializationsDeterministic(const std::string& ini_content) {
 FUZZ_TEST(ConfigLlmSpecializationsFuzzTest, ParseSpecializationsFromIniNeverCrashes)
     .WithSeeds(std::vector<std::tuple<std::string>>{
         std::make_tuple(std::string(R"ini(
-[llm_tool.code_review_llm]
+[llm_tool_code_review_llm]
 system_prompt_patch = review code carefully
 session_id = code_review
 skill = code_reviewer
 context_window = 20
 )ini")),
         std::make_tuple(std::string(R"ini(
-[llm_tool.]
+[llm_tool_]
 system_prompt_patch = x
 session_id = s
 skill = k
 )ini")),
         std::make_tuple(std::string(R"ini(
-[llm_tool.code_review_llm]
+[llm_tool_code_review_llm]
 system_prompt_patch =
 session_id = code_review
 skill = code_reviewer
@@ -80,7 +80,7 @@ FUZZ_TEST(ConfigLlmSpecializationsFuzzTest, ParseSpecializationsDeterministic)
     .WithSeeds(std::vector<std::tuple<std::string>>{
         std::make_tuple(std::string("")),
         std::make_tuple(std::string("[slop]\nmodel = gemini-2.0-flash\n")),
-        std::make_tuple(std::string("[llm_tool.explorer]\nsystem_prompt_patch = x\nsession_id = y\nskill = z\n")),
+        std::make_tuple(std::string("[llm_tool_explorer]\nsystem_prompt_patch = x\nsession_id = y\nskill = z\n")),
     });
 
 }  // namespace

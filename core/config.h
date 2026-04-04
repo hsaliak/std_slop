@@ -25,7 +25,7 @@ struct LlmToolSpecializationConfig {
 // on the command line.
 void LoadConfigAndApply(const std::string& override_path = "");
 
-// Loads llm_query tool specializations from sections named [llm_tool.<name>]
+// Loads llm_query tool specializations from sections named [llm_tool_<name>]
 // in the active INI config file.
 // Returns an empty vector if no config file exists or there are no matching
 // sections.

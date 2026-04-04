@@ -25,7 +25,7 @@ specializations ("sub-agents") with a strict, non-recursive execution policy.
 
 ## Minimal INI schema
 
-Each section with prefix `[llm_tool.<tool_name>]` defines one specialization.
+Each section with prefix `[llm_tool_<tool_name>]` defines one specialization.
 
 Required keys:
 
@@ -40,13 +40,13 @@ Optional keys:
 Example:
 
 ```ini
-[llm_tool.code_review_llm]
+[llm_tool_code_review_llm]
 system_prompt_patch = You are a strict code reviewer focused on correctness and maintainability.
 session_id = code_review
 skill = code_reviewer
 context_window = 8
 
-[llm_tool.explorer_llm]
+[llm_tool_explorer_llm]
 system_prompt_patch = You explore repository structure and summarize findings with file paths.
 session_id = data_explorer
 skill = data_explorer
@@ -69,7 +69,7 @@ For all config-defined subquery tools:
 2. Maximum depth is fixed at `1` (root -> subquery only).
 3. Subqueries cannot call:
    - `llm_query`
-   - any tool registered from `llm_tool.*`
+   - any tool registered from `llm_tool_*`
 4. `ask_user` remains disabled in subquery context.
 5. Subqueries do not inherit parent specialization config.
 
@@ -82,14 +82,14 @@ Future extension points may relax these constraints, but not in this phase.
 ## Phase 1: Config parsing + validation
 
 ### Objective
-Read `[llm_tool.*]` sections from INI and validate them.
+Read `[llm_tool_*]` sections from INI and validate them.
 
 ### Changes
 - `core/config.h`
   - Add specialization config struct.
   - Add loader API (e.g., `LoadLlmToolSpecializations`).
 - `core/config.cpp`
-  - Reuse `ParseIni` output to scan section prefix `llm_tool.`.
+  - Reuse `ParseIni` output to scan section prefix `llm_tool_`.
   - Parse required keys + optional `context_window`.
   - Validation:
     - non-empty specialization name
@@ -203,7 +203,7 @@ coverage. Add the following fuzz tests.
 
 **Seeds:**
 - known tool names from DB/tool registration tests
-- specialization-like names (`llm_tool.foo`, `code_review_llm`)
+- specialization-like names (`llm_tool_foo`, `code_review_llm`)
 
 ## 3) Query options fuzz target
 
@@ -275,7 +275,7 @@ system prompt should guide behavior generically.
 
 ## Acceptance criteria
 
-1. INI-defined `[llm_tool.*]` sections register specialized tools.
+1. INI-defined `[llm_tool_*]` sections register specialized tools.
 2. Required fields validated; invalid config fails clearly.
 3. Subquery recursion is blocked centrally and test-covered.
 4. Fuzz targets exist for parser, policy boundary, and query options.

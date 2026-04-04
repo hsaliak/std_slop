@@ -103,16 +103,16 @@ absl::StatusOr<std::vector<LlmToolSpecializationConfig>> LoadLlmToolSpecializati
     const std::string& section_name = entry.first;
     const IniSection& section = entry.second;
 
-    if (!absl::StartsWith(section_name, "llm_tool.")) continue;
+    if (!absl::StartsWith(section_name, "llm_tool_")) continue;
 
-    std::string tool_name = section_name.substr(std::string("llm_tool.").size());
+    std::string tool_name = section_name.substr(std::string("llm_tool_").size());
     tool_name = std::string(absl::StripAsciiWhitespace(tool_name));
     if (tool_name.empty()) {
-      return absl::InvalidArgumentError("Found [llm_tool.] section with empty tool name");
+      return absl::InvalidArgumentError("Found [llm_tool_] section with empty tool name");
     }
 
     // Namespace config-defined tools to avoid collisions with built-ins.
-    tool_name = absl::StrCat("llm_tool.", tool_name);
+    tool_name = absl::StrCat("llm_tool_", tool_name);
 
     auto require_key = [&](const char* key) -> absl::StatusOr<std::string> {
       auto it = section.find(key);

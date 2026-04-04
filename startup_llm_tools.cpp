@@ -19,13 +19,13 @@ namespace {
 absl::Status DeleteStaleSpecializationTools(Database* db,
                                             const std::vector<LlmToolSpecializationConfig>& configs) {
   if (configs.empty()) {
-    return db->Execute("DELETE FROM tools WHERE name LIKE 'llm_tool.%'");
+    return db->Execute("DELETE FROM tools WHERE name LIKE 'llm_tool_%'");
   }
   std::vector<std::string> placeholders(configs.size(), "?");
   std::vector<std::string> params;
   params.reserve(configs.size());
   for (const auto& cfg : configs) params.push_back(cfg.tool_name);
-  const std::string sql = absl::StrCat("DELETE FROM tools WHERE name LIKE 'llm_tool.%' AND name NOT IN (",
+  const std::string sql = absl::StrCat("DELETE FROM tools WHERE name LIKE 'llm_tool_%' AND name NOT IN (",
                                        absl::StrJoin(placeholders, ", "), ")");
   const std::vector<std::string>& bind_params = params;
   return db->Execute(sql, bind_params);

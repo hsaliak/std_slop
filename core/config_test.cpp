@@ -28,13 +28,13 @@ std::string WriteTempConfig(const std::string& content) {
 
 TEST(ConfigSpecializationTest, LoadsValidSpecializations) {
   std::string cfg_path = WriteTempConfig(R"ini(
-[llm_tool.code_review_llm]
+[llm_tool_code_review_llm]
 system_prompt_patch = review code carefully
 session_id = code_review
 skill = code_reviewer
 context_window = 8
 
-[llm_tool.explorer_llm]
+[llm_tool_explorer_llm]
 system_prompt_patch = explore repository
 session_id = data_explorer
 skill = data_explorer
@@ -45,7 +45,7 @@ skill = data_explorer
   ASSERT_EQ(res->size(), 2u);
 
   const auto& first = (*res)[0];
-  EXPECT_EQ(first.tool_name, "llm_tool.code_review_llm");
+  EXPECT_EQ(first.tool_name, "llm_tool_code_review_llm");
   EXPECT_EQ(first.system_prompt_patch, "review code carefully");
   EXPECT_EQ(first.session_id, "code_review");
   EXPECT_EQ(first.skill, "code_reviewer");
@@ -53,7 +53,7 @@ skill = data_explorer
   EXPECT_EQ(*first.context_window, 8);
 
   const auto& second = (*res)[1];
-  EXPECT_EQ(second.tool_name, "llm_tool.explorer_llm");
+  EXPECT_EQ(second.tool_name, "llm_tool_explorer_llm");
   EXPECT_EQ(second.system_prompt_patch, "explore repository");
   EXPECT_EQ(second.session_id, "data_explorer");
   EXPECT_EQ(second.skill, "data_explorer");
@@ -64,7 +64,7 @@ skill = data_explorer
 
 TEST(ConfigSpecializationTest, MissingRequiredKeyRejected) {
   std::string cfg_path = WriteTempConfig(R"ini(
-[llm_tool.code_review_llm]
+[llm_tool_code_review_llm]
 system_prompt_patch = review code carefully
 session_id = code_review
 )ini");
@@ -78,7 +78,7 @@ session_id = code_review
 
 TEST(ConfigSpecializationTest, InvalidContextWindowRejected) {
   std::string cfg_path = WriteTempConfig(R"ini(
-[llm_tool.code_review_llm]
+[llm_tool_code_review_llm]
 system_prompt_patch = review code carefully
 session_id = code_review
 skill = code_reviewer
@@ -94,7 +94,7 @@ context_window = 0
 
 TEST(ConfigSpecializationTest, EmptySuffixRejected) {
   std::string cfg_path = WriteTempConfig(R"ini(
-[llm_tool.]
+[llm_tool_]
 system_prompt_patch = review code carefully
 session_id = code_review
 skill = code_reviewer

@@ -191,7 +191,7 @@ absl::Status ToolExecutor::ValidateSubqueryPolicy(const std::string& tool_name) 
     return absl::OkStatus();
   }
 
-  if (tool_name == "llm_query" || absl::StartsWith(tool_name, "llm_tool.")) {
+  if (tool_name == "llm_query" || absl::StartsWith(tool_name, "llm_tool_")) {
     return absl::InvalidArgumentError(absl::StrCat("Subquery policy violation: tool '", tool_name,
                                                    "' is not allowed in subquery scope"));
   }

@@ -16,9 +16,9 @@ std::string BuildBlockedToolName(bool use_llm_query, const std::string& suffix) 
     return "llm_query";
   }
   if (suffix.empty()) {
-    return "llm_tool.x";
+    return "llm_tool_x";
   }
-  return "llm_tool." + suffix;
+  return "llm_tool_" + suffix;
 }
 
 void SubqueryPolicyBoundaryNoCrash(bool use_llm_query, const std::string& suffix, int depth) {
