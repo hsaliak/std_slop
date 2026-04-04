@@ -1,4 +1,4 @@
-#include "startup_llm_tools.h"
+#include "app/llm_tool_specializations.h"
 
 #include <algorithm>
 #include <memory>
@@ -33,18 +33,10 @@ absl::Status DeleteStaleSpecializationTools(Database* db,
 
 }  // namespace
 
-absl::Status RegisterLlmToolSpecializations(Database* db, ToolExecutor* tool_executor,
-                                            const std::vector<LlmToolSpecializationConfig>& configs,
-                                            const std::vector<std::string>& active_skills,
-                                            LlmQueryInvoker llm_query_invoker) {
+absl::Status ReconcileLlmSpecializationTools(Database* db,
+                                             const std::vector<LlmToolSpecializationConfig>& configs) {
   if (db == nullptr) {
     return absl::InvalidArgumentError("db must not be null");
-  }
-  if (tool_executor == nullptr) {
-    return absl::InvalidArgumentError("tool_executor must not be null");
-  }
-  if (!llm_query_invoker) {
-    return absl::InvalidArgumentError("llm_query_invoker must not be empty");
   }
 
   const absl::Status stale_cleanup_status = DeleteStaleSpecializationTools(db, configs);
@@ -69,6 +61,23 @@ absl::Status RegisterLlmToolSpecializations(Database* db, ToolExecutor* tool_exe
     if (!db_status.ok()) {
       return db_status;
     }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status RegisterLlmSpecializationHandlers(ToolExecutor* tool_executor,
+                                               const std::vector<LlmToolSpecializationConfig>& configs,
+                                               const std::vector<std::string>& active_skills,
+                                               LlmQueryInvoker llm_query_invoker) {
+  if (tool_executor == nullptr) {
+    return absl::InvalidArgumentError("tool_executor must not be null");
+  }
+  if (!llm_query_invoker) {
+    return absl::InvalidArgumentError("llm_query_invoker must not be empty");
+  }
+
+  for (const auto& cfg : configs) {
 
     tool_executor->RegisterTool(
         cfg.tool_name,

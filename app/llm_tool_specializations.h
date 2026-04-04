@@ -1,6 +1,6 @@
 
-#ifndef SLOP_STARTUP_LLM_TOOLS_H_
-#define SLOP_STARTUP_LLM_TOOLS_H_
+#ifndef SLOP_APP_LLM_TOOL_SPECIALIZATIONS_H_
+#define SLOP_APP_LLM_TOOL_SPECIALIZATIONS_H_
 
 #include <functional>
 #include <optional>
@@ -33,13 +33,16 @@ using LlmQueryInvoker = std::function<absl::StatusOr<std::string>(const std::str
                                                                   const std::vector<std::string>& active_skills,
                                                                   const LlmQueryOptions& options)>;
 
-// Registers config-defined llm_query specialization tools in both the database
-// and tool executor.
-absl::Status RegisterLlmToolSpecializations(Database* db, ToolExecutor* tool_executor,
-                                            const std::vector<LlmToolSpecializationConfig>& configs,
-                                            const std::vector<std::string>& active_skills,
-                                            LlmQueryInvoker llm_query_invoker);
+// Reconciles llm specialization tool records in the database.
+absl::Status ReconcileLlmSpecializationTools(Database* db,
+                                             const std::vector<LlmToolSpecializationConfig>& configs);
+
+// Registers llm specialization handlers in the tool executor.
+absl::Status RegisterLlmSpecializationHandlers(ToolExecutor* tool_executor,
+                                               const std::vector<LlmToolSpecializationConfig>& configs,
+                                               const std::vector<std::string>& active_skills,
+                                               LlmQueryInvoker llm_query_invoker);
 
 }  // namespace slop
 
-#endif  // SLOP_STARTUP_LLM_TOOLS_H_
+#endif  // SLOP_APP_LLM_TOOL_SPECIALIZATIONS_H_

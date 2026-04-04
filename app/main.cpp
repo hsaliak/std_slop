@@ -40,7 +40,7 @@
 #include "tools/tool_dispatcher.h"
 #include "tools/tool_executor.h"
 #include "interface/color.h"
-#include "startup_llm_tools.h"
+#include "app/llm_tool_specializations.h"
 #include "interface/command_handler.h"
 #include "interface/completer.h"
 #include "interface/interaction_engine.h"
@@ -335,8 +335,14 @@ int main(int argc, char* argv[]) {
                                 return llm_query_invoker(*query, active_skills, options);
                               });
 
-  auto register_status = slop::RegisterLlmToolSpecializations(&db, tool_executor.get(), llm_specializations,
-                                                              active_skills, llm_query_invoker);
+  auto register_status = slop::ReconcileLlmSpecializationTools(&db, llm_specializations);
+  if (!register_status.ok()) {
+    std::cerr << "Failed to reconcile llm tool specializations: " << register_status.message() << std::endl;
+    return 1;
+  }
+
+  register_status =
+      slop::RegisterLlmSpecializationHandlers(tool_executor.get(), llm_specializations, active_skills, llm_query_invoker);
   if (!register_status.ok()) {
     std::cerr << "Failed to register llm tool specializations: " << register_status.message() << std::endl;
     return 1;

@@ -1,76 +1,18 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
-load("@aspect_rules_lint//format:defs.bzl", "format_multirun", "format_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
 load("//:linters.bzl", "clang_tidy_test")
 
 exports_files([".clang-tidy", "system_prompt.md"])
 
-cc_binary(
+alias(
     name = "std_slop",
-    srcs = ["main.cpp"],
-    copts = [],
-    deps = [
-        "//core:api",
-        "//core:cancellation",
-        "//core:shell_lib",
-        "//interface:app_api",
-        "//interface:color",
-        "//tools:api",
-        ":startup_llm_tools",
-        "@abseil-cpp//absl/flags:flag",
-        "@abseil-cpp//absl/flags:parse",
-        "@abseil-cpp//absl/flags:usage",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:flags",
-        "@abseil-cpp//absl/log:initialize",
-        "@abseil-cpp//absl/log:log_sink",
-        "@abseil-cpp//absl/debugging:failure_signal_handler",
-        "@abseil-cpp//absl/debugging:symbolize",
-        "@abseil-cpp//absl/log:log_sink_registry",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/time",
-        "@nlohmann_json//:json",
-        "@sqlite3//:sqlite3",
-    ],
+    actual = "//app:std_slop",
 )
 
 cc_library(
     name = "core_api",
     visibility = ["//visibility:public"],
     deps = ["//core:api"],
-)
-
-cc_library(
-    name = "startup_llm_tools",
-    srcs = ["startup_llm_tools.cpp"],
-    hdrs = ["startup_llm_tools.h"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//core:core",
-        "//core:data",
-        "//tools:runtime",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@nlohmann_json//:json",
-    ],
-)
-
-cc_test(
-    name = "startup_llm_tools_test",
-    srcs = ["startup_llm_tools_test.cpp"],
-    env = {
-        "SLOP_SKIP_STAGING_CHECK": "1",
-    },
-    deps = [
-        ":startup_llm_tools",
-        "//core:api",
-        "//tools:runtime",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@googletest//:gtest_main",
-        "@nlohmann_json//:json",
-    ],
 )
 
 cc_library(
@@ -106,13 +48,6 @@ format_multirun(
     cc = ":clang_format_hermetic",
     disable_git_attribute_checks = True,
 )
-
-format_test(
-    name = "format_test",
-    cc = ":clang_format_hermetic", # Point back to your root tool
-    srcs = glob(["*.cpp",]),
-)
-
 
 clang_tidy_test(
     name = "clang_tidy_test",
