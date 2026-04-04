@@ -1,3 +1,6 @@
+## v0.17.3 - 2026-04-04
+- **Fix CI-CD workflow**: update yaml file
+
 ## v0.17.2 - 2026-04-04
 - **Documentation**: Updated architecture/config docs to reference `app/main.cpp` instead of the old root-level `main.cpp` path.
 
