@@ -29,6 +29,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#include "acp/server.h"
 #include "core/cancellation.h"
 #include "core/config.h"
 #include "core/constants.h"
@@ -39,6 +40,7 @@
 #include "core/orchestrator.h"
 #include "tools/tool_dispatcher.h"
 #include "tools/tool_executor.h"
+#include "app/mode_validation.h"
 #include "interface/color.h"
 #include "app/llm_tool_specializations.h"
 #include "interface/command_handler.h"
@@ -65,6 +67,7 @@ ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
 ABSL_FLAG(std::string, prompt_db, "",
           "Database to use for batch mode. Defaults to in-memory (':memory:'). Mutually exclusive with --db.");
+ABSL_FLAG(bool, acp, false, "Run ACP server mode over stdio");
 
 // Help text is now in interface/ui.h
 
@@ -166,10 +169,16 @@ int main(int argc, char* argv[]) {
     absl::AddLogSink(log_sink.get());
   }
 
-  std::string prompt = absl::GetFlag(FLAGS_prompt);
+  const std::string prompt = absl::GetFlag(FLAGS_prompt);
+  const bool acp_mode = absl::GetFlag(FLAGS_acp);
+  auto mode_status = slop::ValidateModeFlags(acp_mode, prompt);
+  if (!mode_status.ok()) {
+    std::cerr << "Error: " << mode_status.message() << std::endl;
+    return 1;
+  }
   std::string db_path;
 
-  if (!prompt.empty()) {
+  if (!prompt.empty() && !acp_mode) {
     // Batch mode defaults to in-memory database unless --prompt-db is specified.
     // --db is forbidden on the command line in batch mode to prevent accidental
     // pollution of the main database.
@@ -346,6 +355,10 @@ int main(int argc, char* argv[]) {
   if (!register_status.ok()) {
     std::cerr << "Failed to register llm tool specializations: " << register_status.message() << std::endl;
     return 1;
+  }
+
+  if (acp_mode) {
+    return slop::acp::RunServer(&std::cin, &std::cout);
   }
 
   std::string batch_prompt = absl::GetFlag(FLAGS_prompt);

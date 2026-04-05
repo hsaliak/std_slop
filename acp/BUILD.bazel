@@ -1,0 +1,65 @@
+
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@aspect_rules_lint//format:defs.bzl", "format_test")
+
+format_test(
+    name = "format_test",
+    cc = "//:clang_format_hermetic",
+    srcs = glob(["*.cpp", "*.h"]),
+)
+
+cc_library(
+    name = "runtime",
+    srcs = [
+        "method_router.cpp",
+        "rpc_envelope.cpp",
+        "server.cpp",
+        "transport_stdio.cpp",
+    ],
+    hdrs = [
+        "method_router.h",
+        "rpc_envelope.h",
+        "server.h",
+        "transport_stdio.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "rpc_envelope_test",
+    srcs = ["rpc_envelope_test.cpp"],
+    deps = [
+        ":runtime",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "server_test",
+    srcs = ["server_test.cpp"],
+    deps = [
+        ":runtime",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "rpc_envelope_fuzz_test",
+    srcs = ["rpc_envelope_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)

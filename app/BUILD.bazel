@@ -23,6 +23,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "mode_validation",
+    srcs = ["mode_validation.cpp"],
+    hdrs = ["mode_validation.h"],
+    copts = [],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+    ],
+)
+
 cc_binary(
     name = "std_slop",
     srcs = ["main.cpp"],
@@ -30,6 +41,8 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":llm_tool_specializations",
+        ":mode_validation",
+        "//acp:runtime",
         "//core:api",
         "//core:cancellation",
         "//core:shell_lib",
@@ -68,5 +81,15 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "mode_validation_test",
+    srcs = ["mode_validation_test.cpp"],
+    deps = [
+        ":mode_validation",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
     ],
 )
