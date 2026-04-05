@@ -357,8 +357,16 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  slop::acp::PromptExecutor acp_prompt_executor =
+      [&engine, &engine_config, &active_skills](const std::string& session_id,
+                                                const std::string& prompt) -> absl::StatusOr<std::string> {
+    slop::InteractionEngine::QueryOptions options;
+    options.session_id = session_id;
+    return engine.Query(prompt, engine_config, active_skills, options);
+  };
+
   if (acp_mode) {
-    return slop::acp::RunServer(&std::cin, &std::cout, &db);
+    return slop::acp::RunServer(&std::cin, &std::cout, &db, acp_prompt_executor);
   }
 
   std::string batch_prompt = absl::GetFlag(FLAGS_prompt);

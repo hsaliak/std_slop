@@ -12,7 +12,7 @@ namespace slop::acp {
 
 class Server {
  public:
-  Server(std::istream* in, std::ostream* out, Database* db, MethodRouter router);
+  Server(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor, MethodRouter router);
 
   // Processes requests from input until EOF.
   void Run();
@@ -22,10 +22,11 @@ class Server {
   std::ostream* out_;
   NegotiatedRuntimeOptions state_;
   Database* db_;
+  PromptExecutor prompt_executor_;
   MethodRouter router_;
 };
 
-int RunServer(std::istream* in, std::ostream* out, Database* db);
+int RunServer(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor);
 
 }  // namespace slop::acp
 

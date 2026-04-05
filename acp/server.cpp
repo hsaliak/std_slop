@@ -8,8 +8,8 @@
 
 namespace slop::acp {
 
-Server::Server(std::istream* in, std::ostream* out, Database* db, MethodRouter router)
-    : in_(in), out_(out), db_(db), router_(std::move(router)) {}
+Server::Server(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor, MethodRouter router)
+    : in_(in), out_(out), db_(db), prompt_executor_(std::move(prompt_executor)), router_(std::move(router)) {}
 
 void Server::Run() {
   StdioTransport transport(in_, out_);
@@ -29,16 +29,16 @@ void Server::Run() {
       continue;
     }
 
-    DispatchOutcome outcome = router_.Dispatch(*request_or, &state_, db_);
+    DispatchOutcome outcome = router_.Dispatch(*request_or, &state_, db_, prompt_executor_);
     if (outcome.has_response) {
       transport.WriteJson(outcome.response);
     }
   }
 }
 
-int RunServer(std::istream* in, std::ostream* out, Database* db) {
+int RunServer(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor) {
   MethodRouter router;
-  Server server(in, out, db, std::move(router));
+  Server server(in, out, db, std::move(prompt_executor), std::move(router));
   server.Run();
   return 0;
 }

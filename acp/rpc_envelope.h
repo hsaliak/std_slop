@@ -23,6 +23,7 @@ struct RpcRequest {
 inline constexpr int kParseErrorCode = -32700;
 inline constexpr int kInvalidRequestCode = -32600;
 inline constexpr int kMethodNotFoundCode = -32601;
+inline constexpr int kInternalErrorCode = -32603;
 
 absl::StatusOr<RpcRequest> ParseRpcRequest(std::string_view raw);
 absl::StatusOr<RpcRequest> ParseRpcRequestJson(const nlohmann::json& request_json);
@@ -39,6 +40,10 @@ inline nlohmann::json MakeInvalidRequestResponse(std::optional<nlohmann::json> i
 
 inline nlohmann::json MakeParseErrorResponse() {
   return MakeErrorResponse(std::nullopt, kParseErrorCode, "Parse error");
+}
+
+inline nlohmann::json MakeInternalErrorResponse(std::optional<nlohmann::json> id, std::string_view message) {
+  return MakeErrorResponse(std::move(id), kInternalErrorCode, message);
 }
 
 }  // namespace slop::acp

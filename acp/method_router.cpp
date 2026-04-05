@@ -1,15 +1,22 @@
 
 #include "acp/method_router.h"
 
+#include "acp/engine_adapter.h"
 #include "acp/session_store.h"
+#include "absl/status/status.h"
 
 namespace slop::acp {
 
-DispatchOutcome MethodRouter::Dispatch(const RpcRequest& request, NegotiatedRuntimeOptions* state, Database* db) const {
+DispatchOutcome MethodRouter::Dispatch(const RpcRequest& request, NegotiatedRuntimeOptions* state, Database* db,
+                                       const PromptExecutor& prompt_executor) const {
   DispatchOutcome out;
 
   if (request.is_notification()) {
     return out;
+  }
+
+  if (request.method == "session/prompt") {
+    return HandleSessionPrompt(request, *state, db, prompt_executor);
   }
 
   if (request.method == "session/new") {
@@ -69,6 +76,37 @@ DispatchOutcome MethodRouter::HandleSessionNew(const RpcRequest& request, const 
     return out;
   }
   out.response = nlohmann::json({{"jsonrpc", "2.0"}, {"id", *request.id}, {"result", MakeSessionNewResult(*session_id_or)}});
+  return out;
+}
+
+DispatchOutcome MethodRouter::HandleSessionPrompt(const RpcRequest& request, const NegotiatedRuntimeOptions& state,
+                                                  Database* db, const PromptExecutor& prompt_executor) const {
+  DispatchOutcome out;
+  out.has_response = true;
+
+  if (!state.initialized) {
+    out.response = MakeInvalidRequestResponse(request.id, "initialize_required");
+    return out;
+  }
+
+  auto parsed_or = ParseSessionPromptParams(request.params);
+  if (!parsed_or.ok()) {
+    out.response = MakeInvalidRequestResponse(request.id, parsed_or.status().message());
+    return out;
+  }
+
+  auto result_or = ExecuteSessionPrompt(db, *parsed_or, prompt_executor);
+  if (!result_or.ok()) {
+    if (result_or.status().code() == absl::StatusCode::kInternal) {
+      out.response = MakeInternalErrorResponse(request.id, result_or.status().message());
+      return out;
+    }
+    out.response = MakeInvalidRequestResponse(request.id, result_or.status().message());
+    return out;
+  }
+
+
+  out.response = nlohmann::json({{"jsonrpc", "2.0"}, {"id", *request.id}, {"result", *result_or}});
   return out;
 }
 
