@@ -17,9 +17,11 @@ void ParseCommandNeverCrashes(const std::string& input) {
   }
 }
 
-void NonSlashInputIsNotCommand(const std::string& leading, const std::string& rest) {
+void InputWithoutSlashAfterLeadingWhitespaceIsNotCommand(const std::string& leading,
+                                                         const std::string& rest) {
   std::string input = leading + rest;
-  if (!input.empty() && input[0] == '/') {
+  absl::string_view trimmed = absl::StripLeadingAsciiWhitespace(input);
+  if (!trimmed.empty() && trimmed[0] == '/') {
     return;
   }
   const ParsedCommand parsed = ParseCommandInput(input);
@@ -41,7 +43,7 @@ void CommandRoundTripCanonical(const std::string& command_suffix, const std::str
 
 FUZZ_TEST(InputParsingFuzzTest, ParseCommandNeverCrashes);
 
-FUZZ_TEST(InputParsingFuzzTest, NonSlashInputIsNotCommand)
+FUZZ_TEST(InputParsingFuzzTest, InputWithoutSlashAfterLeadingWhitespaceIsNotCommand)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
 
 FUZZ_TEST(InputParsingFuzzTest, CommandRoundTripCanonical)
