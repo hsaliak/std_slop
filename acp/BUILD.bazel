@@ -11,12 +11,14 @@ format_test(
 cc_library(
     name = "runtime",
     srcs = [
+        "capabilities.cpp",
         "method_router.cpp",
         "rpc_envelope.cpp",
         "server.cpp",
         "transport_stdio.cpp",
     ],
     hdrs = [
+        "capabilities.h",
         "method_router.h",
         "rpc_envelope.h",
         "server.h",
@@ -50,8 +52,32 @@ cc_test(
 )
 
 cc_test(
+    name = "capabilities_test",
+    srcs = ["capabilities_test.cpp"],
+    deps = [
+        ":runtime",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "rpc_envelope_fuzz_test",
     srcs = ["rpc_envelope_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "initialize_fuzz_test",
+    srcs = ["initialize_fuzz_test.cpp"],
     copts = [
         "-Wno-unused-parameter",
         "-Wno-deprecated-declarations",

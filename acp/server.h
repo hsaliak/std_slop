@@ -19,6 +19,7 @@ class Server {
  private:
   std::istream* in_;
   std::ostream* out_;
+  NegotiatedRuntimeOptions state_;
   MethodRouter router_;
 };
 

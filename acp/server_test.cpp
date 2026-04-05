@@ -46,5 +46,28 @@ TEST(ServerTest, NotificationProducesNoResponse) {
   EXPECT_TRUE(out.str().empty());
 }
 
+TEST(ServerTest, InitializeSucceedsWithStableVersion) {
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(RunServer(&in, &out), 0);
+  const std::string output = out.str();
+  EXPECT_NE(output.find("\"protocolVersion\":\"1\""), std::string::npos);
+  EXPECT_NE(output.find("\"session\""), std::string::npos);
+}
+
+TEST(ServerTest, InitializeRejectsUnsupportedVersion) {
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2","capabilities":{}}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(RunServer(&in, &out), 0);
+  const std::string output = out.str();
+  EXPECT_NE(output.find("\"code\":-32600"), std::string::npos);
+  EXPECT_NE(output.find("unsupported_protocol_version"), std::string::npos);
+}
+
+
 }  // namespace
 }  // namespace slop::acp

@@ -29,7 +29,7 @@ void Server::Run() {
       continue;
     }
 
-    DispatchOutcome outcome = router_.Dispatch(*request_or);
+    DispatchOutcome outcome = router_.Dispatch(*request_or, &state_);
     if (outcome.has_response) {
       transport.WriteJson(outcome.response);
     }
