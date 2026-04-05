@@ -604,7 +604,7 @@ void HandleStatus(const absl::Status& status, const std::string& context) {
     LOG(WARNING) << log_msg;
   }
 }
-std::string GetHelpText() {
+std::string GetHelpText(bool include_core_operations) {
   std::string help =
       "# std::slop - The SQL-backed LLM CLI\n\n"
       "## Usage\n"
@@ -646,6 +646,9 @@ std::string GetHelpText() {
     }
   }
   for (const auto& cat : categories) {
+    if (!include_core_operations && cat == "Core Operations") {
+      continue;
+    }
     help += "### " + cat + "\n\n";
     help += "| Command | Description |\n";
     help += "| :--- | :--- |\n";

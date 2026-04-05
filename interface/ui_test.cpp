@@ -34,6 +34,16 @@ TEST(UiTest, WrapTextWithPrefix) {
   EXPECT_TRUE(absl::StrContains(wrapped, "> Line one"));
   EXPECT_TRUE(absl::StrContains(wrapped, "> Line two"));
 }
+
+TEST(UiTest, GetHelpTextOmitsCoreOperationsWhenRequested) {
+  const std::string help_text = GetHelpText(false);
+  EXPECT_FALSE(absl::StrContains(help_text, "### Core Operations"));
+}
+
+TEST(UiTest, GetHelpTextIncludesCoreOperationsByDefault) {
+  const std::string help_text = GetHelpText();
+  EXPECT_TRUE(absl::StrContains(help_text, "### Core Operations"));
+}
 TEST(UiTest, PrintAssistantMessageBasic) {
   std::string content = "Hello, user!";
   std::stringstream buffer;
