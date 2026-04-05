@@ -4,6 +4,7 @@
 
 #include "acp/capabilities.h"
 #include "acp/rpc_envelope.h"
+#include "core/database.h"
 
 namespace slop::acp {
 
@@ -14,10 +15,11 @@ struct DispatchOutcome {
 
 class MethodRouter {
  public:
-  DispatchOutcome Dispatch(const RpcRequest& request, NegotiatedRuntimeOptions* state) const;
+  DispatchOutcome Dispatch(const RpcRequest& request, NegotiatedRuntimeOptions* state, Database* db) const;
 
  private:
   DispatchOutcome HandleInitialize(const RpcRequest& request, NegotiatedRuntimeOptions* state) const;
+  DispatchOutcome HandleSessionNew(const RpcRequest& request, const NegotiatedRuntimeOptions& state, Database* db) const;
 };
 
 }  // namespace slop::acp

@@ -358,7 +358,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (acp_mode) {
-    return slop::acp::RunServer(&std::cin, &std::cout);
+    return slop::acp::RunServer(&std::cin, &std::cout, &db);
   }
 
   std::string batch_prompt = absl::GetFlag(FLAGS_prompt);

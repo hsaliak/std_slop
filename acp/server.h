@@ -7,11 +7,12 @@
 
 #include "acp/method_router.h"
 
+namespace slop { class Database; }
 namespace slop::acp {
 
 class Server {
  public:
-  Server(std::istream* in, std::ostream* out, MethodRouter router);
+  Server(std::istream* in, std::ostream* out, Database* db, MethodRouter router);
 
   // Processes requests from input until EOF.
   void Run();
@@ -20,10 +21,11 @@ class Server {
   std::istream* in_;
   std::ostream* out_;
   NegotiatedRuntimeOptions state_;
+  Database* db_;
   MethodRouter router_;
 };
 
-int RunServer(std::istream* in, std::ostream* out);
+int RunServer(std::istream* in, std::ostream* out, Database* db);
 
 }  // namespace slop::acp
 
