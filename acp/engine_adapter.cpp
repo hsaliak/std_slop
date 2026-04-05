@@ -46,8 +46,27 @@ absl::StatusOr<SessionPromptRequest> ParseSessionPromptParams(const nlohmann::js
   return request;
 }
 
+absl::StatusOr<SessionCancelRequest> ParseSessionCancelParams(const nlohmann::json& params) {
+  if (!params.is_object()) {
+    return absl::InvalidArgumentError("session_cancel_params_must_be_object");
+  }
+
+  auto session_id = json_get<std::string>(params, "sessionId");
+  if (!session_id.has_value() || session_id->empty()) {
+    return absl::InvalidArgumentError("session_cancel_session_id_required");
+  }
+  if (!IsValidSessionId(*session_id)) {
+    return absl::InvalidArgumentError("session_cancel_session_id_invalid");
+  }
+
+  SessionCancelRequest request;
+  request.session_id = *session_id;
+  return request;
+}
+
 absl::StatusOr<nlohmann::json> ExecuteSessionPrompt(Database* db, const SessionPromptRequest& request,
-                                                    const PromptExecutor& executor) {
+                                                    const PromptExecutor& executor,
+                                                    std::shared_ptr<CancellationRequest> cancellation) {
   if (db == nullptr) {
     return absl::InvalidArgumentError("session_prompt_db_required");
   }
@@ -61,15 +80,21 @@ absl::StatusOr<nlohmann::json> ExecuteSessionPrompt(Database* db, const SessionP
     return absl::FailedPreconditionError("session_prompt_executor_required");
   }
 
-  auto output_or = executor(request.session_id, request.prompt);
+  if (cancellation == nullptr) {
+    cancellation = std::make_shared<CancellationRequest>();
+  }
+
+  auto output_or = executor(request.session_id, request.prompt, cancellation);
   if (!output_or.ok()) {
     if (output_or.status().code() == absl::StatusCode::kInvalidArgument) {
       return output_or.status();
+    }
+    if (output_or.status().code() == absl::StatusCode::kCancelled) {
+      return MakeSessionPromptCancelledResult(request.session_id);
     }
     return absl::InternalError("session_prompt_engine_failure");
   }
 
   return MakeSessionPromptResult(request.session_id, *output_or);
 }
-
 }  // namespace slop::acp

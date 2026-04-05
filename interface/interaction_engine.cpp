@@ -200,6 +200,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     }
     auto http_cancellation = std::make_shared<slop::CancellationRequest>();
     http_cancellation->RegisterCallback([&]() { http_client_.Abort(); });
+    if (config.silent && config.cancellation) config.cancellation->RegisterCallback([http_cancellation]() { http_cancellation->Cancel(); });
 
     std::atomic<bool> http_done{false};
     absl::StatusOr<std::string> resp_or;
@@ -357,6 +358,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                             << "  " << slop::Colorize("[Esc/Ctrl-C] Cancellation requested...", "", ansi::Red)
                             << std::endl;
                 }
+                if (config.silent && config.cancellation && config.cancellation->IsCancelled()) {
+                  cancellation->Cancel();
+                }
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
               }
             }
@@ -382,6 +386,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       }
       continue;  // Loop for next LLM turn
     }
+    if (config.silent && config.cancellation && config.cancellation->IsCancelled()) {
+      break;
+    }
     break;
   }
 
@@ -401,6 +408,9 @@ absl::StatusOr<InteractionEngine::QueryOptions> InteractionEngine::NormalizeQuer
   }
   if (!IsValidQueryExecutionContext(normalized)) {
     return absl::InvalidArgumentError("QueryOptions execution context is invalid");
+  }
+  if (normalized.cancellation == nullptr) {
+    normalized.cancellation = std::make_shared<CancellationRequest>();
   }
   return normalized;
 }
@@ -482,6 +492,7 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
     skills.push_back(*effective_options.skill);
   }
   (void)transient_db.SetActiveSkills(session_id, skills);
+  sub_config.cancellation = effective_options.cancellation;
   (void)sub_engine.Process(input, session_id, skills, sub_config);
   // Get the last assistant message
   auto history_or = transient_db.GetConversationHistory(session_id, false, 1);

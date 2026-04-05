@@ -1,7 +1,9 @@
 
 #include "acp/server.h"
 
+#include <chrono>
 #include <sstream>
+#include <thread>
 
 #include <gtest/gtest.h>
 #include "core/database.h"
@@ -13,12 +15,28 @@ class ServerTest : public ::testing::Test {
  protected:
   void SetUp() override { ASSERT_TRUE(db_.Init(":memory:").ok()); }
 
-  static absl::StatusOr<std::string> PromptExec(const std::string& session_id, const std::string& prompt) {
+  static absl::StatusOr<std::string> PromptExec(const std::string& session_id, const std::string& prompt,
+                                                std::shared_ptr<CancellationRequest>) {
+    return session_id + "::" + prompt;
+  }
+
+  static absl::StatusOr<std::string> SlowPromptExec(const std::string& session_id, const std::string& prompt,
+                                                    std::shared_ptr<CancellationRequest> cancellation) {
+    for (int i = 0; i < 200; ++i) {
+      if (cancellation && cancellation->IsCancelled()) {
+        return absl::CancelledError("cancelled");
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
     return session_id + "::" + prompt;
   }
 
   int Run(std::istringstream* in, std::ostringstream* out) {
     return RunServer(in, out, &db_, PromptExec);
+  }
+
+  int RunWithSlowExecutor(std::istringstream* in, std::ostringstream* out) {
+    return RunServer(in, out, &db_, SlowPromptExec);
   }
 
   int RunWithExecutor(std::istringstream* in, std::ostringstream* out, PromptExecutor executor) {
@@ -28,7 +46,7 @@ class ServerTest : public ::testing::Test {
   Database db_;
 };
 
-absl::StatusOr<std::string> FailingPromptExec(const std::string&, const std::string&) {
+absl::StatusOr<std::string> FailingPromptExec(const std::string&, const std::string&, std::shared_ptr<CancellationRequest>) {
   return absl::InternalError("boom");
 }
 
@@ -182,6 +200,43 @@ TEST_F(ServerTest, SessionPromptEngineFailureReturnsInternalErrorCode) {
   const std::string output = out.str();
   EXPECT_NE(output.find("\"code\":-32603"), std::string::npos);
   EXPECT_NE(output.find("session_prompt_engine_failure"), std::string::npos);
+}
+
+TEST_F(ServerTest, SessionCancelUnknownRequestReturnsDeterministicError) {
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+{"jsonrpc":"2.0","id":2,"method":"session/cancel","params":{"sessionId":"acp_1"}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(Run(&in, &out), 0);
+  const std::string output = out.str();
+  EXPECT_NE(output.find("session_cancel_request_not_found"), std::string::npos);
+}
+
+TEST_F(ServerTest, SessionCancelCanCancelActivePromptAndReturnsCancelledResult) {
+  ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
+
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
+{"jsonrpc":"2.0","id":3,"method":"session/cancel","params":{"sessionId":"acp_1"}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(RunWithSlowExecutor(&in, &out), 0);
+
+  const std::string output = out.str();
+  EXPECT_NE(output.find("\"cancelled\":true"), std::string::npos);
+  EXPECT_NE(output.find("\"stopReason\":\"cancelled\""), std::string::npos);
+}
+
+TEST_F(ServerTest, SessionCancelMalformedSessionIdRejected) {
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+{"jsonrpc":"2.0","id":2,"method":"session/cancel","params":{"sessionId":"bad id"}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(Run(&in, &out), 0);
+  EXPECT_NE(out.str().find("session_cancel_session_id_invalid"), std::string::npos);
 }
 
 

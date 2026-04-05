@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "core/cancellation.h"
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/oauth_handler.h"
@@ -21,6 +22,7 @@ class InteractionEngine {
   struct Config {
     bool is_batch_mode = false;
     std::string google_api_key;
+    std::shared_ptr<CancellationRequest> cancellation;
     std::string openai_api_key;
     std::string openai_base_url;
     bool openai_oauth = false;
@@ -47,6 +49,7 @@ class InteractionEngine {
     std::optional<int> context_window;
     ExecutionScope execution_scope = ExecutionScope::kRoot;
     int execution_depth = 0;
+    std::shared_ptr<CancellationRequest> cancellation;
   };
 
   absl::StatusOr<std::string> Query(const std::string& prompt, const Config& config,

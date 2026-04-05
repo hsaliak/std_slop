@@ -359,9 +359,12 @@ int main(int argc, char* argv[]) {
 
   slop::acp::PromptExecutor acp_prompt_executor =
       [&engine, &engine_config, &active_skills](const std::string& session_id,
-                                                const std::string& prompt) -> absl::StatusOr<std::string> {
+                                                const std::string& prompt,
+                                                std::shared_ptr<slop::CancellationRequest> cancellation)
+          -> absl::StatusOr<std::string> {
     slop::InteractionEngine::QueryOptions options;
     options.session_id = session_id;
+    options.cancellation = std::move(cancellation);
     return engine.Query(prompt, engine_config, active_skills, options);
   };
 

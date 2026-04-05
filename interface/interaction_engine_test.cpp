@@ -156,6 +156,7 @@ TEST_F(InteractionEngineTest, QueryOptionsContextWindowZeroAcceptedAsInfinite) {
   auto normalized = InteractionEngine::NormalizeQueryOptions(options);
   ASSERT_TRUE(normalized.ok()) << normalized.status();
   ASSERT_TRUE(normalized->context_window.has_value());
+  EXPECT_NE(normalized->cancellation, nullptr);
   EXPECT_EQ(*normalized->context_window, 0);
 }
 

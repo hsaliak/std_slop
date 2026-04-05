@@ -36,6 +36,7 @@ void NormalizeQueryOptionsNeverCrashes(const std::string& session_id, bool has_s
     EXPECT_GE(*normalized->context_window, 0);
   }
   EXPECT_TRUE(InteractionEngine::IsValidQueryExecutionContext(*normalized));
+  EXPECT_NE(normalized->cancellation, nullptr);
 }
 
 void NormalizeQueryOptionsDeterministic(const std::string& session_id, const std::string& skill, int context_window,
@@ -60,6 +61,7 @@ void NormalizeQueryOptionsDeterministic(const std::string& session_id, const std
   EXPECT_EQ(first->context_window, second->context_window);
   EXPECT_EQ(first->execution_scope, second->execution_scope);
   EXPECT_EQ(first->execution_depth, second->execution_depth);
+  EXPECT_NE(first->cancellation, nullptr);
 }
 
 FUZZ_TEST(QueryOptionsFuzzTest, NormalizeQueryOptionsNeverCrashes)

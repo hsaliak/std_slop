@@ -3,9 +3,11 @@
 #define SLOP_ACP_ENGINE_ADAPTER_H_
 
 #include <functional>
+#include <memory>
 #include <string>
 
 #include "absl/status/statusor.h"
+#include "core/cancellation.h"
 #include "core/database.h"
 #include "nlohmann/json.hpp"
 
@@ -16,17 +18,33 @@ struct SessionPromptRequest {
   std::string prompt;
 };
 
-using PromptExecutor = std::function<absl::StatusOr<std::string>(const std::string& session_id,
-                                                                  const std::string& prompt)>;
+struct SessionCancelRequest {
+  std::string session_id;
+};
+
+using PromptExecutor =
+    std::function<absl::StatusOr<std::string>(const std::string& session_id,
+                                              const std::string& prompt,
+                                              std::shared_ptr<slop::CancellationRequest> cancellation)>;
 
 absl::StatusOr<SessionPromptRequest> ParseSessionPromptParams(const nlohmann::json& params);
+absl::StatusOr<SessionCancelRequest> ParseSessionCancelParams(const nlohmann::json& params);
 
 absl::StatusOr<nlohmann::json> ExecuteSessionPrompt(Database* db, const SessionPromptRequest& request,
-                                                    const PromptExecutor& executor);
+                                                    const PromptExecutor& executor,
+                                                    std::shared_ptr<slop::CancellationRequest> cancellation);
 
 inline nlohmann::json MakeSessionPromptResult(const std::string& session_id,
                                               const std::string& content) {
   return nlohmann::json({{"sessionId", session_id}, {"content", content}});
+}
+
+inline nlohmann::json MakeSessionPromptCancelledResult(const std::string& session_id) {
+  return nlohmann::json({{"sessionId", session_id}, {"stopReason", "cancelled"}});
+}
+
+inline nlohmann::json MakeSessionCancelResult(const std::string& session_id) {
+  return nlohmann::json({{"sessionId", session_id}, {"cancelled", true}});
 }
 
 }  // namespace slop::acp

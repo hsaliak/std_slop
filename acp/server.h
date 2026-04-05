@@ -4,15 +4,18 @@
 
 #include <istream>
 #include <ostream>
+#include <thread>
+#include <vector>
 
 #include "acp/method_router.h"
+#include "absl/synchronization/mutex.h"
 
 namespace slop { class Database; }
 namespace slop::acp {
 
 class Server {
  public:
-  Server(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor, MethodRouter router);
+  Server(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor);
 
   // Processes requests from input until EOF.
   void Run();
@@ -24,6 +27,8 @@ class Server {
   Database* db_;
   PromptExecutor prompt_executor_;
   MethodRouter router_;
+  absl::Mutex out_mu_;
+  std::vector<std::thread> workers_;
 };
 
 int RunServer(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor);
