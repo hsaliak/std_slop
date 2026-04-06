@@ -35,7 +35,6 @@ void Server::Run() {
     workers_.push_back(WorkerHandle{std::thread([this, req = prompt_request, prompt, cancellation, done,
                                                  &write_if_needed, &write_session_update]() {
                                        write_session_update(prompt.session_id, SessionUpdateState::kStarted);
-                                       write_session_update(prompt.session_id, SessionUpdateState::kExecutingTools);
 
                                        auto result_or = ExecuteSessionPrompt(db_, prompt, prompt_executor_, cancellation);
                                        router_.RemoveInFlightPrompt(prompt.session_id, cancellation);
@@ -43,6 +42,7 @@ void Server::Run() {
                                        DispatchOutcome outcome;
                                        outcome.has_response = req.id.has_value();
                                        if (!result_or.ok()) {
+                                         write_session_update(prompt.session_id, SessionUpdateState::kCompleted);
                                          if (outcome.has_response) {
                                            if (result_or.status().code() == absl::StatusCode::kInternal) {
                                              outcome.response = MakeInternalErrorResponse(req.id, result_or.status().message());

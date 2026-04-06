@@ -156,7 +156,6 @@ TEST_F(ServerTest, SessionPromptSucceedsAfterInitializeAndSessionCreate) {
   EXPECT_NE(output.find("\"method\":\"session/update\""), std::string::npos);
   EXPECT_NE(output.find("\"state\":\"accepted\""), std::string::npos);
   EXPECT_NE(output.find("\"state\":\"started\""), std::string::npos);
-  EXPECT_NE(output.find("\"state\":\"executing_tools\""), std::string::npos);
   EXPECT_NE(output.find("\"state\":\"completed\""), std::string::npos);
   EXPECT_NE(output.find("\"content\":\"acp_1::hello\""), std::string::npos);
   EXPECT_NE(output.find("\"sessionId\":\"acp_1\""), std::string::npos);
@@ -210,6 +209,12 @@ TEST_F(ServerTest, SessionPromptEngineFailureReturnsInternalErrorCode) {
   EXPECT_EQ(RunWithExecutor(&in, &out, FailingPromptExec), 0);
   const std::string output = out.str();
   EXPECT_NE(output.find("\"code\":-32603"), std::string::npos);
+  EXPECT_NE(output.find("\"method\":\"session/update\""), std::string::npos);
+  const size_t completed_idx = output.find("\"state\":\"completed\"");
+  const size_t error_idx = output.find("\"code\":-32603");
+  ASSERT_NE(completed_idx, std::string::npos);
+  ASSERT_NE(error_idx, std::string::npos);
+  EXPECT_LT(completed_idx, error_idx);
   EXPECT_NE(output.find("session_prompt_engine_failure"), std::string::npos);
 }
 
@@ -238,7 +243,6 @@ TEST_F(ServerTest, SessionCancelCanCancelActivePromptAndReturnsCancelledResult) 
   const std::string output = out.str();
   EXPECT_NE(output.find("\"state\":\"accepted\""), std::string::npos);
   EXPECT_NE(output.find("\"state\":\"started\""), std::string::npos);
-  EXPECT_NE(output.find("\"state\":\"executing_tools\""), std::string::npos);
   EXPECT_NE(output.find("\"state\":\"cancelled\""), std::string::npos);
   EXPECT_NE(output.find("\"cancelled\":true"), std::string::npos);
   EXPECT_NE(output.find("\"stopReason\":\"cancelled\""), std::string::npos);

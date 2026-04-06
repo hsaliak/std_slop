@@ -14,6 +14,10 @@ TEST(UpdatePublisherTest, StateToStringCoversAllStates) {
   EXPECT_EQ(SessionUpdateStateToString(SessionUpdateState::kCancelled), "cancelled");
 }
 
+TEST(UpdatePublisherTest, StateToStringReturnsUnknownForOutOfRangeValue) {
+  EXPECT_EQ(SessionUpdateStateToString(static_cast<SessionUpdateState>(999)), "unknown");
+}
+
 TEST(UpdatePublisherTest, NotificationShapeMatchesSessionUpdateMethod) {
   const nlohmann::json notification = MakeSessionUpdateNotification("acp_1", SessionUpdateState::kStarted);
 

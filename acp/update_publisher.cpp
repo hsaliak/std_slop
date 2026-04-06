@@ -16,7 +16,8 @@ std::string_view SessionUpdateStateToString(SessionUpdateState state) {
     case SessionUpdateState::kCancelled:
       return "cancelled";
   }
-  return "accepted";
+  // Defensive fallback for invalid enum values from untrusted casts/fuzzing.
+  return "unknown";
 }
 
 }  // namespace slop::acp
