@@ -173,6 +173,28 @@ TEST_F(InteractionEngineTest, QueryOptionsContextWindowNegativeRejected) {
   EXPECT_TRUE(absl::StrContains(normalized.status().message(), "context_window must be >= 0"));
 }
 
+TEST_F(InteractionEngineTest, QueryReturnsCancelledWhenCancellationRequested) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.cancellation = std::make_shared<CancellationRequest>();
+  options.cancellation->Cancel();
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(absl::CancelledError("cancelled")));
+
+  auto result = engine.Query("cancel me", config, {}, options);
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kCancelled);
+}
+
 TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);

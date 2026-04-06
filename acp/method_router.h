@@ -10,6 +10,7 @@
 #include "acp/rpc_envelope.h"
 #include "core/cancellation.h"
 #include "core/database.h"
+#include "absl/status/statusor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
 
@@ -34,9 +35,9 @@ class MethodRouter {
   DispatchOutcome HandleSessionPrompt(const RpcRequest& request, const NegotiatedRuntimeOptions& state, Database* db,
                                       const PromptExecutor& prompt_executor) const;
 
-  std::shared_ptr<CancellationRequest> RegisterInFlightPrompt(const std::string& session_id) const;
+  absl::StatusOr<std::shared_ptr<CancellationRequest>> RegisterInFlightPrompt(const std::string& session_id) const;
   std::shared_ptr<CancellationRequest> FindInFlightPrompt(const std::string& session_id) const;
-  void RemoveInFlightPrompt(const std::string& session_id) const;
+  void RemoveInFlightPrompt(const std::string& session_id, const std::shared_ptr<CancellationRequest>& cancellation) const;
 
   mutable absl::Mutex in_flight_mu_;
   mutable absl::flat_hash_map<std::string, std::shared_ptr<CancellationRequest>> in_flight_prompts_

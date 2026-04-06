@@ -493,12 +493,19 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   }
   (void)transient_db.SetActiveSkills(session_id, skills);
   sub_config.cancellation = effective_options.cancellation;
-  (void)sub_engine.Process(input, session_id, skills, sub_config);
+  const bool process_ok = sub_engine.Process(input, session_id, skills, sub_config);
+  if (!process_ok) {
+    if (effective_options.cancellation && effective_options.cancellation->IsCancelled()) {
+      return absl::CancelledError("query_cancelled");
+    }
+    return absl::InternalError("query_process_failed");
+  }
   // Get the last assistant message
   auto history_or = transient_db.GetConversationHistory(session_id, false, 1);
   if (history_or.ok() && !history_or->empty() && history_or->back().role == "assistant") {
     return history_or->back().content;
   }
+  if (effective_options.cancellation && effective_options.cancellation->IsCancelled()) return absl::CancelledError("query_cancelled");
   return absl::NotFoundError("No assistant response found");
 }
 }  // namespace slop

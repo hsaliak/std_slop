@@ -1,33 +1,37 @@
 
 #include "acp/method_router.h"
 
-#include <chrono>
-#include <thread>
 #include "acp/engine_adapter.h"
 #include "acp/session_store.h"
 #include "absl/status/status.h"
 
 namespace slop::acp {
 
-std::shared_ptr<CancellationRequest> MethodRouter::RegisterInFlightPrompt(const std::string& session_id) const {
+absl::StatusOr<std::shared_ptr<CancellationRequest>> MethodRouter::RegisterInFlightPrompt(
+    const std::string& session_id) const {
   auto cancellation = std::make_shared<CancellationRequest>();
   absl::MutexLock lock(in_flight_mu_);
+  if (in_flight_prompts_.contains(session_id)) {
+    return absl::AlreadyExistsError("session_prompt_request_already_in_flight");
+  }
   in_flight_prompts_[session_id] = cancellation;
   return cancellation;
 }
 
 std::shared_ptr<CancellationRequest> MethodRouter::FindInFlightPrompt(const std::string& session_id) const {
   absl::MutexLock lock(in_flight_mu_);
-  auto it = in_flight_prompts_.find(session_id);
+  const auto it = in_flight_prompts_.find(session_id);
   if (it == in_flight_prompts_.end()) {
     return nullptr;
   }
   return it->second;
 }
 
-void MethodRouter::RemoveInFlightPrompt(const std::string& session_id) const {
+void MethodRouter::RemoveInFlightPrompt(const std::string& session_id,
+                                        const std::shared_ptr<CancellationRequest>& cancellation) const {
   absl::MutexLock lock(in_flight_mu_);
-  in_flight_prompts_.erase(session_id);
+  const auto it = in_flight_prompts_.find(session_id);
+  if (it != in_flight_prompts_.end() && it->second == cancellation) in_flight_prompts_.erase(it);
 }
 
 DispatchOutcome MethodRouter::Dispatch(const RpcRequest& request, NegotiatedRuntimeOptions* state, Database* db,
@@ -120,14 +124,7 @@ DispatchOutcome MethodRouter::HandleSessionCancel(const RpcRequest& request, con
     return out;
   }
 
-  std::shared_ptr<CancellationRequest> cancellation;
-  for (int attempt = 0; attempt < 100; ++attempt) {
-    cancellation = FindInFlightPrompt(parsed_or->session_id);
-    if (cancellation) {
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  }
+  auto cancellation = FindInFlightPrompt(parsed_or->session_id);
   if (!cancellation) {
     if (out.has_response) {
       out.response = MakeInvalidRequestResponse(request.id, "session_cancel_request_not_found");
@@ -162,9 +159,15 @@ DispatchOutcome MethodRouter::HandleSessionPrompt(const RpcRequest& request, con
     return out;
   }
 
-  auto cancellation = RegisterInFlightPrompt(parsed_or->session_id);
+  auto cancellation_or = RegisterInFlightPrompt(parsed_or->session_id);
+  if (!cancellation_or.ok()) {
+    out.response = MakeInvalidRequestResponse(request.id, cancellation_or.status().message());
+    return out;
+  }
+  auto cancellation = *cancellation_or;
+
   auto result_or = ExecuteSessionPrompt(db, *parsed_or, prompt_executor, cancellation);
-  RemoveInFlightPrompt(parsed_or->session_id);
+  RemoveInFlightPrompt(parsed_or->session_id, cancellation);
 
   if (!result_or.ok()) {
     if (result_or.status().code() == absl::StatusCode::kInternal) {

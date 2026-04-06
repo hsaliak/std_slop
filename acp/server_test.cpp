@@ -229,6 +229,19 @@ TEST_F(ServerTest, SessionCancelCanCancelActivePromptAndReturnsCancelledResult) 
   EXPECT_NE(output.find("\"stopReason\":\"cancelled\""), std::string::npos);
 }
 
+TEST_F(ServerTest, SessionPromptRejectsSecondInFlightPromptForSameSession) {
+  ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
+
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
+{"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"again"}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(RunWithSlowExecutor(&in, &out), 0);
+  EXPECT_NE(out.str().find("session_prompt_request_already_in_flight"), std::string::npos);
+}
+
 TEST_F(ServerTest, SessionCancelMalformedSessionIdRejected) {
   std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/cancel","params":{"sessionId":"bad id"}}
