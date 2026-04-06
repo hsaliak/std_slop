@@ -4,6 +4,7 @@
 
 #include <istream>
 #include <ostream>
+#include <atomic>
 #include <thread>
 #include <vector>
 
@@ -17,6 +18,11 @@ class Server {
  public:
   Server(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor);
 
+  struct WorkerHandle {
+    std::thread thread;
+    std::shared_ptr<std::atomic<bool>> done;
+  };
+
   // Processes requests from input until EOF.
   void Run();
 
@@ -28,7 +34,7 @@ class Server {
   PromptExecutor prompt_executor_;
   MethodRouter router_;
   absl::Mutex out_mu_;
-  std::vector<std::thread> workers_;
+  std::vector<WorkerHandle> workers_;
 };
 
 int RunServer(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor);
