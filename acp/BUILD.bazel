@@ -18,6 +18,7 @@ cc_library(
         "server.cpp",
         "session_store.cpp",
         "transport_stdio.cpp",
+        "update_publisher.cpp",
     ],
     hdrs = [
         "capabilities.h",
@@ -27,6 +28,7 @@ cc_library(
         "server.h",
         "session_store.h",
         "transport_stdio.h",
+        "update_publisher.h",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -85,8 +87,32 @@ cc_test(
 )
 
 cc_test(
+    name = "update_publisher_test",
+    srcs = ["update_publisher_test.cpp"],
+    deps = [
+        ":runtime",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "rpc_envelope_fuzz_test",
     srcs = ["rpc_envelope_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "update_publisher_fuzz_test",
+    srcs = ["update_publisher_fuzz_test.cpp"],
     copts = [
         "-Wno-unused-parameter",
         "-Wno-deprecated-declarations",

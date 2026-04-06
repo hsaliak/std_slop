@@ -6,6 +6,7 @@
 
 #include "acp/rpc_envelope.h"
 #include "acp/transport_stdio.h"
+#include "acp/update_publisher.h"
 
 namespace slop::acp {
 
@@ -14,47 +15,56 @@ Server::Server(std::istream* in, std::ostream* out, Database* db, PromptExecutor
 
 void Server::Run() {
   StdioTransport transport(in_, out_);
+  auto write_json_locked = [&](const nlohmann::json& payload) {
+    absl::MutexLock lock(out_mu_);
+    transport.WriteJson(payload);
+  };
   auto write_if_needed = [&](const DispatchOutcome& outcome) {
     if (!outcome.has_response) {
       return;
     }
-    absl::MutexLock lock(out_mu_);
-    transport.WriteJson(outcome.response);
+    write_json_locked(outcome.response);
+  };
+  auto write_session_update = [&](const std::string& session_id, SessionUpdateState state) {
+    write_json_locked(MakeSessionUpdateNotification(session_id, state));
   };
 
-  auto dispatch_prompt_in_worker = [&](const RpcRequest& prompt_request, std::shared_ptr<CancellationRequest> cancellation) {
+  auto dispatch_prompt_in_worker = [&](const RpcRequest& prompt_request, const SessionPromptRequest& prompt,
+                                       std::shared_ptr<CancellationRequest> cancellation) {
     auto done = std::make_shared<std::atomic<bool>>(false);
-    workers_.push_back(WorkerHandle{std::thread([this, req = prompt_request, cancellation, done, &write_if_needed]() {
-                                       auto parsed_or = ParseSessionPromptParams(req.params);
-                                       if (!parsed_or.ok()) {
-                                         write_if_needed(
-                                             DispatchOutcome{true, MakeInvalidRequestResponse(req.id, parsed_or.status().message())});
-                                         done->store(true, std::memory_order_release);
-                                         return;
-                                       }
+    workers_.push_back(WorkerHandle{std::thread([this, req = prompt_request, prompt, cancellation, done,
+                                                 &write_if_needed, &write_session_update]() {
+                                       write_session_update(prompt.session_id, SessionUpdateState::kStarted);
+                                       write_session_update(prompt.session_id, SessionUpdateState::kExecutingTools);
 
-                                       auto result_or = ExecuteSessionPrompt(db_, *parsed_or, prompt_executor_, cancellation);
-                                       router_.RemoveInFlightPrompt(parsed_or->session_id, cancellation);
+                                       auto result_or = ExecuteSessionPrompt(db_, prompt, prompt_executor_, cancellation);
+                                       router_.RemoveInFlightPrompt(prompt.session_id, cancellation);
 
                                        DispatchOutcome outcome;
                                        outcome.has_response = req.id.has_value();
-                                       if (!outcome.has_response) {
-                                         done->store(true, std::memory_order_release);
-                                         return;
-                                       }
                                        if (!result_or.ok()) {
-                                         if (result_or.status().code() == absl::StatusCode::kInternal) {
-                                           outcome.response = MakeInternalErrorResponse(req.id, result_or.status().message());
-                                         } else {
-                                           outcome.response = MakeInvalidRequestResponse(req.id, result_or.status().message());
+                                         if (outcome.has_response) {
+                                           if (result_or.status().code() == absl::StatusCode::kInternal) {
+                                             outcome.response = MakeInternalErrorResponse(req.id, result_or.status().message());
+                                           } else {
+                                             outcome.response = MakeInvalidRequestResponse(req.id, result_or.status().message());
+                                           }
+                                           write_if_needed(outcome);
                                          }
-                                         write_if_needed(outcome);
                                          done->store(true, std::memory_order_release);
                                          return;
                                        }
-                                       outcome.response =
-                                           nlohmann::json({{"jsonrpc", "2.0"}, {"id", *req.id}, {"result", *result_or}});
-                                       write_if_needed(outcome);
+
+                                       const bool cancelled =
+                                           result_or->contains("stopReason") && result_or->at("stopReason") == "cancelled";
+                                       write_session_update(prompt.session_id,
+                                                            cancelled ? SessionUpdateState::kCancelled
+                                                                      : SessionUpdateState::kCompleted);
+                                       if (outcome.has_response) {
+                                         outcome.response =
+                                             nlohmann::json({{"jsonrpc", "2.0"}, {"id", *req.id}, {"result", *result_or}});
+                                         write_if_needed(outcome);
+                                       }
                                        done->store(true, std::memory_order_release);
                                      }),
                                done});
@@ -123,7 +133,8 @@ void Server::Run() {
         continue;
       }
 
-      dispatch_prompt_in_worker(*request_or, *cancellation_or);
+      write_session_update(parsed_or->session_id, SessionUpdateState::kAccepted);
+      dispatch_prompt_in_worker(*request_or, *parsed_or, *cancellation_or);
       continue;
     }
 

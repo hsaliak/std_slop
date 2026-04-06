@@ -153,8 +153,19 @@ TEST_F(ServerTest, SessionPromptSucceedsAfterInitializeAndSessionCreate) {
 
   EXPECT_EQ(Run(&in, &out), 0);
   const std::string output = out.str();
+  EXPECT_NE(output.find("\"method\":\"session/update\""), std::string::npos);
+  EXPECT_NE(output.find("\"state\":\"accepted\""), std::string::npos);
+  EXPECT_NE(output.find("\"state\":\"started\""), std::string::npos);
+  EXPECT_NE(output.find("\"state\":\"executing_tools\""), std::string::npos);
+  EXPECT_NE(output.find("\"state\":\"completed\""), std::string::npos);
   EXPECT_NE(output.find("\"content\":\"acp_1::hello\""), std::string::npos);
   EXPECT_NE(output.find("\"sessionId\":\"acp_1\""), std::string::npos);
+
+  const size_t completed_idx = output.find("\"state\":\"completed\"");
+  const size_t response_idx = output.find("\"id\":3");
+  ASSERT_NE(completed_idx, std::string::npos);
+  ASSERT_NE(response_idx, std::string::npos);
+  EXPECT_LT(completed_idx, response_idx);
 }
 
 TEST_F(ServerTest, SessionPromptMissingSessionRejected) {
@@ -225,6 +236,10 @@ TEST_F(ServerTest, SessionCancelCanCancelActivePromptAndReturnsCancelledResult) 
   EXPECT_EQ(RunWithSlowExecutor(&in, &out), 0);
 
   const std::string output = out.str();
+  EXPECT_NE(output.find("\"state\":\"accepted\""), std::string::npos);
+  EXPECT_NE(output.find("\"state\":\"started\""), std::string::npos);
+  EXPECT_NE(output.find("\"state\":\"executing_tools\""), std::string::npos);
+  EXPECT_NE(output.find("\"state\":\"cancelled\""), std::string::npos);
   EXPECT_NE(output.find("\"cancelled\":true"), std::string::npos);
   EXPECT_NE(output.find("\"stopReason\":\"cancelled\""), std::string::npos);
 }
