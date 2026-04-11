@@ -57,10 +57,9 @@ absl::StatusOr<SessionNewRequest> ParseSessionNewParams(const nlohmann::json& pa
   }
 
   SessionNewRequest req;
-  if (!params.contains("sessionId")) {
+  if (!json_at(params, "sessionId")) {
     return req;
   }
-
   auto session_id = json_get<std::string>(params, "sessionId");
   if (!session_id.has_value()) {
     return absl::InvalidArgumentError("session_new_session_id_must_be_string");

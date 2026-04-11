@@ -13,21 +13,18 @@ bool IsValidRpcIdType(const nlohmann::json& id) {
 }
 
 absl::StatusOr<std::optional<nlohmann::json>> ParseRpcId(const nlohmann::json& request_json) {
-  if (!request_json.contains("id")) {
+  const nlohmann::json* id = json_at(request_json, "id");
+  if (id == nullptr) {
     return std::nullopt;
   }
-  const nlohmann::json& id = request_json.at("id");
-  if (!IsValidRpcIdType(id)) {
+  if (!IsValidRpcIdType(*id)) {
     return absl::InvalidArgumentError("id_must_be_string_number_or_null");
   }
-  return id;
+  return *id;
 }
 
 absl::StatusOr<nlohmann::json> ParseRpcParams(const nlohmann::json& request_json) {
-  if (!request_json.contains("params")) {
-    return nlohmann::json::object();
-  }
-  const nlohmann::json& params = request_json.at("params");
+  const nlohmann::json params = json_get_or<nlohmann::json>(request_json, "params", nlohmann::json::object());
   if (!params.is_object() && !params.is_array()) {
     return absl::InvalidArgumentError("params_must_be_object_or_array");
   }

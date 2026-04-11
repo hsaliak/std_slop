@@ -19,18 +19,20 @@ absl::StatusOr<InitializeRequest> ParseInitializeParams(const nlohmann::json& pa
     return absl::InvalidArgumentError("unsupported_protocol_version");
   }
 
-  if (!params.contains("capabilities") || !params.at("capabilities").is_object()) {
+  const nlohmann::json capabilities = json_get_or<nlohmann::json>(params, "capabilities", nlohmann::json());
+  if (!capabilities.is_object()) {
     return absl::InvalidArgumentError("initialize_capabilities_must_be_object");
   }
 
-  if (params.contains("runtimeOptions") && !params.at("runtimeOptions").is_object()) {
+  const nlohmann::json runtime_options = json_get_or<nlohmann::json>(params, "runtimeOptions", nlohmann::json::object());
+  if (!runtime_options.is_object()) {
     return absl::InvalidArgumentError("initialize_runtime_options_must_be_object");
   }
 
   InitializeRequest req;
   req.protocol_version = *version;
-  req.client_capabilities = params.at("capabilities");
-  req.runtime_options = params.value("runtimeOptions", nlohmann::json::object());
+  req.client_capabilities = capabilities;
+  req.runtime_options = runtime_options;
   return req;
 }
 
