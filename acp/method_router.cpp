@@ -38,6 +38,20 @@ void MethodRouter::RemoveInFlightPrompt(const std::string& session_id,
 DispatchOutcome MethodRouter::Dispatch(const RpcRequest& request, NegotiatedRuntimeOptions* state, Database* db,
                                        const PromptExecutor& prompt_executor) const {
   DispatchOutcome out;
+  if (request.method.empty()) {
+    out.has_response = request.id.has_value();
+    if (out.has_response) {
+      out.response = MakeAcpErrorResponse(request.id, MakeInvalidRequestError("method_must_be_nonempty_string"));
+    }
+    return out;
+  }
+  if (!request.params.is_object() && !request.params.is_array()) {
+    out.has_response = request.id.has_value();
+    if (out.has_response) {
+      out.response = MakeAcpErrorResponse(request.id, MakeInvalidRequestError("params_must_be_object_or_array"));
+    }
+    return out;
+  }
   if (request.method == "initialize") {
     return HandleInitialize(request, state);
   }
