@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "nlohmann/json.hpp"
 
@@ -27,6 +28,9 @@ inline constexpr int kInternalErrorCode = -32603;
 
 absl::StatusOr<RpcRequest> ParseRpcRequest(std::string_view raw);
 absl::StatusOr<RpcRequest> ParseRpcRequestJson(const nlohmann::json& request_json);
+
+// True when a ParseRpcRequest failure came from malformed JSON text.
+bool IsRpcParseError(const absl::Status& status);
 
 nlohmann::json MakeErrorResponse(std::optional<nlohmann::json> id, int code, std::string_view message);
 

@@ -36,9 +36,13 @@ absl::StatusOr<nlohmann::json> ParseRpcParams(const nlohmann::json& request_json
 absl::StatusOr<RpcRequest> ParseRpcRequest(std::string_view raw) {
   auto parsed = json_parse(raw);
   if (!parsed.has_value()) {
-    return absl::InvalidArgumentError("invalid_json");
+    return absl::DataLossError("invalid_json");
   }
   return ParseRpcRequestJson(*parsed);
+}
+
+bool IsRpcParseError(const absl::Status& status) {
+  return status.code() == absl::StatusCode::kDataLoss;
 }
 
 absl::StatusOr<RpcRequest> ParseRpcRequestJson(const nlohmann::json& request_json) {

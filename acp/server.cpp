@@ -96,7 +96,7 @@ void Server::Run() {
     auto request_or = ParseRpcRequest(*line);
     if (!request_or.ok()) {
       absl::MutexLock lock(out_mu_);
-      if (request_or.status().message() == "invalid_json") {
+      if (IsRpcParseError(request_or.status())) {
         transport.WriteJson(MakeAcpErrorResponse(std::nullopt, MakeParseError()));
       } else {
         transport.WriteJson(MakeAcpErrorResponse(std::nullopt, MakeInvalidRequestError("Invalid request")));

@@ -16,8 +16,16 @@ TEST(RpcEnvelopeTest, ParseValidRequest) {
 }
 
 TEST(RpcEnvelopeTest, ParseRejectsInvalidJson) {
-  auto parsed = ParseRpcRequest("not-json");
+  const auto parsed = ParseRpcRequest("not-json");
   EXPECT_FALSE(parsed.ok());
+  ASSERT_FALSE(parsed.ok());
+  EXPECT_TRUE(IsRpcParseError(parsed.status()));
+}
+
+TEST(RpcEnvelopeTest, NonParseValidationErrorNotClassifiedAsParseError) {
+  const auto parsed = ParseRpcRequest("[]");
+  ASSERT_FALSE(parsed.ok());
+  EXPECT_FALSE(IsRpcParseError(parsed.status()));
 }
 
 TEST(RpcEnvelopeTest, ParseRejectsNonObject) {
