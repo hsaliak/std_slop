@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "acp/error_mapping.h"
 #include "acp/rpc_envelope.h"
 #include "acp/transport_stdio.h"
 #include "acp/update_publisher.h"
@@ -44,11 +45,7 @@ void Server::Run() {
                                        if (!result_or.ok()) {
                                          write_session_update(prompt.session_id, SessionUpdateState::kCompleted);
                                          if (outcome.has_response) {
-                                           if (result_or.status().code() == absl::StatusCode::kInternal) {
-                                             outcome.response = MakeInternalErrorResponse(req.id, result_or.status().message());
-                                           } else {
-                                             outcome.response = MakeInvalidRequestResponse(req.id, result_or.status().message());
-                                           }
+                                           outcome.response = MakeMappedErrorResponse(req.id, result_or.status());
                                            write_if_needed(outcome);
                                          }
                                          done->store(true, std::memory_order_release);
@@ -100,9 +97,9 @@ void Server::Run() {
     if (!request_or.ok()) {
       absl::MutexLock lock(out_mu_);
       if (request_or.status().message() == "invalid_json") {
-        transport.WriteJson(MakeParseErrorResponse());
+        transport.WriteJson(MakeAcpErrorResponse(std::nullopt, MakeParseError()));
       } else {
-        transport.WriteJson(MakeInvalidRequestResponse(std::nullopt, "Invalid request"));
+        transport.WriteJson(MakeAcpErrorResponse(std::nullopt, MakeInvalidRequestError("Invalid request")));
       }
       continue;
     }
@@ -111,7 +108,7 @@ void Server::Run() {
       if (!state_.initialized) {
         write_if_needed(DispatchOutcome{request_or->id.has_value(),
                                         request_or->id.has_value()
-                                            ? MakeInvalidRequestResponse(request_or->id, "initialize_required")
+                                            ? MakeAcpErrorResponse(request_or->id, MakeInvalidRequestError("initialize_required"))
                                             : nlohmann::json()});
         continue;
       }
@@ -119,7 +116,7 @@ void Server::Run() {
       if (!parsed_or.ok()) {
         write_if_needed(DispatchOutcome{request_or->id.has_value(),
                                         request_or->id.has_value()
-                                            ? MakeInvalidRequestResponse(request_or->id, parsed_or.status().message())
+                                            ? MakeInvalidRequestResponseFromStatus(request_or->id, parsed_or.status())
                                             : nlohmann::json()});
         continue;
       }
@@ -128,7 +125,7 @@ void Server::Run() {
       if (!cancellation_or.ok()) {
         write_if_needed(DispatchOutcome{request_or->id.has_value(),
                                         request_or->id.has_value()
-                                            ? MakeInvalidRequestResponse(request_or->id, cancellation_or.status().message())
+                                            ? MakeMappedErrorResponse(request_or->id, cancellation_or.status())
                                             : nlohmann::json()});
         continue;
       }

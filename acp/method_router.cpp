@@ -2,6 +2,7 @@
 #include "acp/method_router.h"
 
 #include "acp/engine_adapter.h"
+#include "acp/error_mapping.h"
 #include "acp/session_store.h"
 #include "absl/status/status.h"
 
@@ -54,7 +55,7 @@ DispatchOutcome MethodRouter::Dispatch(const RpcRequest& request, NegotiatedRunt
     return out;
   }
   out.has_response = true;
-  out.response = MakeMethodNotFoundResponse(request.id, request.method);
+  out.response = MakeAcpErrorResponse(request.id, MakeMethodNotFoundError(request.method));
   return out;
 }
 
@@ -67,7 +68,7 @@ DispatchOutcome MethodRouter::HandleInitialize(const RpcRequest& request, Negoti
 
   auto parsed_or = ParseInitializeParams(request.params);
   if (!parsed_or.ok()) {
-    out.response = MakeInvalidRequestResponse(request.id, parsed_or.status().message());
+    out.response = MakeInvalidRequestResponseFromStatus(request.id, parsed_or.status());
     return out;
   }
 
@@ -86,19 +87,19 @@ DispatchOutcome MethodRouter::HandleSessionNew(const RpcRequest& request, const 
   }
 
   if (!state.initialized) {
-    out.response = MakeInvalidRequestResponse(request.id, "initialize_required");
+    out.response = MakeAcpErrorResponse(request.id, MakeInvalidRequestError("initialize_required"));
     return out;
   }
 
   auto parsed_or = ParseSessionNewParams(request.params);
   if (!parsed_or.ok()) {
-    out.response = MakeInvalidRequestResponse(request.id, parsed_or.status().message());
+    out.response = MakeInvalidRequestResponseFromStatus(request.id, parsed_or.status());
     return out;
   }
 
   auto session_id_or = CreateSession(db, *parsed_or);
   if (!session_id_or.ok()) {
-    out.response = MakeInvalidRequestResponse(request.id, session_id_or.status().message());
+    out.response = MakeMappedErrorResponse(request.id, session_id_or.status());
     return out;
   }
   out.response = nlohmann::json({{"jsonrpc", "2.0"}, {"id", *request.id}, {"result", MakeSessionNewResult(*session_id_or)}});
@@ -111,7 +112,7 @@ DispatchOutcome MethodRouter::HandleSessionCancel(const RpcRequest& request, con
 
   if (!state.initialized) {
     if (out.has_response) {
-      out.response = MakeInvalidRequestResponse(request.id, "initialize_required");
+      out.response = MakeAcpErrorResponse(request.id, MakeInvalidRequestError("initialize_required"));
     }
     return out;
   }
@@ -119,7 +120,7 @@ DispatchOutcome MethodRouter::HandleSessionCancel(const RpcRequest& request, con
   auto parsed_or = ParseSessionCancelParams(request.params);
   if (!parsed_or.ok()) {
     if (out.has_response) {
-      out.response = MakeInvalidRequestResponse(request.id, parsed_or.status().message());
+      out.response = MakeInvalidRequestResponseFromStatus(request.id, parsed_or.status());
     }
     return out;
   }
@@ -127,7 +128,7 @@ DispatchOutcome MethodRouter::HandleSessionCancel(const RpcRequest& request, con
   auto cancellation = FindInFlightPrompt(parsed_or->session_id);
   if (!cancellation) {
     if (out.has_response) {
-      out.response = MakeInvalidRequestResponse(request.id, "session_cancel_request_not_found");
+      out.response = MakeAcpErrorResponse(request.id, MakeInvalidRequestError("session_cancel_request_not_found"));
     }
     return out;
   }
@@ -149,19 +150,19 @@ DispatchOutcome MethodRouter::HandleSessionPrompt(const RpcRequest& request, con
   }
 
   if (!state.initialized) {
-    out.response = MakeInvalidRequestResponse(request.id, "initialize_required");
+    out.response = MakeAcpErrorResponse(request.id, MakeInvalidRequestError("initialize_required"));
     return out;
   }
 
   auto parsed_or = ParseSessionPromptParams(request.params);
   if (!parsed_or.ok()) {
-    out.response = MakeInvalidRequestResponse(request.id, parsed_or.status().message());
+    out.response = MakeInvalidRequestResponseFromStatus(request.id, parsed_or.status());
     return out;
   }
 
   auto cancellation_or = RegisterInFlightPrompt(parsed_or->session_id);
   if (!cancellation_or.ok()) {
-    out.response = MakeInvalidRequestResponse(request.id, cancellation_or.status().message());
+    out.response = MakeMappedErrorResponse(request.id, cancellation_or.status());
     return out;
   }
   auto cancellation = *cancellation_or;
@@ -170,11 +171,7 @@ DispatchOutcome MethodRouter::HandleSessionPrompt(const RpcRequest& request, con
   RemoveInFlightPrompt(parsed_or->session_id, cancellation);
 
   if (!result_or.ok()) {
-    if (result_or.status().code() == absl::StatusCode::kInternal) {
-      out.response = MakeInternalErrorResponse(request.id, result_or.status().message());
-      return out;
-    }
-    out.response = MakeInvalidRequestResponse(request.id, result_or.status().message());
+    out.response = MakeMappedErrorResponse(request.id, result_or.status());
     return out;
   }
 
