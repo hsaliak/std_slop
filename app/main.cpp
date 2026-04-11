@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
   absl::InitializeSymbolizer(argv[0]);
   absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions{});
 
-  absl::SetProgramUsageMessage(slop::GetHelpText(false));
+  absl::SetProgramUsageMessage(slop::GetCliHelpText());
   (void)absl::ParseCommandLine(argc, argv);
 
   // Check if --db was specified on the command line before applying config.

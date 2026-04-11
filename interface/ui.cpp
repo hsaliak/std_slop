@@ -605,21 +605,8 @@ void HandleStatus(const absl::Status& status, const std::string& context) {
   }
 }
 std::string GetHelpText(bool include_core_operations) {
-  std::string help =
-      "# std::slop - The SQL-backed LLM CLI\n\n"
-      "## Usage\n"
-      "```bash\n"
-      "std_slop [options] [session_id]\n"
-      "```\n\n"
-      "## Options\n"
-      "- `--prompt \"...\"`: Run a single prompt in batch mode and exit.\n"
-      "- `--session <id>`: Use a specific session ID (overrides positional argument).\n"
-      "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
-      "- `--helpfull`: See all available command-line flags.\n\n"
-      "## Hotwords\n"
-      "- `hey <skill> <query>`: Temporarily activate a skill for a single prompt. For example: `hey code_reviewer what "
-      "do you think of this?`.\n\n"
-      "## Slash Commands\n\n";
+  std::string help = GetCliHelpText();
+  help += "## Slash Commands\n\n";
   std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;
   std::vector<std::string> categories;
   for (const auto& def : slop::GetCommandDefinitions()) {
@@ -661,6 +648,23 @@ std::string GetHelpText(bool include_core_operations) {
     help += "\n";
   }
   return help;
+}
+
+std::string GetCliHelpText() {
+  return
+      "# std::slop - The SQL-backed LLM CLI\n\n"
+      "## Usage\n"
+      "```bash\n"
+      "std_slop [options] [session_id]\n"
+      "```\n\n"
+      "## Options\n"
+      "- `--prompt \"...\"`: Run a single prompt in batch mode and exit.\n"
+      "- `--session <id>`: Use a specific session ID (overrides positional argument).\n"
+      "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
+      "- `--helpfull`: See all available command-line flags.\n\n"
+      "## Hotwords\n"
+      "- `hey <skill> <query>`: Temporarily activate a skill for a single prompt. For example: `hey code_reviewer what "
+      "do you think of this?`.\n\n";
 }
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
 

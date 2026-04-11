@@ -44,6 +44,12 @@ TEST(UiTest, GetHelpTextIncludesCoreOperationsByDefault) {
   const std::string help_text = GetHelpText();
   EXPECT_TRUE(absl::StrContains(help_text, "### Core Operations"));
 }
+
+TEST(UiTest, GetCliHelpTextOmitsSlashCommandsSection) {
+  const std::string help_text = GetCliHelpText();
+  EXPECT_FALSE(absl::StrContains(help_text, "## Slash Commands"));
+  EXPECT_FALSE(absl::StrContains(help_text, "/help"));
+}
 TEST(UiTest, PrintAssistantMessageBasic) {
   std::string content = "Hello, user!";
   std::stringstream buffer;

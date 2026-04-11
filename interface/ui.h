@@ -68,6 +68,7 @@ void PrintToolResultMessage(const std::string& name, const std::string& result, 
 void PrintMessage(const Database::Message& msg, const std::string& prefix = "");
 
 std::string GetHelpText(bool include_core_operations = true);
+std::string GetCliHelpText();
 void ShowHelp();
 
 /**
