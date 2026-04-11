@@ -12,6 +12,7 @@ cc_library(
     name = "runtime",
     srcs = [
         "capabilities.cpp",
+        "error_mapping.cpp",
         "engine_adapter.cpp",
         "method_router.cpp",
         "rpc_envelope.cpp",
@@ -22,6 +23,7 @@ cc_library(
     ],
     hdrs = [
         "capabilities.h",
+        "error_mapping.h",
         "engine_adapter.h",
         "method_router.h",
         "rpc_envelope.h",
@@ -87,6 +89,15 @@ cc_test(
 )
 
 cc_test(
+    name = "error_mapping_test",
+    srcs = ["error_mapping_test.cpp"],
+    deps = [
+        ":runtime",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "update_publisher_test",
     srcs = ["update_publisher_test.cpp"],
     deps = [
@@ -109,6 +120,22 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_test(
+    name = "error_mapping_fuzz_test",
+    srcs = ["error_mapping_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
 
 cc_test(
     name = "update_publisher_fuzz_test",
