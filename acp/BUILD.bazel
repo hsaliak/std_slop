@@ -162,6 +162,22 @@ cc_test(
 )
 
 cc_test(
+    name = "method_router_fuzz_test",
+    srcs = ["method_router_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":runtime",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+
+cc_test(
     name = "session_store_fuzz_test",
     srcs = ["session_store_fuzz_test.cpp"],
     copts = [
