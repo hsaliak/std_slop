@@ -47,10 +47,23 @@ bool IsAllowedAcpCommand(const ParsedCommand& parsed) {
   return false;
 }
 
+bool IsHardBlockedAcpCommand(std::string_view command) {
+  return command == "/edit" || command == "/exec" || command == "/feedback" || command == "/undo" ||
+         command == "/exit" || command == "/quit" || command == "/review" ||
+         absl::StartsWith(command, "/review") || command == "/scratchpad" ||
+         absl::StartsWith(command, "/scratchpad") || command == "/session" ||
+         absl::StartsWith(command, "/session") || command == "/message" ||
+         absl::StartsWith(command, "/message");
+}
+
+std::string AcpAllowedCommandsSummary() {
+  return "/help, /tool list|show, /models, /stats, /context show, /skill list|activate|deactivate, /model, "
+         "/throttle";
+}
+
 std::string BuildAcpCommandDisabledText(const ParsedCommand& parsed) {
   return absl::StrCat("Command '", parsed.command,
-                      "' is disabled in ACP mode. Allowed commands: /help, /tool list|show, /models, /stats, "
-                      "/context show, /skill list|activate|deactivate, /model, /throttle.");
+                      "' is disabled in ACP mode. Allowed commands: ", AcpAllowedCommandsSummary(), ".");
 }
 
 }  // namespace
@@ -520,7 +533,7 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   std::vector<std::string> skills = active_skills;
   ParsedCommand parsed = ParseCommandInput(prompt);
   if (effective_options.command_mode && parsed.is_command) {
-    if (!IsAllowedAcpCommand(parsed)) {
+    if (IsHardBlockedAcpCommand(parsed.command) || !IsAllowedAcpCommand(parsed)) {
       return BuildAcpCommandDisabledText(parsed);
     }
     auto structured = cmd_handler_.HandleStructured(input, session_id, skills,

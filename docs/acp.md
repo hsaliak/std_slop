@@ -1,6 +1,29 @@
 
 # ACP Integration Plan (Server Mode)
 
+## Current Runtime Behavior (Bundle 3)
+
+ACP prompt handling now supports a strict command subset for slash-prefixed prompts.
+
+### Allowed slash commands in ACP command mode
+
+- `/help`
+- `/tool list`, `/tool show <name>`
+- `/models`
+- `/stats`
+- `/context show [n]`
+- `/skill list`, `/skill activate <name|id>`, `/skill deactivate <name|id>`
+- `/model <id>`
+- `/throttle <n>`
+
+### Hard-disabled slash commands in ACP command mode
+
+- `/edit`, `/exec`, `/review*`, `/feedback`, `/scratchpad*`, `/session*`, `/message*`, `/undo`, `/exit`, `/quit`
+
+When blocked, ACP returns deterministic guidance text in the agent message chunk and ends with `{"stopReason":"end_turn"}`.
+
+Non-slash prompts continue through normal ACP prompt execution and produce model/tool output as usual.
+
 ## Goal
 
 Add **basic ACP support** to this codebase with a simple, maintainable implementation that reuses existing std::slop execution paths.

@@ -4,7 +4,10 @@
 #include <chrono>
 #include <sstream>
 #include <thread>
+#include <vector>
 
+#include "absl/strings/str_replace.h"
+#include "absl/strings/str_format.h"
 #include <gtest/gtest.h>
 #include "core/database.h"
 
@@ -292,6 +295,37 @@ TEST_F(ServerTest, SessionPromptPlainTextStillFlowsThroughExecutor) {
   EXPECT_NE(output.find("\"sessionUpdate\":\"agent_message_chunk\""), std::string::npos);
   EXPECT_NE(output.find("\"text\":\"acp_1::hello\""), std::string::npos);
   EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos);
+}
+
+TEST_F(ServerTest, SessionPromptBlockedCommandsTableDriven) {
+  ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
+
+  const std::vector<std::string> blocked_prompts = {
+      "/exec ls",
+      "   /review mail",
+      "/session remove acp_1",
+      "/message list",
+      "/scratchpad show",
+      "/feedback anything",
+  };
+
+  for (const auto& prompt : blocked_prompts) {
+    const std::string escaped_prompt = absl::StrReplaceAll(prompt, {{"\\", "\\\\"}, {"\"", "\\\""}});
+    std::istringstream in(absl::StrFormat(
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"1\",\"capabilities\":{}}}\n"
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/prompt\",\"params\":{\"sessionId\":\"acp_1\",\"prompt\":\"%s\"}}\n",
+        escaped_prompt));
+    std::ostringstream out;
+    EXPECT_EQ(Run(&in, &out), 0);
+    const std::string output = out.str();
+
+    const size_t chunk_idx = output.find("\"sessionUpdate\":\"agent_message_chunk\"");
+    const size_t result_idx = output.find("\"id\":2");
+    ASSERT_NE(chunk_idx, std::string::npos) << prompt;
+    ASSERT_NE(result_idx, std::string::npos) << prompt;
+    EXPECT_LT(chunk_idx, result_idx) << prompt;
+    EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos) << prompt;
+  }
 }
 
 TEST_F(ServerTest, SessionCancelMalformedSessionIdRejected) {

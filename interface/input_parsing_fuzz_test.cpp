@@ -3,6 +3,8 @@
 
 #include <string>
 
+#include <array>
+
 #include "absl/strings/ascii.h"
 #include "fuzztest/fuzztest.h"
 #include "gtest/gtest.h"
@@ -41,6 +43,31 @@ void CommandRoundTripCanonical(const std::string& command_suffix, const std::str
   EXPECT_EQ(parsed.args, std::string(absl::StripAsciiWhitespace(args)));
 }
 
+bool IsLikelyHardBlockedCommandPrefix(absl::string_view command) {
+  constexpr std::array<absl::string_view, 10> kBlocked = {
+      "/edit", "/exec", "/feedback", "/undo", "/exit", "/review", "/scratchpad", "/session", "/message", "/quit",
+  };
+  for (absl::string_view prefix : kBlocked) {
+    if (command == prefix || absl::StartsWith(command, prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void HardBlockedCommandPrefixParsingRemainsStable(const std::string& command_part, const std::string& suffix) {
+  const std::string raw = " /" + command_part + suffix;
+  const ParsedCommand parsed = ParseCommandInput(raw);
+  if (!parsed.is_command) {
+    return;
+  }
+  if (!IsLikelyHardBlockedCommandPrefix(parsed.command)) {
+    return;
+  }
+  EXPECT_TRUE(absl::StartsWith(parsed.command, "/"));
+  EXPECT_FALSE(parsed.command.empty());
+}
+
 FUZZ_TEST(InputParsingFuzzTest, ParseCommandNeverCrashes);
 
 FUZZ_TEST(InputParsingFuzzTest, InputWithoutSlashAfterLeadingWhitespaceIsNotCommand)
@@ -48,6 +75,10 @@ FUZZ_TEST(InputParsingFuzzTest, InputWithoutSlashAfterLeadingWhitespaceIsNotComm
 
 FUZZ_TEST(InputParsingFuzzTest, CommandRoundTripCanonical)
     .WithDomains(fuzztest::InRegexp("[A-Za-z0-9_\\-]{0,16}"), fuzztest::InRegexp("[\\x20-\\x7E]{0,128}"));
+
+FUZZ_TEST(InputParsingFuzzTest, HardBlockedCommandPrefixParsingRemainsStable)
+    .WithDomains(fuzztest::InRegexp("(edit|exec|feedback|undo|exit|review|scratchpad|session|message|quit)[A-Za-z0-9_\\-]{0,12}"),
+                 fuzztest::InRegexp("[\\x20-\\x7E]{0,64}"));
 
 }  // namespace
 }  // namespace slop

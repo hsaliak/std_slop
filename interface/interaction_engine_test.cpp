@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <fstream>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -267,6 +268,49 @@ TEST_F(InteractionEngineTest, QueryCommandModeRejectsDisallowedCommandWithGuidan
   auto result = engine.Query("/exec ls", config, {}, options);
   ASSERT_TRUE(result.ok());
   EXPECT_TRUE(absl::StrContains(*result, "disabled in ACP mode"));
+}
+
+TEST_F(InteractionEngineTest, QueryCommandModeRejectsHardBlockedInteractiveCommands) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.command_mode = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_)).Times(0);
+
+  auto result = engine.Query("/review mail", config, {}, options);
+  ASSERT_TRUE(result.ok());
+  EXPECT_TRUE(absl::StrContains(*result, "disabled in ACP mode"));
+}
+
+TEST_F(InteractionEngineTest, QueryCommandModeBlockedCommandTableDrivenReturnsGuidance) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.command_mode = true;
+
+  const std::vector<std::string> blocked = {
+      "/exec ls", "  /review mail", "/session remove query", "/message list", "/scratchpad show", "/feedback nope",
+  };
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_)).Times(0);
+  for (const auto& cmd : blocked) {
+    auto result = engine.Query(cmd, config, {}, options);
+    ASSERT_TRUE(result.ok()) << cmd;
+    EXPECT_TRUE(absl::StrContains(*result, "disabled in ACP mode")) << cmd;
+  }
 }
 
 TEST_F(InteractionEngineTest, QueryReturnsCancelledWhenCancellationRequested) {
