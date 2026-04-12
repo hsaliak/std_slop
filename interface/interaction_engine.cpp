@@ -9,6 +9,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -20,10 +21,40 @@
 #include "core/shell_util.h"
 #include "core/status_macros.h"
 #include "interface/color.h"
+#include "interface/input_parsing.h"
 #include "interface/renderer.h"
 #include "interface/terminal.h"
 #include "interface/ui.h"
 namespace slop {
+
+namespace {
+
+bool IsAllowedAcpCommand(const ParsedCommand& parsed) {
+  const std::string& cmd = parsed.command;
+  if (cmd == "/help" || cmd == "/models" || cmd == "/stats" || cmd == "/model" || cmd == "/throttle") {
+    return true;
+  }
+  const std::string args = std::string(absl::StripAsciiWhitespace(parsed.args));
+  if (cmd == "/tool") {
+    return args == "list" || args == "show" || absl::StartsWith(args, "show ");
+  }
+  if (cmd == "/context") {
+    return args == "show" || absl::StartsWith(args, "show ");
+  }
+  if (cmd == "/skill" || cmd == "/skills") {
+    return args == "list" || absl::StartsWith(args, "activate ") || absl::StartsWith(args, "deactivate ");
+  }
+  return false;
+}
+
+std::string BuildAcpCommandDisabledText(const ParsedCommand& parsed) {
+  return absl::StrCat("Command '", parsed.command,
+                      "' is disabled in ACP mode. Allowed commands: /help, /tool list|show, /models, /stats, "
+                      "/context show, /skill list|activate|deactivate, /model, /throttle.");
+}
+
+}  // namespace
+
 InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler,
                                      ToolDispatcher& dispatcher, ToolExecutor& tool_executor, HttpClient& http_client,
                                      std::shared_ptr<OAuthHandler> oauth_handler)
@@ -487,6 +518,24 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   std::string input = prompt;
   std::string session_id = query_session_id;
   std::vector<std::string> skills = active_skills;
+  ParsedCommand parsed = ParseCommandInput(prompt);
+  if (effective_options.command_mode && parsed.is_command) {
+    if (!IsAllowedAcpCommand(parsed)) {
+      return BuildAcpCommandDisabledText(parsed);
+    }
+    auto structured = cmd_handler_.HandleStructured(input, session_id, skills,
+                                                    []() { std::cout << GetHelpText(false) << std::endl; }, {});
+    if (structured.proceed_to_llm) {
+      return absl::InvalidArgumentError("acp_command_not_supported");
+    }
+    if (structured.handled) {
+      std::string combined = structured.output_text;
+      if (!structured.error_text.empty()) {
+        combined += structured.error_text;
+      }
+      return combined;
+    }
+  }
   if (effective_options.skill.has_value() && !effective_options.skill->empty() &&
       std::find(skills.begin(), skills.end(), *effective_options.skill) == skills.end()) {
     skills.push_back(*effective_options.skill);

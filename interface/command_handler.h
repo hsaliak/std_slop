@@ -27,6 +27,13 @@ class CommandHandler {
     const std::vector<std::string>& selected_groups;
     std::string args;
   };
+  struct StructuredResult {
+    Result result = Result::NOT_A_COMMAND;
+    bool handled = false;
+    bool proceed_to_llm = false;
+    std::string output_text;
+    std::string error_text;
+  };
   using CommandFunc = std::function<Result(CommandArgs&)>;
   virtual ~CommandHandler() = default;
   static absl::StatusOr<std::unique_ptr<CommandHandler>> Create(Database* db,
@@ -42,6 +49,9 @@ class CommandHandler {
   }
   Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills,
                 std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
+  StructuredResult HandleStructured(std::string& input, std::string& current_session_id,
+                                    std::vector<std::string>& active_skills, std::function<void()> show_help_fn,
+                                    const std::vector<std::string>& selected_groups = {});
   std::vector<std::string> GetCommandNames() const;
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
   bool IsMailMode() const { return mail_mode_; }

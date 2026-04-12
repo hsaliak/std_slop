@@ -6,6 +6,8 @@
 #include <array>
 #include <cstdio>
 #include <iostream>
+#include <mutex>
+#include <sstream>
 
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
@@ -76,6 +78,11 @@ bool IsSafeBranchToken(std::string_view name) {
     const bool is_alpha_num = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
     return is_alpha_num || c == '-' || c == '_' || c == '.';
   });
+}
+
+std::mutex& StructuredCommandCaptureMutex() {
+  static std::mutex* mu = new std::mutex();
+  return *mu;
 }
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
@@ -167,6 +174,36 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
   std::cerr << "Unknown command: " << cmd << std::endl;
   return Result::UNKNOWN;
 }
+
+CommandHandler::StructuredResult CommandHandler::HandleStructured(
+    std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
+    std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups) {
+  StructuredResult structured;
+  ParsedCommand parsed = ParseCommandInput(input);
+  if (!parsed.is_command) {
+    return structured;
+  }
+
+  std::ostringstream captured_out;
+  std::ostringstream captured_err;
+  {
+    std::lock_guard<std::mutex> lock(StructuredCommandCaptureMutex());
+    std::streambuf* old_cout = std::cout.rdbuf(captured_out.rdbuf());
+    std::streambuf* old_cerr = std::cerr.rdbuf(captured_err.rdbuf());
+
+    structured.result = Handle(input, session_id, active_skills, std::move(show_help_fn), selected_groups);
+
+    std::cout.rdbuf(old_cout);
+    std::cerr.rdbuf(old_cerr);
+  }
+
+  structured.handled = structured.result == Result::HANDLED || structured.result == Result::UNKNOWN;
+  structured.proceed_to_llm = structured.result == Result::PROCEED_TO_LLM;
+  structured.output_text = captured_out.str();
+  structured.error_text = captured_err.str();
+  return structured;
+}
+
 CommandHandler::Result CommandHandler::HandleHelp(CommandArgs& args) {
   args.show_help_fn();
   return Result::HANDLED;

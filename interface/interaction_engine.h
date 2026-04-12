@@ -50,6 +50,7 @@ class InteractionEngine {
     ExecutionScope execution_scope = ExecutionScope::kRoot;
     int execution_depth = 0;
     std::shared_ptr<CancellationRequest> cancellation;
+    bool command_mode = false;
   };
 
   absl::StatusOr<std::string> Query(const std::string& prompt, const Config& config,

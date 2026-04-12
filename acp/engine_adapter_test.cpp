@@ -237,57 +237,5 @@ TEST(EngineAdapterTest, ExecuteSessionPromptPassesThroughInputErrors) {
   EXPECT_EQ(result_or.status().message(), "input_bad");
 }
 
-TEST(EngineAdapterTest, ExecuteSessionPromptAllowsHelpWithoutCallingExecutor) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  ASSERT_TRUE(db.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
-
-  SessionPromptRequest req;
-  req.session_id = "acp_1";
-  req.prompt = "/help";
-
-  bool executor_called = false;
-  auto result_or = ExecuteSessionPrompt(
-      &db, req,
-      [&executor_called](const std::string&, const std::string&, std::shared_ptr<CancellationRequest>)
-          -> absl::StatusOr<std::string> {
-        executor_called = true;
-        return std::string("unexpected");
-      },
-      nullptr);
-  ASSERT_TRUE(result_or.ok());
-  EXPECT_FALSE(executor_called);
-  ASSERT_TRUE(result_or->contains("content"));
-  const std::string content = result_or->at("content").get<std::string>();
-  EXPECT_NE(content.find("ACP slash command support"), std::string::npos);
-  EXPECT_NE(content.find("/help"), std::string::npos);
-}
-
-TEST(EngineAdapterTest, ExecuteSessionPromptBlocksUnsupportedSlashCommandWithoutExecutor) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  ASSERT_TRUE(db.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
-
-  SessionPromptRequest req;
-  req.session_id = "acp_1";
-  req.prompt = " /exec ls -la";
-
-  bool executor_called = false;
-  auto result_or = ExecuteSessionPrompt(
-      &db, req,
-      [&executor_called](const std::string&, const std::string&, std::shared_ptr<CancellationRequest>)
-          -> absl::StatusOr<std::string> {
-        executor_called = true;
-        return std::string("unexpected");
-      },
-      nullptr);
-  ASSERT_TRUE(result_or.ok());
-  EXPECT_FALSE(executor_called);
-  ASSERT_TRUE(result_or->contains("content"));
-  const std::string content = result_or->at("content").get<std::string>();
-  EXPECT_NE(content.find("/exec"), std::string::npos);
-  EXPECT_NE(content.find("disabled in ACP mode"), std::string::npos);
-}
-
 }  // namespace
 }  // namespace slop::acp

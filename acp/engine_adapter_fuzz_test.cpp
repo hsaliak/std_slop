@@ -75,44 +75,11 @@ void ParseSessionCancelParamsDeterministic(const std::string& session_id, bool i
   EXPECT_EQ(first.ok(), second.ok());
 }
 
-void ExecuteSessionPromptSlashCommandNoCrash(const std::string& prompt, bool include_leading_slash) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  ASSERT_TRUE(db.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
-
-  SessionPromptRequest req;
-  req.session_id = "acp_1";
-  req.prompt = include_leading_slash ? ("/" + prompt) : prompt;
-
-  bool executor_called = false;
-  auto result_or = ExecuteSessionPrompt(
-      &db, req,
-      [&executor_called](const std::string&, const std::string&, std::shared_ptr<CancellationRequest>)
-          -> absl::StatusOr<std::string> {
-        executor_called = true;
-        return std::string("ok");
-      },
-      nullptr);
-
-  if (result_or.ok()) {
-    EXPECT_TRUE(result_or->is_object());
-    EXPECT_TRUE(result_or->contains("sessionId"));
-    EXPECT_TRUE(result_or->contains("content") || result_or->contains("stopReason"));
-  }
-
-  if (include_leading_slash) {
-    EXPECT_FALSE(executor_called);
-  }
-}
-
 FUZZ_TEST(EngineAdapterFuzzTest, ParseSessionCancelParamsNoCrash)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>(), fuzztest::Arbitrary<bool>());
 
 FUZZ_TEST(EngineAdapterFuzzTest, ParseSessionCancelParamsDeterministic)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>(), fuzztest::Arbitrary<bool>());
-
-FUZZ_TEST(EngineAdapterFuzzTest, ExecuteSessionPromptSlashCommandNoCrash)
-    .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>());
 
 }  // namespace
 }  // namespace slop::acp

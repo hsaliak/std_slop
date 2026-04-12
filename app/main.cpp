@@ -364,6 +364,7 @@ int main(int argc, char* argv[]) {
     slop::InteractionEngine::QueryOptions options;
     options.session_id = session_id;
     options.cancellation = std::move(cancellation);
+    options.command_mode = true;
     return engine.Query(prompt, engine_config, active_skills, options);
   };
 

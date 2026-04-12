@@ -126,6 +126,36 @@ TEST_F(CommandHandlerTest, HandlesUnknownCommand) {
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::UNKNOWN);
 }
+
+TEST_F(CommandHandlerTest, HandleStructuredCapturesOutputForHandledCommand) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  std::string input = "/help";
+
+  auto structured = handler.HandleStructured(input, sid, active_skills,
+                                             []() { std::cout << "help text" << std::endl; }, {});
+  EXPECT_TRUE(structured.handled);
+  EXPECT_FALSE(structured.proceed_to_llm);
+  EXPECT_EQ(structured.result, CommandHandler::Result::HANDLED);
+  EXPECT_FALSE(structured.output_text.empty());
+  EXPECT_TRUE(structured.error_text.empty());
+}
+
+TEST_F(CommandHandlerTest, HandleStructuredMarksProceedToLlmForEditCommand) {
+  TestableCommandHandler handler(&db);
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  handler.next_editor_output = "next prompt";
+  std::string input = "/edit";
+
+  auto structured = handler.HandleStructured(input, sid, active_skills, []() {}, {});
+  EXPECT_FALSE(structured.handled);
+  EXPECT_TRUE(structured.proceed_to_llm);
+  EXPECT_EQ(structured.result, CommandHandler::Result::PROCEED_TO_LLM);
+}
 TEST_F(CommandHandlerTest, HandlesCommandWithWhitespace) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());

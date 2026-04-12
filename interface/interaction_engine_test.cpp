@@ -192,6 +192,83 @@ TEST_F(InteractionEngineTest, QueryOptionsContextWindowNegativeRejected) {
   EXPECT_TRUE(absl::StrContains(normalized.status().message(), "context_window must be >= 0"));
 }
 
+TEST_F(InteractionEngineTest, QueryCommandModeReturnsCommandOutputWithoutHttp) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.command_mode = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_)).Times(0);
+
+  auto result = engine.Query("/stats", config, {}, options);
+  ASSERT_TRUE(result.ok());
+  EXPECT_FALSE(result->empty());
+}
+
+TEST_F(InteractionEngineTest, QueryCommandModeHelpReturnsHelpText) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.command_mode = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_)).Times(0);
+
+  auto result = engine.Query("/help", config, {}, options);
+  ASSERT_TRUE(result.ok());
+  EXPECT_TRUE(absl::StrContains(*result, "Slash Commands"));
+}
+
+TEST_F(InteractionEngineTest, QueryCommandModeNonSlashPromptUsesHttpPath) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.command_mode = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(GeminiResponse("natural").dump()));
+
+  auto result = engine.Query("hello from acp", config, {}, options);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(*result, "natural");
+}
+
+TEST_F(InteractionEngineTest, QueryCommandModeRejectsDisallowedCommandWithGuidance) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.command_mode = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_)).Times(0);
+
+  auto result = engine.Query("/exec ls", config, {}, options);
+  ASSERT_TRUE(result.ok());
+  EXPECT_TRUE(absl::StrContains(*result, "disabled in ACP mode"));
+}
+
 TEST_F(InteractionEngineTest, QueryReturnsCancelledWhenCancellationRequested) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);

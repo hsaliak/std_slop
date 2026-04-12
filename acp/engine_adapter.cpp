@@ -2,15 +2,10 @@
 #include "acp/engine_adapter.h"
 
 #include <optional>
-#include <string>
 #include <string_view>
-#include <vector>
 
 #include "acp/session_store.h"
 #include "absl/status/status.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_split.h"
 #include "core/json_utils.h"
 #include "core/status_macros.h"
 
@@ -72,33 +67,6 @@ std::optional<std::string> ExtractPromptText(const nlohmann::json& prompt_value)
   }
 
   return std::nullopt;
-}
-
-std::optional<std::string> ExtractSlashCommand(std::string prompt) {
-  absl::StripAsciiWhitespace(&prompt);
-  if (prompt.empty() || !absl::StartsWith(prompt, "/")) {
-    return std::nullopt;
-  }
-  const std::vector<std::string> parts = absl::StrSplit(prompt, absl::ByAnyChar(" \t\r\n"), absl::SkipEmpty());
-  if (parts.empty()) {
-    return std::nullopt;
-  }
-  return parts.front();
-}
-
-bool IsAcpAllowedSlashCommand(std::string_view command) {
-  return command == "/help";
-}
-
-std::string BuildAcpHelpText() {
-  return "ACP slash command support:\n- /help\n\n"
-         "All other slash commands are disabled in ACP mode.\n"
-         "Use ACP protocol methods (session/new, session/prompt, session/cancel) for control operations.";
-}
-
-std::string BuildAcpDisabledCommandText(std::string_view command) {
-  return std::string("Command '") + std::string(command) +
-         "' is disabled in ACP mode. Use ACP protocol methods instead.";
 }
 
 }  // namespace
@@ -167,14 +135,6 @@ absl::StatusOr<nlohmann::json> ExecuteSessionPrompt(Database* db, const SessionP
 
   if (cancellation == nullptr) {
     cancellation = std::make_shared<CancellationRequest>();
-  }
-
-  const auto slash_command = ExtractSlashCommand(request.prompt);
-  if (slash_command.has_value()) {
-    if (IsAcpAllowedSlashCommand(*slash_command)) {
-      return MakeSessionPromptResult(request.session_id, BuildAcpHelpText());
-    }
-    return MakeSessionPromptResult(request.session_id, BuildAcpDisabledCommandText(*slash_command));
   }
 
   auto output_or = executor(request.session_id, request.prompt, cancellation);
