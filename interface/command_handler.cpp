@@ -85,6 +85,7 @@ std::mutex& StructuredCommandCaptureMutex() {
   return *mu;
 }
 }  // namespace
+
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
                                std::string google_api_key, std::string openai_api_key)
     : db_(db),
@@ -157,7 +158,7 @@ std::vector<std::string> CommandHandler::GetCommandNames() const {
 CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& session_id,
                                               std::vector<std::string>& active_skills,
                                               std::function<void()> show_help_fn,
-                                              const std::vector<std::string>& selected_groups) {
+                                              const std::vector<std::string>& selected_groups, RenderTarget target) {
   ParsedCommand parsed = ParseCommandInput(input);
   if (!parsed.is_command) {
     return Result::NOT_A_COMMAND;
@@ -168,7 +169,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
   auto it = commands_.find(cmd);
   if (it != commands_.end()) {
     LOG(INFO) << "Dispatching command: " << cmd << " (args: " << args_str << ")";
-    CommandArgs args{input, session_id, active_skills, show_help_fn, selected_groups, args_str};
+    CommandArgs args{input, session_id, active_skills, show_help_fn, selected_groups, args_str, target};
     return it->second(args);
   }
   std::cerr << "Unknown command: " << cmd << std::endl;
@@ -177,7 +178,7 @@ CommandHandler::Result CommandHandler::Handle(std::string& input, std::string& s
 
 CommandHandler::StructuredResult CommandHandler::HandleStructured(
     std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
-    std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups) {
+    std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups, RenderTarget target) {
   StructuredResult structured;
   ParsedCommand parsed = ParseCommandInput(input);
   if (!parsed.is_command) {
@@ -191,7 +192,7 @@ CommandHandler::StructuredResult CommandHandler::HandleStructured(
     std::streambuf* old_cout = std::cout.rdbuf(captured_out.rdbuf());
     std::streambuf* old_cerr = std::cerr.rdbuf(captured_err.rdbuf());
 
-    structured.result = Handle(input, session_id, active_skills, std::move(show_help_fn), selected_groups);
+    structured.result = Handle(input, session_id, active_skills, std::move(show_help_fn), selected_groups, target);
 
     std::cout.rdbuf(old_cout);
     std::cerr.rdbuf(old_cerr);
@@ -250,7 +251,7 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
           md += absl::Substitute("| `$0` | $1 | $2 |\n", json_get_or(row, "group_id", std::string{}), escaped_prompt,
                                  tokens_str);
         }
-        PrintMarkdown(md);
+        PrintMarkdown(md, "", args.render_target);
       }
     }
   } else if (sub_cmd == "view" || sub_cmd == "show") {
@@ -268,7 +269,7 @@ CommandHandler::Result CommandHandler::HandleMessage(CommandArgs& args) {
           }
           md += "\n" + m.value("content", "") + "\n\n";
         }
-        PrintMarkdown(md);
+        PrintMarkdown(md, "", args.render_target);
       }
     }
   } else if (sub_cmd == "remove") {
@@ -360,7 +361,7 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
                                  json_get_or(row, "description", std::string{}),
                                  json_get_or(row, "is_enabled", 1) ? "✅" : "❌");
         }
-        PrintMarkdown(md);
+        PrintMarkdown(md, "", args.render_target);
       }
     }
   } else if (sub_cmd == "show") {
@@ -371,7 +372,7 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
         std::string md = absl::Substitute("### Tool: $0\n\n", json_get_or(j[0], "name", std::string{}));
         md += "**Description**: " + json_get_or(j[0], "description", std::string{}) + "\n\n";
         md += "**JSON Schema**:\n```json\n" + json_get_or(j[0], "json_schema", std::string{"{}"}) + "\n```\n";
-        PrintMarkdown(md);
+        PrintMarkdown(md, "", args.render_target);
       }
     }
   }
@@ -401,7 +402,7 @@ CommandHandler::Result CommandHandler::HandleSkill(CommandArgs& args) {
                                  json_get_or(row, "name", std::string{}), description,
                                  json_get_or(row, "activation_count", 0), active ? "✓" : "");
         }
-        PrintMarkdown(md);
+        PrintMarkdown(md, "", args.render_target);
       }
     } else {
       HandleStatus(res.status(), "Database error");
@@ -580,7 +581,7 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
           bool active = (sid == args.session_id);
           md += absl::Substitute("| $0 | $1 |\n", active ? "✓" : "", sid);
         }
-        PrintMarkdown(md);
+        PrintMarkdown(md, "", args.render_target);
       }
     }
   } else if (sub_cmd == "switch") {
@@ -645,7 +646,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
                                json_get_or(row, "total", 0));
       }
       md += "\n";
-      PrintMarkdown(md);
+      PrintMarkdown(md, "", args.render_target);
     } else {
       std::cout << "No usage data for session [" << args.session_id << "]" << std::endl;
     }
@@ -662,7 +663,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
                                json_get_or(row, "call_count", 0));
       }
       md += "\n";
-      PrintMarkdown(md);
+      PrintMarkdown(md, "", args.render_target);
     }
   }
   auto skills_res =
@@ -678,7 +679,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
                                json_get_or(row, "activation_count", 0));
       }
       md += "\n";
-      PrintMarkdown(md);
+      PrintMarkdown(md, "", args.render_target);
     }
   }
   if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ &&
@@ -699,7 +700,7 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
                                    static_cast<int>(fraction * 100), json_get_or(b, "resetTime", std::string{"N/A"}),
                                    json_get_or(b, "tokenType", std::string{"N/A"}));
           }
-          PrintMarkdown(md);
+          PrintMarkdown(md, "", args.render_target);
         } else {
           std::cout << "No quota buckets found." << std::endl;
         }

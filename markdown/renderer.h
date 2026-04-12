@@ -10,11 +10,17 @@ namespace markdown {
 
 class MarkdownRenderer final {
  public:
+  enum class StyleMode {
+    kAnsi,
+    kPlainText,
+  };
+
   MarkdownRenderer() = default;
 
   // Sets the maximum width for rendering (e.g., terminal width).
   // If set to 0 (default), no wrapping/truncation is applied.
   void SetMaxWidth(size_t width) { max_width_ = width; }
+  void SetStyleMode(StyleMode mode) { style_mode_ = mode; }
 
   /**
    * @brief Renders the parsed markdown to an ANSI-styled string.
@@ -49,6 +55,7 @@ class MarkdownRenderer final {
 
  private:
   size_t max_width_ = 0;
+  StyleMode style_mode_ = StyleMode::kAnsi;
 
   void RenderNodeRecursive(TSNode node, const ParsedMarkdown& parsed, std::string_view current_source,
                            std::string& output, int depth, TSTree* current_tree);

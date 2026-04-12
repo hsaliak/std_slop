@@ -668,11 +668,12 @@ std::string GetCliHelpText() {
 }
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
 
-void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
-  Renderer::Get().RenderMarkdown(markdown, prefix, rendered);
+void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered,
+                    RenderTarget target) {
+  Renderer::Get().RenderMarkdown(markdown, prefix, rendered, target);
 }
-void PrintMarkdown(const std::string& markdown, const std::string& prefix) {
-  Renderer::Get().PrintMarkdown(markdown, prefix);
+void PrintMarkdown(const std::string& markdown, const std::string& prefix, RenderTarget target) {
+  Renderer::Get().PrintMarkdown(markdown, prefix, target);
 }
 
 }  // namespace slop

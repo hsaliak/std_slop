@@ -26,6 +26,7 @@ class CommandHandler {
     std::function<void()> show_help_fn;
     const std::vector<std::string>& selected_groups;
     std::string args;
+    RenderTarget render_target = RenderTarget::kTerminal;
   };
   struct StructuredResult {
     Result result = Result::NOT_A_COMMAND;
@@ -34,6 +35,7 @@ class CommandHandler {
     std::string output_text;
     std::string error_text;
   };
+
   using CommandFunc = std::function<Result(CommandArgs&)>;
   virtual ~CommandHandler() = default;
   static absl::StatusOr<std::unique_ptr<CommandHandler>> Create(Database* db,
@@ -48,10 +50,12 @@ class CommandHandler {
         new CommandHandler(db, orchestrator, oauth_handler, std::move(google_api_key), std::move(openai_api_key)));
   }
   Result Handle(std::string& input, std::string& current_session_id, std::vector<std::string>& active_skills,
-                std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {});
+                std::function<void()> show_help_fn, const std::vector<std::string>& selected_groups = {},
+                RenderTarget target = RenderTarget::kTerminal);
   StructuredResult HandleStructured(std::string& input, std::string& current_session_id,
-                                    std::vector<std::string>& active_skills, std::function<void()> show_help_fn,
-                                    const std::vector<std::string>& selected_groups = {});
+                                     std::vector<std::string>& active_skills, std::function<void()> show_help_fn,
+                                    const std::vector<std::string>& selected_groups = {},
+                                    RenderTarget target = RenderTarget::kTerminal);
   std::vector<std::string> GetCommandNames() const;
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
   bool IsMailMode() const { return mail_mode_; }

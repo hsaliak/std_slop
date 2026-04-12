@@ -231,6 +231,34 @@ TEST_F(InteractionEngineTest, QueryCommandModeHelpReturnsHelpText) {
   EXPECT_TRUE(absl::StrContains(*result, "Slash Commands"));
 }
 
+TEST_F(InteractionEngineTest, QueryCommandModeToolAndSkillListArePlainTextRendered) {
+  ASSERT_TRUE(db.RegisterTool({"sample_tool", "**Bold tool description**", "{}", true, 0}).ok());
+  ASSERT_TRUE(db.RegisterSkill({0, "sample_skill", "sample skill", "**Bold skill description**", 0}).ok());
+
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "query";
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  options.command_mode = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_)).Times(0);
+
+  auto tool_result = engine.Query("/tool list", config, {}, options);
+  ASSERT_TRUE(tool_result.ok());
+  EXPECT_TRUE(absl::StrContains(*tool_result, "sample_tool"));
+  EXPECT_FALSE(absl::StrContains(*tool_result, "\033["));
+
+  auto skill_result = engine.Query("/skill list", config, {}, options);
+  ASSERT_TRUE(skill_result.ok());
+  EXPECT_TRUE(absl::StrContains(*skill_result, "sample_skill"));
+  EXPECT_FALSE(absl::StrContains(*skill_result, "\033["));
+}
+
 TEST_F(InteractionEngineTest, QueryCommandModeNonSlashPromptUsesHttpPath) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);

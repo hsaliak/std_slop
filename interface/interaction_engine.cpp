@@ -537,7 +537,8 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
       return BuildAcpCommandDisabledText(parsed);
     }
     auto structured = cmd_handler_.HandleStructured(input, session_id, skills,
-                                                    []() { std::cout << GetHelpText(false) << std::endl; }, {});
+                                                    []() { std::cout << GetHelpText(false) << std::endl; }, {},
+                                                    RenderTarget::kPlainText);
     if (structured.proceed_to_llm) {
       return absl::InvalidArgumentError("acp_command_not_supported");
     }

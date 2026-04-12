@@ -382,4 +382,22 @@ TEST(UiTest, RenderMarkdownWithJsCodeBlock) {
   EXPECT_TRUE(absl::StrContains(rendered, "local"));
   EXPECT_TRUE(absl::StrContains(rendered, "x"));
 }
+
+TEST(UiTest, RenderMarkdownPlainTargetHasNoAnsiEscapes) {
+  std::string markdown = "### Title\n\n**bold** text";
+  std::string rendered;
+  RenderMarkdown(markdown, "", &rendered, RenderTarget::kPlainText);
+  EXPECT_TRUE(absl::StrContains(rendered, "Title"));
+  EXPECT_TRUE(absl::StrContains(rendered, "bold"));
+  EXPECT_FALSE(absl::StrContains(rendered, "\033["));
+}
+
+TEST(UiTest, RenderMarkdownPlainTargetTableHasNoAnsiEscapes) {
+  std::string markdown = "| Name | Description |\n|---|---|\n| tool | **bold** cell |\n";
+  std::string rendered;
+  RenderMarkdown(markdown, "", &rendered, RenderTarget::kPlainText);
+  EXPECT_TRUE(absl::StrContains(rendered, "Name"));
+  EXPECT_TRUE(absl::StrContains(rendered, "bold"));
+  EXPECT_FALSE(absl::StrContains(rendered, "\033["));
+}
 }  // namespace slop

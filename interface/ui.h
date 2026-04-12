@@ -31,7 +31,8 @@ void DisplayAssembledContext(const std::string& json_str);
 /**
  * @brief Renders markdown content to the terminal.
  */
-void PrintMarkdown(const std::string& markdown, const std::string& prefix = "");
+void PrintMarkdown(const std::string& markdown, const std::string& prefix = "",
+                   RenderTarget target = RenderTarget::kTerminal);
 
 /**
  * @brief Logs an error status if it is not OK.
@@ -72,13 +73,15 @@ std::string GetCliHelpText();
 void ShowHelp();
 
 /**
- * @brief Render markdown text to ANSI-encoded string.
+ * @brief Render markdown text for the selected render target.
  *
  * @param markdown The markdown text to render.
  * @param prefix Optional prefix for each line.
- * @param rendered Output string that will contain the ANSI-rendered text.
+ * @param rendered Output string containing rendered markdown (styled for
+ *        terminal target, plain for plain-text target).
  */
-void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered);
+void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered,
+                    RenderTarget target = RenderTarget::kTerminal);
 
 }  // namespace slop
 #endif  // SLOP_INTERFACE_UI_H_

@@ -27,7 +27,7 @@ struct Style {
   const char* post;
 };
 
-void RenderDiffWithLinePrefixes(std::string_view text, std::string& output) {
+void RenderDiffWithLinePrefixes(std::string_view text, std::string& output, bool use_ansi_styles) {
   size_t pos = 0;
   while (pos < text.size()) {
     size_t nl = text.find('\n', pos);
@@ -35,12 +35,14 @@ void RenderDiffWithLinePrefixes(std::string_view text, std::string& output) {
     std::string_view line = text.substr(pos, end - pos);
 
     const char* pre = "";
-    if (absl::StartsWith(line, "+++") || absl::StartsWith(line, "+")) {
-      pre = ansi::Green;
-    } else if (absl::StartsWith(line, "---") || absl::StartsWith(line, "-")) {
-      pre = ansi::theme::markdown::Quote;
-    } else if (absl::StartsWith(line, "@@")) {
-      pre = ansi::theme::syntax::Preproc;
+    if (use_ansi_styles) {
+      if (absl::StartsWith(line, "+++") || absl::StartsWith(line, "+")) {
+        pre = ansi::Green;
+      } else if (absl::StartsWith(line, "---") || absl::StartsWith(line, "-")) {
+        pre = ansi::theme::markdown::Quote;
+      } else if (absl::StartsWith(line, "@@")) {
+        pre = ansi::theme::syntax::Preproc;
+      }
     }
 
     output.append(pre);
@@ -51,7 +53,8 @@ void RenderDiffWithLinePrefixes(std::string_view text, std::string& output) {
   }
 }
 
-Style GetNodeStyle(std::string_view type) {
+Style GetNodeStyle(std::string_view type, bool use_ansi_styles) {
+  if (!use_ansi_styles) return {"", ""};
   using namespace ansi::theme::markdown;
   if (type == "atx_heading") return {Header, ansi::Reset};
   if (type == "atx_h1_marker" || type == "atx_h2_marker" || type == "atx_h3_marker") return {HeaderMarker, ""};
@@ -187,7 +190,8 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
     if (const auto* inj = parsed.GetInjection({start, end})) {
       if (inj->tree) {
         if (inj->language == "diff") {
-          RenderDiffWithLinePrefixes(GetNodeText(node, current_source), output);
+          RenderDiffWithLinePrefixes(GetNodeText(node, current_source), output,
+                                     style_mode_ == StyleMode::kAnsi);
         } else {
           RenderNodeRecursive(ts_tree_root_node(inj->tree.get()), parsed, GetNodeText(node, current_source), output,
                               depth + 1, inj->tree.get());
@@ -209,16 +213,16 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
   // If we recurse into children, nested syntax tokens can override the
   // addition/deletion color and make '+' lines appear as the wrong color.
   if (type == "addition_line" || type == "deletion_line" || type == "from_file_line" || type == "to_file_line") {
-    Style line_style = GetNodeStyle(type);
+    Style line_style = GetNodeStyle(type, style_mode_ == StyleMode::kAnsi);
     output.append(line_style.pre);
     output.append(GetNodeText(node, current_source));
     output.append(line_style.post);
     return;
   }
 
-  Style style = GetNodeStyle(type);
+  Style style = GetNodeStyle(type, style_mode_ == StyleMode::kAnsi);
 
-  if (type == "atx_heading") {
+  if (style_mode_ == StyleMode::kAnsi && type == "atx_heading") {
     std::string_view text = GetNodeText(node, current_source);
     std::string lower_text = absl::AsciiStrToLower(text);
     if (absl::StrContains(lower_text, "thought")) {
@@ -267,9 +271,9 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
       last_pos = ts_node_end_byte(child);
 
       // Re-apply style if we're in a heading and just finished the marker
-      if (type == "atx_heading" && i == 0) {
+      if (style_mode_ == StyleMode::kAnsi && type == "atx_heading" && i == 0) {
         output.append(style.pre);
-      } else if (type == "atx_heading") {
+      } else if (style_mode_ == StyleMode::kAnsi && type == "atx_heading") {
         // After any child in a heading, ensure our header style is still active
         output.append(style.pre);
       }
@@ -443,7 +447,10 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
 
   if (columns.empty()) return;
 
-  using namespace ansi::theme::markdown;
+  const bool use_ansi_styles = style_mode_ == StyleMode::kAnsi;
+  const char* table_border = use_ansi_styles ? ansi::theme::markdown::TableBorder : "";
+  const char* table_header = use_ansi_styles ? ansi::theme::markdown::TableHeader : "";
+  const char* style_reset = use_ansi_styles ? ansi::Reset : "";
 
   size_t total_width = 1;
   for (const auto& col : columns) total_width += col.width + 3;
@@ -462,7 +469,7 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
   }
 
   // Top border
-  output.append(TableBorder);
+  output.append(table_border);
   output.append("┌");
   for (size_t i = 0; i < columns.size(); ++i) {
     for (size_t j = 0; j < columns[i].width + 2; ++j) {
@@ -485,27 +492,27 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
     }
 
     for (size_t h = 0; h < max_h; ++h) {
-      output.append(TableBorder);
+      output.append(table_border);
       output.append("│");
       for (size_t c = 0; c < columns.size(); ++c) {
         std::string line_content = (h < cell_lines[c].size()) ? cell_lines[c][h] : "";
         std::string aligned = Align(line_content, columns[c].width, columns[c].alignment);
 
         output.append(" ");
-        if (r == 0) output.append(TableHeader);
+        if (r == 0) output.append(table_header);
         output.append(aligned);
-        if (r == 0) output.append(ansi::Reset);
+        if (r == 0) output.append(style_reset);
         output.append(" ");
 
-        output.append(TableBorder);
+        output.append(table_border);
         output.append("│");
       }
-      output.append(ansi::Reset);
+      output.append(style_reset);
       output.append("\n");
     }
 
     if (r == 0) {  // After header
-      output.append(TableBorder);
+      output.append(table_border);
       output.append("├");
       for (size_t i = 0; i < columns.size(); ++i) {
         for (size_t j = 0; j < columns[i].width + 2; ++j) output.append("─");
@@ -518,7 +525,7 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
   }
 
   // Bottom border
-  output.append(TableBorder);
+  output.append(table_border);
   output.append("└");
   for (size_t i = 0; i < columns.size(); ++i) {
     for (size_t j = 0; j < columns[i].width + 2; ++j) output.append("─");
@@ -527,7 +534,7 @@ void MarkdownRenderer::RenderTable(TSNode node, const ParsedMarkdown& parsed, st
     }
   }
   output.append("┘\n");
-  output.append(ansi::Reset);
+  output.append(style_reset);
 }
 
 }  // namespace slop::markdown

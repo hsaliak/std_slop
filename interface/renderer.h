@@ -10,12 +10,19 @@
 
 namespace slop {
 
+enum class RenderTarget {
+  kTerminal,
+  kPlainText,
+};
+
 class Renderer {
  public:
   static Renderer& Get();
 
-  void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered);
-  void PrintMarkdown(const std::string& markdown, const std::string& prefix = "");
+  void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered,
+                      RenderTarget target = RenderTarget::kTerminal);
+  void PrintMarkdown(const std::string& markdown, const std::string& prefix = "",
+                     RenderTarget target = RenderTarget::kTerminal);
 
  private:
   Renderer() = default;
