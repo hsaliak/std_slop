@@ -279,6 +279,21 @@ TEST_F(ServerTest, SessionPromptRejectsSecondInFlightPromptForSameSession) {
   EXPECT_NE(out.str().find("session_prompt_request_already_in_flight"), std::string::npos);
 }
 
+TEST_F(ServerTest, SessionPromptBlockedSlashCommandCompletesWithoutExecutorOutput) {
+  ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
+
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"/exec ls"}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(Run(&in, &out), 0);
+  const std::string output = out.str();
+  EXPECT_NE(output.find("\"sessionUpdate\":\"agent_message_chunk\""), std::string::npos);
+  EXPECT_NE(output.find("\"text\":\"Command '/exec' is disabled in ACP mode."), std::string::npos);
+  EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos);
+}
+
 TEST_F(ServerTest, SessionCancelMalformedSessionIdRejected) {
   std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/cancel","params":{"sessionId":"bad id"}}
