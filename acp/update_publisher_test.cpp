@@ -25,8 +25,17 @@ TEST(UpdatePublisherTest, NotificationShapeMatchesSessionUpdateMethod) {
   EXPECT_EQ(notification.at("method").get<std::string>(), "session/update");
   ASSERT_TRUE(notification.at("params").is_object());
   EXPECT_EQ(notification.at("params").at("sessionId").get<std::string>(), "acp_1");
-  EXPECT_EQ(notification.at("params").at("state").get<std::string>(), "started");
+  ASSERT_TRUE(notification.at("params").at("update").is_object());
+  EXPECT_EQ(notification.at("params").at("update").at("sessionUpdate").get<std::string>(), "agent_thought_chunk");
+  EXPECT_EQ(notification.at("params").at("update").at("content").at("type").get<std::string>(), "text");
+  EXPECT_EQ(notification.at("params").at("update").at("content").at("text").get<std::string>(), "started");
   EXPECT_FALSE(notification.contains("id"));
+}
+
+TEST(UpdatePublisherTest, NotificationMapsCompletedToAgentMessageChunk) {
+  const nlohmann::json notification = MakeSessionUpdateNotification("acp_1", SessionUpdateState::kCompleted);
+  EXPECT_EQ(notification.at("params").at("update").at("sessionUpdate").get<std::string>(), "agent_message_chunk");
+  EXPECT_EQ(notification.at("params").at("update").at("content").at("text").get<std::string>(), "completed");
 }
 
 }  // namespace

@@ -299,7 +299,6 @@ int main(int argc, char* argv[]) {
   std::string session_id = absl::GetFlag(FLAGS_session);
   if (session_id.empty()) {
     session_id = "default_session";
-    std::cout << "Using default session: " << session_id << std::endl;
   }
   tool_executor->SetSessionId(session_id);
 

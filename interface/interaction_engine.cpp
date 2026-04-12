@@ -55,7 +55,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   } guard{is_hey_mode, active_skills, original_active_skills, session_id, db_};
   if (input.empty()) return true;
   if (input == "/exit" || input == "/quit") return false;
-  if (!config.is_batch_mode) {
+  if (!config.is_batch_mode && !config.silent) {
     std::string echo = input;
     if (echo.length() > 60) {
       echo = echo.substr(0, 57) + "...";

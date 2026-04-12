@@ -19,6 +19,16 @@ TEST(CapabilitiesTest, ParseInitializeParamsValid) {
   EXPECT_TRUE(parsed_or->runtime_options.is_object());
 }
 
+TEST(CapabilitiesTest, ParseInitializeParamsAcceptsNumericProtocolVersion) {
+  nlohmann::json params = {
+      {"protocolVersion", 1},
+      {"capabilities", nlohmann::json::object()},
+  };
+  auto parsed_or = ParseInitializeParams(params);
+  ASSERT_TRUE(parsed_or.ok());
+  EXPECT_EQ(parsed_or->protocol_version, "1");
+}
+
 TEST(CapabilitiesTest, ParseInitializeParamsRejectsUnsupportedVersion) {
   nlohmann::json params = {
       {"protocolVersion", "2"},
@@ -29,9 +39,30 @@ TEST(CapabilitiesTest, ParseInitializeParamsRejectsUnsupportedVersion) {
   EXPECT_EQ(parsed_or.status().message(), "unsupported_protocol_version");
 }
 
-TEST(CapabilitiesTest, ParseInitializeParamsRejectsMissingCapabilities) {
+TEST(CapabilitiesTest, ParseInitializeParamsAllowsMissingCapabilities) {
   nlohmann::json params = {
       {"protocolVersion", "1"},
+  };
+  auto parsed_or = ParseInitializeParams(params);
+  ASSERT_TRUE(parsed_or.ok());
+  EXPECT_TRUE(parsed_or->client_capabilities.is_object());
+  EXPECT_TRUE(parsed_or->client_capabilities.empty());
+}
+
+TEST(CapabilitiesTest, ParseInitializeParamsAcceptsClientCapabilitiesAlias) {
+  nlohmann::json params = {
+      {"protocolVersion", "1"},
+      {"clientCapabilities", nlohmann::json({{"terminal", true}})},
+  };
+  auto parsed_or = ParseInitializeParams(params);
+  ASSERT_TRUE(parsed_or.ok());
+  EXPECT_TRUE(parsed_or->client_capabilities.at("terminal").get<bool>());
+}
+
+TEST(CapabilitiesTest, ParseInitializeParamsRejectsNonObjectCapabilities) {
+  nlohmann::json params = {
+      {"protocolVersion", "1"},
+      {"capabilities", true},
   };
   auto parsed_or = ParseInitializeParams(params);
   ASSERT_FALSE(parsed_or.ok());

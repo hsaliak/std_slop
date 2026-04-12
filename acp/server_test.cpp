@@ -154,13 +154,15 @@ TEST_F(ServerTest, SessionPromptSucceedsAfterInitializeAndSessionCreate) {
   EXPECT_EQ(Run(&in, &out), 0);
   const std::string output = out.str();
   EXPECT_NE(output.find("\"method\":\"session/update\""), std::string::npos);
-  EXPECT_NE(output.find("\"state\":\"accepted\""), std::string::npos);
-  EXPECT_NE(output.find("\"state\":\"started\""), std::string::npos);
-  EXPECT_NE(output.find("\"state\":\"completed\""), std::string::npos);
-  EXPECT_NE(output.find("\"content\":\"acp_1::hello\""), std::string::npos);
+  EXPECT_NE(output.find("\"sessionUpdate\":\"agent_thought_chunk\""), std::string::npos);
+  EXPECT_NE(output.find("\"text\":\"accepted\""), std::string::npos);
+  EXPECT_NE(output.find("\"text\":\"started\""), std::string::npos);
+  EXPECT_NE(output.find("\"sessionUpdate\":\"agent_message_chunk\""), std::string::npos);
+  EXPECT_NE(output.find("\"text\":\"acp_1::hello\""), std::string::npos);
   EXPECT_NE(output.find("\"sessionId\":\"acp_1\""), std::string::npos);
+  EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos);
 
-  const size_t completed_idx = output.find("\"state\":\"completed\"");
+  const size_t completed_idx = output.find("\"text\":\"acp_1::hello\"");
   const size_t response_idx = output.find("\"id\":3");
   ASSERT_NE(completed_idx, std::string::npos);
   ASSERT_NE(response_idx, std::string::npos);
@@ -210,7 +212,7 @@ TEST_F(ServerTest, SessionPromptEngineFailureReturnsInternalErrorCode) {
   const std::string output = out.str();
   EXPECT_NE(output.find("\"code\":-32603"), std::string::npos);
   EXPECT_NE(output.find("\"method\":\"session/update\""), std::string::npos);
-  const size_t completed_idx = output.find("\"state\":\"completed\"");
+  const size_t completed_idx = output.find("\"text\":\"completed\"");
   const size_t error_idx = output.find("\"code\":-32603");
   ASSERT_NE(completed_idx, std::string::npos);
   ASSERT_NE(error_idx, std::string::npos);
@@ -241,11 +243,27 @@ TEST_F(ServerTest, SessionCancelCanCancelActivePromptAndReturnsCancelledResult) 
   EXPECT_EQ(RunWithSlowExecutor(&in, &out), 0);
 
   const std::string output = out.str();
-  EXPECT_NE(output.find("\"state\":\"accepted\""), std::string::npos);
-  EXPECT_NE(output.find("\"state\":\"started\""), std::string::npos);
-  EXPECT_NE(output.find("\"state\":\"cancelled\""), std::string::npos);
+  EXPECT_NE(output.find("\"sessionUpdate\":\"agent_thought_chunk\""), std::string::npos);
+  EXPECT_NE(output.find("\"text\":\"accepted\""), std::string::npos);
+  EXPECT_NE(output.find("\"text\":\"started\""), std::string::npos);
+  EXPECT_NE(output.find("\"text\":\"cancelled\""), std::string::npos);
   EXPECT_NE(output.find("\"cancelled\":true"), std::string::npos);
   EXPECT_NE(output.find("\"stopReason\":\"cancelled\""), std::string::npos);
+}
+
+TEST_F(ServerTest, SessionPromptResultMatchesAcpPromptResponseShape) {
+  ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
+
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+{"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(Run(&in, &out), 0);
+  const std::string output = out.str();
+  EXPECT_NE(output.find("\"id\":3"), std::string::npos);
+  EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos);
+  EXPECT_EQ(output.find("\"content\":\"acp_1::hello\""), std::string::npos);
 }
 
 TEST_F(ServerTest, SessionPromptRejectsSecondInFlightPromptForSameSession) {

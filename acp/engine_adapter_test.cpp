@@ -18,6 +18,41 @@ TEST(EngineAdapterTest, ParseSessionPromptParamsValid) {
   EXPECT_EQ(parsed_or->prompt, "hello");
 }
 
+TEST(EngineAdapterTest, ParseSessionPromptParamsAcceptsPromptObjectWithText) {
+  nlohmann::json params = {
+      {"sessionId", "acp_1"},
+      {"prompt", nlohmann::json({{"text", "hello"}})},
+  };
+
+  auto parsed_or = ParseSessionPromptParams(params);
+  ASSERT_TRUE(parsed_or.ok());
+  EXPECT_EQ(parsed_or->prompt, "hello");
+}
+
+TEST(EngineAdapterTest, ParseSessionPromptParamsAcceptsPromptObjectWithContentBlocks) {
+  nlohmann::json params = {
+      {"sessionId", "acp_1"},
+      {"prompt",
+       nlohmann::json({{"content", nlohmann::json::array({nlohmann::json({{"text", "what is "}}),
+                                                           nlohmann::json({{"text", "the height?"}})})}})},
+  };
+
+  auto parsed_or = ParseSessionPromptParams(params);
+  ASSERT_TRUE(parsed_or.ok());
+  EXPECT_EQ(parsed_or->prompt, "what is the height?");
+}
+
+TEST(EngineAdapterTest, ParseSessionPromptParamsAcceptsPromptArrayBlocks) {
+  nlohmann::json params = {
+      {"sessionId", "acp_1"},
+      {"prompt", nlohmann::json::array({nlohmann::json({{"text", "hello"}}), " world"})},
+  };
+
+  auto parsed_or = ParseSessionPromptParams(params);
+  ASSERT_TRUE(parsed_or.ok());
+  EXPECT_EQ(parsed_or->prompt, "hello world");
+}
+
 TEST(EngineAdapterTest, ParseSessionPromptParamsRejectsNonObject) {
   auto parsed_or = ParseSessionPromptParams(nlohmann::json::array());
   ASSERT_FALSE(parsed_or.ok());

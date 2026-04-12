@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "core/cancellation.h"
@@ -37,6 +38,10 @@ absl::StatusOr<nlohmann::json> ExecuteSessionPrompt(Database* db, const SessionP
 inline nlohmann::json MakeSessionPromptResult(const std::string& session_id,
                                               const std::string& content) {
   return nlohmann::json({{"sessionId", session_id}, {"content", content}});
+}
+
+inline nlohmann::json MakePromptCompletionResult(std::string_view stop_reason = "end_turn") {
+  return nlohmann::json({{"stopReason", std::string(stop_reason)}});
 }
 
 inline nlohmann::json MakeSessionPromptCancelledResult(const std::string& session_id) {

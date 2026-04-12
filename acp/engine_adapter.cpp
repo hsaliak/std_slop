@@ -1,6 +1,7 @@
 
 #include "acp/engine_adapter.h"
 
+#include <optional>
 #include <string_view>
 
 #include "acp/session_store.h"
@@ -15,6 +16,57 @@ absl::StatusOr<bool> SessionExists(Database* db, std::string_view session_id) {
   ASSIGN_OR_RETURN(auto stmt, db->Prepare("SELECT 1 FROM sessions WHERE id = ? LIMIT 1"));
   RETURN_IF_ERROR(stmt->BindText(1, std::string(session_id)));
   return stmt->Step();
+}
+
+std::string ExtractTextFromPromptBlocks(const nlohmann::json& blocks) {
+  if (!blocks.is_array()) {
+    return "";
+  }
+
+  std::string text;
+  for (const auto& block : blocks) {
+    if (block.is_string()) {
+      text += block.get<std::string>();
+      continue;
+    }
+    if (!block.is_object()) {
+      continue;
+    }
+    auto block_text = json_get<std::string>(block, "text");
+    if (block_text.has_value()) {
+      text += *block_text;
+    }
+  }
+  return text;
+}
+
+std::optional<std::string> ExtractPromptText(const nlohmann::json& prompt_value) {
+  if (prompt_value.is_string()) {
+    return prompt_value.get<std::string>();
+  }
+  if (prompt_value.is_array()) {
+    return ExtractTextFromPromptBlocks(prompt_value);
+  }
+  if (!prompt_value.is_object()) {
+    return std::nullopt;
+  }
+
+  auto text = json_get<std::string>(prompt_value, "text");
+  if (text.has_value()) {
+    return *text;
+  }
+
+  const nlohmann::json content_blocks = json_get_or<nlohmann::json>(prompt_value, "content", nlohmann::json());
+  if (content_blocks.is_array()) {
+    return ExtractTextFromPromptBlocks(content_blocks);
+  }
+
+  const nlohmann::json blocks = json_get_or<nlohmann::json>(prompt_value, "blocks", nlohmann::json());
+  if (blocks.is_array()) {
+    return ExtractTextFromPromptBlocks(blocks);
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace
@@ -32,7 +84,8 @@ absl::StatusOr<SessionPromptRequest> ParseSessionPromptParams(const nlohmann::js
     return absl::InvalidArgumentError("session_prompt_session_id_invalid");
   }
 
-  auto prompt = json_get<std::string>(params, "prompt");
+  const nlohmann::json prompt_value = json_get_or<nlohmann::json>(params, "prompt", nlohmann::json());
+  auto prompt = ExtractPromptText(prompt_value);
   if (!prompt.has_value()) {
     return absl::InvalidArgumentError("session_prompt_prompt_must_be_string");
   }

@@ -8,6 +8,7 @@
 #include "acp/rpc_envelope.h"
 #include "acp/transport_stdio.h"
 #include "acp/update_publisher.h"
+#include "core/json_utils.h"
 
 namespace slop::acp {
 
@@ -34,7 +35,7 @@ void Server::Run() {
                                        std::shared_ptr<CancellationRequest> cancellation) {
     auto done = std::make_shared<std::atomic<bool>>(false);
     workers_.push_back(WorkerHandle{std::thread([this, req = prompt_request, prompt, cancellation, done,
-                                                 &write_if_needed, &write_session_update]() {
+                                                 &write_if_needed, &write_session_update, &write_json_locked]() {
                                        write_session_update(prompt.session_id, SessionUpdateState::kStarted);
 
                                        auto result_or = ExecuteSessionPrompt(db_, prompt, prompt_executor_, cancellation);
@@ -52,16 +53,27 @@ void Server::Run() {
                                          return;
                                        }
 
-                                       const bool cancelled =
-                                           result_or->contains("stopReason") && result_or->at("stopReason") == "cancelled";
-                                       write_session_update(prompt.session_id,
-                                                            cancelled ? SessionUpdateState::kCancelled
-                                                                      : SessionUpdateState::kCompleted);
-                                       if (outcome.has_response) {
-                                         outcome.response =
-                                             nlohmann::json({{"jsonrpc", "2.0"}, {"id", *req.id}, {"result", *result_or}});
-                                         write_if_needed(outcome);
-                                       }
+                                        const bool cancelled =
+                                            result_or->contains("stopReason") && result_or->at("stopReason") == "cancelled";
+                                        nlohmann::json completion_result = MakePromptCompletionResult();
+                                        if (cancelled) {
+                                          write_session_update(prompt.session_id, SessionUpdateState::kCancelled);
+                                          completion_result = MakePromptCompletionResult("cancelled");
+                                        } else {
+                                          const auto content = json_get<std::string>(*result_or, "content");
+                                          if (content.has_value()) {
+                                            write_json_locked(MakeSessionUpdateNotification(prompt.session_id,
+                                                                                            SessionUpdateState::kCompleted,
+                                                                                            *content));
+                                          } else {
+                                            write_session_update(prompt.session_id, SessionUpdateState::kCompleted);
+                                          }
+                                        }
+                                        if (outcome.has_response) {
+                                          outcome.response =
+                                              nlohmann::json({{"jsonrpc", "2.0"}, {"id", *req.id}, {"result", completion_result}});
+                                          write_if_needed(outcome);
+                                        }
                                        done->store(true, std::memory_order_release);
                                      }),
                                done});

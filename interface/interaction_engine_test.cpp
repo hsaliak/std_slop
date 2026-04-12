@@ -112,6 +112,25 @@ TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
   EXPECT_EQ(*result, "The result is 1");
 }
 
+TEST_F(InteractionEngineTest, QuerySilentDoesNotWritePromptEchoToStdout) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(GeminiResponse("quiet").dump()));
+
+  testing::internal::CaptureStdout();
+  auto result = engine.Query("What is quiet mode?", config);
+  const std::string stdout_text = testing::internal::GetCapturedStdout();
+
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(*result, "quiet");
+  EXPECT_TRUE(stdout_text.empty());
+}
+
 TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);
