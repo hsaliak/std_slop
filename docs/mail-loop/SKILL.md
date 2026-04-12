@@ -63,16 +63,16 @@ If any query fails or the post-update `SELECT` does not return `mail`, stop and 
 - Activate patch workflow skill:
   - `use_skill({"action":"activate","name":"patcher"})`
 - Follow these exact mail-mode git workflow tools:
-  - `git_create_staging_branch({"base_branch":"main","name":"<topic-branch>"})`
+  - `git_create_staging_branch({"base_branch":"<base-branch>","name":"<topic-branch>"})`
   - Implement first atomic unit
   - `git_commit_patch({"summary":"<patch 1 summary>","rationale":"<why this patch exists and why bisect-safe>"})`
   - Repeat implement + `git_commit_patch(...)` for each atomic patch
-  - `git_format_patch_series({"base_branch":"main"})`
+  - `git_format_patch_series({"base_branch":"<base-branch>"})`
 - Ensure each patch is **bisect-safe**:
   - Builds and tests cleanly at that patch boundary (or documented minimal validation command).
   - No patch leaves repository in intentionally broken state.
 - Use rerolls when needed:
-  - `git_reroll_patch({"base_branch":"main","index":<patch-number>})`
+  - `git_reroll_patch({"base_branch":"<base-branch>","index":<patch-number>})`
 
 ## Step 4: Mandatory `code_reviewer` loop
 
@@ -83,10 +83,10 @@ Run this exact loop:
 2. Perform review in conversation, capturing all required fixes.
 3. Apply fixes in code.
 4. Update affected patch(es):
-   - `git_reroll_patch({"base_branch":"main","index":<patch-number>})`
+   - `git_reroll_patch({"base_branch":"<base-branch>","index":<patch-number>})`
 5. Re-run validation commands.
 6. Re-run reviewer pass.
-7. Repeat steps 3-6 until no blocking comments remain.
+7. Repeat steps 3-6 until no blocking comments remain
 
 Stop condition for this phase:
 - Reviewer reports no required changes (clear pass signal).
@@ -114,7 +114,7 @@ If any check fails, stop and report `blocked` with evidence.
 ## Step 6: Finalize immediately
 
 After Step 5 succeeds, finalize with no user approval checkpoint:
-- `git_finalize_series({"target_branch":"main"})`
+- `git_finalize_series({"target_branch":"<base-branch>"})`
 
 Then deactivate orchestration skills:
 - `use_skill({"action":"deactivate","name":"planner"})`
@@ -159,11 +159,11 @@ Execute this checklist in sequence:
 5. `query_db({"sql":"UPDATE settings SET mode = 'mail' WHERE id = 1;"})`
 6. `query_db({"sql":"SELECT id, mode FROM settings WHERE id = 1;"})` (must show `mail`)
 7. `use_skill({"action":"activate","name":"patcher"})`
-8. `git_create_staging_branch({"base_branch":"main","name":"<topic-branch>"})`
-9. Atomic `git_commit_patch(...)` sequence + `git_format_patch_series({"base_branch":"main"})`
+8. `git_create_staging_branch({"base_branch":"<base-branch>","name":"<topic-branch>"})`
+9. Atomic `git_commit_patch(...)` sequence + `git_format_patch_series({"base_branch":"<base-branch>"})`
 10. `use_skill({"action":"activate","name":"code_reviewer"})` + reroll loop via `git_reroll_patch(...)`
 11. `execute_bash({"cwd":".","command":"git rev-parse --abbrev-ref HEAD","timeout_seconds":120,"allow_nonzero_exit":false})`
 12. `execute_bash({"cwd":".","command":"git rev-parse HEAD","timeout_seconds":120,"allow_nonzero_exit":false})`
 13. `query_db({"sql":"INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, CURRENT_TIMESTAMP)","params":["<current_branch>","<head_hash>"]})`
 14. `query_db({"sql":"SELECT branch_name, approved_hash FROM patch_approvals WHERE branch_name = ?","params":["<current_branch>"]})` (must match `<head_hash>`)
-15. `git_finalize_series({"target_branch":"main"})`
+15. `git_finalize_series({"target_branch":"<base-branch>"})`
