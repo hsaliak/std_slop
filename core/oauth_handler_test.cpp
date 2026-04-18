@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 
 #include "absl/strings/match.h"
 #include "gmock/gmock.h"
@@ -107,6 +108,41 @@ TEST_F(OAuthHandlerTest, OpenAiRefreshRequestFormValuesAreUrlEncoded) {
 
   unsetenv("CHATGPT_CLIENT_SECRET");
   unlink(temp_path);
+}
+
+TEST_F(OAuthHandlerTest, StartOpenAiDeviceAuthorizationParsesRequiredFields) {
+  OAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+
+  EXPECT_CALL(mock_http, Post(HasSubstr("deviceauth/usercode"), HasSubstr("client_id"),
+                              Contains("Content-Type: application/json")))
+      .WillOnce(Return(R"({"device_auth_id":"auth-123","user_code":"ABCD-EFGH","verification_uri":"https://auth.openai.com/codex/device","interval":7,"expires_in":1234})"));
+
+  auto start_or = handler.StartOpenAiDeviceAuthorization();
+  ASSERT_TRUE(start_or.ok());
+  EXPECT_EQ(start_or->device_auth_id, "auth-123");
+  EXPECT_EQ(start_or->user_code, "ABCD-EFGH");
+  EXPECT_EQ(start_or->verification_uri, "https://auth.openai.com/codex/device");
+  EXPECT_EQ(start_or->interval_seconds, 7);
+  EXPECT_EQ(start_or->expires_in_seconds, 1234);
+}
+
+TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenRejectsMissingDeviceAuthId) {
+  OAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  OAuthHandler::DeviceAuthorizationStart start;
+  std::ostringstream out;
+  auto status = handler.FetchOpenAiDeviceToken(start, out);
+  ASSERT_FALSE(status.ok());
+  EXPECT_TRUE(absl::StrContains(status.message(), "Device authorization ID is required"));
+}
+
+TEST_F(OAuthHandlerTest, MissingTokenFileGuidanceMentionsFetchOauth) {
+  OAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  handler.SetEnabled(true);
+  handler.SetTokenPath("/tmp/slop_missing_openai_oauth_token.json");
+
+  auto token_or = handler.GetValidToken();
+  ASSERT_FALSE(token_or.ok());
+  EXPECT_TRUE(absl::StrContains(token_or.status().message(), "Run: std_slop --fetch-oauth"));
 }
 
 }  // namespace slop

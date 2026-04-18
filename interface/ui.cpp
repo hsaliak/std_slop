@@ -615,6 +615,7 @@ std::string GetHelpText() {
       "- `--prompt \"...\"`: Run a single prompt in batch mode and exit.\n"
       "- `--session <id>`: Use a specific session ID (overrides positional argument).\n"
       "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
+      "- `--fetch-oauth`: Run built-in OpenAI OAuth device login, save the token, and exit.\n"
       "- `--helpfull`: See all available command-line flags.\n\n"
       "## Hotwords\n"
       "- `hey <skill> <query>`: Temporarily activate a skill for a single prompt. For example: `hey code_reviewer what "

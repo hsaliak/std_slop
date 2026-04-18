@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# slop_auth.sh - ChatGPT Plus OAuth helper for std::slop
+# slop_auth.sh - Legacy ChatGPT Plus OAuth helper for std::slop
 
 MODE="${1:-}"
 
@@ -22,8 +22,9 @@ usage() {
 Usage:
   ./slop_auth.sh [chatgpt-plus|chatgpt-plus-device]
 
+Prefer the built-in flow: `std_slop --fetch-oauth`
+
 Modes:
-  google               Gemini OAuth via browser + manual callback paste.
   chatgpt-plus         ChatGPT Plus OAuth via browser + manual callback paste (default).
   chatgpt-plus-device  ChatGPT Plus OAuth via device code (headless-friendly).
 
@@ -48,7 +49,7 @@ case "$MODE" in
         usage
         exit 0
         ;;
-    google|chatgpt-plus|chatgpt-plus-device)
+    chatgpt-plus|chatgpt-plus-device)
         :
         ;;
     -h|--help|help)

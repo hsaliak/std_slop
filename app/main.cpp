@@ -60,6 +60,7 @@ ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL");
 ABSL_FLAG(bool, use_responses, false, "Use OpenAI Responses API instead of chat completions for OpenAI API key mode");
 ABSL_FLAG(bool, openai_oauth, false, "Use OpenAI OAuth token file (~/.config/slop/chatgpt_plus_token.json)");
 ABSL_FLAG(std::string, openai_oauth_token_path, "", "Override OpenAI OAuth token file path");
+ABSL_FLAG(bool, fetch_oauth, false, "Fetch an OpenAI OAuth token via built-in device flow and exit");
 
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
@@ -167,6 +168,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::string prompt = absl::GetFlag(FLAGS_prompt);
+  const bool fetch_oauth = absl::GetFlag(FLAGS_fetch_oauth);
   std::string db_path;
 
   if (!prompt.empty()) {
@@ -199,6 +201,36 @@ int main(int argc, char* argv[]) {
   }
 
   slop::HttpClient http_client;
+  auto configure_openai_oauth_handler = [&http_client](std::shared_ptr<slop::OAuthHandler>* handler) {
+    *handler = std::make_shared<slop::OAuthHandler>(&http_client, slop::OAuthHandler::Provider::kOpenAi);
+    std::string openai_oauth_token_path = absl::GetFlag(FLAGS_openai_oauth_token_path);
+    if (!openai_oauth_token_path.empty()) {
+      (*handler)->SetTokenPath(openai_oauth_token_path);
+    }
+    (*handler)->SetEnabled(true);
+  };
+
+  if (fetch_oauth) {
+    std::shared_ptr<slop::OAuthHandler> bootstrap_oauth_handler;
+    configure_openai_oauth_handler(&bootstrap_oauth_handler);
+    auto start_or = bootstrap_oauth_handler->StartOpenAiDeviceAuthorization();
+    if (!start_or.ok()) {
+      std::cerr << "Failed to start OpenAI OAuth device flow: " << start_or.status().message() << std::endl;
+      return 1;
+    }
+    std::cout << "OpenAI OAuth device flow\n"
+              << "1. Open: " << start_or->verification_uri << "\n"
+              << "2. Enter code: " << start_or->user_code << "\n"
+              << "Waiting for authorization...\n";
+    auto fetch_status = bootstrap_oauth_handler->FetchOpenAiDeviceToken(*start_or, std::cout);
+    if (!fetch_status.ok()) {
+      std::cerr << "Failed to fetch OpenAI OAuth token: " << fetch_status.message() << std::endl;
+      return 1;
+    }
+    std::cout << "Next: std_slop --openai_oauth" << std::endl;
+    return 0;
+  }
+
   slop::Orchestrator::Builder builder(&db, &http_client);
 
   std::shared_ptr<slop::OAuthHandler> oauth_handler;
@@ -248,17 +280,12 @@ int main(int argc, char* argv[]) {
   orchestrator = std::move(*orchestrator_or);
 
   if (openai_oauth) {
-    oauth_handler = std::make_shared<slop::OAuthHandler>(&http_client, slop::OAuthHandler::Provider::kOpenAi);
-    std::string openai_oauth_token_path = absl::GetFlag(FLAGS_openai_oauth_token_path);
-    if (!openai_oauth_token_path.empty()) {
-      oauth_handler->SetTokenPath(openai_oauth_token_path);
-    }
-    oauth_handler->SetEnabled(true);
+    configure_openai_oauth_handler(&oauth_handler);
     auto token_or = oauth_handler->GetValidToken();
     if (!token_or.ok()) {
       if (absl::IsUnauthenticated(token_or.status()) || absl::IsNotFound(token_or.status())) {
+        std::cout << "OpenAI OAuth token path: " << oauth_handler->GetTokenPath() << std::endl;
         std::cout << "OpenAI OAuth: " << token_or.status().message() << std::endl;
-        std::cout << "Please run ./slop_auth.sh chatgpt-plus to authenticate." << std::endl;
         return 1;
       }
     }

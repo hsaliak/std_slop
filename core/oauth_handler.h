@@ -2,10 +2,12 @@
 #define SLOP_SQL_OAUTH_HANDLER_H_
 
 #include <memory>
+#include <ostream>
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "nlohmann/json.hpp"
 
 #include "core/http_client.h"
 
@@ -20,6 +22,14 @@ struct OAuthTokens {
 
 class OAuthHandler {
  public:
+  struct DeviceAuthorizationStart {
+    std::string device_auth_id;
+    std::string user_code;
+    std::string verification_uri;
+    int interval_seconds = 5;
+    int expires_in_seconds = 900;
+  };
+
   enum class Provider { kOpenAi };
 
   explicit OAuthHandler(HttpClient* http_client);
@@ -27,6 +37,8 @@ class OAuthHandler {
 
   absl::StatusOr<std::string> GetValidToken();
   absl::StatusOr<std::string> GetOpenAiAccountId();
+  absl::StatusOr<DeviceAuthorizationStart> StartOpenAiDeviceAuthorization() const;
+  absl::Status FetchOpenAiDeviceToken(const DeviceAuthorizationStart& start, std::ostream& out);
 
   bool IsEnabled() const { return enabled_; }
   void SetEnabled(bool enabled) { enabled_ = enabled; }
@@ -42,6 +54,7 @@ class OAuthHandler {
   absl::Status LoadTokens();
   absl::Status SaveTokens(const OAuthTokens& tokens);
   absl::Status RefreshToken();
+  absl::StatusOr<OAuthTokens> ParseTokenResponse(const nlohmann::json& response, int64_t now_unix_seconds) const;
   static std::string ExtractOpenAiAccountIdFromJwt(const std::string& jwt);
 
   HttpClient* http_client_;

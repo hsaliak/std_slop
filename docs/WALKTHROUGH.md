@@ -13,22 +13,18 @@ Copy the `std_slop` executable to your path (e.g., `~/bin/`). Ensure `~/bin` is 
 ```bash
 cp bazel-bin/std_slop $HOME/bin/std_slop
 ```
-Create and save an OAuth token with Gemini (it comes with high quotas):
-```bash
-./slop_auth.sh google
-```
 Create an example folder:
 ```bash
 mkdir -p ~/Source/christmas-tree
 ```
-Run `std_slop`. I recommend starting with Gemini and using your own OAuth. You can also get a key from Google AI Studio or use a model from OpenRouter. I recommend `gemini-3-flash-preview`. It's a low-cost model that is capable.
+Run `std_slop`. I recommend starting with Gemini using a Google API key, or OpenAI with either an API key or built-in OAuth. I recommend `gemini-3-flash-preview` for a low-cost default.
 ```bash
-std_slop --google_oauth
+std_slop --google_api_key "$GOOGLE_API_KEY"
 /model gemini-3-flash-preview
 ```
 If you want OpenAI OAuth instead, use:
 ```bash
-./slop_auth.sh chatgpt-plus
+std_slop --fetch-oauth
 std_slop --openai_oauth
 ```
 This model defaults to `gemini-3-flash-preview`. Use `/models` to list available models for the active provider, and use `/stats` to inspect token usage. You may need to run at least one query with the LLM before usage tables are populated.

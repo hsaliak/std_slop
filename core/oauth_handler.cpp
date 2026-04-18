@@ -4,11 +4,13 @@
 
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <thread>
 #include <sstream>
 #include <system_error>
 
@@ -22,6 +24,7 @@
 
 #include "core/constants.h"
 #include "core/shell_util.h"
+#include "core/status_macros.h"
 #include "json_utils.h"
 
 #include <arpa/inet.h>
@@ -42,6 +45,12 @@ std::string UrlEncodeFormValue(const std::string& value) {
     }
   }
   return encoded.str();
+}
+
+constexpr char kFetchOauthGuidance[] = "Run: std_slop --fetch-oauth";
+
+absl::Status OAuthFailureStatus(absl::StatusCode code, absl::string_view message) {
+  return absl::Status(code, absl::StrCat(message, ". ", kFetchOauthGuidance));
 }
 }  // namespace
 absl::Status MaybeCreateDirectory(const std::string& dir_path) {
@@ -69,7 +78,8 @@ absl::Status OAuthHandler::LoadTokens() {
   std::ifstream f(token_path_);
   if (!f.is_open()) {
     LOG(WARNING) << "Token file not found at " << token_path_;
-    return absl::NotFoundError("Token file not found. Please run ./slop_auth.sh");
+    return OAuthFailureStatus(absl::StatusCode::kNotFound,
+                              absl::StrCat("Token file not found at ", token_path_));
   }
 
   std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
@@ -125,7 +135,7 @@ absl::StatusOr<std::string> OAuthHandler::GetValidToken() {
 absl::Status OAuthHandler::RefreshToken() {
   if (tokens_.refresh_token.empty()) {
     LOG(ERROR) << "No refresh token available";
-    return absl::UnauthenticatedError("No refresh token available. Please run ./slop_auth.sh chatgpt-plus");
+    return OAuthFailureStatus(absl::StatusCode::kUnauthenticated, "No refresh token available");
   }
 
   LOG(INFO) << "Refreshing OAuth token...";
@@ -144,7 +154,7 @@ absl::Status OAuthHandler::RefreshToken() {
   auto res = http_client_->Post(token_url, body, {"Content-Type: application/x-www-form-urlencoded"});
   if (!res.ok()) {
     LOG(ERROR) << "Token refresh failed: " << res.status().ToString();
-    return absl::UnauthenticatedError("Token refresh failed. Please run ./slop_auth.sh chatgpt-plus");
+    return OAuthFailureStatus(absl::StatusCode::kUnauthenticated, "Token refresh failed");
   }
   LOG(INFO) << "Token refreshed successfully.";
 
@@ -152,13 +162,12 @@ absl::Status OAuthHandler::RefreshToken() {
   if (!j_opt) return absl::InternalError("Failed to parse refresh response");
   const auto& j = *j_opt;
 
-  tokens_.access_token = json_get_or(j, "access_token", std::string{});
-  tokens_.expiry_time = absl::ToUnixSeconds(absl::Now()) + json_get_or(j, "expires_in", 3600);
-  if (provider_ == Provider::kOpenAi) {
-    tokens_.account_id = ExtractOpenAiAccountIdFromJwt(tokens_.access_token);
+  auto parsed_tokens_or = ParseTokenResponse(j, absl::ToUnixSeconds(absl::Now()));
+  if (!parsed_tokens_or.ok()) {
+    return parsed_tokens_or.status();
   }
-
-  return SaveTokens(tokens_);
+  parsed_tokens_or->refresh_token = tokens_.refresh_token;
+  return SaveTokens(*parsed_tokens_or);
 }
 
 absl::StatusOr<std::string> OAuthHandler::GetOpenAiAccountId() {
@@ -179,6 +188,86 @@ absl::StatusOr<std::string> OAuthHandler::GetOpenAiAccountId() {
     return absl::NotFoundError("OpenAI account ID not found in token");
   }
   return tokens_.account_id;
+}
+
+absl::StatusOr<OAuthHandler::DeviceAuthorizationStart> OAuthHandler::StartOpenAiDeviceAuthorization() const {
+  if (provider_ != Provider::kOpenAi) {
+    return absl::FailedPreconditionError("Device authorization is only supported for OpenAI OAuth");
+  }
+
+  nlohmann::json request_body = {{"client_id", kOpenAiOAuthClientId}};
+  auto response_or = http_client_->Post(kOpenAiOAuthDeviceUserCodeUrl, json_dump(request_body),
+                                        {"Content-Type: application/json"});
+  if (!response_or.ok()) {
+    return absl::UnavailableError("Failed to initiate OpenAI device authorization");
+  }
+  auto response_json = json_parse(*response_or);
+  if (!response_json) {
+    return absl::InternalError("Failed to parse OpenAI device authorization response");
+  }
+
+  DeviceAuthorizationStart start;
+  start.device_auth_id = json_get_or(*response_json, "device_auth_id", std::string{});
+  start.user_code = json_get_or(*response_json, "user_code", std::string{});
+  start.verification_uri = json_get_or(*response_json, "verification_uri", std::string{kOpenAiOAuthDeviceVerificationUrl});
+  start.interval_seconds = std::max(1, json_get_or(*response_json, "interval", 5));
+  start.expires_in_seconds = std::max(1, json_get_or(*response_json, "expires_in", 900));
+  if (start.device_auth_id.empty() || start.user_code.empty()) {
+    return absl::InternalError("OpenAI device authorization response missing required fields");
+  }
+  return start;
+}
+
+absl::StatusOr<OAuthTokens> OAuthHandler::ParseTokenResponse(const nlohmann::json& response,
+                                                             int64_t now_unix_seconds) const {
+  OAuthTokens parsed_tokens;
+  parsed_tokens.access_token = json_get_or(response, "access_token", std::string{});
+  parsed_tokens.refresh_token = json_get_or(response, "refresh_token", std::string{});
+  const int expires_in = json_get_or(response, "expires_in", 0);
+  if (parsed_tokens.access_token.empty() || expires_in <= 0) {
+    return absl::InternalError("OpenAI token response missing required fields");
+  }
+  parsed_tokens.expiry_time = now_unix_seconds + expires_in;
+  if (provider_ == Provider::kOpenAi) {
+    parsed_tokens.account_id = ExtractOpenAiAccountIdFromJwt(parsed_tokens.access_token);
+  }
+  return parsed_tokens;
+}
+
+absl::Status OAuthHandler::FetchOpenAiDeviceToken(const DeviceAuthorizationStart& start, std::ostream& out) {
+  if (provider_ != Provider::kOpenAi) {
+    return absl::FailedPreconditionError("Device authorization is only supported for OpenAI OAuth");
+  }
+  if (start.device_auth_id.empty()) {
+    return absl::InvalidArgumentError("Device authorization ID is required");
+  }
+
+  const int64_t deadline = absl::ToUnixSeconds(absl::Now()) + start.expires_in_seconds;
+  while (absl::ToUnixSeconds(absl::Now()) < deadline) {
+    nlohmann::json poll_body = {{"client_id", kOpenAiOAuthClientId}, {"device_auth_id", start.device_auth_id}};
+    auto response_or = http_client_->Post(kOpenAiOAuthDeviceTokenUrl, json_dump(poll_body), {"Content-Type: application/json"});
+    if (response_or.ok()) {
+      auto response_json = json_parse(*response_or);
+      if (!response_json) {
+        return absl::InternalError("Failed to parse OpenAI device token response");
+      }
+      auto parsed_tokens_or = ParseTokenResponse(*response_json, absl::ToUnixSeconds(absl::Now()));
+      if (!parsed_tokens_or.ok()) {
+        return parsed_tokens_or.status();
+      }
+      RETURN_IF_ERROR(SaveTokens(*parsed_tokens_or));
+      out << "OpenAI OAuth token saved to " << token_path_ << "\n";
+      return absl::OkStatus();
+    }
+
+    const std::string status_text(response_or.status().message());
+    if (!absl::StrContains(status_text, "Terminal HTTP error: 400") ||
+        (!absl::StrContains(status_text, "authorization_pending") && !absl::StrContains(status_text, "slow_down"))) {
+      return absl::UnavailableError(absl::StrCat("OpenAI device authorization failed: ", status_text));
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(start.interval_seconds));
+  }
+  return absl::DeadlineExceededError("OpenAI device authorization timed out");
 }
 
 std::string OAuthHandler::ExtractOpenAiAccountIdFromJwt(const std::string& jwt) {

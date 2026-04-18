@@ -147,22 +147,21 @@ validation behavior, see [subqueries.md](subqueries.md).
 For debugging purposes, you can use the following environment variable:
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 ## Authentication Modes
-### Google OAuth
-1. Run `./slop_auth.sh google`.
-2. Start `std_slop --google_oauth`.
-3. Token file: `~/.config/slop/token.json`.
+### OpenAI OAuth Quickstart
+1. Run `std_slop --fetch-oauth`.
+2. Start `std_slop --openai_oauth`.
+3. Token file: `~/.config/slop/chatgpt_plus_token.json`.
 ### OpenAI API Key
 - Set `openai_api_key` (and optional `openai_base_url`).
 - Default OpenAI path is Chat Completions.
 - Set `use_responses = true` (or `--use_responses`) to use the Responses API.
 ### OpenAI OAuth (Responses API)
-1. Run `./slop_auth.sh chatgpt-plus` (or `chatgpt-plus-device`).
+1. Run `std_slop --fetch-oauth`.
 2. Start `std_slop --openai_oauth`.
 3. Token file: `~/.config/slop/chatgpt_plus_token.json`.
 4. Optional override: `--openai_oauth_token_path=/path/to/token.json`.
 Notes:
-- `--google_oauth` and `--openai_oauth` are mutually exclusive.
-- In `--openai_oauth` mode, `openai_base_url` is ignored and `https://api.openai.com/v1` is used.
+- In `--openai_oauth` mode, `openai_base_url` is ignored and `https://chatgpt.com/backend-api/codex` is used.
 ## Running
 Start a session by running the executable via Bazel. You can provide a session name to resume or categorize your work:
 ```bash

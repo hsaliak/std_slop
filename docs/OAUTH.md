@@ -4,21 +4,22 @@ This document describes OAuth behavior in `std::slop` for OpenAI.
 
 ## Overview
 
-`std::slop` keeps interactive browser/device authorization outside the C++ binary in `slop_auth.sh`.
+`std::slop` includes built-in OpenAI OAuth device authorization via `std_slop --fetch-oauth`.
 The C++ `OAuthHandler` is responsible for:
 - loading persisted tokens,
 - refreshing access tokens using `refresh_token`,
+- initiating device authorization and polling for the first token,
 - exposing valid bearer tokens to runtime request paths.
 
-## OAuth Flows via `slop_auth.sh`
+## OpenAI OAuth Quickstart
 
 ### OpenAI OAuth (ChatGPT Plus)
-- Command: `./slop_auth.sh chatgpt-plus`
-- Headless/device option: `./slop_auth.sh chatgpt-plus-device`
+- Command: `std_slop --fetch-oauth`
+- Runtime command after login: `std_slop --openai_oauth`
 - Token file: `~/.config/slop/chatgpt_plus_token.json`
 - Runtime flag: `--openai_oauth`
 - API mode: OpenAI Responses API (forced)
-- Runtime base URL: `https://api.openai.com/v1` (custom `openai_base_url` is ignored in this mode)
+- Runtime base URL: `https://chatgpt.com/backend-api/codex` (custom `openai_base_url` is ignored in this mode)
 
 ## Runtime Selection Rules
 
@@ -31,7 +32,7 @@ The C++ `OAuthHandler` is responsible for:
 - OpenAI refresh endpoint: `https://auth.openai.com/oauth/token`
 
 If refresh fails or tokens are missing:
-- OpenAI guidance: run `./slop_auth.sh chatgpt-plus`
+- OpenAI guidance: run `std_slop --fetch-oauth`
 
 ## OpenAI OAuth Token Path Override
 
