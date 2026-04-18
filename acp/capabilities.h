@@ -2,6 +2,7 @@
 #ifndef SLOP_ACP_CAPABILITIES_H_
 #define SLOP_ACP_CAPABILITIES_H_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/status/statusor.h"
@@ -9,17 +10,17 @@
 
 namespace slop::acp {
 
-inline constexpr char kStableProtocolVersion[] = "1";
+inline constexpr int64_t kStableProtocolVersion = 1;
 
 struct NegotiatedRuntimeOptions {
   bool initialized = false;
-  std::string protocol_version;
+  int64_t protocol_version = 0;
   nlohmann::json client_capabilities = nlohmann::json::object();
   nlohmann::json runtime_options = nlohmann::json::object();
 };
 
 struct InitializeRequest {
-  std::string protocol_version;
+  int64_t protocol_version = 0;
   nlohmann::json client_capabilities;
   nlohmann::json runtime_options;
 };

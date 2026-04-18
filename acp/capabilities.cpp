@@ -1,6 +1,7 @@
 
 #include "acp/capabilities.h"
 
+#include <limits>
 #include <string>
 
 #include "absl/status/status.h"
@@ -13,16 +14,21 @@ absl::StatusOr<InitializeRequest> ParseInitializeParams(const nlohmann::json& pa
     return absl::InvalidArgumentError("initialize_params_must_be_object");
   }
 
-  std::string version;
+  int64_t version = 0;
+  bool has_numeric_version = false;
   const nlohmann::json version_value = json_get_or<nlohmann::json>(params, "protocolVersion", nlohmann::json());
-  if (version_value.is_string()) {
-    version = version_value.get<std::string>();
-  } else if (version_value.is_number_integer()) {
-    version = std::to_string(version_value.get<int64_t>());
+  if (version_value.is_number_integer()) {
+    version = version_value.get<int64_t>();
+    has_numeric_version = true;
   } else if (version_value.is_number_unsigned()) {
-    version = std::to_string(version_value.get<uint64_t>());
+    const uint64_t unsigned_version = version_value.get<uint64_t>();
+    if (unsigned_version > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+      return absl::InvalidArgumentError("unsupported_protocol_version");
+    }
+    version = static_cast<int64_t>(unsigned_version);
+    has_numeric_version = true;
   }
-  if (version.empty()) {
+  if (!has_numeric_version) {
     return absl::InvalidArgumentError("initialize_protocol_version_required");
   }
   if (version != kStableProtocolVersion) {

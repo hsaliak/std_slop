@@ -92,18 +92,18 @@ TEST_F(ServerTest, NotificationProducesNoResponse) {
 }
 
 TEST_F(ServerTest, InitializeSucceedsWithStableVersion) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 )");
   std::ostringstream out;
 
   EXPECT_EQ(Run(&in, &out), 0);
   const std::string output = out.str();
-  EXPECT_NE(output.find("\"protocolVersion\":\"1\""), std::string::npos);
+  EXPECT_NE(output.find("\"protocolVersion\":1"), std::string::npos);
   EXPECT_NE(output.find("\"session\""), std::string::npos);
 }
 
 TEST_F(ServerTest, InitializeRejectsUnsupportedVersion) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":2,"capabilities":{}}}
 )");
   std::ostringstream out;
 
@@ -114,7 +114,7 @@ TEST_F(ServerTest, InitializeRejectsUnsupportedVersion) {
 }
 
 TEST_F(ServerTest, SessionNewSucceedsAfterInitialize) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/new","params":{"sessionId":"acp_1"}}
 )");
   std::ostringstream out;
@@ -137,7 +137,7 @@ TEST_F(ServerTest, SessionNewBeforeInitializeRejected) {
 }
 
 TEST_F(ServerTest, SessionNewRejectsMalformedId) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/new","params":{"sessionId":"bad id"}}
 )");
   std::ostringstream out;
@@ -148,7 +148,7 @@ TEST_F(ServerTest, SessionNewRejectsMalformedId) {
 }
 
 TEST_F(ServerTest, SessionPromptSucceedsAfterInitializeAndSessionCreate) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/new","params":{"sessionId":"acp_1"}}
 {"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
 )");
@@ -173,7 +173,7 @@ TEST_F(ServerTest, SessionPromptSucceedsAfterInitializeAndSessionCreate) {
 }
 
 TEST_F(ServerTest, SessionPromptMissingSessionRejected) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"missing","prompt":"hello"}}
 )");
   std::ostringstream out;
@@ -194,7 +194,7 @@ TEST_F(ServerTest, SessionPromptBeforeInitializeRejected) {
 }
 
 TEST_F(ServerTest, SessionPromptRejectsMalformedSessionId) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"bad id","prompt":"hello"}}
 )");
   std::ostringstream out;
@@ -206,7 +206,7 @@ TEST_F(ServerTest, SessionPromptRejectsMalformedSessionId) {
 
 TEST_F(ServerTest, SessionPromptEngineFailureReturnsInternalErrorCode) {
   ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
 )");
   std::ostringstream out;
@@ -224,7 +224,7 @@ TEST_F(ServerTest, SessionPromptEngineFailureReturnsInternalErrorCode) {
 }
 
 TEST_F(ServerTest, SessionCancelUnknownRequestReturnsDeterministicError) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/cancel","params":{"sessionId":"acp_1"}}
 )");
   std::ostringstream out;
@@ -237,7 +237,7 @@ TEST_F(ServerTest, SessionCancelUnknownRequestReturnsDeterministicError) {
 TEST_F(ServerTest, SessionCancelCanCancelActivePromptAndReturnsCancelledResult) {
   ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
 
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
 {"jsonrpc":"2.0","id":3,"method":"session/cancel","params":{"sessionId":"acp_1"}}
 )");
@@ -257,7 +257,7 @@ TEST_F(ServerTest, SessionCancelCanCancelActivePromptAndReturnsCancelledResult) 
 TEST_F(ServerTest, SessionPromptResultMatchesAcpPromptResponseShape) {
   ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
 
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
 )");
   std::ostringstream out;
@@ -272,7 +272,7 @@ TEST_F(ServerTest, SessionPromptResultMatchesAcpPromptResponseShape) {
 TEST_F(ServerTest, SessionPromptRejectsSecondInFlightPromptForSameSession) {
   ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
 
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
 {"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"again"}}
 )");
@@ -285,7 +285,7 @@ TEST_F(ServerTest, SessionPromptRejectsSecondInFlightPromptForSameSession) {
 TEST_F(ServerTest, SessionPromptPlainTextStillFlowsThroughExecutor) {
   ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
 
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"hello"}}
 )");
   std::ostringstream out;
@@ -312,7 +312,7 @@ TEST_F(ServerTest, SessionPromptBlockedCommandsTableDriven) {
   for (const auto& prompt : blocked_prompts) {
     const std::string escaped_prompt = absl::StrReplaceAll(prompt, {{"\\", "\\\\"}, {"\"", "\\\""}});
     std::istringstream in(absl::StrFormat(
-        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"1\",\"capabilities\":{}}}\n"
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":1,\"capabilities\":{}}}\n"
         "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/prompt\",\"params\":{\"sessionId\":\"acp_1\",\"prompt\":\"%s\"}}\n",
         escaped_prompt));
     std::ostringstream out;
@@ -329,7 +329,7 @@ TEST_F(ServerTest, SessionPromptBlockedCommandsTableDriven) {
 }
 
 TEST_F(ServerTest, SessionCancelMalformedSessionIdRejected) {
-  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1","capabilities":{}}}
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
 {"jsonrpc":"2.0","id":2,"method":"session/cancel","params":{"sessionId":"bad id"}}
 )");
   std::ostringstream out;
