@@ -1,3 +1,8 @@
+## v0.18.1 - 2026-04-04
+- **Documentation refresh and restructuring**: Made `docs/WALKTHROUGH.md` the canonical onboarding guide, added `docs/README.md` as a docs index, and aligned `README.md` to point users at the new walkthrough-first flow.
+- **Docs cleanup**: Removed the redundant `docs/USERGUIDE.md`, moved implementation/history material into `docs/impl/`, and refreshed cross-links so user-facing docs and design-history docs are clearly separated.
+- **Workflow docs**: Refreshed Mail Mode, mail-loop, OAuth, contributing, and subquery documentation to reflect current tool names, current mail-loop behavior, and the latest authentication/configuration guidance.
+
 ## v0.18 - 2026-04-04
 - **OpenAI OAuth bootstrap + CLI cleanup**: Added built-in OpenAI OAuth bootstrap flows for both browser/manual and headless device-code login, improved device-flow retry and backoff behavior, and cleaned up the CLI by renaming the bootstrap flags to `--fetch_openai_oauth_token` and `--fetch_openai_oauth_device_token`. `--help` and `--helpfull` now focus on command-line options only, without Hotword or Slash Command sections. This release also updates related docs/helper guidance, moves PKCE SHA-256 generation into a dedicated helper with tests, and includes a small input-parsing fuzz fix.
 
