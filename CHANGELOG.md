@@ -1,3 +1,6 @@
+## v0.18 - 2026-04-04
+- **OpenAI OAuth bootstrap + CLI cleanup**: Added built-in OpenAI OAuth bootstrap flows for both browser/manual and headless device-code login, improved device-flow retry and backoff behavior, and cleaned up the CLI by renaming the bootstrap flags to `--fetch_openai_oauth_token` and `--fetch_openai_oauth_device_token`. `--help` and `--helpfull` now focus on command-line options only, without Hotword or Slash Command sections. This release also updates related docs/helper guidance, moves PKCE SHA-256 generation into a dedicated helper with tests, and includes a small input-parsing fuzz fix.
+
 ## v0.17.3 - 2026-04-04
 - **Fix CI-CD workflow**: update yaml file
 
