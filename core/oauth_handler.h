@@ -2,6 +2,7 @@
 #define SLOP_SQL_OAUTH_HANDLER_H_
 
 #include <memory>
+#include <chrono>
 #include <ostream>
 #include <string>
 
@@ -34,6 +35,7 @@ class OAuthHandler {
 
   explicit OAuthHandler(HttpClient* http_client);
   OAuthHandler(HttpClient* http_client, Provider provider);
+  virtual ~OAuthHandler() = default;
 
   absl::StatusOr<std::string> GetValidToken();
   absl::StatusOr<std::string> GetOpenAiAccountId();
@@ -48,13 +50,15 @@ class OAuthHandler {
   Provider GetProvider() const { return provider_; }
 
  protected:
+  virtual void SleepForDevicePoll(std::chrono::seconds delay) const;
   std::string token_path_;
 
  private:
   absl::Status LoadTokens();
   absl::Status SaveTokens(const OAuthTokens& tokens);
   absl::Status RefreshToken();
-  absl::StatusOr<OAuthTokens> ParseTokenResponse(const nlohmann::json& response, int64_t now_unix_seconds) const;
+  absl::StatusOr<OAuthTokens> ParseTokenResponse(const nlohmann::json& response, int64_t now_unix_seconds,
+                                                 bool require_refresh_token) const;
   static std::string ExtractOpenAiAccountIdFromJwt(const std::string& jwt);
 
   HttpClient* http_client_;

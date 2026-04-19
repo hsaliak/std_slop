@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 #include "absl/strings/match.h"
 #include "gmock/gmock.h"
@@ -30,6 +31,17 @@ class MockHttpClient : public HttpClient {
 class OAuthHandlerTest : public ::testing::Test {
  protected:
   MockHttpClient mock_http;
+};
+
+class SleepCapturingOAuthHandler : public OAuthHandler {
+ public:
+  using OAuthHandler::OAuthHandler;
+
+  void SleepForDevicePoll(std::chrono::seconds delay) const override {
+    sleep_calls.push_back(delay.count());
+  }
+
+  mutable std::vector<int64_t> sleep_calls;
 };
 
 TEST_F(OAuthHandlerTest, OpenAiTokenPathSelection) {
@@ -133,6 +145,51 @@ TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenRejectsMissingDeviceAuthId) {
   auto status = handler.FetchOpenAiDeviceToken(start, out);
   ASSERT_FALSE(status.ok());
   EXPECT_TRUE(absl::StrContains(status.message(), "Device authorization ID is required"));
+}
+
+TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenRejectsMissingRefreshToken) {
+  SleepCapturingOAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  handler.SetTokenPath("/tmp/slop_openai_device_token_missing_refresh.json");
+  OAuthHandler::DeviceAuthorizationStart start;
+  start.device_auth_id = "auth-123";
+  start.interval_seconds = 1;
+  start.expires_in_seconds = 10;
+  std::ostringstream out;
+
+  EXPECT_CALL(mock_http, Post(HasSubstr("deviceauth/token"), _, Contains("Content-Type: application/json")))
+      .WillOnce(Return(R"({"access_token":"token-only","expires_in":3600})"));
+
+  auto status = handler.FetchOpenAiDeviceToken(start, out);
+  ASSERT_FALSE(status.ok());
+  EXPECT_TRUE(absl::StrContains(status.message(), "missing required refresh_token"));
+}
+
+TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenBacksOffAfterSlowDown) {
+  SleepCapturingOAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  char temp_path[] = "/tmp/slop_openai_device_token_XXXXXX";
+  int fd = mkstemp(temp_path);
+  if (fd != -1) close(fd);
+  unlink(temp_path);
+  handler.SetTokenPath(temp_path);
+
+  OAuthHandler::DeviceAuthorizationStart start;
+  start.device_auth_id = "auth-123";
+  start.interval_seconds = 1;
+  start.expires_in_seconds = 10;
+  std::ostringstream out;
+
+  EXPECT_CALL(mock_http, Post(HasSubstr("deviceauth/token"), _, Contains("Content-Type: application/json")))
+      .WillOnce(Return(absl::UnauthenticatedError("Terminal HTTP error: 400 {\"error\":\"authorization_pending\"}")))
+      .WillOnce(Return(absl::UnauthenticatedError("Terminal HTTP error: 400 {\"error\":\"slow_down\"}")))
+      .WillOnce(Return(R"({"access_token":"header.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoib3JnX3Rlc3QifX0.sig","refresh_token":"refresh-123","expires_in":3600})"));
+
+  auto status = handler.FetchOpenAiDeviceToken(start, out);
+  ASSERT_TRUE(status.ok());
+  ASSERT_EQ(handler.sleep_calls.size(), 2);
+  EXPECT_EQ(handler.sleep_calls[0], 1);
+  EXPECT_EQ(handler.sleep_calls[1], 2);
+
+  unlink(temp_path);
 }
 
 TEST_F(OAuthHandlerTest, MissingTokenFileGuidanceMentionsFetchOauth) {
