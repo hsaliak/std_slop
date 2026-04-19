@@ -83,7 +83,7 @@ void SignalHandler(int signum) {
 
 namespace {
 
-constexpr char kWalkthroughUrl[] = "https://github.com/hsaliak/std_slop/blob/main/docs/WALKTHROUGH.md";
+constexpr const char* kWalkthroughUrl = "https://github.com/hsaliak/std_slop/blob/main/docs/WALKTHROUGH.md";
 
 std::string MissingAuthenticationMessage() {
   return absl::StrCat("No authentication method found. Configure at least one authentication method. See the getting "
