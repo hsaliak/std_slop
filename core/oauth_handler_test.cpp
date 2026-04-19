@@ -254,6 +254,17 @@ TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenRejectsMissingDeviceAuthId) {
   EXPECT_TRUE(absl::StrContains(status.message(), "Device authorization ID is required"));
 }
 
+TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenRejectsMissingUserCode) {
+  OAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  OAuthHandler::DeviceAuthorizationStart start;
+  start.device_auth_id = "auth-123";
+  std::ostringstream out;
+
+  auto status = handler.FetchOpenAiDeviceToken(start, out);
+  ASSERT_FALSE(status.ok());
+  EXPECT_TRUE(absl::StrContains(status.message(), "user code is required"));
+}
+
 TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenRejectsMissingCodeVerifier) {
   SleepCapturingOAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
   handler.SetTokenPath("/tmp/slop_openai_device_token_missing_refresh.json");
@@ -283,6 +294,7 @@ TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenBacksOffAfterSlowDown) {
 
   OAuthHandler::DeviceAuthorizationStart start;
   start.device_auth_id = "auth-123";
+  start.user_code = "USER-CODE";
   start.interval_seconds = 1;
   start.expires_in_seconds = 10;
   std::ostringstream out;
@@ -300,10 +312,61 @@ TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenBacksOffAfterSlowDown) {
   auto status = handler.FetchOpenAiDeviceToken(start, out);
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(handler.sleep_calls.size(), 2);
-  EXPECT_EQ(handler.sleep_calls[0], 1);
-  EXPECT_EQ(handler.sleep_calls[1], 2);
+  EXPECT_EQ(handler.sleep_calls[0], 4);
+  EXPECT_EQ(handler.sleep_calls[1], 5);
 
   unlink(temp_path);
+}
+
+TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenRetriesAfter403Unknown) {
+  SleepCapturingOAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  char temp_path[] = "/tmp/slop_openai_device_token_403_XXXXXX";
+  int fd = mkstemp(temp_path);
+  if (fd != -1) close(fd);
+  unlink(temp_path);
+  handler.SetTokenPath(temp_path);
+
+  OAuthHandler::DeviceAuthorizationStart start;
+  start.device_auth_id = "auth-403";
+  start.user_code = "USER-CODE";
+  start.interval_seconds = 2;
+  start.expires_in_seconds = 10;
+  std::ostringstream out;
+
+  EXPECT_CALL(mock_http, Post(HasSubstr("deviceauth/token"), HasSubstr("user_code"), Contains("Content-Type: application/json")))
+      .WillOnce(Return(absl::UnauthenticatedError(
+          "Terminal HTTP error: 403 Body: {\"error\":{\"code\":\"deviceauth_authorization_unknown\"}}")))
+      .WillOnce(Return(R"({"authorization_code":"device-code-403","code_verifier":"device-verifier-403"})"));
+  EXPECT_CALL(mock_http, Post(HasSubstr("oauth/token"),
+                              AllOf(HasSubstr("code=device-code-403"), HasSubstr("code_verifier=device-verifier-403"),
+                                    HasSubstr("redirect_uri=https%3A%2F%2Fauth.openai.com%2Fdeviceauth%2Fcallback")),
+                              Contains("Content-Type: application/x-www-form-urlencoded")))
+      .WillOnce(Return(R"({"access_token":"header.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoib3JnXzQwMyJ9fQ.sig","refresh_token":"refresh-403","expires_in":3600})"));
+
+  auto status = handler.FetchOpenAiDeviceToken(start, out);
+  ASSERT_TRUE(status.ok());
+  ASSERT_EQ(handler.sleep_calls.size(), 1);
+  EXPECT_EQ(handler.sleep_calls[0], 5);
+
+  unlink(temp_path);
+}
+
+TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenFailsFastOnNonRetryableError) {
+  SleepCapturingOAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
+  OAuthHandler::DeviceAuthorizationStart start;
+  start.device_auth_id = "auth-fail";
+  start.user_code = "USER-CODE";
+  start.interval_seconds = 1;
+  start.expires_in_seconds = 10;
+  std::ostringstream out;
+
+  EXPECT_CALL(mock_http, Post(HasSubstr("deviceauth/token"), HasSubstr("user_code"), Contains("Content-Type: application/json")))
+      .WillOnce(Return(absl::UnauthenticatedError("Terminal HTTP error: 401 Body: {}")));
+
+  auto status = handler.FetchOpenAiDeviceToken(start, out);
+  ASSERT_FALSE(status.ok());
+  EXPECT_TRUE(absl::StrContains(status.message(), "OpenAI device authorization failed"));
+  EXPECT_TRUE(handler.sleep_calls.empty());
 }
 
 TEST_F(OAuthHandlerTest, MissingTokenFileGuidanceMentionsFetchOauth) {

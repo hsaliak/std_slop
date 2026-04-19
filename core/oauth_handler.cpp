@@ -64,6 +64,7 @@ std::string UrlEncodeFormValue(const std::string& value) {
 }
 
 constexpr char kFetchOauthGuidance[] = "Run: std_slop --fetch-oauth";
+constexpr int kOpenAiDevicePollSafetySeconds = 3;
 
 std::string UrlDecode(std::string_view value) {
   std::string decoded;
@@ -414,6 +415,9 @@ absl::Status OAuthHandler::FetchOpenAiDeviceToken(const DeviceAuthorizationStart
   if (start.device_auth_id.empty()) {
     return absl::InvalidArgumentError("Device authorization ID is required");
   }
+  if (start.user_code.empty()) {
+    return absl::InvalidArgumentError("Device authorization user code is required");
+  }
 
   const int64_t deadline = absl::ToUnixSeconds(absl::Now()) + start.expires_in_seconds;
   int current_interval_seconds = std::max(1, start.interval_seconds);
@@ -437,14 +441,19 @@ absl::Status OAuthHandler::FetchOpenAiDeviceToken(const DeviceAuthorizationStart
     }
 
     const std::string status_text(response_or.status().message());
-    if (!absl::StrContains(status_text, "Terminal HTTP error: 400") ||
-        (!absl::StrContains(status_text, "authorization_pending") && !absl::StrContains(status_text, "slow_down"))) {
+    const bool is_http_400 = absl::StrContains(status_text, "Terminal HTTP error: 400");
+    const bool is_authorization_pending = absl::StrContains(status_text, "authorization_pending");
+    const bool is_slow_down = absl::StrContains(status_text, "slow_down");
+    const bool is_transient_unknown = absl::StrContains(status_text, "deviceauth_authorization_unknown");
+
+    const bool should_retry = (is_http_400 && (is_authorization_pending || is_slow_down)) || is_transient_unknown;
+    if (!should_retry) {
       return absl::UnavailableError(absl::StrCat("OpenAI device authorization failed: ", status_text));
     }
-    if (absl::StrContains(status_text, "slow_down")) {
+    if (is_slow_down) {
       ++current_interval_seconds;
     }
-    SleepForDevicePoll(std::chrono::seconds(current_interval_seconds));
+    SleepForDevicePoll(std::chrono::seconds(current_interval_seconds + kOpenAiDevicePollSafetySeconds));
   }
   return absl::DeadlineExceededError("OpenAI device authorization timed out");
 }
