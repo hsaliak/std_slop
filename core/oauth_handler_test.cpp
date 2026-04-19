@@ -369,14 +369,14 @@ TEST_F(OAuthHandlerTest, FetchOpenAiDeviceTokenFailsFastOnNonRetryableError) {
   EXPECT_TRUE(handler.sleep_calls.empty());
 }
 
-TEST_F(OAuthHandlerTest, MissingTokenFileGuidanceMentionsFetchOauth) {
+TEST_F(OAuthHandlerTest, MissingTokenFileGuidanceMentionsFetchOpenAiOauthToken) {
   OAuthHandler handler(&mock_http, OAuthHandler::Provider::kOpenAi);
   handler.SetEnabled(true);
   handler.SetTokenPath("/tmp/slop_missing_openai_oauth_token.json");
 
   auto token_or = handler.GetValidToken();
   ASSERT_FALSE(token_or.ok());
-  EXPECT_TRUE(absl::StrContains(token_or.status().message(), "Run: std_slop --fetch-oauth"));
+  EXPECT_TRUE(absl::StrContains(token_or.status().message(), "Run: std_slop --fetch_openai_oauth_token"));
 }
 
 }  // namespace slop

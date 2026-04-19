@@ -63,7 +63,7 @@ std::string UrlEncodeFormValue(const std::string& value) {
   return encoded.str();
 }
 
-constexpr char kFetchOauthGuidance[] = "Run: std_slop --fetch-oauth";
+constexpr char kFetchOauthGuidance[] = "Run: std_slop --fetch_openai_oauth_token";
 constexpr int kOpenAiDevicePollSafetySeconds = 3;
 
 std::string UrlDecode(std::string_view value) {

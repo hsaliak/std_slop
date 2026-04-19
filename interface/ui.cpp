@@ -615,50 +615,9 @@ std::string GetHelpText() {
       "- `--prompt \"...\"`: Run a single prompt in batch mode and exit.\n"
       "- `--session <id>`: Use a specific session ID (overrides positional argument).\n"
       "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
-      "- `--fetch-oauth`: Run built-in OpenAI OAuth browser+paste login, save the token, and exit.\n"
-      "- `--fetch-oauth-device`: Run built-in OpenAI OAuth device login, save the token, and exit.\n"
-      "- `--helpfull`: See all available command-line flags.\n\n"
-      "## Hotwords\n"
-      "- `hey <skill> <query>`: Temporarily activate a skill for a single prompt. For example: `hey code_reviewer what "
-      "do you think of this?`.\n\n"
-      "## Slash Commands\n\n";
-  std::map<std::string, std::vector<std::pair<std::string, std::string>>> category_rows;
-  std::vector<std::string> categories;
-  for (const auto& def : slop::GetCommandDefinitions()) {
-    if (std::find(categories.begin(), categories.end(), def.category) == categories.end()) {
-      categories.push_back(def.category);
-    }
-    for (const auto& line : def.help_lines) {
-      if (line.empty()) continue;
-      if (line[0] == '/') {
-        size_t sep = line.find("  ");
-        if (sep != std::string::npos) {
-          category_rows[def.category].emplace_back(line.substr(0, sep),
-                                                   std::string(absl::StripLeadingAsciiWhitespace(line.substr(sep))));
-        } else {
-          category_rows[def.category].emplace_back(line, "");
-        }
-      } else {
-        std::string name_part = def.name;
-        for (const auto& alias : def.aliases) {
-          name_part += ", " + alias;
-        }
-        category_rows[def.category].emplace_back(name_part, line);
-      }
-    }
-  }
-  for (const auto& cat : categories) {
-    help += "### " + cat + "\n\n";
-    help += "| Command | Description |\n";
-    help += "| :--- | :--- |\n";
-    for (const auto& row : category_rows[cat]) {
-      // Escape pipes in markdown
-      std::string cmd = absl::StrReplaceAll(row.first, {{"|", "\\|"}});
-      std::string desc = absl::StrReplaceAll(row.second, {{"|", "\\|"}});
-      help += absl::Substitute("| `$0` | $1 |\n", cmd, desc);
-    }
-    help += "\n";
-  }
+      "- `--fetch_openai_oauth_token`: Run built-in OpenAI OAuth browser+paste login, save the token, and exit.\n"
+      "- `--fetch_openai_oauth_device_token`: Run built-in OpenAI OAuth device login, save the token, and exit.\n"
+      "- `--helpfull`: See all available command-line flags.\n";
   return help;
 }
 void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }

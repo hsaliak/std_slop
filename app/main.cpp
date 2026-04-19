@@ -60,8 +60,10 @@ ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL");
 ABSL_FLAG(bool, use_responses, false, "Use OpenAI Responses API instead of chat completions for OpenAI API key mode");
 ABSL_FLAG(bool, openai_oauth, false, "Use OpenAI OAuth token file (~/.config/slop/chatgpt_plus_token.json)");
 ABSL_FLAG(std::string, openai_oauth_token_path, "", "Override OpenAI OAuth token file path");
-ABSL_FLAG(bool, fetch_oauth, false, "Fetch an OpenAI OAuth token via built-in browser+paste flow and exit");
-ABSL_FLAG(bool, fetch_oauth_device, false, "Fetch an OpenAI OAuth token via built-in device flow and exit");
+ABSL_FLAG(bool, fetch_openai_oauth_token, false,
+          "Fetch an OpenAI OAuth token via built-in browser+paste flow and exit");
+ABSL_FLAG(bool, fetch_openai_oauth_device_token, false,
+          "Fetch an OpenAI OAuth token via built-in device flow and exit");
 
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
@@ -169,8 +171,8 @@ int main(int argc, char* argv[]) {
   }
 
   std::string prompt = absl::GetFlag(FLAGS_prompt);
-  const bool fetch_oauth = absl::GetFlag(FLAGS_fetch_oauth);
-  const bool fetch_oauth_device = absl::GetFlag(FLAGS_fetch_oauth_device);
+  const bool fetch_openai_oauth_token = absl::GetFlag(FLAGS_fetch_openai_oauth_token);
+  const bool fetch_openai_oauth_device_token = absl::GetFlag(FLAGS_fetch_openai_oauth_device_token);
   std::string db_path;
 
   if (!prompt.empty()) {
@@ -212,12 +214,13 @@ int main(int argc, char* argv[]) {
     (*handler)->SetEnabled(true);
   };
 
-  if (fetch_oauth && fetch_oauth_device) {
-    std::cerr << "Choose only one of --fetch_oauth or --fetch_oauth_device." << std::endl;
+  if (fetch_openai_oauth_token && fetch_openai_oauth_device_token) {
+    std::cerr << "Choose only one of --fetch_openai_oauth_token or --fetch_openai_oauth_device_token."
+              << std::endl;
     return 1;
   }
 
-  if (fetch_oauth) {
+  if (fetch_openai_oauth_token) {
     std::shared_ptr<slop::OAuthHandler> bootstrap_oauth_handler;
     configure_openai_oauth_handler(&bootstrap_oauth_handler);
     auto session_or = bootstrap_oauth_handler->StartOpenAiManualAuthorization();
@@ -241,7 +244,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  if (fetch_oauth_device) {
+  if (fetch_openai_oauth_device_token) {
     std::shared_ptr<slop::OAuthHandler> bootstrap_oauth_handler;
     configure_openai_oauth_handler(&bootstrap_oauth_handler);
     auto start_or = bootstrap_oauth_handler->StartOpenAiDeviceAuthorization();
