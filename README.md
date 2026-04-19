@@ -9,7 +9,7 @@
 
 `std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through per-session ledgers, providing long-term recall, structured state management. std::slop features built-in Git integration. It's goal is to be an agent for which the context and its use fully transparent and configurable.
 
-## ✨ Key Features
+## ✨ Features
 
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
@@ -24,7 +24,10 @@
 ### Download
 The project ships Linux x86-64 and macOS binaries every [release](https://github.com/hsaliak/std_slop/releases). You can directly use them.
 
-### 📋 Prerequisites
+### Get started
+Read the [Walkthrough](docs/WALKTHROUGH.md) first to understand how to get started, the authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use [docs/README.md](docs/README.md) as the docs index for deeper reference material.
+
+### 📋 Prerequisites to build
 - C++17 compiler (Clang/GCC)
 - [Bazel](https://bazel.build/install) (Bazelisk recommended)
 - **Git**: Targets must be valid git repositories. Usually, a git add and an initial commit is sufficient to trigger all the git enabled features.
@@ -54,15 +57,13 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 `/commands` are also supported. 
 
 
-Read the [Walkthrough](docs/WALKTHROUGH.md) first for the recommended getting-started flow, authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use [docs/README.md](docs/README.md) as the docs index for deeper reference material.
-
-### Authentication Quick Notes
+### Supported Authentication
 - Gemini: set `GOOGLE_API_KEY` or put it in `~/.config/slop/config.ini`
 - OpenAI-compatible API key: set `OPENAI_API_KEY`, optionally combine with `--openai_base_url`, or put both in `config.ini`
 - OpenAI OAuth (Responses API): run `std_slop --fetch_openai_oauth_token` or `std_slop --fetch_openai_oauth_device_token`, then start with `--openai_oauth`
 
 ### ⚙️ Configuration
-You can configure `std::slop` using environment variables or a configuration file.
+You can configure `std::slop` using environment variables or a configuration file (recommended).
 
 #### Configuration File
 The agent looks for a configuration file at `~/.config/slop/config.ini`. You can also specify a custom path using the `--config` flag.
