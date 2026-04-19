@@ -83,6 +83,14 @@ void SignalHandler(int signum) {
 
 namespace {
 
+constexpr char kWalkthroughUrl[] = "https://github.com/hsaliak/std_slop/blob/main/docs/WALKTHROUGH.md";
+
+std::string MissingAuthenticationMessage() {
+  return absl::StrCat("No authentication method found. Configure at least one authentication method. See the getting "
+                      "started walkthrough: ",
+                      kWalkthroughUrl);
+}
+
 class FileLogSink : public absl::LogSink {
  public:
   explicit FileLogSink(const std::string& path) : file_(path, std::ios::app) {}
@@ -277,7 +285,7 @@ int main(int argc, char* argv[]) {
   std::string openai_base_url = absl::GetFlag(FLAGS_openai_base_url);
 
   if (!openai_oauth && google_key.empty() && openai_key.empty()) {
-    std::cerr << "No authentication method found. Configure at least one authentication method." << std::endl;
+    std::cerr << MissingAuthenticationMessage() << std::endl;
     std::cerr << absl::ProgramUsageMessage() << std::endl;
     return 1;
   }

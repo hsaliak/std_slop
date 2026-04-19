@@ -22,7 +22,7 @@
 ## 🚀 Quick Start
 
 ### Download
-The project ships Linux x86-64 and OSX binaries every [release](https://github.com/hsaliak/std_slop/releases). You can directly use them.
+The project ships Linux x86-64 and macOS binaries every [release](https://github.com/hsaliak/std_slop/releases). You can directly use them.
 
 ### 📋 Prerequisites
 - C++17 compiler (Clang/GCC)
@@ -35,7 +35,7 @@ The project ships Linux x86-64 and OSX binaries every [release](https://github.c
 bazel build //:std_slop
 
 # Optional: Add to your PATH
-cp ./bazel-bin/std_slop /usr/local/bin/
+cp ./bazel-bin/app/std_slop /usr/local/bin/
 ```
 
 ### ⌨️ Usage
@@ -54,10 +54,12 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 `/commands` are also supported. 
 
 
-Read the [User Guide](docs/USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](docs/WALKTHROUGH.md) to start with something simple.
+Read the [Walkthrough](docs/WALKTHROUGH.md) first for the recommended getting-started flow, authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use the [User Guide](docs/USERGUIDE.md) as the detailed reference.
 
 ### Authentication Quick Notes
-- OpenAI OAuth (Responses API): `./slop_auth.sh chatgpt-plus` then run with `--openai_oauth`. You have to grab this script from the repo [here](https://github.com/hsaliak/std_slop/blob/main/slop_auth.sh)
+- Gemini: set `GOOGLE_API_KEY` or put it in `~/.config/slop/config.ini`
+- OpenAI-compatible API key: set `OPENAI_API_KEY`, optionally combine with `--openai_base_url`, or put both in `config.ini`
+- OpenAI OAuth (Responses API): run `std_slop --fetch_openai_oauth_token` or `std_slop --fetch_openai_oauth_device_token`, then start with `--openai_oauth`
 
 ### ⚙️ Configuration
 You can configure `std::slop` using environment variables or a configuration file.
@@ -66,6 +68,8 @@ You can configure `std::slop` using environment variables or a configuration fil
 The agent looks for a configuration file at `~/.config/slop/config.ini`. You can also specify a custom path using the `--config` flag.
 It is STRONGLY RECOMMENDED that slop.db lies in a central directory or outside the codebase. It generates 2 other artifact files, at least ensure that
 your .gitignore contains this. The context ledger is completely stored in the database, and it can inadvertently capture information from your environment if you are not careful. Eg Environment Variables.
+
+For a getting-started walkthrough that covers config methods end-to-end, see [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
 
 ```ini
 [slop]
