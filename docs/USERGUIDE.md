@@ -3,11 +3,11 @@
 `std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
 
 ## OpenAI OAuth Quickstart
-- Browser flow: `std_slop --fetch-oauth`
-- Device flow: `std_slop --fetch-oauth-device`
+- Browser flow: `std_slop --fetch_openai_oauth_token`
+- Device flow: `std_slop --fetch_openai_oauth_device_token`
 - Runtime after login: `std_slop --openai_oauth`
 
-Use `--fetch-oauth` when you can log in in a browser and paste the final redirect URL back into the terminal. Use `--fetch-oauth-device` for headless/device-code login.
+Use `--fetch_openai_oauth_token` when you can log in in a browser and paste the final redirect URL back into the terminal. Use `--fetch_openai_oauth_device_token` for headless/device-code login.
 
 ## Tool Contracts and Error Handling
 
@@ -156,7 +156,7 @@ For debugging purposes, you can use the following environment variable:
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 ## Authentication Modes
 ### OpenAI OAuth Quickstart
-1. Run `std_slop --fetch-oauth`.
+1. Run `std_slop --fetch_openai_oauth_token`.
 2. Start `std_slop --openai_oauth`.
 3. Token file: `~/.config/slop/chatgpt_plus_token.json`.
 ### OpenAI API Key
@@ -164,7 +164,7 @@ For debugging purposes, you can use the following environment variable:
 - Default OpenAI path is Chat Completions.
 - Set `use_responses = true` (or `--use_responses`) to use the Responses API.
 ### OpenAI OAuth (Responses API)
-1. Run `std_slop --fetch-oauth`.
+1. Run `std_slop --fetch_openai_oauth_token`.
 2. Start `std_slop --openai_oauth`.
 3. Token file: `~/.config/slop/chatgpt_plus_token.json`.
 4. Optional override: `--openai_oauth_token_path=/path/to/token.json`.

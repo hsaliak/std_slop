@@ -25,10 +25,10 @@ std_slop --google_api_key "$GOOGLE_API_KEY"
 If you want OpenAI OAuth instead, use either flow:
 ```bash
 # Browser + paste flow
-std_slop --fetch-oauth
+std_slop --fetch_openai_oauth_token
 
 # Headless/device flow
-std_slop --fetch-oauth-device
+std_slop --fetch_openai_oauth_device_token
 
 # Run with the saved OAuth token
 std_slop --openai_oauth

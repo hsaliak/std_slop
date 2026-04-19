@@ -22,7 +22,7 @@ usage() {
 Usage:
   ./slop_auth.sh [chatgpt-plus|chatgpt-plus-device]
 
-Prefer the built-in flow: `std_slop --fetch-oauth`
+Prefer the built-in flow: `std_slop --fetch_openai_oauth_token`
 
 Modes:
   chatgpt-plus         ChatGPT Plus OAuth via browser + manual callback paste (default).

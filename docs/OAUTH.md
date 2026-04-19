@@ -14,21 +14,21 @@ The C++ `OAuthHandler` is responsible for:
 ## OpenAI OAuth Quickstart
 
 ### OpenAI OAuth (ChatGPT Plus)
-- Default command: `std_slop --fetch-oauth`
-- Device command: `std_slop --fetch-oauth-device`
+- Default command: `std_slop --fetch_openai_oauth_token`
+- Device command: `std_slop --fetch_openai_oauth_device_token`
 - Runtime command after login: `std_slop --openai_oauth`
 - Token file: `~/.config/slop/chatgpt_plus_token.json`
 - Runtime flag: `--openai_oauth`
 - API mode: OpenAI Responses API (forced)
 - Runtime base URL: `https://chatgpt.com/backend-api/codex` (custom `openai_base_url` is ignored in this mode)
 
-`--fetch-oauth` is the standard browser+paste flow:
+`--fetch_openai_oauth_token` is the standard browser+paste flow:
 1. `std_slop` prints the authorization URL.
 2. You complete login/consent in the browser.
 3. You paste the full redirect URL back into the CLI.
 4. `std_slop` exchanges the authorization code and saves tokens.
 
-`--fetch-oauth-device` is the headless/device flow:
+`--fetch_openai_oauth_device_token` is the headless/device flow:
 1. `std_slop` prints the verification URL and user code.
 2. You authorize on another browser/device.
 3. `std_slop` polls for an authorization code.
@@ -45,7 +45,7 @@ The C++ `OAuthHandler` is responsible for:
 - OpenAI refresh endpoint: `https://auth.openai.com/oauth/token`
 
 If refresh fails or tokens are missing:
-- OpenAI guidance: run `std_slop --fetch-oauth`
+- OpenAI guidance: run `std_slop --fetch_openai_oauth_token`
 
 ## OpenAI OAuth Token Path Override
 
