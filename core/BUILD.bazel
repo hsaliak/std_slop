@@ -96,6 +96,23 @@ cc_library(
 )
 
 cc_library(
+ name = "sha256",
+ srcs = [
+ "sha256.cpp",
+ ],
+ hdrs = [
+ "sha256.h",
+ ],
+ visibility = ["//visibility:public"],
+ deps = [
+ "@abseil-cpp//absl/status",
+ "@abseil-cpp//absl/status:statusor",
+ "@abseil-cpp//absl/strings",
+ "@mbedtls//:mbedtls",
+ ],
+)
+
+cc_library(
  name = "auth",
  srcs = [
  "oauth_handler.cpp",
@@ -105,12 +122,13 @@ cc_library(
  ],
  visibility = ["//visibility:public"],
  deps = [
- ":data",
- ":transport",
- ":json_utils",
- ":shell_lib",
- "@abseil-cpp//absl/log",
- "@abseil-cpp//absl/status",
+  ":data",
+  ":transport",
+  ":json_utils",
+  ":sha256",
+  ":shell_lib",
+  "@abseil-cpp//absl/log",
+  "@abseil-cpp//absl/status",
  "@abseil-cpp//absl/status:statusor",
  "@abseil-cpp//absl/time",],
 )
@@ -213,11 +231,12 @@ cc_library(
  "@nlohmann_json//:json",
  "@abseil-cpp//absl/status",],
  )
- for test_name in [
- "database_test",
- "http_client_test",
- "openai_utils_test",
- "orchestrator_test",
+  for test_name in [
+  "database_test",
+  "http_client_test",
+  "openai_utils_test",
+  "orchestrator_test",
+  "sha256_test",
  "orchestrator_openai_test",
  "orchestrator_openai_responses_test",
  "tool_executor_test",
