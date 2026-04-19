@@ -15,7 +15,7 @@
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
-- **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval.  Use this if you want a clean, bisect-safe view of changes, and want to be 'in the loop'. You can, of course offload the reviews to a `code_reviewer` skill as well.
+- **📬 Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for the manual patch-based workflow or [docs/mail-loop/README.md](docs/mail-loop/README.md) for the automated mail-loop orchestrator.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.) and OpenAI Responses API (with chatgpt plus/pro oauth).
 - **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax. Eg: "hey code_reviewer review these patches".
 
@@ -54,7 +54,7 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 `/commands` are also supported. 
 
 
-Read the [Walkthrough](docs/WALKTHROUGH.md) first for the recommended getting-started flow, authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use the [User Guide](docs/USERGUIDE.md) as the detailed reference.
+Read the [Walkthrough](docs/WALKTHROUGH.md) first for the recommended getting-started flow, authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use [docs/README.md](docs/README.md) as the docs index for deeper reference material.
 
 ### Authentication Quick Notes
 - Gemini: set `GOOGLE_API_KEY` or put it in `~/.config/slop/config.ini`
@@ -105,7 +105,7 @@ After startup, call the specialized tool directly by name (for example
 For a complete multi-specialization example, see
 [docs/example_subqueries.ini](docs/example_subqueries.ini).
 Detailed behavior and policy constraints are documented in
-[docs/subqueries.md](docs/subqueries.md).
+[docs/impl/subqueries.md](docs/impl/subqueries.md).
 
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
@@ -123,12 +123,12 @@ Detailed behavior and policy constraints are documented in
 ## 📚 Documentation
 
 - **[Personas & Skills](docs/CONTEXT.md)**: Understanding global context injection and modular skills.
-- **[User Guide](docs/USERGUIDE.md)**: Detailed commands and workflow tips.
+- **[Documentation Guide](docs/README.md)**: Entry point and reading order for the documentation set.
 - **[Architecture & Schema](docs/SCHEMA.md)**: Understanding the database-driven engine.
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
-- **[Subquery Specializations](docs/subqueries.md)**: Configure and use `llm_query` sub-agents from INI.
+- **[Subquery Implementation Notes](docs/impl/subqueries.md)**: Design and policy notes for INI-configured `llm_query` specializations.
 - **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 

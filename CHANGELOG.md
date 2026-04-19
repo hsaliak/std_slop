@@ -17,7 +17,7 @@
 - **Delegation API and policy hardening**: Generalized `llm_query` execution options and centralized subquery policy checks to block recursion paths (`llm_query`/`llm_tool_*` in subquery scope) with fixed depth constraints.
 - **Fuzz + test coverage for subquery paths**: Added dedicated fuzz targets for specialization config parsing, subquery policy boundaries, and query options handling; expanded unit coverage around registration/validation behavior.
 - **Naming alignment to valid tool identifiers**: Standardized specialization naming and docs/tests from dot form to underscore form (`llm_tool_...`) to match tool-name constraints.
-- **Docs discoverability improvements**: Added/expanded `docs/subqueries.md`, `docs/example_subqueries.ini`, and prominent README/USERGUIDE guidance for configuring and invoking specialization tools.
+- **Docs discoverability improvements**: Added/expanded subquery documentation, `docs/example_subqueries.ini`, and prominent onboarding/reference guidance for configuring and invoking specialization tools.
 
 ## v0.16 - 2026-03-17
 - **Tooling split and API cleanup**: Moved the tool executor/dispatcher and built-in tool handlers out of `core/` into top-level `tools/`, then rewired the root, interface, and core build graph around new façade targets and shared dependencies.

@@ -2,6 +2,9 @@
 
 This walkthrough is the fastest way to get `std::slop` working when you are starting from a fresh machine or an empty `~/.config/slop` directory.
 
+**Audience:** first-time and returning users who want the canonical setup flow.
+**Related docs:** [README.md](../README.md), [README.md](README.md), [OAUTH.md](OAUTH.md), [mail_mode.md](mail_mode.md)
+
 ## Getting Started
 
 `std::slop` needs at least one authentication method before it can talk to an LLM. Choose one of these setup paths:
@@ -173,7 +176,7 @@ Helpful first commands inside the UI:
 /session switch scratch
 ```
 
-If you want to explore `std::slop`-specific workflows and built-in personas, browse the `docs/` folder. Good next reads include `docs/mail_mode.md` for patch-based development, `docs/mail-loop/SKILL.md` for the automated mail loop persona, and the rest of `docs/` for project-specific skills and workflows.
+If you want to explore `std::slop`-specific workflows and built-in personas, browse the `docs/` folder. Good next reads include [mail_mode.md](mail_mode.md) for patch-based development, [mail-loop/README.md](mail-loop/README.md) for the automated mail-loop workflow, and [README.md](README.md) for the full docs map.
 
 ## Configuring `llm_query` Subqueries and Personas
 
@@ -197,7 +200,7 @@ Run with a config that includes these sections:
 std_slop --config ~/.config/slop/config.ini
 ```
 
-For a complete example, see [example_subqueries.ini](example_subqueries.ini). For more detail on the config shape and policy boundaries, see [subqueries.md](subqueries.md) and the `llm_query` specialization section in [USERGUIDE.md](USERGUIDE.md).
+For a complete example, see [example_subqueries.ini](example_subqueries.ini). For more detail on the config shape and policy boundaries, see [impl/subqueries.md](impl/subqueries.md).
 
 ## Troubleshooting
 
@@ -213,6 +216,6 @@ bazel run //:std_slop -- --v=2 --stderrthreshold=0
 
 ## Next Steps
 
-- Read the [User Guide](USERGUIDE.md) for commands and workflows.
+- Read [README.md](README.md) for the full docs map.
 - Read [OAUTH.md](OAUTH.md) for OpenAI OAuth details.
 - Read [mail_mode.md](mail_mode.md) for the patch-based development workflow.

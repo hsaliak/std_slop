@@ -1,116 +1,83 @@
 # The Mail Mode: Patch-Based Development Workflow
 
-This document describes the "Mail Mode" workflow for `std::slop`, a Git-native, iteration-first development process inspired by the Linux Kernel / Git email workflow.
+This document describes the manual Mail Mode workflow for `std::slop`.
+
+**Audience:** users who want explicit control over staging branches, patch commits, review, and finalize.
+**Related docs:** [mail-loop/README.md](mail-loop/README.md), [README.md](README.md), [../README.md](../README.md)
+
+If you want the automated version of this workflow, see [mail-loop/README.md](mail-loop/README.md).
 
 ## 1. Core Philosophy
-The agent acts as a **Remote Contributor**. Instead of directly modifying the project's main files, it submits a **Patch Series** for review. This forces architectural thinking, atomic changes, and a clear audit trail of design decisions.
-## 2. The Four Stages
+
+Mail Mode treats the agent as a remote contributor. Instead of making ad hoc changes directly on `main`, the agent builds a reviewable patch series on a staging branch. This encourages atomic commits, clearer rationale, and bisect-safe history.
+
+## 2. High-Level Flow
 
 ![Mail Mode](mail_model.png)
-### Stage 1: The Staging Layer (The Sandbox)
-- **Branching**: All work happens on a dedicated staging branch (e.g., `slop/staging/feature-name`) branched from the current HEAD.
-- **Atomic Commits**: Every logical change (e.g., "Defined Interface", "Added Implementation", "Updated Tests") is a separate Git commit.
-- **Rationale Capture**: Each commit contains a "Rationale" block in the body, explaining *why* the change was made, not just *what* changed.
-- **Patch Hygiene (Verification)**: 
-    - The agent MUST run build/test commands (e.g., `bazel build //...`) after each commit.
-    - If a commit fails the build, the agent must fix it *before* proceeding to the next patch or presenting the series. This ensures the series is "Bisect-Safe."
 
-### Stage 2: The Patch Series (The Review)
-- **The Package**: The agent generates a series of patches using `git format-patch`.
-- **The Cover Letter**: The agent summarizes the entire series in the chat.
-- **Review Interface (The `/review` Flow)**:
-    - **Automated Summary**: A Markdown table listing patch indices, summaries, and rationales.
-    - **`/review mail`**: Opens the *entire* patch series in the editor for review. Patch headers (e.g., `### Patch [1/2] ###`) are injected into the buffer to partition the changes.
-    - **`/review mail <index>`**: Opens only the specified patch in the editor.
-- **Feedback Methods**:
-    - **Inlined Reworks**: Users add comments starting with `R: ` directly under the lines they want changed in the review editor.
-    - **Contextual Rerolling**: The agent uses the `### Patch [n/total] ###` headers to automatically map `R:` comments to the correct atomic commit. If an `R:` comment is found under Patch 2's header, the agent will apply the fix to Patch 2 using `git_reroll_patch(index=2)`.
-    - **Direct Chat**: Chat-based feedback is still supported for high-level requests.
-- **Review Boundary**: The agent stops and waits for user feedback before landing any code.
+1. Create or switch to a staging branch under `slop/staging/*`.
+2. Implement a logical change.
+3. Commit it with `git_commit_patch(...)`.
+4. Repeat until the series is complete.
+5. Run `git_format_patch_series(...)` to review the series.
+6. Review, reroll, and verify until the series is ready.
+7. Finalize with `git_finalize_series(...)` after explicit approval of the reviewed HEAD.
 
-### Stage 3: The Reroll (Iteration)
-- **Feedback Parsing**: The agent analyzes user feedback (Chat or `/review`) and maps it to specific patches in the current series.
-- **The "Fixup" Loop**:
-    1.  Agent applies corrections to the staging branch.
-    2.  Agent creates fixup commits (`git commit --fixup <patch_hash>`).
-    3.  Agent performs an interactive rebase (`git rebase -i --autosquash`) to maintain atomic patch integrity.
-    4.  **Re-Validation**: After the rebase, the agent performs a "Series Walk." It iterates through each commit in the updated series and runs build/test commands to ensure the rebase didn't introduce regressions or logical conflicts in subsequent patches.
-- **Version Tracking**:
-    - The series is incremented (e.g., `v1` -> `v2`).
-    - The new Cover Letter includes a **Changelog** section (e.g., "v2: Fixed memory leak in Patch 2; updated naming in Patch 1").
-- **State Persistence**: The iteration history is stored in the Git Reflog and the commit bodies, allowing for a full "Undo" if a reroll goes in the wrong direction.
+## 3. Staging Branch Workflow
 
-### Stage 4: Finalization (Landing)
-- **Acceptance**: Once the user approves, the agent lands the changes.
-- **Integration**: The agent performs a `merge` (typically `--squash` or `--ff-only`) into the target branch.
-- **Cleanup**: The staging branch is deleted, leaving the workspace clean.
+- **Branching**: Use `git_create_staging_branch(base_branch, name)` to create or switch to a staging branch.
+- **Atomic commits**: Keep each commit logically scoped and bisect-safe.
+- **Rationale**: Use `git_commit_patch(summary, rationale)` so each patch records why it exists, not just what changed.
+- **Verification**: Run a deterministic validation command before asking for review.
 
-## 3. Workflow Example: "Add a FileCache"
+## 4. Review and Reroll
 
-1. **Agent Setup**: 
-   - Agent calls `git_branch_staging(name="file-cache")`.
-2. **Commit 1 (API Design)**:
-   - Agent modifies `interface/cache.h`.
-   - Agent calls `git_commit_patch(summary="interface: define ICache", rationale="Abstract interface allows us to swap local storage for S3 later.")`.
-3. **Commit 2 (Implementation)**:
-   - Agent modifies `core/local_cache.cpp`.
-   - Agent calls `git_commit_patch(summary="core: implement LocalCache", rationale="Simple std::filesystem-based implementation for initial MVP.")`.
-4. **The "Mail" (Presentation)**:
-   - Agent calls `git_format_patch_series()` and presents the work to the user.
-5. **Review**:
-   - **User** runs `/review mail`.
-   - In the editor, under `### Patch [1/2] ###`, user adds: `R: Use std::string_view for keys here.`
-6. **Reroll**:
-   - Agent applies the code change to `interface/cache.h`.
-   - Agent calls `git_reroll_patch(index=1)`.
-   - Agent calls `git_verify_series(command="bazel test //...")`.
-   - Agent presents updated series to the user.
-7. **Approve**:
-   - **User** runs `/review mail approve`. This "signs" the current HEAD hash in the database.
-8. **Finalize**:
-   - Agent calls `git_finalize_series()`. The tool verifies the signature and merges the series.
-   - The staging branch is deleted.
+### Review
 
-## 4. Required Tooling & Commands
+- Use `/review mail` to inspect the current series.
+- Use `/review mail <index>` to inspect a specific patch.
+- Add `R:` comments in the review buffer to request changes.
 
-### Mode Activation
-- **`/mode mail [branchname]`**: Enables the "Mail Mode" persona. You can optionally provide a staging branch name directly (for example, `/mode mail feature-x`). This activates the `patcher` skill and injects the corresponding system prompt. The modeline will update to show a green `📬 MAIL_MODEL` indicator.
-- **Session Toggle**: This mode can be toggled on/off. When off, the agent reverts to direct file modification. When on, all modifications must go through the staging/patch loop.
-- The Mode state (Standard vs Mail) is shown in the modeline of the UI using icons (`🤖` vs `📬`) and colorization.
-- When the /mode mail is toggled in a directory that is not a valid git repository, it should ask the user to git init, if not, it should not toggle the mode. 
-- **Important** - Ensure that your `git status` is clean before initiating this mode. A good strategy is to ensure that slop.db lives outside the codebase with `--db` flag. Ensure that the db and other sqlite artifacts are in your `.gitignore`
-### CLI Commands (User Interface)
-- **`/review mail`**: Opens the current patch series in the review editor.
-- **`/review mail <index>`**: Opens a specific patch for detailed inspection and `R:` commenting.
-- **`/review mail approve`**: Approves the current patchset for finalization. This is **required** before `git_finalize_series` can be executed. Any new commit or reroll invalidates this approval.
-- **Diagnostics**: The review system provides contextual tips:
-    - Running `/review` without changes in Mail Mode will suggest `/review mail`.
-    - Running `/review mail` without commits on a staging branch will suggest using `git_commit_patch`.
+### Reroll
 
-### Finalization (The Approval Flow)
-- **Explicit Approval**: The `/review mail approve` command is mandatory. The agent cannot call `git_finalize_series` without a verified signature in the database matching the current HEAD hash.
-- **Non-Stickiness**: If the agent modifies the patchset (e.g., via `git_reroll_patch`) after approval, the approval is invalidated, and the user must re-run `/review mail approve` on the latest version.
+- Use `git_reroll_patch(base_branch, index)` to update a specific patch while preserving series structure.
+- Re-run validation after each reroll.
+- Re-review the updated series before finalization.
 
-### Agent Tools (The Engine)
-- **`git_branch_staging(name, base_branch)`**: Initializes the staging environment. The `base_branch` (e.g., `main`, `js-integration`) is recorded in the database to enable "sticky" parent resolution for all subsequent tools.
-- **`git_commit_patch(summary, rationale)`**: Commits a logical change with mandatory metadata. Returns a concise summary of the current patch series for immediate feedback.
-- **`git_format_patch_series(base_branch)`**: Returns the formatted cover letter and full diff of the current staging branch. `base_branch` is optional; if omitted, it defaults to the sticky parent recorded during branch creation.
-- **`git_reroll_patch(index, base_branch)`**: A high-level tool that handles the `fixup` + `rebase` logic for a specific patch index. `base_branch` is optional and defaults to the sticky parent.
-- **`git_verify_series(command, base_branch)`**: Automates the "Series Walk" (testing every commit in isolation). `base_branch` is optional and defaults to the sticky parent.
-- **`git_finalize_series(target_branch)`**: Merges the staging branch into the target branch and cleans up. `target_branch` is optional and defaults to the sticky parent.
+## 5. Verification and Finalization
 
-### The `patcher` Skill
-- A system prompt that:
-    1.  Prohibits `write_file` on protected branches.
-    2.  Forces the use of the `git_commit_patch` -> `git_format_patch_series` loop.
-    3.  Instructions on how to generate detailed Cover Letters and Changelogs.
-    4.  Provides logic for mapping `R:` comments from specific patch buffers back to the correct Git commit for rerolling.
+- Use `git_verify_series(base_branch, command)` to validate every commit in the series.
+- `git_finalize_series(target_branch)` merges the reviewed series and cleans up staging metadata.
+- Approval must match the current staging HEAD. If the series changes after approval, it must be approved again.
 
-## 5. Persistence and Sticky Context
+## 6. Tool Summary
 
-To streamline the development flow, the Mail Mode maintains a "sticky" relationship between a staging branch and its parent.
+- `git_create_staging_branch(base_branch, name)`
+- `git_commit_patch(summary, rationale)`
+- `git_format_patch_series(base_branch)`
+- `git_reroll_patch(base_branch, index)`
+- `git_verify_series(base_branch, command)`
+- `git_finalize_series(target_branch)`
 
-- **Storage**: When `git_branch_staging` is called, the mapping is stored in the `staging_branches` table in the database.
-- **Resolution**: All Mail Mode tools (`git_reroll_patch`, `git_verify_series`, etc.) automatically query this table if a base/target branch is not explicitly provided.
-- **Workflow Benefit**: This ensures that even if an agent session restarts or context is lost, the tool suite "remembers" where the patches should be applied and verified against.
+## 7. Manual Mail Mode vs Mail Loop
 
+### Manual Mail Mode
+
+Choose this when you want to drive each step yourself:
+- create the staging branch,
+- decide patch boundaries,
+- request and apply rerolls,
+- approve and finalize manually.
+
+### Mail Loop
+
+Choose this when you want the agent to orchestrate the sequence end-to-end, including review iterations, approval bookkeeping, and finalization according to the `mail-loop` skill contract.
+
+See [mail-loop/README.md](mail-loop/README.md) for that workflow.
+
+## 8. Practical Tips
+
+- Start with a clean working tree.
+- Keep `slop.db` and related SQLite artifacts outside the repository or in `.gitignore`.
+- Prefer several small patches over one large patch.
+- Use the same deterministic validation command for local verification and `git_verify_series(...)`.
