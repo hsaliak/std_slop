@@ -22,9 +22,15 @@ Run `std_slop`. I recommend starting with Gemini using a Google API key, or Open
 std_slop --google_api_key "$GOOGLE_API_KEY"
 /model gemini-3-flash-preview
 ```
-If you want OpenAI OAuth instead, use:
+If you want OpenAI OAuth instead, use either flow:
 ```bash
+# Browser + paste flow
 std_slop --fetch-oauth
+
+# Headless/device flow
+std_slop --fetch-oauth-device
+
+# Run with the saved OAuth token
 std_slop --openai_oauth
 ```
 This model defaults to `gemini-3-flash-preview`. Use `/models` to list available models for the active provider, and use `/stats` to inspect token usage. You may need to run at least one query with the LLM before usage tables are populated.

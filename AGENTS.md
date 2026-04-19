@@ -22,6 +22,11 @@ forget backward compatibility. Do not suggest plans that are complicated by back
 - Keep provider-specific response normalization in `core/orchestrator_*.cpp`.
 - If the same provider payload shape is parsed in more than one place, centralize that parsing in the orchestrator/helper instead of duplicating it in callers or tests.
 
+## Core logic execution rules
+
+- Do not shell out from core production logic for hashing, encoding, parsing, or other deterministic computations.
+- Implement deterministic core logic in-process; shelling out is unacceptable in `core/*.cpp` except for explicitly user-facing shell/tool features.
+
 ## When to add unit tests
 
 - Add or update a unit test when changing success-path behavior, returned error/status, JSON field handling/defaulting, line-range behavior, path validation, argument validation, provider response normalization, or formatting/serialization that callers depend on.

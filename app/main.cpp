@@ -60,7 +60,8 @@ ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL");
 ABSL_FLAG(bool, use_responses, false, "Use OpenAI Responses API instead of chat completions for OpenAI API key mode");
 ABSL_FLAG(bool, openai_oauth, false, "Use OpenAI OAuth token file (~/.config/slop/chatgpt_plus_token.json)");
 ABSL_FLAG(std::string, openai_oauth_token_path, "", "Override OpenAI OAuth token file path");
-ABSL_FLAG(bool, fetch_oauth, false, "Fetch an OpenAI OAuth token via built-in device flow and exit");
+ABSL_FLAG(bool, fetch_oauth, false, "Fetch an OpenAI OAuth token via built-in browser+paste flow and exit");
+ABSL_FLAG(bool, fetch_oauth_device, false, "Fetch an OpenAI OAuth token via built-in device flow and exit");
 
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
@@ -169,6 +170,7 @@ int main(int argc, char* argv[]) {
 
   std::string prompt = absl::GetFlag(FLAGS_prompt);
   const bool fetch_oauth = absl::GetFlag(FLAGS_fetch_oauth);
+  const bool fetch_oauth_device = absl::GetFlag(FLAGS_fetch_oauth_device);
   std::string db_path;
 
   if (!prompt.empty()) {
@@ -210,7 +212,36 @@ int main(int argc, char* argv[]) {
     (*handler)->SetEnabled(true);
   };
 
+  if (fetch_oauth && fetch_oauth_device) {
+    std::cerr << "Choose only one of --fetch_oauth or --fetch_oauth_device." << std::endl;
+    return 1;
+  }
+
   if (fetch_oauth) {
+    std::shared_ptr<slop::OAuthHandler> bootstrap_oauth_handler;
+    configure_openai_oauth_handler(&bootstrap_oauth_handler);
+    auto session_or = bootstrap_oauth_handler->StartOpenAiManualAuthorization();
+    if (!session_or.ok()) {
+      std::cerr << "Failed to start OpenAI OAuth browser flow: " << session_or.status().message() << std::endl;
+      return 1;
+    }
+    std::cout << "OpenAI OAuth browser flow\n"
+              << "1. Open: " << session_or->authorization_uri << "\n"
+              << "2. Finish login/consent in the browser.\n"
+              << "3. Paste the full redirect URL here.\n\n"
+              << "Redirect URL: ";
+    std::string callback_url;
+    std::getline(std::cin, callback_url);
+    auto fetch_status = bootstrap_oauth_handler->CompleteOpenAiManualAuthorization(*session_or, callback_url, std::cout);
+    if (!fetch_status.ok()) {
+      std::cerr << "Failed to fetch OpenAI OAuth token: " << fetch_status.message() << std::endl;
+      return 1;
+    }
+    std::cout << "Next: std_slop --openai_oauth" << std::endl;
+    return 0;
+  }
+
+  if (fetch_oauth_device) {
     std::shared_ptr<slop::OAuthHandler> bootstrap_oauth_handler;
     configure_openai_oauth_handler(&bootstrap_oauth_handler);
     auto start_or = bootstrap_oauth_handler->StartOpenAiDeviceAuthorization();

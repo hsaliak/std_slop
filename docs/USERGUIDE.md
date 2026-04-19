@@ -1,6 +1,14 @@
 # std::slop User Guide
 ## Overview
 `std::slop` is a C++ LLM CLI built for developers who want a SQL-backed, persistent conversation history with built-in tools for codebase exploration and context management.
+
+## OpenAI OAuth Quickstart
+- Browser flow: `std_slop --fetch-oauth`
+- Device flow: `std_slop --fetch-oauth-device`
+- Runtime after login: `std_slop --openai_oauth`
+
+Use `--fetch-oauth` when you can log in in a browser and paste the final redirect URL back into the terminal. Use `--fetch-oauth-device` for headless/device-code login.
+
 ## Tool Contracts and Error Handling
 
 Tool contracts are runtime-defined. Always call `tools.help()` to confirm exact names,
