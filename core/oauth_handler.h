@@ -2,10 +2,13 @@
 #define SLOP_SQL_OAUTH_HANDLER_H_
 
 #include <memory>
+#include <chrono>
+#include <ostream>
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "nlohmann/json.hpp"
 
 #include "core/http_client.h"
 
@@ -20,13 +23,34 @@ struct OAuthTokens {
 
 class OAuthHandler {
  public:
+  struct ManualAuthorizationSession {
+    std::string authorization_uri;
+    std::string state;
+    std::string code_verifier;
+    std::string redirect_uri;
+  };
+
+  struct DeviceAuthorizationStart {
+    std::string device_auth_id;
+    std::string user_code;
+    std::string verification_uri;
+    int interval_seconds = 5;
+    int expires_in_seconds = 900;
+  };
+
   enum class Provider { kOpenAi };
 
   explicit OAuthHandler(HttpClient* http_client);
   OAuthHandler(HttpClient* http_client, Provider provider);
+  virtual ~OAuthHandler() = default;
 
   absl::StatusOr<std::string> GetValidToken();
   absl::StatusOr<std::string> GetOpenAiAccountId();
+  absl::StatusOr<ManualAuthorizationSession> StartOpenAiManualAuthorization() const;
+  absl::Status CompleteOpenAiManualAuthorization(const ManualAuthorizationSession& session,
+                                                 const std::string& callback_url, std::ostream& out);
+  absl::StatusOr<DeviceAuthorizationStart> StartOpenAiDeviceAuthorization() const;
+  absl::Status FetchOpenAiDeviceToken(const DeviceAuthorizationStart& start, std::ostream& out);
 
   bool IsEnabled() const { return enabled_; }
   void SetEnabled(bool enabled) { enabled_ = enabled; }
@@ -36,12 +60,20 @@ class OAuthHandler {
   Provider GetProvider() const { return provider_; }
 
  protected:
+  virtual std::string GenerateOAuthRandomValue() const;
+  virtual absl::StatusOr<std::string> BuildPkceCodeChallenge(const std::string& code_verifier) const;
+  virtual void SleepForDevicePoll(std::chrono::seconds delay) const;
   std::string token_path_;
 
  private:
   absl::Status LoadTokens();
   absl::Status SaveTokens(const OAuthTokens& tokens);
   absl::Status RefreshToken();
+  absl::Status ExchangeOpenAiAuthorizationCodeForTokens(const std::string& authorization_code,
+                                                        const std::string& code_verifier,
+                                                        const std::string& redirect_uri, std::ostream& out);
+  absl::StatusOr<OAuthTokens> ParseTokenResponse(const nlohmann::json& response, int64_t now_unix_seconds,
+                                                 bool require_refresh_token) const;
   static std::string ExtractOpenAiAccountIdFromJwt(const std::string& jwt);
 
   HttpClient* http_client_;

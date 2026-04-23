@@ -1,3 +1,11 @@
+## v0.18.1 - 2026-04-04
+- **Documentation refresh and restructuring**: Made `docs/WALKTHROUGH.md` the canonical onboarding guide, added `docs/README.md` as a docs index, and aligned `README.md` to point users at the new walkthrough-first flow.
+- **Docs cleanup**: Removed the redundant `docs/USERGUIDE.md`, moved implementation/history material into `docs/impl/`, and refreshed cross-links so user-facing docs and design-history docs are clearly separated.
+- **Workflow docs**: Refreshed Mail Mode, mail-loop, OAuth, contributing, and subquery documentation to reflect current tool names, current mail-loop behavior, and the latest authentication/configuration guidance.
+
+## v0.18 - 2026-04-04
+- **OpenAI OAuth bootstrap + CLI cleanup**: Added built-in OpenAI OAuth bootstrap flows for both browser/manual and headless device-code login, improved device-flow retry and backoff behavior, and cleaned up the CLI by renaming the bootstrap flags to `--fetch_openai_oauth_token` and `--fetch_openai_oauth_device_token`. `--help` and `--helpfull` now focus on command-line options only, without Hotword or Slash Command sections. This release also updates related docs/helper guidance, moves PKCE SHA-256 generation into a dedicated helper with tests, and includes a small input-parsing fuzz fix.
+
 ## v0.17.3 - 2026-04-04
 - **Fix CI-CD workflow**: update yaml file
 
@@ -14,7 +22,7 @@
 - **Delegation API and policy hardening**: Generalized `llm_query` execution options and centralized subquery policy checks to block recursion paths (`llm_query`/`llm_tool_*` in subquery scope) with fixed depth constraints.
 - **Fuzz + test coverage for subquery paths**: Added dedicated fuzz targets for specialization config parsing, subquery policy boundaries, and query options handling; expanded unit coverage around registration/validation behavior.
 - **Naming alignment to valid tool identifiers**: Standardized specialization naming and docs/tests from dot form to underscore form (`llm_tool_...`) to match tool-name constraints.
-- **Docs discoverability improvements**: Added/expanded `docs/subqueries.md`, `docs/example_subqueries.ini`, and prominent README/USERGUIDE guidance for configuring and invoking specialization tools.
+- **Docs discoverability improvements**: Added/expanded subquery documentation, `docs/example_subqueries.ini`, and prominent onboarding/reference guidance for configuring and invoking specialization tools.
 
 ## v0.16 - 2026-03-17
 - **Tooling split and API cleanup**: Moved the tool executor/dispatcher and built-in tool handlers out of `core/` into top-level `tools/`, then rewired the root, interface, and core build graph around new façade targets and shared dependencies.

@@ -291,6 +291,23 @@ TEST(UiTest, PrintToolResultMessagePatchToolRendersDiffBlock) {
   EXPECT_TRUE(absl::StrContains(output, "+new"));
 }
 
+TEST(UiTest, GetHelpTextUsesRenamedOpenAiOauthFlags) {
+  const std::string help = GetHelpText();
+
+  EXPECT_TRUE(absl::StrContains(help, "--fetch_openai_oauth_token"));
+  EXPECT_TRUE(absl::StrContains(help, "--fetch_openai_oauth_device_token"));
+  EXPECT_FALSE(absl::StrContains(help, "--fetch-oauth"));
+  EXPECT_FALSE(absl::StrContains(help, "--fetch-oauth-device"));
+}
+
+TEST(UiTest, GetHelpTextIncludesHotwordAndSlashSections) {
+  const std::string help = GetHelpText();
+
+  EXPECT_TRUE(absl::StrContains(help, "## Hotwords"));
+  EXPECT_TRUE(absl::StrContains(help, "## Slash Commands"));
+  EXPECT_TRUE(absl::StrContains(help, "hey <skill> <query>"));
+}
+
 TEST(UiTest, PrintToolResultMessagePatchToolLongDiffTruncatesWithExistingRules) {
   std::string name = "patch_tool";
   std::string long_diff;

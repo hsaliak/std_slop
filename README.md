@@ -9,22 +9,25 @@
 
 `std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through per-session ledgers, providing long-term recall, structured state management. std::slop features built-in Git integration. It's goal is to be an agent for which the context and its use fully transparent and configurable.
 
-## ✨ Key Features
+## ✨ Features
 
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
-- **📬 [Mail Model](docs/mail_model_impl.md)**: A patch-based iteration workflow for complex features. Patches are prepared on a staging branch, reviewed as atomic units, and only finalized after approval.  Use this if you want a clean, bisect-safe view of changes, and want to be 'in the loop'. You can, of course offload the reviews to a `code_reviewer` skill as well.
+- **📬 Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for the manual patch-based workflow or [docs/mail-loop/README.md](docs/mail-loop/README.md) for the automated mail-loop orchestrator.
 - **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.) and OpenAI Responses API (with chatgpt plus/pro oauth).
 - **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax. Eg: "hey code_reviewer review these patches".
 
 ## 🚀 Quick Start
 
 ### Download
-The project ships Linux x86-64 and OSX binaries every [release](https://github.com/hsaliak/std_slop/releases). You can directly use them.
+The project ships Linux x86-64 and macOS binaries every [release](https://github.com/hsaliak/std_slop/releases). You can directly use them.
 
-### 📋 Prerequisites
+### Get started
+Read the [Walkthrough](docs/WALKTHROUGH.md) first to understand how to get started, the authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use [docs/README.md](docs/README.md) as the docs index for deeper reference material.
+
+### 📋 Prerequisites to build
 - C++17 compiler (Clang/GCC)
 - [Bazel](https://bazel.build/install) (Bazelisk recommended)
 - **Git**: Targets must be valid git repositories. Usually, a git add and an initial commit is sufficient to trigger all the git enabled features.
@@ -35,7 +38,7 @@ The project ships Linux x86-64 and OSX binaries every [release](https://github.c
 bazel build //:std_slop
 
 # Optional: Add to your PATH
-cp ./bazel-bin/std_slop /usr/local/bin/
+cp ./bazel-bin/app/std_slop /usr/local/bin/
 ```
 
 ### ⌨️ Usage
@@ -54,18 +57,20 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 `/commands` are also supported. 
 
 
-Read the [User Guide](docs/USERGUIDE.md) for a detailed understanding of how to use std_slop, or [Walkthrough](docs/WALKTHROUGH.md) to start with something simple.
-
-### Authentication Quick Notes
-- OpenAI OAuth (Responses API): `./slop_auth.sh chatgpt-plus` then run with `--openai_oauth`. You have to grab this script from the repo [here](https://github.com/hsaliak/std_slop/blob/main/slop_auth.sh)
+### Supported Authentication
+- Gemini: set `GOOGLE_API_KEY` or put it in `~/.config/slop/config.ini`
+- OpenAI-compatible API key: set `OPENAI_API_KEY`, optionally combine with `--openai_base_url`, or put both in `config.ini`
+- OpenAI OAuth (Responses API): run `std_slop --fetch_openai_oauth_token` or `std_slop --fetch_openai_oauth_device_token`, then start with `--openai_oauth`
 
 ### ⚙️ Configuration
-You can configure `std::slop` using environment variables or a configuration file.
+You can configure `std::slop` using environment variables or a configuration file (recommended).
 
 #### Configuration File
 The agent looks for a configuration file at `~/.config/slop/config.ini`. You can also specify a custom path using the `--config` flag.
 It is STRONGLY RECOMMENDED that slop.db lies in a central directory or outside the codebase. It generates 2 other artifact files, at least ensure that
 your .gitignore contains this. The context ledger is completely stored in the database, and it can inadvertently capture information from your environment if you are not careful. Eg Environment Variables.
+
+For a getting-started walkthrough that covers config methods end-to-end, see [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md).
 
 ```ini
 [slop]
@@ -101,7 +106,7 @@ After startup, call the specialized tool directly by name (for example
 For a complete multi-specialization example, see
 [docs/example_subqueries.ini](docs/example_subqueries.ini).
 Detailed behavior and policy constraints are documented in
-[docs/subqueries.md](docs/subqueries.md).
+[docs/impl/subqueries.md](docs/impl/subqueries.md).
 
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
@@ -119,12 +124,12 @@ Detailed behavior and policy constraints are documented in
 ## 📚 Documentation
 
 - **[Personas & Skills](docs/CONTEXT.md)**: Understanding global context injection and modular skills.
-- **[User Guide](docs/USERGUIDE.md)**: Detailed commands and workflow tips.
+- **[Documentation Guide](docs/README.md)**: Entry point and reading order for the documentation set.
 - **[Architecture & Schema](docs/SCHEMA.md)**: Understanding the database-driven engine.
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
-- **[Subquery Specializations](docs/subqueries.md)**: Configure and use `llm_query` sub-agents from INI.
+- **[Subquery Implementation Notes](docs/impl/subqueries.md)**: Design and policy notes for INI-configured `llm_query` specializations.
 - **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
