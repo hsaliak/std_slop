@@ -354,6 +354,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       if (!config.silent) {
         slop::PrintMessage(msg);
       }
+      if (config.event_callback) {
+        if (msg.role == "assistant") {
+          config.event_callback(QueryEvent{QueryEvent::Type::kAssistantMessage, "", "", msg.content, "completed"});
+        }
+      }
       if (msg.role == "assistant") {
         auto calls_or = orchestrator_.ParseToolCalls(msg);
         if (calls_or.ok() && !calls_or->empty()) {
@@ -363,6 +368,10 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             std::string combined_id = call.id;
             if (call.id != call.name && !absl::StrContains(call.id, '|')) {
               combined_id = call.id + "|" + call.name;
+            }
+            if (config.event_callback) {
+              config.event_callback(QueryEvent{QueryEvent::Type::kToolCall, combined_id, call.name, call.args,
+                                               "in_progress"});
             }
             if (enabled_tool_names.find(call.name) == enabled_tool_names.end()) {
               results.push_back({combined_id, call.name, absl::NotFoundError("Tool not found: " + call.name + ".")});
@@ -414,6 +423,13 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           for (const auto& res : results) {
             std::string result_content =
                 res.output.ok() ? *res.output : absl::StrCat("Error: ", res.output.status().message());
+            if (config.event_callback) {
+              config.event_callback(QueryEvent{QueryEvent::Type::kToolResult,
+                                               res.id,
+                                               res.name,
+                                               result_content,
+                                               res.output.ok() ? "completed" : "failed"});
+            }
             if (!config.silent) {
               slop::PrintToolResultMessage(res.name, result_content, res.output.ok() ? "completed" : "error", "  ");
             }

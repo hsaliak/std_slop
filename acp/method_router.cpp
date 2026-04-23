@@ -181,7 +181,7 @@ DispatchOutcome MethodRouter::HandleSessionPrompt(const RpcRequest& request, con
   }
   auto cancellation = *cancellation_or;
 
-  auto result_or = ExecuteSessionPrompt(db, *parsed_or, prompt_executor, cancellation);
+  auto result_or = ExecuteSessionPrompt(db, *parsed_or, prompt_executor, [](const nlohmann::json&) {}, cancellation);
   RemoveInFlightPrompt(parsed_or->session_id, cancellation);
 
   if (!result_or.ok()) {

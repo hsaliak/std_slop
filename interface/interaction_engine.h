@@ -1,6 +1,7 @@
 #ifndef SLOP_INTERFACE_INTERACTION_ENGINE_H_
 #define SLOP_INTERFACE_INTERACTION_ENGINE_H_
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,6 +20,22 @@ namespace slop {
 
 class InteractionEngine {
  public:
+  struct QueryEvent {
+    enum class Type {
+      kAssistantMessage,
+      kToolCall,
+      kToolResult,
+    };
+
+    Type type;
+    std::string id;
+    std::string title;
+    std::string content;
+    std::string status;
+  };
+
+  using QueryEventCallback = std::function<void(const QueryEvent& event)>;
+
   struct Config {
     bool is_batch_mode = false;
     std::string google_api_key;
@@ -28,6 +45,7 @@ class InteractionEngine {
     bool openai_oauth = false;
     bool use_responses = false;
     bool silent = false;
+    QueryEventCallback event_callback;
   };
 
   InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler, ToolDispatcher& dispatcher,

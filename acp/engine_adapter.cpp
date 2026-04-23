@@ -119,6 +119,7 @@ absl::StatusOr<SessionCancelRequest> ParseSessionCancelParams(const nlohmann::js
 
 absl::StatusOr<nlohmann::json> ExecuteSessionPrompt(Database* db, const SessionPromptRequest& request,
                                                     const PromptExecutor& executor,
+                                                    const SessionUpdateWriter& session_update_writer,
                                                     std::shared_ptr<CancellationRequest> cancellation) {
   if (db == nullptr) {
     return absl::InvalidArgumentError("session_prompt_db_required");
@@ -137,7 +138,7 @@ absl::StatusOr<nlohmann::json> ExecuteSessionPrompt(Database* db, const SessionP
     cancellation = std::make_shared<CancellationRequest>();
   }
 
-  auto output_or = executor(request.session_id, request.prompt, cancellation);
+  auto output_or = executor(request.session_id, request.prompt, cancellation, session_update_writer);
   if (!output_or.ok()) {
     if (output_or.status().code() == absl::StatusCode::kInvalidArgument) {
       return output_or.status();

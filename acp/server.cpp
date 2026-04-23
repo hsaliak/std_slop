@@ -15,11 +15,20 @@ namespace slop::acp {
 Server::Server(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor)
     : in_(in), out_(out), db_(db), prompt_executor_(std::move(prompt_executor)) {}
 
+void Server::WriteJsonLocked(const nlohmann::json& payload) {
+  absl::MutexLock lock(out_mu_);
+  StdioTransport transport(in_, out_);
+  transport.WriteJson(payload);
+}
+
+void Server::WriteLifecycleUpdate(const std::string& session_id, SessionUpdateState state) {
+  WriteJsonLocked(MakeSessionUpdateNotification(session_id, state));
+}
+
 void Server::Run() {
   StdioTransport transport(in_, out_);
   auto write_json_locked = [&](const nlohmann::json& payload) {
-    absl::MutexLock lock(out_mu_);
-    transport.WriteJson(payload);
+    WriteJsonLocked(payload);
   };
   auto write_if_needed = [&](const DispatchOutcome& outcome) {
     if (!outcome.has_response) {
@@ -28,17 +37,19 @@ void Server::Run() {
     write_json_locked(outcome.response);
   };
   auto write_session_update = [&](const std::string& session_id, SessionUpdateState state) {
-    write_json_locked(MakeSessionUpdateNotification(session_id, state));
+    WriteLifecycleUpdate(session_id, state);
   };
 
   auto dispatch_prompt_in_worker = [&](const RpcRequest& prompt_request, const SessionPromptRequest& prompt,
                                        std::shared_ptr<CancellationRequest> cancellation) {
     auto done = std::make_shared<std::atomic<bool>>(false);
     workers_.push_back(WorkerHandle{std::thread([this, req = prompt_request, prompt, cancellation, done,
-                                                 &write_if_needed, &write_session_update, &write_json_locked]() {
-                                       write_session_update(prompt.session_id, SessionUpdateState::kStarted);
+                                                 &write_if_needed, &write_session_update]() {
+                                       WriteLifecycleUpdate(prompt.session_id, SessionUpdateState::kStarted);
 
-                                       auto result_or = ExecuteSessionPrompt(db_, prompt, prompt_executor_, cancellation);
+                                       auto result_or = ExecuteSessionPrompt(
+                                           db_, prompt, prompt_executor_,
+                                           [this](const nlohmann::json& update) { WriteJsonLocked(update); }, cancellation);
                                        router_.RemoveInFlightPrompt(prompt.session_id, cancellation);
 
                                        DispatchOutcome outcome;
@@ -53,27 +64,20 @@ void Server::Run() {
                                          return;
                                        }
 
-                                        const bool cancelled =
-                                            result_or->contains("stopReason") && result_or->at("stopReason") == "cancelled";
-                                        nlohmann::json completion_result = MakePromptCompletionResult();
-                                        if (cancelled) {
-                                          write_session_update(prompt.session_id, SessionUpdateState::kCancelled);
-                                          completion_result = MakePromptCompletionResult("cancelled");
-                                        } else {
-                                          const auto content = json_get<std::string>(*result_or, "content");
-                                          if (content.has_value()) {
-                                            write_json_locked(MakeSessionUpdateNotification(prompt.session_id,
-                                                                                            SessionUpdateState::kCompleted,
-                                                                                            *content));
-                                          } else {
-                                            write_session_update(prompt.session_id, SessionUpdateState::kCompleted);
-                                          }
-                                        }
-                                        if (outcome.has_response) {
-                                          outcome.response =
-                                              nlohmann::json({{"jsonrpc", "2.0"}, {"id", *req.id}, {"result", completion_result}});
-                                          write_if_needed(outcome);
-                                        }
+                                       const bool cancelled =
+                                           result_or->contains("stopReason") && result_or->at("stopReason") == "cancelled";
+                                       nlohmann::json completion_result = MakePromptCompletionResult();
+                                       if (cancelled) {
+                                         write_session_update(prompt.session_id, SessionUpdateState::kCancelled);
+                                         completion_result = MakePromptCompletionResult("cancelled");
+                                       } else if (!json_get<std::string>(*result_or, "content").has_value()) {
+                                         WriteLifecycleUpdate(prompt.session_id, SessionUpdateState::kCompleted);
+                                       }
+                                       if (outcome.has_response) {
+                                         outcome.response = nlohmann::json(
+                                             {{"jsonrpc", "2.0"}, {"id", *req.id}, {"result", completion_result}});
+                                         write_if_needed(outcome);
+                                       }
                                        done->store(true, std::memory_order_release);
                                      }),
                                done});

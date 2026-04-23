@@ -30,6 +30,7 @@
 #include "absl/time/time.h"
 
 #include "acp/server.h"
+#include "acp/update_publisher.h"
 #include "core/cancellation.h"
 #include "core/config.h"
 #include "core/constants.h"
@@ -428,13 +429,29 @@ int main(int argc, char* argv[]) {
   slop::acp::PromptExecutor acp_prompt_executor =
       [&engine, &engine_config, &active_skills](const std::string& session_id,
                                                 const std::string& prompt,
-                                                std::shared_ptr<slop::CancellationRequest> cancellation)
+                                                std::shared_ptr<slop::CancellationRequest> cancellation,
+                                                const slop::acp::SessionUpdateWriter& session_update_writer)
           -> absl::StatusOr<std::string> {
+    slop::InteractionEngine::Config acp_config = engine_config;
+    acp_config.event_callback =
+        [&session_id, &session_update_writer](const slop::InteractionEngine::QueryEvent& event) {
+          switch (event.type) {
+            case slop::InteractionEngine::QueryEvent::Type::kAssistantMessage:
+              session_update_writer(slop::acp::MakeAgentMessageChunkNotification(session_id, event.content));
+              break;
+            case slop::InteractionEngine::QueryEvent::Type::kToolCall:
+            case slop::InteractionEngine::QueryEvent::Type::kToolResult:
+              session_update_writer(slop::acp::MakeToolCallUpdateNotification(session_id, event.id,
+                                                                               event.title, event.status,
+                                                                               event.content));
+              break;
+          }
+        };
     slop::InteractionEngine::QueryOptions options;
     options.session_id = session_id;
     options.cancellation = std::move(cancellation);
     options.command_mode = true;
-    return engine.Query(prompt, engine_config, active_skills, options);
+    return engine.Query(prompt, acp_config, active_skills, options);
   };
 
   if (acp_mode) {

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "acp/method_router.h"
+#include "acp/update_publisher.h"
 #include "absl/synchronization/mutex.h"
 
 namespace slop { class Database; }
@@ -35,6 +36,9 @@ class Server {
   MethodRouter router_;
   absl::Mutex out_mu_;
   std::vector<WorkerHandle> workers_;
+
+  void WriteJsonLocked(const nlohmann::json& payload);
+  void WriteLifecycleUpdate(const std::string& session_id, SessionUpdateState state);
 };
 
 int RunServer(std::istream* in, std::ostream* out, Database* db, PromptExecutor prompt_executor);

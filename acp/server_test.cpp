@@ -6,9 +6,11 @@
 #include <thread>
 #include <vector>
 
-#include "absl/strings/str_replace.h"
-#include "absl/strings/str_format.h"
 #include <gtest/gtest.h>
+
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "core/database.h"
 
 namespace slop::acp {
@@ -19,12 +21,13 @@ class ServerTest : public ::testing::Test {
   void SetUp() override { ASSERT_TRUE(db_.Init(":memory:").ok()); }
 
   static absl::StatusOr<std::string> PromptExec(const std::string& session_id, const std::string& prompt,
-                                                std::shared_ptr<CancellationRequest>) {
+                                                std::shared_ptr<CancellationRequest>, const SessionUpdateWriter&) {
     return session_id + "::" + prompt;
   }
 
   static absl::StatusOr<std::string> SlowPromptExec(const std::string& session_id, const std::string& prompt,
-                                                    std::shared_ptr<CancellationRequest> cancellation) {
+                                                    std::shared_ptr<CancellationRequest> cancellation,
+                                                    const SessionUpdateWriter&) {
     for (int i = 0; i < 200; ++i) {
       if (cancellation && cancellation->IsCancelled()) {
         return absl::CancelledError("cancelled");
@@ -49,8 +52,18 @@ class ServerTest : public ::testing::Test {
   Database db_;
 };
 
-absl::StatusOr<std::string> FailingPromptExec(const std::string&, const std::string&, std::shared_ptr<CancellationRequest>) {
+absl::StatusOr<std::string> FailingPromptExec(const std::string&, const std::string&, std::shared_ptr<CancellationRequest>,
+                                              const SessionUpdateWriter&) {
   return absl::InternalError("boom");
+}
+
+absl::StatusOr<std::string> StreamingPromptExec(const std::string& session_id, const std::string& prompt,
+                                                std::shared_ptr<CancellationRequest>,
+                                                const SessionUpdateWriter& session_update_writer) {
+  session_update_writer(MakeToolCallUpdateNotification(session_id, "call_1", "echo", "in_progress", "{\"x\":1}"));
+  session_update_writer(MakeToolCallUpdateNotification(session_id, "call_1", "echo", "completed", "done"));
+  session_update_writer(MakeAgentMessageChunkNotification(session_id, absl::StrCat("partial:", prompt)));
+  return absl::StrCat(session_id, "::", prompt);
 }
 
 TEST_F(ServerTest, UnknownMethodProducesMethodNotFoundResponse) {
@@ -160,16 +173,9 @@ TEST_F(ServerTest, SessionPromptSucceedsAfterInitializeAndSessionCreate) {
   EXPECT_NE(output.find("\"sessionUpdate\":\"agent_thought_chunk\""), std::string::npos);
   EXPECT_NE(output.find("\"text\":\"accepted\""), std::string::npos);
   EXPECT_NE(output.find("\"text\":\"started\""), std::string::npos);
-  EXPECT_NE(output.find("\"sessionUpdate\":\"agent_message_chunk\""), std::string::npos);
-  EXPECT_NE(output.find("\"text\":\"acp_1::hello\""), std::string::npos);
+  EXPECT_EQ(output.find("\"text\":\"acp_1::hello\""), std::string::npos);
   EXPECT_NE(output.find("\"sessionId\":\"acp_1\""), std::string::npos);
   EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos);
-
-  const size_t completed_idx = output.find("\"text\":\"acp_1::hello\"");
-  const size_t response_idx = output.find("\"id\":3");
-  ASSERT_NE(completed_idx, std::string::npos);
-  ASSERT_NE(response_idx, std::string::npos);
-  EXPECT_LT(completed_idx, response_idx);
 }
 
 TEST_F(ServerTest, SessionPromptMissingSessionRejected) {
@@ -292,8 +298,7 @@ TEST_F(ServerTest, SessionPromptPlainTextStillFlowsThroughExecutor) {
 
   EXPECT_EQ(Run(&in, &out), 0);
   const std::string output = out.str();
-  EXPECT_NE(output.find("\"sessionUpdate\":\"agent_message_chunk\""), std::string::npos);
-  EXPECT_NE(output.find("\"text\":\"acp_1::hello\""), std::string::npos);
+  EXPECT_EQ(output.find("\"text\":\"acp_1::hello\""), std::string::npos);
   EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos);
 }
 
@@ -319,11 +324,8 @@ TEST_F(ServerTest, SessionPromptBlockedCommandsTableDriven) {
     EXPECT_EQ(Run(&in, &out), 0);
     const std::string output = out.str();
 
-    const size_t chunk_idx = output.find("\"sessionUpdate\":\"agent_message_chunk\"");
     const size_t result_idx = output.find("\"id\":2");
-    ASSERT_NE(chunk_idx, std::string::npos) << prompt;
     ASSERT_NE(result_idx, std::string::npos) << prompt;
-    EXPECT_LT(chunk_idx, result_idx) << prompt;
     EXPECT_NE(output.find("\"stopReason\":\"end_turn\""), std::string::npos) << prompt;
   }
 }
@@ -336,6 +338,31 @@ TEST_F(ServerTest, SessionCancelMalformedSessionIdRejected) {
 
   EXPECT_EQ(Run(&in, &out), 0);
   EXPECT_NE(out.str().find("session_cancel_session_id_invalid"), std::string::npos);
+}
+
+TEST_F(ServerTest, SessionPromptStreamsToolAndAssistantUpdatesBeforeResult) {
+  ASSERT_TRUE(db_.Execute("INSERT INTO sessions (id) VALUES ('acp_1')").ok());
+  std::istringstream in(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"capabilities":{}}}
+{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"acp_1","prompt":"stream me"}}
+)");
+  std::ostringstream out;
+
+  EXPECT_EQ(RunWithExecutor(&in, &out, StreamingPromptExec), 0);
+  const std::string output = out.str();
+
+  const size_t tool_idx = output.find("\"sessionUpdate\":\"tool_call_update\"");
+  const size_t assistant_idx = output.find("partial:stream me");
+  const size_t duplicate_assistant_idx = output.find("partial:stream me", assistant_idx + 1);
+  const size_t result_idx = output.find("\"id\":2");
+  ASSERT_NE(tool_idx, std::string::npos);
+  ASSERT_NE(assistant_idx, std::string::npos);
+  EXPECT_EQ(duplicate_assistant_idx, std::string::npos) << output;
+  ASSERT_NE(result_idx, std::string::npos);
+  EXPECT_LT(tool_idx, result_idx);
+  EXPECT_LT(assistant_idx, result_idx);
+  EXPECT_NE(output.find("\"toolCallId\":\"call_1\""), std::string::npos);
+  EXPECT_NE(output.find("\"status\":\"in_progress\""), std::string::npos);
+  EXPECT_NE(output.find("\"status\":\"completed\""), std::string::npos);
 }
 
 

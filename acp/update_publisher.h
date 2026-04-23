@@ -59,6 +59,34 @@ inline nlohmann::json MakeSessionUpdateNotification(std::string_view session_id,
   });
 }
 
+inline nlohmann::json MakeToolCallUpdateNotification(std::string_view session_id,
+                                                     std::string_view tool_call_id,
+                                                     std::string_view title,
+                                                     std::string_view status,
+                                                     std::optional<std::string_view> content_text = std::nullopt) {
+  nlohmann::json update = {
+      {"sessionUpdate", "tool_call_update"},
+      {"toolCallId", std::string(tool_call_id)},
+      {"title", std::string(title)},
+      {"status", std::string(status)},
+  };
+  if (content_text.has_value()) {
+    update["content"] = nlohmann::json::array({nlohmann::json({
+        {"type", "text"},
+        {"text", std::string(*content_text)},
+    })});
+  }
+  return nlohmann::json({
+      {"jsonrpc", "2.0"},
+      {"method", "session/update"},
+      {"params", nlohmann::json({{"sessionId", std::string(session_id)}, {"update", update}})},
+  });
+}
+
+inline nlohmann::json MakeAgentMessageChunkNotification(std::string_view session_id, std::string_view content_text) {
+  return MakeSessionUpdateNotification(session_id, SessionUpdateState::kCompleted, content_text);
+}
+
 }  // namespace slop::acp
 
 #endif  // SLOP_ACP_UPDATE_PUBLISHER_H_

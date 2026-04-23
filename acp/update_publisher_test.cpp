@@ -38,5 +38,20 @@ TEST(UpdatePublisherTest, NotificationMapsCompletedToAgentMessageChunk) {
   EXPECT_EQ(notification.at("params").at("update").at("content").at("text").get<std::string>(), "completed");
 }
 
+TEST(UpdatePublisherTest, ToolCallUpdateNotificationUsesStructuredShape) {
+  const nlohmann::json notification =
+      MakeToolCallUpdateNotification("acp_1", "call_1", "echo", "completed", "done");
+
+  const auto& update = notification.at("params").at("update");
+  EXPECT_EQ(update.at("sessionUpdate").get<std::string>(), "tool_call_update");
+  EXPECT_EQ(update.at("toolCallId").get<std::string>(), "call_1");
+  EXPECT_EQ(update.at("title").get<std::string>(), "echo");
+  EXPECT_EQ(update.at("status").get<std::string>(), "completed");
+  ASSERT_TRUE(update.contains("content"));
+  ASSERT_TRUE(update.at("content").is_array());
+  EXPECT_EQ(update.at("content").at(0).at("type").get<std::string>(), "text");
+  EXPECT_EQ(update.at("content").at(0).at("text").get<std::string>(), "done");
+}
+
 }  // namespace
 }  // namespace slop::acp
