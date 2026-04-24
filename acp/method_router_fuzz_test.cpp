@@ -26,7 +26,8 @@ void DispatchBoundaryValidationNoCrash(const std::string& method,
 
   int executor_calls = 0;
   PromptExecutor executor = [&executor_calls](const std::string&, const std::string&,
-                                              std::shared_ptr<slop::CancellationRequest>)
+                                              std::shared_ptr<slop::CancellationRequest>,
+                                              const SessionUpdateWriter&)
       -> absl::StatusOr<std::string> {
     ++executor_calls;
     return std::string("ok");

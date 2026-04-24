@@ -9,7 +9,8 @@ namespace slop::acp {
 namespace {
 
 absl::StatusOr<std::string> PromptExecStub(const std::string&, const std::string&,
-                                           std::shared_ptr<slop::CancellationRequest>) {
+                                           std::shared_ptr<slop::CancellationRequest>,
+                                           const SessionUpdateWriter&) {
   return std::string("ok");
 }
 
