@@ -22,7 +22,7 @@ Follow this sequence exactly:
 3. **Activate `patcher` and generate bisect-safe patch series**
 4. **Activate `code_reviewer` and iterate until pass**
 5. **Auto-write approval for current staging HEAD into `patch_approvals` via `query_db`**
-6. **Call `git_finalize_series` immediately after approval write verification**
+6. **Resolve the recorded staging parent branch and call `git_finalize_series` for that branch immediately after approval write verification**
 
 Do not skip or reorder steps. There is no manual approval variant in this skill.
 
@@ -40,6 +40,7 @@ Minimum plan contents:
 - Files likely to change
 - Patch boundaries (atomic commits)
 - Validation strategy (build/tests/lints)
+- Target/base branch that will be passed to `git_create_staging_branch`
 
 ## Step 2: Enable mail mode with `query_db`
 
@@ -86,7 +87,7 @@ Run this exact loop:
    - `git_reroll_patch({"base_branch":"<base-branch>","index":<patch-number>})`
 5. Re-run validation commands.
 6. Re-run reviewer pass.
-7. Repeat steps 3-6 until no blocking comments remain
+7. Repeat steps 3-6 until no blocking comments remain.
 
 Stop condition for this phase:
 - Reviewer reports no required changes (clear pass signal).
@@ -108,13 +109,19 @@ Run these exact commands in order:
    - `query_db({"sql":"SELECT branch_name, approved_hash FROM patch_approvals WHERE branch_name = ?","params":["<current_branch>"]})`
 6. Require exact hash match:
    - returned `approved_hash` must equal `<head_hash>`.
+7. Resolve the recorded parent branch for the staging branch:
+   - `query_db({"sql":"SELECT parent_branch FROM staging_branches WHERE branch_name = ?","params":["<current_branch>"]})`
+8. Require exactly one row and store it as `<parent_branch>`.
+9. Require `<parent_branch>` to be non-empty.
 
 If any check fails, stop and report `blocked` with evidence.
 
 ## Step 6: Finalize immediately
 
 After Step 5 succeeds, finalize with no user approval checkpoint:
-- `git_finalize_series({"target_branch":"<base-branch>"})`
+- `git_finalize_series({"target_branch":"<parent_branch>"})`
+
+Never hard-code `main` here unless the recorded `<parent_branch>` is exactly `main`.
 
 Then deactivate orchestration skills:
 - `use_skill({"action":"deactivate","name":"planner"})`
@@ -166,4 +173,5 @@ Execute this checklist in sequence:
 12. `execute_bash({"cwd":".","command":"git rev-parse HEAD","timeout_seconds":120,"allow_nonzero_exit":false})`
 13. `query_db({"sql":"INSERT OR REPLACE INTO patch_approvals (branch_name, approved_hash, approved_at) VALUES (?, ?, CURRENT_TIMESTAMP)","params":["<current_branch>","<head_hash>"]})`
 14. `query_db({"sql":"SELECT branch_name, approved_hash FROM patch_approvals WHERE branch_name = ?","params":["<current_branch>"]})` (must match `<head_hash>`)
-15. `git_finalize_series({"target_branch":"<base-branch>"})`
+15. `query_db({"sql":"SELECT parent_branch FROM staging_branches WHERE branch_name = ?","params":["<current_branch>"]})` (must return exactly one non-empty `<parent_branch>`)
+16. `git_finalize_series({"target_branch":"<parent_branch>"})`
