@@ -23,6 +23,23 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "runtime_bootstrap",
+    srcs = ["runtime_bootstrap.cpp"],
+    hdrs = ["runtime_bootstrap.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":llm_tool_specializations",
+        "//core:api",
+        "//core:cancellation",
+        "//interface:app_api",
+        "//tools:api",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@nlohmann_json//:json",
+    ],
+)
+
 cc_binary(
     name = "std_slop",
     srcs = ["main.cpp"],
@@ -30,6 +47,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":llm_tool_specializations",
+        ":runtime_bootstrap",
         "//core:api",
         "//core:cancellation",
         "//core:shell_lib",
@@ -50,6 +68,22 @@ cc_binary(
         "@abseil-cpp//absl/time",
         "@nlohmann_json//:json",
         "@sqlite3//:sqlite3",
+    ],
+)
+
+cc_test(
+    name = "runtime_bootstrap_test",
+    srcs = ["runtime_bootstrap_test.cpp"],
+    env = {
+        "SLOP_SKIP_STAGING_CHECK": "1",
+    },
+    deps = [
+        ":runtime_bootstrap",
+        "//core:api",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
     ],
 )
 

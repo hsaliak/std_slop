@@ -29,6 +29,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#include "app/runtime_bootstrap.h"
 #include "core/cancellation.h"
 #include "core/config.h"
 #include "core/constants.h"
@@ -273,15 +274,8 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  slop::Orchestrator::Builder builder(&db, &http_client);
-
-  std::shared_ptr<slop::OAuthHandler> oauth_handler;
-  std::unique_ptr<slop::Orchestrator> orchestrator;
-
   std::string google_key = absl::GetFlag(FLAGS_google_api_key);
-
   std::string openai_key = absl::GetFlag(FLAGS_openai_api_key);
-
   std::string openai_base_url = absl::GetFlag(FLAGS_openai_base_url);
 
   if (!openai_oauth && google_key.empty() && openai_key.empty()) {
@@ -290,139 +284,52 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  std::string model = absl::GetFlag(FLAGS_model);
+  slop::RuntimeBootstrapOptions bootstrap_options;
+  bootstrap_options.openai_oauth = openai_oauth;
+  bootstrap_options.use_responses = use_responses;
+  bootstrap_options.model = absl::GetFlag(FLAGS_model);
+  bootstrap_options.google_api_key = google_key;
+  bootstrap_options.openai_api_key = openai_key;
+  bootstrap_options.openai_base_url = openai_base_url;
+  bootstrap_options.llm_specializations = llm_specializations;
 
-  if (openai_oauth || !openai_key.empty()) {
-    const bool openai_responses = openai_oauth || use_responses;
-    std::string resolved_openai_base_url;
-    if (openai_oauth) {
-      resolved_openai_base_url = slop::kOpenAiChatGptCodexBaseUrl;
-      if (!openai_base_url.empty()) {
-        std::cout << "--openai_base_url ignored in --openai_oauth mode; using " << slop::kOpenAiChatGptCodexBaseUrl
-                  << "." << std::endl;
-      }
-    } else {
-      resolved_openai_base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
-    }
-    builder.WithProvider(slop::Orchestrator::Provider::OPENAI)
-        .WithModel(!model.empty() ? model : "gpt-5.4-mini:high")
-        .WithBaseUrl(resolved_openai_base_url)
-        .WithOpenAiApiStyle(openai_responses ? slop::Orchestrator::OpenAiApiStyle::RESPONSES
-                                             : slop::Orchestrator::OpenAiApiStyle::CHAT_COMPLETIONS);
-  } else {  // gemini API key
-    builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-        .WithModel(!model.empty() ? model : "gemini-3-flash-preview");
-  }
-
-  auto orchestrator_or = builder.Build();
-  if (!orchestrator_or.ok()) {
-    std::cerr << "Failed to build orchestrator: " << orchestrator_or.status().message() << std::endl;
+  auto runtime_or = slop::BootstrapRuntime(
+      &db, &http_client, bootstrap_options, configure_openai_oauth_handler,
+      [](slop::ToolExecutor& tool_executor) { return tool_executor.GetActiveSkills(); },
+      [](slop::CommandHandler& command_handler) {
+        slop::SetCompletionCommands(command_handler.GetCommandNames(), command_handler.GetSubCommandMap());
+      });
+  if (!runtime_or.ok()) {
+    std::cerr << "Failed to initialize runtime: " << runtime_or.status().message() << std::endl;
     return 1;
   }
-  orchestrator = std::move(*orchestrator_or);
+  auto runtime = std::move(*runtime_or);
 
   if (openai_oauth) {
-    configure_openai_oauth_handler(&oauth_handler);
-    auto token_or = oauth_handler->GetValidToken();
-    if (!token_or.ok()) {
-      if (absl::IsUnauthenticated(token_or.status()) || absl::IsNotFound(token_or.status())) {
-        std::cout << "OpenAI OAuth token path: " << oauth_handler->GetTokenPath() << std::endl;
-        std::cout << "OpenAI OAuth: " << token_or.status().message() << std::endl;
-        return 1;
-      }
+    auto token_or = runtime.oauth_handler->GetValidToken();
+    if (!token_or.ok() && (absl::IsUnauthenticated(token_or.status()) || absl::IsNotFound(token_or.status()))) {
+      std::cout << "OpenAI OAuth token path: " << runtime.oauth_handler->GetTokenPath() << std::endl;
+      std::cout << "OpenAI OAuth: " << token_or.status().message() << std::endl;
+      return 1;
     }
   }
-
-  auto tool_executor_or = slop::ToolExecutor::Create(&db);
-  if (!tool_executor_or.ok()) {
-    std::cerr << "Failed to initialize tool executor: " << tool_executor_or.status().message() << std::endl;
-    return 1;
-  }
-  auto tool_executor = std::move(*tool_executor_or);
-
-  auto dispatcher = std::make_unique<slop::ToolDispatcher>(
-      [&tool_executor](const std::string& name, const nlohmann::json& args,
-                       std::shared_ptr<slop::CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
-        return tool_executor->Execute(name, args, cancellation);
-      });
-  tool_executor->SetDispatcher(std::move(dispatcher));
-
-  auto cmd_handler_or =
-      slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
-  if (!cmd_handler_or.ok()) {
-    std::cerr << "Failed to initialize command handler: " << cmd_handler_or.status().message() << std::endl;
-    return 1;
-  }
-  auto& cmd_handler = **cmd_handler_or;
-  slop::SetCompletionCommands(cmd_handler.GetCommandNames(), cmd_handler.GetSubCommandMap());
 
   std::string session_id = absl::GetFlag(FLAGS_session);
   if (session_id.empty()) {
     session_id = "default_session";
     std::cout << "Using default session: " << session_id << std::endl;
   }
-  tool_executor->SetSessionId(session_id);
+  runtime.tool_executor->SetSessionId(session_id);
 
-  std::vector<std::string> active_skills = tool_executor->GetActiveSkills();
-
-  slop::InteractionEngine engine(db, *orchestrator, cmd_handler, *tool_executor->dispatcher(), *tool_executor,
-                                 http_client, oauth_handler);
-  slop::InteractionEngine::Config engine_config;
-  engine_config.google_api_key = google_key;
-  engine_config.openai_api_key = openai_key;
-  engine_config.openai_base_url = openai_oauth ? slop::kOpenAiChatGptCodexBaseUrl : openai_base_url;
-  engine_config.openai_oauth = openai_oauth;
-  engine_config.use_responses = openai_oauth || use_responses;
-
-  auto llm_query_invoker = [&engine, engine_config](const std::string& query,
-                                                     const std::vector<std::string>& skills,
-                                                     const slop::LlmQueryOptions& options)
-      -> absl::StatusOr<std::string> {
-    slop::InteractionEngine::QueryOptions query_options;
-    query_options.session_id = options.session_id;
-    query_options.skill = options.skill;
-    query_options.context_window = options.context_window;
-    query_options.execution_scope = options.execution_scope == slop::LlmQueryOptions::ExecutionScope::kSubquery
-                                        ? slop::InteractionEngine::QueryOptions::ExecutionScope::kSubquery
-                                        : slop::InteractionEngine::QueryOptions::ExecutionScope::kRoot;
-    query_options.execution_depth = options.execution_depth;
-    return engine.Query(query, engine_config, skills, query_options);
-  };
-
-  tool_executor->RegisterTool("llm_query",
-                              [llm_query_invoker, active_skills](
-                                  const nlohmann::json& args,
-                                  std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
-                                auto query = slop::json_get<std::string>(args, "query");
-                                if (!query) {
-                                  return absl::InvalidArgumentError("Missing 'query' argument");
-                                }
-                                slop::LlmQueryOptions options;
-                                options.session_id = "query";
-                                options.execution_scope = slop::LlmQueryOptions::ExecutionScope::kRoot;
-                                options.execution_depth = 0;
-                                return llm_query_invoker(*query, active_skills, options);
-                              });
-
-  auto register_status = slop::ReconcileLlmSpecializationTools(&db, llm_specializations);
-  if (!register_status.ok()) {
-    std::cerr << "Failed to reconcile llm tool specializations: " << register_status.message() << std::endl;
-    return 1;
-  }
-
-  register_status =
-      slop::RegisterLlmSpecializationHandlers(tool_executor.get(), llm_specializations, active_skills, llm_query_invoker);
-  if (!register_status.ok()) {
-    std::cerr << "Failed to register llm tool specializations: " << register_status.message() << std::endl;
-    return 1;
-  }
+  std::vector<std::string> active_skills = runtime.tool_executor->GetActiveSkills();
 
   std::string batch_prompt = absl::GetFlag(FLAGS_prompt);
   if (!batch_prompt.empty()) {
-    engine_config.is_batch_mode = true;
-    engine.Process(batch_prompt, session_id, active_skills, engine_config);
+    runtime.engine_config->is_batch_mode = true;
+    runtime.engine->Process(batch_prompt, session_id, active_skills, *runtime.engine_config);
   } else {
-    RunInteractiveLoop(engine, db, *orchestrator, *tool_executor, session_id, engine_config);
+    RunInteractiveLoop(*runtime.engine, db, *runtime.orchestrator, *runtime.tool_executor, session_id,
+                       *runtime.engine_config);
   }
 
   if (log_sink) {
