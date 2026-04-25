@@ -1,0 +1,64 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+
+proto_library(
+    name = "server_config_proto",
+    srcs = ["server_config.proto"],
+    visibility = ["//visibility:public"],
+)
+
+cc_proto_library(
+    name = "server_config_cc_proto",
+    deps = [":server_config_proto"],
+)
+
+cc_library(
+    name = "server_config",
+    srcs = ["server_config.cpp"],
+    hdrs = [
+        "constants.h",
+        "server_config.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":server_config_cc_proto",
+        "//app:runtime_bootstrap",
+        "//core:api",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "server_config_fuzz_test",
+    srcs = ["server_config_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":server_config",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "server_config_test",
+    srcs = ["server_config_test.cpp"],
+    data = [
+        "//docs/impl/rpc:server_configs",
+    ],
+    deps = [
+        ":server_config",
+        "//core:api",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@protobuf//:protobuf",
+    ],
+)

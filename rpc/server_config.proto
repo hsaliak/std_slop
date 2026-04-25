@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package slop.rpc.v1;
+
+message ProviderConfig {
+  string provider = 1;
+  string model = 2;
+  string gemini_api_key_env = 3;
+  string openai_api_key_env = 4;
+  string openai_base_url = 5;
+  bool use_responses = 6;
+  bool openai_oauth = 7;
+}
+
+message ServerPolicy {
+  bool disable_ask_user = 1;
+  bool allow_request_model_override = 2;
+  bool allow_request_skill_override = 3;
+  bool allow_request_context_window_override = 4;
+  int32 max_context_window = 5;
+  int32 max_execution_depth = 6;
+}
+
+message ExecutionDefaults {
+  repeated string active_skills = 1;
+  int32 context_window = 2;
+}
+
+message LlmToolSpecialization {
+  string name = 1;
+  string system_prompt_patch = 2;
+  string session_id = 3;
+  string skill = 4;
+  int32 context_window = 5;
+}
+
+message ServerConfig {
+  string listen_addr = 1;
+  string db_path = 2;
+  ProviderConfig provider = 3;
+  ServerPolicy policy = 4;
+  ExecutionDefaults defaults = 5;
+  repeated LlmToolSpecialization llm_tool_specializations = 6;
+}

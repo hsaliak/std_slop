@@ -1,0 +1,8 @@
+filegroup(
+    name = "server_configs",
+    srcs = [
+        "server.cfg",
+        "server_in_memory.cfg",
+    ],
+    visibility = ["//visibility:public"],
+)
