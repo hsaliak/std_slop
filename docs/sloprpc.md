@@ -260,7 +260,52 @@ Add protobuf/gRPC dependencies needed for C++ service and generated code.
 - `bazel build //app:std_slop //rpc:slop_rpc_service`
 - relevant `bazel test` targets for rpc + runtime bootstrap.
 
-## 11) Rollout Sequence
+## 11) Operator Quickstart (Bundle 5 docs lock)
+
+### Build + start server
+
+```bash
+bazel build //rpc:slop_rpc_service
+./bazel-bin/rpc/slop_rpc_service --server_config=docs/impl/rpc/server.cfg
+```
+
+Use the in-memory profile for isolated testing:
+
+```bash
+./bazel-bin/rpc/slop_rpc_service --server_config=docs/impl/rpc/server_in_memory.cfg
+```
+
+### Call `RunPrompt` with grpcurl
+
+```bash
+grpcurl -plaintext \
+  -proto rpc/slop_rpc.proto \
+  -d '{"prompt":"Say hello from rpc","session_id":"rpc-demo"}' \
+  127.0.0.1:50051 slop.rpc.v1.SlopService/RunPrompt
+```
+
+Expected response shape:
+
+```json
+{
+  "success": true,
+  "content": "...assistant text...",
+  "sessionId": "rpc-demo",
+  "errorCode": "",
+  "errorMessage": ""
+}
+```
+
+For failures (`success=false`), callers must treat `errorCode` + `errorMessage` as the
+authoritative machine/human error pair.
+
+### Caller contract notes
+
+- `prompt` is required.
+- `model_override`, `active_skills`, and `context_window` are policy-gated per `server.cfg`.
+- RPC is strictly non-interactive (`ask_user` is disabled by server policy).
+
+## 12) Rollout Sequence
 
 1. Land shared runtime bootstrap extraction.
 2. Land proto config model (`server_config.proto`) + `server.cfg` loader,
