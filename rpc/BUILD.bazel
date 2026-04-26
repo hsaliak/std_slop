@@ -1,6 +1,7 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 
 proto_library(
     name = "server_config_proto",
@@ -11,6 +12,24 @@ proto_library(
 cc_proto_library(
     name = "server_config_cc_proto",
     deps = [":server_config_proto"],
+)
+
+proto_library(
+    name = "slop_rpc_proto",
+    srcs = ["slop_rpc.proto"],
+    visibility = ["//visibility:public"],
+)
+
+cc_proto_library(
+    name = "slop_rpc_cc_proto",
+    deps = [":slop_rpc_proto"],
+)
+
+cc_grpc_library(
+    name = "slop_rpc_cc_grpc",
+    srcs = [":slop_rpc_proto"],
+    grpc_only = True,
+    deps = [":slop_rpc_cc_proto"],
 )
 
 cc_library(
@@ -29,6 +48,52 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "request_validation",
+    srcs = ["request_validation.cpp"],
+    hdrs = ["request_validation.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":server_config",
+        ":slop_rpc_cc_proto",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "slop_service",
+    srcs = ["slop_service.cpp"],
+    hdrs = ["slop_service.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":request_validation",
+        ":server_config",
+        ":slop_rpc_cc_grpc",
+        ":slop_rpc_cc_proto",
+        "//app:runtime_bootstrap",
+        "//core:api",
+        "//tools:runtime",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_binary(
+    name = "slop_rpc_service",
+    srcs = ["slop_rpc_service_main.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":server_config",
+        ":slop_service",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -60,5 +125,15 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
         "@protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "request_validation_test",
+    srcs = ["request_validation_test.cpp"],
+    deps = [
+        ":request_validation",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
     ],
 )

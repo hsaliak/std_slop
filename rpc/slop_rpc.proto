@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package slop.rpc.v1;
+
+service SlopService {
+  rpc RunPrompt(RunPromptRequest) returns (RunPromptResponse);
+}
+
+message RunPromptRequest {
+  string prompt = 1;
+  string session_id = 2;
+  repeated string active_skills = 3;
+  string model_override = 4;
+  optional int32 context_window = 5;
+}
+
+message RunPromptResponse {
+  bool success = 1;
+  string content = 2;
+  string session_id = 3;
+  string error_code = 4;
+  string error_message = 5;
+}
