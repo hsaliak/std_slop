@@ -101,5 +101,16 @@ TEST(SlopServiceTest, RunPromptRejectsMissingPromptWithStructuredError) {
   EXPECT_THAT(response.error_message(), testing::HasSubstr("prompt is required"));
 }
 
+TEST(SlopServiceTest, ConfigureRpcOpenAiOAuthHandlerEnablesOpenAiOAuthHandler) {
+  slop::HttpClient http_client;
+  std::shared_ptr<slop::OAuthHandler> handler;
+
+  ConfigureRpcOpenAiOAuthHandler(&http_client, &handler);
+
+  ASSERT_NE(handler, nullptr);
+  EXPECT_EQ(handler->GetProvider(), slop::OAuthHandler::Provider::kOpenAi);
+  EXPECT_TRUE(handler->IsEnabled());
+}
+
 }  // namespace
 }  // namespace slop::rpc::v1

@@ -60,7 +60,8 @@ TEST(ServerConfigTest, ParsesDocsInMemoryConfig) {
   ASSERT_TRUE(runtime_or.ok()) << runtime_or.status();
   EXPECT_EQ(runtime_or->listen_addr, "127.0.0.1:50052");
   EXPECT_EQ(runtime_or->db_path, ":memory:");
-  EXPECT_EQ(runtime_or->runtime_options.model, "gemini-2.5-flash");
+  EXPECT_EQ(runtime_or->runtime_options.model, "gpt-5.3-codex");
+  EXPECT_TRUE(runtime_or->runtime_options.openai_oauth);
   ASSERT_TRUE(runtime_or->context_window.has_value());
   EXPECT_EQ(*runtime_or->context_window, 6);
   EXPECT_FALSE(runtime_or->allow_request_model_override);

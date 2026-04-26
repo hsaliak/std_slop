@@ -99,6 +99,15 @@ grpc::Status SlopServiceImpl::RunPrompt(grpc::ServerContext*, const RunPromptReq
   return grpc::Status::OK;
 }
 
+void ConfigureRpcOpenAiOAuthHandler(slop::HttpClient* http_client,
+                                    std::shared_ptr<slop::OAuthHandler>* handler) {
+  if (handler == nullptr) {
+    return;
+  }
+  *handler = std::make_shared<slop::OAuthHandler>(http_client, slop::OAuthHandler::Provider::kOpenAi);
+  (*handler)->SetEnabled(true);
+}
+
 absl::Status RunSlopRpcService(const ServerRuntimeConfig& server_config) {
   slop::Database db;
   RETURN_IF_ERROR(db.Init(server_config.db_path));
@@ -106,7 +115,9 @@ absl::Status RunSlopRpcService(const ServerRuntimeConfig& server_config) {
   ASSIGN_OR_RETURN(slop::RuntimeBootstrap runtime,
                    slop::BootstrapRuntime(
                        &db, &http_client, server_config.runtime_options,
-                       [](std::shared_ptr<slop::OAuthHandler>*) {},
+                       [&](std::shared_ptr<slop::OAuthHandler>* handler) {
+                         ConfigureRpcOpenAiOAuthHandler(&http_client, handler);
+                       },
                        [&](slop::ToolExecutor&) -> std::vector<std::string> { return server_config.active_skills; },
                        [](slop::CommandHandler&) {}));
   ApplyServerExecutionPolicy(*runtime.tool_executor, server_config);

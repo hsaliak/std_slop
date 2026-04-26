@@ -29,6 +29,9 @@ class SlopServiceImpl final : public SlopService::Service {
 
 absl::Status RunSlopRpcService(const ServerRuntimeConfig& server_config);
 
+void ConfigureRpcOpenAiOAuthHandler(slop::HttpClient* http_client,
+                                    std::shared_ptr<slop::OAuthHandler>* handler);
+
 }  // namespace slop::rpc::v1
 
 #endif  // SLOP_RPC_SLOP_SERVICE_H_
