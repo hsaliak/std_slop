@@ -162,3 +162,17 @@ cc_test(
         "@nlohmann_json//:json",
     ],
 )
+
+cc_test(
+    name = "slop_service_test",
+    srcs = ["slop_service_test.cpp"],
+    deps = [
+        ":execution_policy",
+        ":slop_service",
+        "//app:runtime_bootstrap",
+        "//core:api",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest_main",
+        "@grpc//:grpc++",
+    ],
+)
