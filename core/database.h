@@ -160,6 +160,7 @@ class Database {
   absl::Status IncrementToolCallCount(const std::string& name);
   absl::Status SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills);
   absl::StatusOr<std::vector<std::string>> GetActiveSkills(const std::string& session_id);
+  absl::StatusOr<bool> HasActiveSkills(const std::string& session_id);
   // Context Settings
   absl::Status SetContextWindow(const std::string& session_id, int size);
   struct ContextSettings {

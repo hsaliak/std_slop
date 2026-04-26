@@ -45,11 +45,9 @@ grpc::Status ToGrpcStatus(const absl::Status& status) {
 
 }  // namespace
 
-SlopServiceImpl::SlopServiceImpl(ServerRuntimeConfig server_config, slop::RuntimeBootstrap runtime,
-                                 slop::Database* db)
+SlopServiceImpl::SlopServiceImpl(ServerRuntimeConfig server_config, slop::RuntimeBootstrap runtime)
     : server_config_(std::move(server_config)),
       runtime_(std::move(runtime)),
-      db_(db),
       configured_model_(server_config_.runtime_options.model) {}
 
 grpc::Status SlopServiceImpl::RunPrompt(grpc::ServerContext*, const RunPromptRequest* request,
@@ -70,15 +68,6 @@ grpc::Status SlopServiceImpl::RunPrompt(grpc::ServerContext*, const RunPromptReq
   }
   runtime_.engine_config->is_batch_mode = true;
   runtime_.engine_config->silent = true;
-  if (validated.context_window.has_value()) {
-    absl::Status status = db_->SetContextWindow(session_id, *validated.context_window);
-    if (!status.ok()) {
-      response->set_success(false);
-      response->set_error_code(StatusCodeName(status.code()));
-      response->set_error_message(std::string(status.message()));
-      return ToGrpcStatus(status);
-    }
-  }
   runtime_.engine_config->google_api_key = server_config_.runtime_options.google_api_key;
   runtime_.engine_config->openai_api_key = server_config_.runtime_options.openai_api_key;
   runtime_.engine_config->openai_base_url = server_config_.runtime_options.openai_base_url;
@@ -86,11 +75,17 @@ grpc::Status SlopServiceImpl::RunPrompt(grpc::ServerContext*, const RunPromptReq
   runtime_.engine_config->use_responses = server_config_.runtime_options.use_responses;
   ApplyServerExecutionPolicy(*runtime_.engine_config, server_config_);
 
-  auto result_or = runtime_.engine->Query(validated.prompt, *runtime_.engine_config, validated.active_skills);
+  slop::InteractionEngine::QueryOptions query_options;
+  query_options.session_id = session_id;
+  query_options.persist_session_state = true;
+  query_options.context_window = validated.context_window;
+  query_options.active_skills_override = validated.active_skills_override;
+
+  auto result_or = runtime_.engine->Query(validated.prompt, *runtime_.engine_config, validated.active_skills, query_options);
 
   response->set_success(result_or.ok());
   response->set_content(result_or.ok() ? *result_or : "");
-  response->set_session_id(session_id);
+  response->set_session_id(query_options.session_id);
   if (!result_or.ok()) {
     response->set_error_code(StatusCodeName(result_or.status().code()));
     response->set_error_message(std::string(result_or.status().message()));
@@ -119,10 +114,10 @@ absl::Status RunSlopRpcService(const ServerRuntimeConfig& server_config) {
                          ConfigureRpcOpenAiOAuthHandler(&http_client, handler);
                        },
                        [&](slop::ToolExecutor&) -> std::vector<std::string> { return server_config.active_skills; },
-                       [](slop::CommandHandler&) {}));
+                        [](slop::CommandHandler&) {}));
   ApplyServerExecutionPolicy(*runtime.tool_executor, server_config);
 
-  SlopServiceImpl service(server_config, std::move(runtime), &db);
+  SlopServiceImpl service(server_config, std::move(runtime));
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_config.listen_addr, grpc::InsecureServerCredentials());
   builder.RegisterService(&service);

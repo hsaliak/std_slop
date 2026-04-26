@@ -191,6 +191,97 @@ TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   EXPECT_TRUE(history->empty());
 }
 
+TEST_F(InteractionEngineTest, QueryCanPersistSessionStateWhenRequested) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(GeminiResponse("persistent").dump()));
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "rpc-session";
+  options.persist_session_state = true;
+  options.context_window = 4;
+
+  auto result = engine.Query("Persist this", config, {}, options);
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, "persistent");
+
+  auto history = db.GetConversationHistory("rpc-session");
+  ASSERT_TRUE(history.ok()) << history.status();
+  ASSERT_GE(history->size(), 2);
+  EXPECT_EQ(history->at(history->size() - 2).content, "Persist this");
+  EXPECT_EQ(history->back().content, "persistent");
+}
+
+TEST_F(InteractionEngineTest, PersistentQueryReusesStoredActiveSkillsWhenRequestOmitsOverride) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(GeminiResponse("first").dump()))
+      .WillOnce(testing::Return(GeminiResponse("second").dump()));
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "rpc-session";
+  options.persist_session_state = true;
+  options.active_skills_override = true;
+
+  auto first = engine.Query("First", config, {"code_reviewer"}, options);
+  ASSERT_TRUE(first.ok()) << first.status();
+
+  options.active_skills_override = false;
+  auto second = engine.Query("Second", config, {"planner"}, options);
+
+  ASSERT_TRUE(second.ok()) << second.status();
+  EXPECT_EQ(*second, "second");
+
+  auto skills_or = db.GetActiveSkills("rpc-session");
+  ASSERT_TRUE(skills_or.ok()) << skills_or.status();
+  EXPECT_EQ(*skills_or, std::vector<std::string>{"code_reviewer"});
+
+  auto history = db.GetConversationHistory("rpc-session");
+  ASSERT_TRUE(history.ok()) << history.status();
+  EXPECT_GE(history->size(), 4);
+}
+
+TEST_F(InteractionEngineTest, PersistentQueryPreservesStoredEmptyActiveSkillsWhenRequestOmitsOverride) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  ASSERT_TRUE(db.SetActiveSkills("rpc-session", {}).ok());
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(GeminiResponse("empty skills").dump()));
+
+  InteractionEngine::QueryOptions options;
+  options.session_id = "rpc-session";
+  options.persist_session_state = true;
+  options.active_skills_override = false;
+
+  auto result = engine.Query("Omit skills", config, {"planner"}, options);
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, "empty skills");
+
+  auto skills_or = db.GetActiveSkills("rpc-session");
+  ASSERT_TRUE(skills_or.ok()) << skills_or.status();
+  EXPECT_TRUE(skills_or->empty());
+  auto has_skills_or = db.HasActiveSkills("rpc-session");
+  ASSERT_TRUE(has_skills_or.ok()) << has_skills_or.status();
+  EXPECT_TRUE(*has_skills_or);
+}
+
 TEST_F(InteractionEngineTest, ErrorHandlingTest) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);

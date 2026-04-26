@@ -15,6 +15,7 @@ struct ValidatedRunPromptRequest {
   std::string prompt;
   std::string session_id;
   std::vector<std::string> active_skills;
+  bool active_skills_override = false;
   std::optional<std::string> model_override;
   std::optional<int> context_window;
 };

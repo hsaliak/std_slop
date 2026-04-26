@@ -38,8 +38,10 @@ TEST(SlopServiceTest, RunPromptReturnsStructuredSuccessResponse) {
   options.model = "gemini-test";
   options.google_api_key = "dummy-key";
 
+  testing::InSequence sequence;
   EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(R"({"candidates":[{"content":{"parts":[{"text":"rpc ok"}]}}]})"));
+      .WillOnce(testing::Return(R"({"candidates":[{"content":{"parts":[{"text":"rpc ok"}]}}]})"))
+      .WillOnce(testing::Return(R"({"candidates":[{"content":{"parts":[{"text":"rpc second"}]}}]})"));
 
   auto runtime_or = slop::BootstrapRuntime(
       &db, &mock_http, options,
@@ -51,7 +53,7 @@ TEST(SlopServiceTest, RunPromptReturnsStructuredSuccessResponse) {
   ServerRuntimeConfig server_config = BaseServerConfig();
   ApplyServerExecutionPolicy(*runtime_or->tool_executor, server_config);
 
-  SlopServiceImpl service(server_config, std::move(*runtime_or), &db);
+  SlopServiceImpl service(server_config, std::move(*runtime_or));
   RunPromptRequest request;
   request.set_prompt("hello rpc");
   request.set_session_id("rpc-session");
@@ -66,6 +68,35 @@ TEST(SlopServiceTest, RunPromptReturnsStructuredSuccessResponse) {
   EXPECT_EQ(response.session_id(), "rpc-session");
   EXPECT_TRUE(response.error_code().empty());
   EXPECT_TRUE(response.error_message().empty());
+
+  auto history_or = db.GetConversationHistory("rpc-session");
+  ASSERT_TRUE(history_or.ok()) << history_or.status();
+  ASSERT_GE(history_or->size(), 2);
+  EXPECT_EQ(history_or->at(history_or->size() - 2).role, "user");
+  EXPECT_EQ(history_or->at(history_or->size() - 2).content, "hello rpc");
+  EXPECT_EQ(history_or->back().role, "assistant");
+  EXPECT_EQ(history_or->back().content, "rpc ok");
+
+  RunPromptRequest second_request;
+  second_request.set_prompt("follow up");
+  second_request.set_session_id("rpc-session");
+  RunPromptResponse second_response;
+
+  grpc::ServerContext second_context;
+  status = service.RunPrompt(&second_context, &second_request, &second_response);
+
+  EXPECT_TRUE(status.ok()) << status.error_message();
+  EXPECT_TRUE(second_response.success());
+  EXPECT_EQ(second_response.content(), "rpc second");
+  EXPECT_EQ(second_response.session_id(), "rpc-session");
+
+  history_or = db.GetConversationHistory("rpc-session");
+  ASSERT_TRUE(history_or.ok()) << history_or.status();
+  ASSERT_GE(history_or->size(), 4);
+  EXPECT_EQ(history_or->at(history_or->size() - 2).role, "user");
+  EXPECT_EQ(history_or->at(history_or->size() - 2).content, "follow up");
+  EXPECT_EQ(history_or->back().role, "assistant");
+  EXPECT_EQ(history_or->back().content, "rpc second");
 }
 
 TEST(SlopServiceTest, RunPromptRejectsMissingPromptWithStructuredError) {
@@ -87,7 +118,7 @@ TEST(SlopServiceTest, RunPromptRejectsMissingPromptWithStructuredError) {
   ServerRuntimeConfig server_config = BaseServerConfig();
   ApplyServerExecutionPolicy(*runtime_or->tool_executor, server_config);
 
-  SlopServiceImpl service(server_config, std::move(*runtime_or), &db);
+  SlopServiceImpl service(server_config, std::move(*runtime_or));
   RunPromptRequest request;
   request.set_prompt("   ");
   RunPromptResponse response;

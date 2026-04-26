@@ -48,6 +48,8 @@ class InteractionEngine {
     std::optional<std::string> skill;
     std::optional<int> context_window;
     ExecutionScope execution_scope = ExecutionScope::kRoot;
+    bool persist_session_state = false;
+    bool active_skills_override = true;
     int execution_depth = 0;
   };
 

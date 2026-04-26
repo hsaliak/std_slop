@@ -47,8 +47,10 @@ absl::StatusOr<ValidatedRunPromptRequest> ValidateRunPromptRequest(const RunProm
     validated.model_override = Trim(request.model_override());
   }
   if (request.active_skills().empty()) {
+    validated.active_skills_override = false;
     validated.active_skills = server_config.active_skills;
   } else {
+    validated.active_skills_override = true;
     validated.active_skills.assign(request.active_skills().begin(), request.active_skills().end());
   }
   if (request.has_context_window()) {

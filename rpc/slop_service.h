@@ -15,7 +15,7 @@ namespace slop::rpc::v1 {
 
 class SlopServiceImpl final : public SlopService::Service {
  public:
-  SlopServiceImpl(ServerRuntimeConfig server_config, slop::RuntimeBootstrap runtime, slop::Database* db);
+  SlopServiceImpl(ServerRuntimeConfig server_config, slop::RuntimeBootstrap runtime);
 
   grpc::Status RunPrompt(grpc::ServerContext* context, const RunPromptRequest* request,
                          RunPromptResponse* response) override;
@@ -23,7 +23,6 @@ class SlopServiceImpl final : public SlopService::Service {
  private:
   ServerRuntimeConfig server_config_;
   slop::RuntimeBootstrap runtime_;
-  slop::Database* db_;  // Not owned. Must outlive this service.
   std::string configured_model_;
 };
 

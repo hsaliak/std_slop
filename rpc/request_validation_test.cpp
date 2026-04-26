@@ -61,6 +61,17 @@ TEST(RequestValidationTest, RejectsDisallowedContextWindowOverride) {
   EXPECT_EQ(validated_or.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(RequestValidationTest, MarksServerDefaultSkillsAsNotARequestOverride) {
+  RunPromptRequest request;
+  request.set_prompt("hello");
+
+  auto validated_or = ValidateRunPromptRequest(request, BaseConfig());
+
+  ASSERT_TRUE(validated_or.ok()) << validated_or.status();
+  EXPECT_EQ(validated_or->active_skills, std::vector<std::string>{"code_reviewer"});
+  EXPECT_FALSE(validated_or->active_skills_override);
+}
+
 TEST(RequestValidationTest, AppliesAllowedOverrides) {
   ServerRuntimeConfig config = BaseConfig();
   config.allow_request_model_override = true;
@@ -82,6 +93,7 @@ TEST(RequestValidationTest, AppliesAllowedOverrides) {
   ASSERT_TRUE(validated_or->model_override.has_value());
   EXPECT_EQ(*validated_or->model_override, "override-model");
   EXPECT_EQ(validated_or->active_skills, std::vector<std::string>{"planner"});
+  EXPECT_TRUE(validated_or->active_skills_override);
   ASSERT_TRUE(validated_or->context_window.has_value());
   EXPECT_EQ(*validated_or->context_window, 4);
 }

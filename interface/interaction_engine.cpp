@@ -427,6 +427,50 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   ASSIGN_OR_RETURN(QueryOptions normalized_options, NormalizeQueryOptions(options));
   const QueryOptions& effective_options = normalized_options;
 
+  // RPC calls need to continue an existing session, so they execute against this
+  // engine's persistent database instead of the transient in-memory database
+  // used by the default Query path below.
+  if (effective_options.persist_session_state) {
+    const std::string query_session_id = effective_options.session_id;
+    if (effective_options.context_window.has_value()) {
+      const absl::Status window_status = db_.SetContextWindow(query_session_id, *effective_options.context_window);
+      if (!window_status.ok()) return window_status;
+    }
+
+    tool_executor_.SetExecutionContext(effective_options.execution_scope == QueryOptions::ExecutionScope::kSubquery
+                                           ? ToolExecutor::ExecutionScope::kSubquery
+                                           : ToolExecutor::ExecutionScope::kRoot,
+                                       effective_options.execution_depth);
+    tool_executor_.SetAskUserEnabled(config.allow_ask_user);
+    tool_executor_.SetMaxSubqueryExecutionDepth(config.max_subquery_execution_depth);
+
+    std::string input = prompt;
+    std::string session_id = query_session_id;
+    std::vector<std::string> skills;
+    if (effective_options.active_skills_override) {
+      skills = active_skills;
+    } else {
+      auto stored_skills_or = db_.GetActiveSkills(session_id);
+      auto has_stored_skills_or = db_.HasActiveSkills(session_id);
+      if (stored_skills_or.ok() && has_stored_skills_or.ok() && *has_stored_skills_or) {
+        skills = *stored_skills_or;
+      } else {
+        skills = active_skills;
+      }
+    }
+    if (effective_options.skill.has_value() && !effective_options.skill->empty() &&
+        std::find(skills.begin(), skills.end(), *effective_options.skill) == skills.end()) {
+      skills.push_back(*effective_options.skill);
+    }
+    if (effective_options.active_skills_override || !skills.empty() || effective_options.skill.has_value()) {
+      (void)db_.SetActiveSkills(session_id, skills);
+    }
+    (void)Process(input, session_id, skills, config);
+    auto history_or = db_.GetConversationHistory(session_id, false, 1);
+    if (history_or.ok() && !history_or->empty() && history_or->back().role == "assistant") return history_or->back().content;
+    return absl::NotFoundError("No assistant response found");
+  }
+
   Database transient_db;
   auto status = transient_db.Init(":memory:");
   if (!status.ok()) return status;

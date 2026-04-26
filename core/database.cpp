@@ -697,6 +697,18 @@ absl::StatusOr<std::vector<std::string>> Database::GetActiveSkills(const std::st
   }
   return std::vector<std::string>();
 }
+
+absl::StatusOr<bool> Database::HasActiveSkills(const std::string& session_id) {
+  ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT active_skills FROM sessions WHERE id = ?;"));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  auto row_or = stmt->Step();
+  if (!row_or.ok()) return row_or.status();
+  if (!*row_or) {
+    return false;
+  }
+  return stmt->ColumnType(0) != SQLITE_NULL;
+}
+
 absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
   return Execute("UPDATE sessions SET context_size = ? WHERE id = ?;", size, session_id);
