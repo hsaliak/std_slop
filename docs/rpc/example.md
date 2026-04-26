@@ -46,7 +46,7 @@ Expected:
 - `sessionId="smoke-2"`
 - empty `errorCode` and `errorMessage`
 
-## 2) Next automated coverage to add
+## 2) TODO: automated coverage
 
 Add one e2e smoke test that:
 - launches `slop_rpc_service` as a subprocess
