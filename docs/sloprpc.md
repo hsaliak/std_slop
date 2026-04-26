@@ -88,7 +88,7 @@ message RequestPolicy {
   bool allow_request_skill_override = 3;
   bool allow_request_context_window_override = 4;
   int32 max_context_window = 5;         // 0 = unlimited
-  int32 max_execution_depth = 6;
+  // max_execution_depth removed; RPC currently supports one internal subquery hop.
 }
 
 message RequestDefaults {
@@ -152,8 +152,9 @@ Per-request overrides are allowlisted and policy-gated.
 Example: if `allow_request_model_override=false`, `model_override` in
 `RunPromptRequest` is rejected with `INVALID_ARGUMENT`.
 
-Server config (`server.cfg`) controls internal subquery limits (for example
-`max_execution_depth`). Callers do not set execution scope/depth directly in RPC.
+Server config (`server.cfg`) controls internal request policy. Callers do not set execution scope/depth directly in RPC.
+RPC currently supports one internal subquery hop; this is enforced server-side
+and is not configurable in `server.cfg`.
 
 ## 6) Shared Runtime Bootstrap (Required Refactor)
 
@@ -162,7 +163,7 @@ for example under `app/runtime_bootstrap.{h,cpp}`.
 
 ### New reusable types
 - `RuntimeOptions` (db path, provider/model defaults, oauth/key behavior, etc.)
-- `ExecutionDefaults` (skills/context window/depth defaults)
+- `ExecutionDefaults` (skills/context window defaults)
 - `RuntimeBundle` (db/http/orchestrator/tool executor/interaction engine)
 
 ### Adapters
@@ -228,7 +229,7 @@ Add protobuf/gRPC dependencies needed for C++ service and generated code.
 ### Bundle 4: Non-interactive Enforcement + Chaining Readiness
 - Implement
   - Disable `ask_user` for RPC execution path.
-  - Enforce internal subquery depth/safety via server policy.
+  - Enforce internal subquery depth/safety via server policy (single subquery hop).
   - Preserve stateful chaining via persistent DB mode; support `:memory:` for
     isolated deployments/tests.
 - Validate

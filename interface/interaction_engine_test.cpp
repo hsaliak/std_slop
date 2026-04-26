@@ -266,4 +266,26 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
   unlink(temp_path);
 }
 
+TEST_F(InteractionEngineTest, QueryOptionsDisableAskUserInSubqueryExecution) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.silent = true;
+
+  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(GeminiToolCall("ask_user", nlohmann::json::object()).dump()))
+      .WillOnce(testing::Return(GeminiResponse("done").dump()));
+
+  InteractionEngine::QueryOptions options;
+  options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
+  options.execution_depth = 1;
+  config.allow_ask_user = false;
+
+  auto result = engine.Query("subquery", config, {}, options);
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, "done");
+}
+
 }  // namespace slop

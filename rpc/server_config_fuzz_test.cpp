@@ -21,7 +21,6 @@ void LoadServerConfigTextprotoNeverCrashes(const std::string& textproto) {
     EXPECT_FALSE(runtime_or->db_path.empty());
     EXPECT_FALSE(runtime_or->runtime_options.model.empty());
     EXPECT_TRUE(runtime_or->disable_ask_user);
-    EXPECT_GE(runtime_or->proto.policy().max_execution_depth(), 0);
   } else {
     EXPECT_FALSE(runtime_or.status().message().empty());
   }
@@ -32,14 +31,14 @@ FUZZ_TEST(ServerConfigFuzzTest, LoadServerConfigTextprotoNeverCrashes)
       listen_addr: "127.0.0.1:50051"
       db_path: ":memory:"
       provider { provider: "gemini" model: "gemini-test" gemini_api_key_env: "GEMINI_API_KEY" }
-      policy { disable_ask_user: true max_execution_depth: 1 }
+      policy { disable_ask_user: true }
       defaults { context_window: 4 }
     )pb"),
                 std::string(R"pb(
       listen_addr: "127.0.0.1:50051"
       db_path: ":memory:"
       provider { provider: "openai" model: "gpt-test" openai_api_key_env: "OPENAI_API_KEY" }
-      policy { disable_ask_user: false max_execution_depth: -1 }
+      policy { disable_ask_user: false }
     )pb")});
 
 }  // namespace

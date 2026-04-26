@@ -46,7 +46,6 @@ TEST(ServerConfigTest, ParsesDocsServerConfigAndBuildsRuntimeOptions) {
   EXPECT_TRUE(runtime_or->allow_request_model_override);
   EXPECT_TRUE(runtime_or->allow_request_skill_override);
   EXPECT_TRUE(runtime_or->allow_request_context_window_override);
-  EXPECT_EQ(runtime_or->proto.policy().max_execution_depth(), 2);
   ASSERT_EQ(runtime_or->runtime_options.llm_specializations.size(), 2);
   EXPECT_EQ(runtime_or->runtime_options.llm_specializations[0].tool_name, "llm_tool_code_review_llm");
   EXPECT_EQ(runtime_or->runtime_options.llm_specializations[0].session_id, "code_review");
@@ -67,7 +66,6 @@ TEST(ServerConfigTest, ParsesDocsInMemoryConfig) {
   EXPECT_FALSE(runtime_or->allow_request_model_override);
   EXPECT_FALSE(runtime_or->allow_request_skill_override);
   EXPECT_FALSE(runtime_or->allow_request_context_window_override);
-  EXPECT_EQ(runtime_or->proto.policy().max_execution_depth(), 1);
   ASSERT_EQ(runtime_or->runtime_options.llm_specializations.size(), 1);
   EXPECT_EQ(runtime_or->runtime_options.llm_specializations[0].tool_name, "llm_tool_code_review_llm");
   ASSERT_TRUE(runtime_or->runtime_options.llm_specializations[0].context_window.has_value());
@@ -79,7 +77,7 @@ TEST(ServerConfigTest, ConvertsSpecializationsWithIniParity) {
     listen_addr: "127.0.0.1:50051"
     db_path: ":memory:"
     provider { provider: "gemini" model: "gemini-test" gemini_api_key_env: "GEMINI_API_KEY" }
-    policy { disable_ask_user: true max_execution_depth: 1 }
+    policy { disable_ask_user: true }
     llm_tool_specializations {
       name: "explorer_llm"
       system_prompt_patch: "You explore repository structure and summarize findings with exact file paths."
@@ -107,7 +105,7 @@ TEST(ServerConfigTest, RejectsInteractivePolicy) {
     listen_addr: "127.0.0.1:50051"
     db_path: ":memory:"
     provider { provider: "gemini" model: "gemini-test" gemini_api_key_env: "GEMINI_API_KEY" }
-    policy { disable_ask_user: false max_execution_depth: 1 }
+    policy { disable_ask_user: false }
   )pb");
 
   absl::Status status = ValidateServerConfig(config);
@@ -121,7 +119,7 @@ TEST(ServerConfigTest, RejectsDefaultContextWindowAbovePolicyMaximum) {
     listen_addr: "127.0.0.1:50051"
     db_path: ":memory:"
     provider { provider: "gemini" model: "gemini-test" gemini_api_key_env: "GEMINI_API_KEY" }
-    policy { disable_ask_user: true max_context_window: 4 max_execution_depth: 1 }
+    policy { disable_ask_user: true max_context_window: 4 }
     defaults { context_window: 8 }
   )pb");
 

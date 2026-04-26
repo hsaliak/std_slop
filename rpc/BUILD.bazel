@@ -66,11 +66,24 @@ cc_library(
 )
 
 cc_library(
+    name = "execution_policy",
+    srcs = ["execution_policy.cpp"],
+    hdrs = ["execution_policy.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":server_config",
+        "//interface:interaction_engine",
+        "//tools:runtime",
+    ],
+)
+
+cc_library(
     name = "slop_service",
     srcs = ["slop_service.cpp"],
     hdrs = ["slop_service.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":execution_policy",
         ":request_validation",
         ":server_config",
         ":slop_rpc_cc_grpc",
@@ -135,5 +148,17 @@ cc_test(
         ":request_validation",
         "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "execution_policy_test",
+    srcs = ["execution_policy_test.cpp"],
+    deps = [
+        ":execution_policy",
+        "//tools:runtime",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
     ],
 )

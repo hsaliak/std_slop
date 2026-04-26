@@ -83,6 +83,9 @@ void ToolExecutor::RegisterTools() {
                  return HandleGitFinalizeSeries(args, cancellation);
                });
   RegisterTool("ask_user", [this](const nlohmann::json& args, auto) -> absl::StatusOr<std::string> {
+    if (!ask_user_enabled_) {
+      return absl::PermissionDeniedError("ask_user is disabled for this execution context");
+    }
     std::string prompt_text = "Input required: ";
     if (auto p = json_get<std::string>(args, "prompt")) {
       prompt_text = *p;
@@ -182,9 +185,9 @@ void ToolExecutor::SetExecutionContext(ExecutionScope scope, int depth) { execut
 
 absl::Status ToolExecutor::ValidateSubqueryPolicy(const std::string& tool_name) const {
   const auto [scope, depth] = execution_context_;
-  if (depth > 1) {
+  if (depth > max_subquery_execution_depth_) {
     return absl::InvalidArgumentError(
-        "Subquery policy violation: execution_depth must be <= 1 for llm_query specializations");
+        absl::StrCat("Subquery policy violation: execution_depth must be <= ", max_subquery_execution_depth_));
   }
 
   if (scope != ExecutionScope::kSubquery) {

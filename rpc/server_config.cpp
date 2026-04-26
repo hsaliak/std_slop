@@ -72,7 +72,6 @@ absl::Status ValidatePolicy(const ServerConfig& config) {
     return absl::InvalidArgumentError("policy.disable_ask_user must be true for RPC server configs");
   }
   RETURN_IF_ERROR(ValidateNonNegative(policy.max_context_window(), "policy.max_context_window"));
-  RETURN_IF_ERROR(ValidateNonNegative(policy.max_execution_depth(), "policy.max_execution_depth"));
   return absl::OkStatus();
 }
 

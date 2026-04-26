@@ -18,7 +18,7 @@ message ServerPolicy {
   bool allow_request_skill_override = 3;
   bool allow_request_context_window_override = 4;
   int32 max_context_window = 5;
-  int32 max_execution_depth = 6;
+  reserved 6;  // removed: max_execution_depth (RPC currently supports one subquery hop)
 }
 
 message ExecutionDefaults {

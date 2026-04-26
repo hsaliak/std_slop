@@ -26,6 +26,8 @@ class InteractionEngine {
     bool openai_oauth = false;
     bool use_responses = false;
     bool silent = false;
+    bool allow_ask_user = true;
+    int max_subquery_execution_depth = 1;
   };
 
   InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler, ToolDispatcher& dispatcher,

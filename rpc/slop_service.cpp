@@ -10,6 +10,7 @@
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
 #include "core/status_macros.h"
+#include "rpc/execution_policy.h"
 #include "grpcpp/grpcpp.h"
 #include "rpc/request_validation.h"
 #include "tools/tool_executor.h"
@@ -83,17 +84,17 @@ grpc::Status SlopServiceImpl::RunPrompt(grpc::ServerContext*, const RunPromptReq
   runtime_.engine_config->openai_base_url = server_config_.runtime_options.openai_base_url;
   runtime_.engine_config->openai_oauth = server_config_.runtime_options.openai_oauth;
   runtime_.engine_config->use_responses = server_config_.runtime_options.use_responses;
+  ApplyServerExecutionPolicy(*runtime_.engine_config, server_config_);
 
-  std::string prompt = validated.prompt;
-  const bool keep_running =
-      runtime_.engine->Process(prompt, session_id, validated.active_skills, *runtime_.engine_config);
+  auto result_or = runtime_.engine->Query(validated.prompt, *runtime_.engine_config, validated.active_skills);
 
-  response->set_success(keep_running);
-  response->set_content(prompt);
+  response->set_success(result_or.ok());
+  response->set_content(result_or.ok() ? *result_or : "");
   response->set_session_id(session_id);
-  if (!keep_running) {
-    response->set_error_code("STOPPED");
-    response->set_error_message("interaction engine stopped");
+  if (!result_or.ok()) {
+    response->set_error_code(StatusCodeName(result_or.status().code()));
+    response->set_error_message(std::string(result_or.status().message()));
+    return ToGrpcStatus(result_or.status());
   }
   return grpc::Status::OK;
 }
@@ -108,6 +109,7 @@ absl::Status RunSlopRpcService(const ServerRuntimeConfig& server_config) {
                        [](std::shared_ptr<slop::OAuthHandler>*) {},
                        [&](slop::ToolExecutor&) -> std::vector<std::string> { return server_config.active_skills; },
                        [](slop::CommandHandler&) {}));
+  ApplyServerExecutionPolicy(*runtime.tool_executor, server_config);
 
   SlopServiceImpl service(server_config, std::move(runtime), &db);
   grpc::ServerBuilder builder;

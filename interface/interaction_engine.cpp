@@ -463,6 +463,8 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
                                              ? ToolExecutor::ExecutionScope::kSubquery
                                              : ToolExecutor::ExecutionScope::kRoot,
                                          effective_options.execution_depth);
+  sub_tool_executor->SetAskUserEnabled(config.allow_ask_user);
+  sub_tool_executor->SetMaxSubqueryExecutionDepth(config.max_subquery_execution_depth);
 
   sub_tool_executor->SetDispatcher(std::make_unique<ToolDispatcher>(
       [executor = sub_tool_executor.get()](const std::string& name, const nlohmann::json& args,

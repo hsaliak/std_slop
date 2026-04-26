@@ -41,6 +41,8 @@ class ToolExecutor {
   void SetMailMode(bool enabled);
   const std::string& session_id() const { return session_id_; }
   void SetExecutionContext(ExecutionScope scope, int depth);
+  void SetAskUserEnabled(bool enabled) { ask_user_enabled_ = enabled; }
+  void SetMaxSubqueryExecutionDepth(int depth) { max_subquery_execution_depth_ = depth; }
 
   bool IsSkillActive(const std::string& name);
   std::vector<std::string> GetActiveSkills();
@@ -78,6 +80,8 @@ class ToolExecutor {
   std::string session_id_;
   bool mail_mode_ = false;
   std::pair<ExecutionScope, int> execution_context_ = {ExecutionScope::kRoot, 0};
+  bool ask_user_enabled_ = true;
+  int max_subquery_execution_depth_ = 1;
 
   void RegisterTools();
 
