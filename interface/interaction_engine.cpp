@@ -63,7 +63,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     std::cout << " " << slop::Colorize(" > " + echo + " ", ansi::EchoBg, ansi::EchoFg) << "\n" << std::endl;
   }
   auto res = cmd_handler_.Handle(
-      input, session_id, active_skills, []() { ShowHelp(); }, orchestrator_.GetLastSelectedGroups());
+      input, session_id, active_skills, []() { ShowInAppHelp(); }, orchestrator_.GetLastSelectedGroups());
   if (res == CommandHandler::Result::HANDLED || res == CommandHandler::Result::UNKNOWN) {
     return true;
   }

@@ -604,7 +604,7 @@ void HandleStatus(const absl::Status& status, const std::string& context) {
     LOG(WARNING) << log_msg;
   }
 }
-std::string GetHelpText() {
+std::string GetCliHelpText() {
   std::string help =
       "# std::slop - The SQL-backed LLM CLI\n\n"
       "## Usage\n"
@@ -620,7 +620,32 @@ std::string GetHelpText() {
       "- `--helpfull`: See all available command-line flags.\n";
   return help;
 }
-void ShowHelp() { slop::PrintMarkdown(GetHelpText()); }
+void ShowCliHelp() { slop::PrintMarkdown(GetCliHelpText()); }
+
+std::string GetInAppHelpText() {
+  std::string help =
+      "# std::slop In-App Help\n\n"
+      "Type a slash command at the prompt to control the current agent session.\n\n"
+      "## Slash Commands\n";
+  std::string current_category;
+  for (const CommandDefinition& command : GetCommandDefinitions()) {
+    if (command.category != current_category) {
+      current_category = command.category;
+      absl::StrAppend(&help, "\n### ", current_category, "\n");
+    }
+
+    absl::StrAppend(&help, "- `", command.name, "`");
+    if (!command.aliases.empty()) {
+      absl::StrAppend(&help, " (aliases: `", absl::StrJoin(command.aliases, "`, `"), "`)");
+    }
+    if (!command.help_lines.empty()) {
+      absl::StrAppend(&help, ": ", absl::StrJoin(command.help_lines, "; "));
+    }
+    absl::StrAppend(&help, "\n");
+  }
+  return help;
+}
+void ShowInAppHelp() { slop::PrintMarkdown(GetInAppHelpText()); }
 
 void RenderMarkdown(const std::string& markdown, const std::string& prefix, std::string* rendered) {
   Renderer::Get().RenderMarkdown(markdown, prefix, rendered);

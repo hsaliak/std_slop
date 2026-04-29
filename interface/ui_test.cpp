@@ -275,8 +275,8 @@ TEST(UiTest, PrintToolResultMessagePatchToolRendersDiffBlock) {
   EXPECT_TRUE(absl::StrContains(output, "+new"));
 }
 
-TEST(UiTest, GetHelpTextUsesRenamedOpenAiOauthFlags) {
-  const std::string help = GetHelpText();
+TEST(UiTest, GetCliHelpTextUsesRenamedOpenAiOauthFlags) {
+  const std::string help = GetCliHelpText();
 
   EXPECT_TRUE(absl::StrContains(help, "--fetch_openai_oauth_token"));
   EXPECT_TRUE(absl::StrContains(help, "--fetch_openai_oauth_device_token"));
@@ -284,12 +284,34 @@ TEST(UiTest, GetHelpTextUsesRenamedOpenAiOauthFlags) {
   EXPECT_FALSE(absl::StrContains(help, "--fetch-oauth-device"));
 }
 
-TEST(UiTest, GetHelpTextOmitsHotwordAndSlashSections) {
-  const std::string help = GetHelpText();
+TEST(UiTest, GetCliHelpTextOmitsInAppSections) {
+  const std::string help = GetCliHelpText();
 
   EXPECT_FALSE(absl::StrContains(help, "## Hotwords"));
   EXPECT_FALSE(absl::StrContains(help, "## Slash Commands"));
   EXPECT_FALSE(absl::StrContains(help, "hey <skill> <query>"));
+}
+
+TEST(UiTest, GetInAppHelpTextShowsSlashCommands) {
+  const std::string help = GetInAppHelpText();
+
+  EXPECT_TRUE(absl::StrContains(help, "## Slash Commands"));
+  EXPECT_TRUE(absl::StrContains(help, "### Core Operations"));
+  EXPECT_TRUE(absl::StrContains(help, "`/help`"));
+  EXPECT_TRUE(absl::StrContains(help, "`/exit` (aliases: `/quit`)"));
+  EXPECT_TRUE(absl::StrContains(help, "`/context`"));
+  EXPECT_TRUE(absl::StrContains(help, "/context window <N>"));
+  EXPECT_TRUE(absl::StrContains(help, "`/tool`"));
+  EXPECT_TRUE(absl::StrContains(help, "`/skill`"));
+  EXPECT_TRUE(absl::StrContains(help, "hey <skill> <query>"));
+}
+
+TEST(UiTest, GetInAppHelpTextOmitsCliOptions) {
+  const std::string help = GetInAppHelpText();
+
+  EXPECT_FALSE(absl::StrContains(help, "## Usage"));
+  EXPECT_FALSE(absl::StrContains(help, "--prompt"));
+  EXPECT_FALSE(absl::StrContains(help, "--helpfull"));
 }
 
 TEST(UiTest, PrintToolResultMessagePatchToolLongDiffTruncatesWithExistingRules) {

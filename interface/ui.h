@@ -67,8 +67,11 @@ void PrintToolResultMessage(const std::string& name, const std::string& result, 
  */
 void PrintMessage(const Database::Message& msg, const std::string& prefix = "");
 
-std::string GetHelpText();
-void ShowHelp();
+std::string GetCliHelpText();
+void ShowCliHelp();
+
+std::string GetInAppHelpText();
+void ShowInAppHelp();
 
 /**
  * @brief Render markdown text to ANSI-encoded string.
