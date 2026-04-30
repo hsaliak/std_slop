@@ -486,6 +486,7 @@ absl::StatusOr<std::string> InteractionEngine::GenerateOneShot(const std::string
   if (orchestrator_.GetProvider() == Orchestrator::Provider::OPENAI && use_openai_responses) {
     (*payload_or)["tools"] = nlohmann::json::array();
     (*payload_or)["store"] = false;
+    (*payload_or)["stream"] = false;
   }
 
   ASSIGN_OR_RETURN(std::vector<std::string> headers,

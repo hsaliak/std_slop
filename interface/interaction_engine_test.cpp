@@ -307,7 +307,7 @@ TEST_F(InteractionEngineTest, GenerateOneShotPostsDirectGeminiPayload) {
   EXPECT_EQ(*result, "inline compact summary");
 }
 
-TEST_F(InteractionEngineTest, GenerateOneShotPostsDirectOpenAiResponsesPayloadWithoutTools) {
+TEST_F(InteractionEngineTest, GenerateOneShotPostsDirectOpenAiResponsesPayloadWithoutToolsOrStreaming) {
   auto orch_or = Orchestrator::Builder(&db, &mock_http)
                      .WithProvider(Orchestrator::Provider::OPENAI)
                      .WithModel("gpt-5.3-codex")
@@ -340,6 +340,7 @@ TEST_F(InteractionEngineTest, GenerateOneShotPostsDirectOpenAiResponsesPayloadWi
             ASSERT_TRUE(body_json.contains("tools"));
             EXPECT_TRUE(body_json["tools"].empty());
             EXPECT_EQ(body_json["store"], false);
+            EXPECT_EQ(body_json["stream"], false);
           }),
           testing::WithArg<2>([](const std::vector<std::string>& headers) {
             EXPECT_NE(std::find(headers.begin(), headers.end(), "Authorization: Bearer test-openai-key"),
