@@ -71,6 +71,7 @@ TEST_F(CommandHandlerTest, ReturnsSubCommands) {
   EXPECT_NE(std::find(subs.begin(), subs.end(), "list"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "switch"), subs.end());
   EXPECT_NE(std::find(subs.begin(), subs.end(), "clone"), subs.end());
+  EXPECT_NE(std::find(subs.begin(), subs.end(), "rollback"), subs.end());
 }
 
 TEST_F(CommandHandlerTest, ReturnsScratchpadSubCommands) {
@@ -106,6 +107,74 @@ TEST_F(CommandHandlerTest, SessionClone) {
   EXPECT_EQ(history->size(), 1);
   EXPECT_EQ((*history)[0].content, "Hello");
 }
+
+TEST_F(CommandHandlerTest, SessionSwitchThroughGroupCreatesPrefixSessionAndSwitches) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "u1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "a1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "u2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "a2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "u3", "", "completed", "g3").ok());
+
+  std::string input = "/session switch s2 g2";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_EQ(sid, "s2");
+  auto history = db.GetConversationHistory("s2");
+  ASSERT_TRUE(history.ok());
+  ASSERT_EQ(history->size(), 4);
+  EXPECT_EQ((*history)[3].content, "a2");
+}
+
+TEST_F(CommandHandlerTest, SessionSwitchCompactAppendsSummaryToExistingSessionAndSwitches) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "hello", "", "completed", "g1").ok());
+
+  std::string input = "/session switch target compact";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_EQ(sid, "target");
+  auto history = db.GetConversationHistory("target");
+  ASSERT_TRUE(history.ok());
+  ASSERT_EQ(history->size(), 1);
+  EXPECT_EQ((*history)[0].role, "assistant");
+  EXPECT_EQ((*history)[0].group_id, "compact");
+  EXPECT_TRUE(absl::StrContains((*history)[0].content, "hello"));
+}
+
+TEST_F(CommandHandlerTest, SessionRollbackDropsLaterMessages) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "u1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "a1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "u2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "assistant", "a2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "u3", "", "completed", "g3").ok());
+
+  std::string input = "/session rollback g2";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_EQ(sid, "s1");
+  auto history = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history.ok());
+  ASSERT_EQ(history->size(), 4);
+  EXPECT_EQ((*history)[3].content, "a2");
+}
+
 TEST_F(CommandHandlerTest, IgnoresNormalText) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());

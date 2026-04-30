@@ -77,9 +77,23 @@ bool IsSafeBranchToken(std::string_view name) {
     return is_alpha_num || c == '-' || c == '_' || c == '.';
   });
 }
+
+std::string BuildSessionCompactSummary(const std::vector<Database::Message>& messages) {
+  std::string summary = "Compacted session summary:\n";
+  if (messages.empty()) {
+    absl::StrAppend(&summary, "\nNo prior messages.\n");
+    return summary;
+  }
+  for (const auto& message : messages) {
+    absl::StrAppend(&summary, "\n[", message.role, "]");
+    if (!message.group_id.empty()) absl::StrAppend(&summary, " (", message.group_id, ")");
+    absl::StrAppend(&summary, "\n", message.content, "\n");
+  }
+  return summary;
+}
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
-                               std::string google_api_key, std::string openai_api_key)
+                                std::string google_api_key, std::string openai_api_key)
     : db_(db),
       orchestrator_(orchestrator),
       oauth_handler_(oauth_handler),
@@ -547,9 +561,43 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
       }
     }
   } else if (sub_cmd == "switch") {
-    args.session_id = sub_args;
-    std::cout << "Session switched to: " << sub_args << std::endl;
-    if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
+    std::vector<std::string> switch_parts = absl::StrSplit(sub_args, absl::MaxSplits(' ', 1));
+    const std::string target_session = switch_parts.empty() ? "" : switch_parts[0];
+    const std::string switch_mode = (switch_parts.size() > 1) ? switch_parts[1] : "";
+    if (target_session.empty()) {
+      std::cout << "Usage: /session switch <name> [group|compact]" << std::endl;
+    } else if (switch_mode.empty()) {
+      args.session_id = target_session;
+      std::cout << "Session switched to: " << target_session << std::endl;
+      if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
+    } else if (switch_mode == "compact") {
+      auto history_or = db_->GetConversationHistory(args.session_id);
+      if (!history_or.ok()) {
+        HandleStatus(history_or.status(), "reading session history");
+      } else {
+        const std::string summary = BuildSessionCompactSummary(*history_or);
+        auto status = db_->AppendMessage(target_session, "assistant", summary, "", "completed", "compact");
+        if (status.ok()) {
+          args.session_id = target_session;
+          std::cout << "Compacted current session into: " << target_session << std::endl;
+          std::cout << "Switched to session: " << target_session << std::endl;
+          if (orchestrator_) (void)orchestrator_->RebuildContext(target_session);
+        } else {
+          HandleStatus(status, "compacting session");
+        }
+      }
+    } else {
+      auto status = db_->CloneSessionThroughGroup(args.session_id, target_session, switch_mode);
+      if (status.ok()) {
+        std::cout << "Created session '" << target_session << "' from '" << args.session_id << "' through group '"
+                  << switch_mode << "'." << std::endl;
+        args.session_id = target_session;
+        std::cout << "Switched to session: " << target_session << std::endl;
+        if (orchestrator_) (void)orchestrator_->RebuildContext(target_session);
+      } else {
+        HandleStatus(status, "switching session through group");
+      }
+    }
   } else if (sub_cmd == "remove") {
     HandleStatus(db_->DeleteSession(sub_args));
     std::cout << "Session " << sub_args << " deleted." << std::endl;
@@ -576,8 +624,21 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         HandleStatus(status, "cloning session");
       }
     }
+  } else if (sub_cmd == "rollback") {
+    if (sub_args.empty()) {
+      std::cout << "Usage: /session rollback <group>" << std::endl;
+    } else {
+      auto status = db_->RollbackSessionToGroup(args.session_id, sub_args);
+      if (status.ok()) {
+        std::cout << "Rolled back session '" << args.session_id << "' through group '" << sub_args << "'." << std::endl;
+        if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
+      } else {
+        HandleStatus(status, "rolling back session");
+      }
+    }
   } else {
-    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, switch, remove, clear, clone" << std::endl;
+    std::cout << "Unknown session command: " << sub_cmd << ". Try: list, switch, rollback, remove, clear, clone"
+              << std::endl;
   }
   return Result::HANDLED;
 }

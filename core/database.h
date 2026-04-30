@@ -177,6 +177,9 @@ class Database {
   absl::Status DeleteSession(const std::string& session_id);
   // Session Cloning
   absl::Status CloneSession(const std::string& source_id, const std::string& target_id);
+  absl::Status CloneSessionThroughGroup(const std::string& source_id, const std::string& target_id,
+                                        const std::string& group_id);
+  absl::Status RollbackSessionToGroup(const std::string& session_id, const std::string& group_id);
   // Patch Approval
   absl::Status SetPatchApproval(const std::string& branch_name, const std::string& hash);
   absl::StatusOr<std::string> GetPatchApproval(const std::string& branch_name);

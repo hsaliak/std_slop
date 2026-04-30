@@ -17,6 +17,56 @@ namespace slop {
 
 namespace {
 constexpr size_t kMaxCachedStatementsPerSql = 8;
+
+absl::Status RollbackTransaction(Database* db, const absl::Status& status) {
+  (void)db->Execute("ROLLBACK;");
+  return status;
+}
+
+absl::Status SessionExists(Database* db, const std::string& session_id) {
+  auto stmt_or = db->Prepare("SELECT 1 FROM sessions WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  RETURN_IF_ERROR((*stmt_or)->BindText(1, session_id));
+  auto res_or = (*stmt_or)->Step();
+  if (!res_or.ok()) return res_or.status();
+  if (!*res_or) return absl::NotFoundError("Session not found: " + session_id);
+  return absl::OkStatus();
+}
+
+absl::Status SessionDoesNotExist(Database* db, const std::string& session_id) {
+  auto stmt_or = db->Prepare("SELECT 1 FROM sessions WHERE id = ?");
+  if (!stmt_or.ok()) return stmt_or.status();
+  RETURN_IF_ERROR((*stmt_or)->BindText(1, session_id));
+  auto res_or = (*stmt_or)->Step();
+  if (!res_or.ok()) return res_or.status();
+  if (*res_or) return absl::AlreadyExistsError("Target session already exists: " + session_id);
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Database::Message> LastMessageForGroup(Database* db, const std::string& session_id,
+                                                      const std::string& group_id) {
+  auto stmt_or = db->Prepare(
+      "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+      "FROM messages WHERE session_id = ? AND group_id = ? ORDER BY created_at DESC, id DESC LIMIT 1");
+  if (!stmt_or.ok()) return stmt_or.status();
+  RETURN_IF_ERROR((*stmt_or)->BindText(1, session_id));
+  RETURN_IF_ERROR((*stmt_or)->BindText(2, group_id));
+  auto res_or = (*stmt_or)->Step();
+  if (!res_or.ok()) return res_or.status();
+  if (!*res_or) return absl::NotFoundError("Group not found in session: " + group_id);
+  Database::Message message;
+  message.id = (*stmt_or)->ColumnInt(0);
+  message.session_id = (*stmt_or)->ColumnText(1);
+  message.role = (*stmt_or)->ColumnText(2);
+  message.content = (*stmt_or)->ColumnText(3);
+  message.tool_call_id = (*stmt_or)->ColumnText(4);
+  message.status = (*stmt_or)->ColumnText(5);
+  message.created_at = (*stmt_or)->ColumnText(6);
+  message.group_id = (*stmt_or)->ColumnText(7);
+  message.parsing_strategy = (*stmt_or)->ColumnText(8);
+  message.tokens = (*stmt_or)->ColumnInt(9);
+  return message;
+}
 }  // namespace
 
 Database::Statement::~Statement() {
@@ -841,6 +891,56 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
   if (!status.ok()) return rollback_on_failure(status);
   return Execute("COMMIT;");
 }
+
+absl::Status Database::CloneSessionThroughGroup(const std::string& source_id, const std::string& target_id,
+                                                const std::string& group_id) {
+  RETURN_IF_ERROR(SessionExists(this, source_id));
+  RETURN_IF_ERROR(SessionDoesNotExist(this, target_id));
+  ASSIGN_OR_RETURN(Database::Message cutoff, LastMessageForGroup(this, source_id, group_id));
+
+  RETURN_IF_ERROR(Execute("BEGIN TRANSACTION;"));
+  absl::Status status = Execute("INSERT INTO sessions (id, context_size, active_skills) SELECT ?, context_size, active_skills "
+                                "FROM sessions WHERE id = ?;",
+                                {target_id, source_id});
+  if (!status.ok()) return RollbackTransaction(this, status);
+  status = Execute(
+      "INSERT INTO messages (session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens) "
+      "SELECT ?, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+      "FROM messages WHERE session_id = ? AND status != 'dropped' AND (created_at < ? OR (created_at = ? AND id <= ?)) "
+      "ORDER BY created_at ASC, id ASC;",
+      {target_id, source_id, cutoff.created_at, cutoff.created_at, std::to_string(cutoff.id)});
+  if (!status.ok()) return RollbackTransaction(this, status);
+  status = Execute(
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, created_at) "
+      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, created_at FROM usage "
+      "WHERE session_id = ? AND created_at <= ?;",
+      {target_id, source_id, cutoff.created_at});
+  if (!status.ok()) return RollbackTransaction(this, status);
+  status = Execute(
+      "INSERT INTO scratchpads (session_id, content, updated_at) SELECT ?, content, updated_at FROM scratchpads "
+      "WHERE session_id = ? ON CONFLICT(session_id) DO UPDATE SET content = excluded.content, "
+      "updated_at = excluded.updated_at;",
+      {target_id, source_id});
+  if (!status.ok()) return RollbackTransaction(this, status);
+  return Execute("COMMIT;");
+}
+
+absl::Status Database::RollbackSessionToGroup(const std::string& session_id, const std::string& group_id) {
+  RETURN_IF_ERROR(SessionExists(this, session_id));
+  ASSIGN_OR_RETURN(Database::Message cutoff, LastMessageForGroup(this, session_id, group_id));
+
+  RETURN_IF_ERROR(Execute("BEGIN TRANSACTION;"));
+  absl::Status status = Execute("UPDATE messages SET status = 'dropped' WHERE session_id = ? "
+                                "AND (created_at > ? OR (created_at = ? AND id > ?));",
+                                {session_id, cutoff.created_at, cutoff.created_at, std::to_string(cutoff.id)});
+  if (!status.ok()) return RollbackTransaction(this, status);
+  status = Execute("DELETE FROM usage WHERE session_id = ? AND created_at > ?;", {session_id, cutoff.created_at});
+  if (!status.ok()) return RollbackTransaction(this, status);
+  status = Execute("DELETE FROM session_state WHERE session_id = ?;", session_id);
+  if (!status.ok()) return RollbackTransaction(this, status);
+  return Execute("COMMIT;");
+}
+
 absl::StatusOr<std::string> Database::Query(const std::string& sql) { return Query(sql, {}); }
 absl::StatusOr<std::string> Database::Query(const std::string& sql, const std::vector<std::string>& params) {
   auto stmt_or = Prepare(sql);

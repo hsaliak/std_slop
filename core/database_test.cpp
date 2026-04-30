@@ -208,6 +208,70 @@ TEST(DatabaseTest, TokenPersistence) {
   EXPECT_EQ((*history)[0].tokens, 10);
   EXPECT_EQ((*history)[1].tokens, 25);
 }
+
+TEST(DatabaseTest, CloneSessionThroughGroupCopiesPrefixOnly) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "a1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "a2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("other", "user", "interleaved", "", "completed", "other_g").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u3", "", "completed", "g3").ok());
+  ASSERT_TRUE(db.UpdateMessageStatus(3, "dropped").ok());
+  ASSERT_TRUE(db.SetScratchpad("s1", "scratch").ok());
+  ASSERT_TRUE(db.SetSessionState("s1", "stale state").ok());
+
+  ASSERT_TRUE(db.CloneSessionThroughGroup("s1", "s2", "g2").ok());
+
+  auto history = db.GetConversationHistory("s2");
+  ASSERT_TRUE(history.ok());
+  ASSERT_EQ(history->size(), 3);
+  EXPECT_EQ((*history)[0].content, "u1");
+  EXPECT_EQ((*history)[1].content, "a1");
+  EXPECT_EQ((*history)[2].content, "a2");
+  auto scratchpad = db.GetScratchpad("s2");
+  ASSERT_TRUE(scratchpad.ok());
+  EXPECT_EQ(*scratchpad, "scratch");
+  auto state = db.GetSessionState("s2");
+  EXPECT_FALSE(state.ok());
+}
+
+TEST(DatabaseTest, CloneSessionThroughGroupRejectsMissingGroupAndExistingTarget) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("target", "user", "existing").ok());
+
+  EXPECT_FALSE(db.CloneSessionThroughGroup("s1", "new_target", "missing").ok());
+  EXPECT_FALSE(db.CloneSessionThroughGroup("s1", "target", "g1").ok());
+}
+
+TEST(DatabaseTest, RollbackSessionToGroupDropsLaterMessages) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "a1", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "a2", "", "completed", "g2").ok());
+  ASSERT_TRUE(db.AppendMessage("other", "user", "interleaved", "", "completed", "other_g").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "u3", "", "completed", "g3").ok());
+  ASSERT_TRUE(db.SetSessionState("s1", "stale state").ok());
+
+  ASSERT_TRUE(db.RollbackSessionToGroup("s1", "g2").ok());
+
+  auto visible = db.GetConversationHistory("s1");
+  ASSERT_TRUE(visible.ok());
+  ASSERT_EQ(visible->size(), 4);
+  EXPECT_EQ((*visible)[3].content, "a2");
+  auto all = db.GetConversationHistory("s1", true);
+  ASSERT_TRUE(all.ok());
+  ASSERT_EQ(all->size(), 5);
+  EXPECT_EQ((*all)[4].status, "dropped");
+  auto state = db.GetSessionState("s1");
+  EXPECT_FALSE(state.ok());
+}
+
 TEST(DatabaseTest, GetConversationHistoryWindowed) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
