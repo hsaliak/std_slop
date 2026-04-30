@@ -78,18 +78,29 @@ bool IsSafeBranchToken(std::string_view name) {
   });
 }
 
-std::string BuildSessionCompactSummary(const std::vector<Database::Message>& messages) {
-  std::string summary = "Compacted session summary:\n";
+std::string BuildSessionCompactPrompt(const std::vector<Database::Message>& messages) {
+  std::string prompt = R"(You are compacting a coding-agent conversation so it can be continued in another session.
+
+Summarize the conversation below into one compact handoff message. Preserve:
+- the user's goal and constraints,
+- concrete decisions and implemented behavior,
+- files, commands, tests, errors, and validation evidence,
+- unresolved blockers and exact next steps,
+- any stable technical anchors such as commit hashes, session names, group IDs, paths, constants, ports, or API shapes.
+
+Omit chit-chat and redundant transcript detail. Do not invent facts. Output only the compacted summary in Markdown.
+)";
   if (messages.empty()) {
-    absl::StrAppend(&summary, "\nNo prior messages.\n");
-    return summary;
+    absl::StrAppend(&prompt, "\nConversation to compact: no prior messages.\n");
+    return prompt;
   }
+  absl::StrAppend(&prompt, "\nConversation to compact:\n");
   for (const auto& message : messages) {
-    absl::StrAppend(&summary, "\n[", message.role, "]");
-    if (!message.group_id.empty()) absl::StrAppend(&summary, " (", message.group_id, ")");
-    absl::StrAppend(&summary, "\n", message.content, "\n");
+    absl::StrAppend(&prompt, "\n[", message.role, "]");
+    if (!message.group_id.empty()) absl::StrAppend(&prompt, " (group: ", message.group_id, ")");
+    absl::StrAppend(&prompt, "\n", message.content, "\n");
   }
-  return summary;
+  return prompt;
 }
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
@@ -575,15 +586,20 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
       if (!history_or.ok()) {
         HandleStatus(history_or.status(), "reading session history");
       } else {
-        const std::string summary = BuildSessionCompactSummary(*history_or);
-        auto status = db_->AppendMessage(target_session, "assistant", summary, "", "completed", "compact");
-        if (status.ok()) {
-          args.session_id = target_session;
-          std::cout << "Compacted current session into: " << target_session << std::endl;
-          std::cout << "Switched to session: " << target_session << std::endl;
-          if (orchestrator_) (void)orchestrator_->RebuildContext(target_session);
+        const std::string prompt = BuildSessionCompactPrompt(*history_or);
+        auto summary_or = GenerateCompactSummary(prompt, args.active_skills);
+        if (!summary_or.ok()) {
+          HandleStatus(summary_or.status(), "generating compact summary");
         } else {
-          HandleStatus(status, "compacting session");
+          auto status = db_->AppendMessage(target_session, "assistant", *summary_or, "", "completed", "compact");
+          if (status.ok()) {
+            args.session_id = target_session;
+            std::cout << "Compacted current session into: " << target_session << std::endl;
+            std::cout << "Switched to session: " << target_session << std::endl;
+            if (orchestrator_) (void)orchestrator_->RebuildContext(target_session);
+          } else {
+            HandleStatus(status, "compacting session");
+          }
         }
       }
     } else {
@@ -833,6 +849,11 @@ absl::StatusOr<std::string> CommandHandler::ExecuteCommand(const std::string& co
     return absl::InternalError(absl::StrCat("Command failed with status ", res->exit_code, ": ", output));
   }
   return output;
+}
+absl::StatusOr<std::string> CommandHandler::GenerateCompactSummary(const std::string& prompt,
+                                                                   const std::vector<std::string>& active_skills) {
+  if (!compact_summary_generator_) return absl::FailedPreconditionError("LLM compact summary generator is not configured");
+  return compact_summary_generator_(prompt, active_skills);
 }
 CommandHandler::Result CommandHandler::HandleReview(CommandArgs& args) {
   auto git_check = ExecuteCommand("git rev-parse --is-inside-work-tree");

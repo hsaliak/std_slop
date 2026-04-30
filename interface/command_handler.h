@@ -13,6 +13,8 @@ namespace slop {
 class OAuthHandler;
 class CommandHandler {
  public:
+  using CompactSummaryFunc =
+      std::function<absl::StatusOr<std::string>(const std::string&, const std::vector<std::string>&)>;
   enum class Result {
     HANDLED,         // Command executed, don't send to LLM
     NOT_A_COMMAND,   // Not a command, send to LLM
@@ -46,6 +48,7 @@ class CommandHandler {
   const absl::flat_hash_map<std::string, std::vector<std::string>>& GetSubCommandMap() const { return sub_commands_; }
   bool IsMailMode() const { return mail_mode_; }
   void RefreshMailModeFromDb();
+  void SetCompactSummaryGenerator(CompactSummaryFunc generator) { compact_summary_generator_ = std::move(generator); }
 
  private:
   void RegisterCommands();
@@ -79,6 +82,7 @@ class CommandHandler {
   std::string openai_api_key_;
   absl::flat_hash_map<std::string, CommandFunc> commands_;
   absl::flat_hash_map<std::string, std::vector<std::string>> sub_commands_;
+  CompactSummaryFunc compact_summary_generator_;
 
  protected:
   explicit CommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
@@ -88,6 +92,8 @@ class CommandHandler {
   virtual std::string TriggerEditor(const std::string& initial_content, const std::string& extension);
   // Testing hook for shell commands.
   virtual absl::StatusOr<std::string> ExecuteCommand(const std::string& command);
+  virtual absl::StatusOr<std::string> GenerateCompactSummary(const std::string& prompt,
+                                                             const std::vector<std::string>& active_skills);
   bool IsDetachedHead(const std::string& branch) const;
   std::string ResolveBaseBranch(const std::string& current_branch);
   // Helper methods for Markdown editing
