@@ -248,6 +248,42 @@ absl::StatusOr<std::vector<ToolCall>> GeminiOrchestrator::ParseToolCalls(const D
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 
+absl::StatusOr<std::string> GeminiOrchestrator::ExtractAssistantText(const std::string& response_body) {
+  auto j_opt = json_parse(response_body);
+  if (!j_opt) {
+    return absl::InternalError("Failed to parse LLM response");
+  }
+
+  const auto candidates = json_get<nlohmann::json::array_t>(*j_opt, "candidates");
+  if (!candidates || candidates->empty()) {
+    return absl::InternalError("Gemini response missing candidates");
+  }
+  const auto* content = json_at((*candidates)[0], "content");
+  if (content == nullptr) {
+    return absl::InternalError("Gemini response candidate missing content");
+  }
+  const auto parts = json_get<nlohmann::json::array_t>(*content, "parts");
+  if (!parts || parts->empty()) {
+    return absl::InternalError("Gemini response content missing parts");
+  }
+
+  std::string assistant_text;
+  for (const auto& part : *parts) {
+    auto text = json_get<std::string>(part, "text");
+    if (!text || text->empty()) {
+      continue;
+    }
+    if (!assistant_text.empty()) {
+      assistant_text.push_back('\n');
+    }
+    assistant_text.append(*text);
+  }
+  if (assistant_text.empty()) {
+    return absl::InternalError("Gemini response contained no assistant text");
+  }
+  return assistant_text;
+}
+
 absl::StatusOr<std::vector<ModelInfo>> GeminiOrchestrator::GetModels(const std::string& api_key,
                                                                      const std::string& account_id) {
   (void)account_id;

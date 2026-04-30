@@ -64,12 +64,18 @@ class Orchestrator {
   Builder Update() const { return Builder(*this); }
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id,
                                                 const std::vector<std::string>& active_skills = {});
+  absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
+                                                 const std::vector<Database::Message>& history);
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id = "");
   // Rebuilds the session state (### STATE anchor) from the current window's history.
   absl::Status RebuildContext(const std::string& session_id);
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id = "");
+  // Extracts assistant text from a provider response for direct one-shot calls.
+  // Unlike ProcessResponse, this does not persist messages, usage, state, or
+  // tool calls to the database.
+  absl::StatusOr<std::string> ExtractAssistantText(const std::string& response_body);
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
   std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
   // Exposed for rebuilding and testing

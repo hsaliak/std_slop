@@ -24,6 +24,7 @@ class GeminiOrchestrator : public OrchestratorStrategy {
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) override;
 
+  absl::StatusOr<std::string> ExtractAssistantText(const std::string& response_body) override;
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id) override;
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
 

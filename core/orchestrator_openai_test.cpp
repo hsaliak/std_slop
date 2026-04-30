@@ -75,4 +75,18 @@ TEST_F(OpenAiOrchestratorTest, OpenAiProactiveFiltering) {
   EXPECT_TRUE(absl::StrContains(messages[4]["content"].get<std::string>(), "suppressed"));
 }
 
+TEST_F(OpenAiOrchestratorTest, ExtractAssistantTextReadsChatCompletionContent) {
+  OpenAiOrchestrator orchestrator(&db, &http, "gpt-4", "https://api.openai.com/v1");
+  auto text_or = orchestrator.ExtractAssistantText(R"({"choices":[{"message":{"content":"chat compact"}}]})");
+  ASSERT_TRUE(text_or.ok()) << text_or.status();
+  EXPECT_EQ(*text_or, "chat compact");
+}
+
+TEST_F(OpenAiOrchestratorTest, ExtractAssistantTextRejectsMissingContent) {
+  OpenAiOrchestrator orchestrator(&db, &http, "gpt-4", "https://api.openai.com/v1");
+  auto text_or = orchestrator.ExtractAssistantText(R"({"choices":[{"message":{"tool_calls":[]}}]})");
+  ASSERT_FALSE(text_or.ok());
+  EXPECT_EQ(text_or.status().code(), absl::StatusCode::kInternal);
+}
+
 }  // namespace slop

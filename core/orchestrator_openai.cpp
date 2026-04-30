@@ -155,6 +155,27 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiOrchestrator::ParseToolCalls(const D
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 
+absl::StatusOr<std::string> OpenAiOrchestrator::ExtractAssistantText(const std::string& response_body) {
+  auto j_opt = json_parse(response_body);
+  if (!j_opt) {
+    return absl::InternalError("Failed to parse LLM response");
+  }
+
+  const auto choices = json_get<nlohmann::json::array_t>(*j_opt, "choices");
+  if (!choices || choices->empty()) {
+    return absl::InternalError("OpenAI response missing choices");
+  }
+  const auto* msg = json_at((*choices)[0], "message");
+  if (msg == nullptr) {
+    return absl::InternalError("OpenAI response choice missing message");
+  }
+  auto content = json_get<std::string>(*msg, "content");
+  if (!content || content->empty()) {
+    return absl::InternalError("OpenAI response message missing assistant text");
+  }
+  return *content;
+}
+
 absl::StatusOr<std::vector<ModelInfo>> OpenAiOrchestrator::GetModels(const std::string& api_key,
                                                                      const std::string& account_id) {
   return GetOpenAiModels(http_client_, base_url_, api_key, account_id);

@@ -114,6 +114,22 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSsePayload) {
   EXPECT_EQ((*history_or)[0].content, "Hello from SSE");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ExtractAssistantTextParsesSsePayload) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
+  const std::string sse_payload =
+      "event: response.output_text.delta\n"
+      "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Compact\"}\n\n"
+      "event: response.output_text.delta\n"
+      "data: {\"type\":\"response.output_text.delta\",\"delta\":\" summary\"}\n\n"
+      "event: response.completed\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\","
+      "\"usage\":{\"input_tokens\":2,\"output_tokens\":3}}}\n\n";
+
+  auto text_or = orchestrator.ExtractAssistantText(sse_payload);
+  ASSERT_TRUE(text_or.ok()) << text_or.status();
+  EXPECT_EQ(*text_or, "Compact summary");
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSseTextDeltas) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
   const std::string sse_payload =

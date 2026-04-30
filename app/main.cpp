@@ -389,8 +389,8 @@ int main(int argc, char* argv[]) {
     return engine.Query(query, engine_config, skills, query_options);
   };
 
-  cmd_handler.SetCompactSummaryGenerator([llm_query_invoker](const std::string& prompt, const std::vector<std::string>& skills) {
-    return llm_query_invoker(prompt, skills, {"compact", std::nullopt, 0, slop::LlmQueryOptions::ExecutionScope::kRoot, 0});
+  cmd_handler.SetCompactSummaryGenerator([&engine, engine_config](const std::string& prompt, const std::vector<std::string>& skills) {
+    return engine.GenerateOneShot(prompt, engine_config, skills);
   });
 
   tool_executor->RegisterTool("llm_query",

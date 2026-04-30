@@ -7,6 +7,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "core/json_utils.h"
 
 #include "core/constants.h"
 #include "core/database.h"
@@ -221,7 +222,7 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
 
   auto orch_or = Orchestrator::Builder(&db, &mock_http)
                      .WithProvider(Orchestrator::Provider::OPENAI)
-                     .WithModel("gpt-5.3-codex")
+                     .WithModel("gpt-5.3-codex:medium")
                      .WithBaseUrl(kOpenAiChatGptCodexBaseUrl)
                      .WithOpenAiApiStyle(Orchestrator::OpenAiApiStyle::RESPONSES)
                      .Build();
@@ -264,6 +265,91 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
   EXPECT_EQ(*result, "ok");
 
   unlink(temp_path);
+}
+
+TEST_F(InteractionEngineTest, GenerateOneShotPostsDirectGeminiPayload) {
+  auto orch_or = Orchestrator::Builder(&db, &mock_http)
+                     .WithProvider(Orchestrator::Provider::GEMINI)
+                     .WithModel("gemini-3-flash-preview")
+                     .Build();
+  ASSERT_TRUE(orch_or.ok());
+  orchestrator = std::move(*orch_or);
+
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.google_api_key = "test-google-key";
+
+  EXPECT_CALL(mock_http, Post(testing::Eq("https://generativelanguage.googleapis.com/v1beta/models/"
+                                         "gemini-3-flash-preview:generateContent?key=test-google-key"),
+                              testing::_, testing::_))
+      .WillOnce(testing::DoAll(
+          testing::WithArg<1>([](const std::string& body) {
+            auto body_json = nlohmann::json::parse(body);
+            ASSERT_TRUE(body_json.contains("system_instruction"));
+            const std::string system_text = body_json["system_instruction"]["parts"][0]["text"].get<std::string>();
+            EXPECT_TRUE(absl::StrContains(system_text, "compacting a coding-agent conversation"));
+            EXPECT_TRUE(absl::StrContains(system_text, "planner"));
+            ASSERT_TRUE(body_json.contains("contents"));
+            ASSERT_EQ(body_json["contents"].size(), 1);
+            EXPECT_EQ(body_json["contents"][0]["role"], "user");
+            EXPECT_TRUE(absl::StrContains(body_json["contents"][0]["parts"][0]["text"].get<std::string>(),
+                                          "compact this conversation"));
+          }),
+          testing::WithArg<2>([](const std::vector<std::string>& headers) {
+            EXPECT_NE(std::find(headers.begin(), headers.end(), "x-goog-api-key: test-google-key"), headers.end());
+          }),
+          testing::Return(json_dump(GeminiResponse("inline compact summary")))));
+
+  auto result = engine.GenerateOneShot("compact this conversation", config, {"planner"});
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, "inline compact summary");
+}
+
+TEST_F(InteractionEngineTest, GenerateOneShotPostsDirectOpenAiResponsesPayloadWithoutTools) {
+  auto orch_or = Orchestrator::Builder(&db, &mock_http)
+                     .WithProvider(Orchestrator::Provider::OPENAI)
+                     .WithModel("gpt-5.3-codex")
+                     .WithBaseUrl(kOpenAiChatGptCodexBaseUrl)
+                     .WithOpenAiApiStyle(Orchestrator::OpenAiApiStyle::RESPONSES)
+                     .Build();
+  ASSERT_TRUE(orch_or.ok());
+  orchestrator = std::move(*orch_or);
+
+  auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "", "");
+  ASSERT_TRUE(cmd_or.ok());
+  cmd_handler = std::move(*cmd_or);
+
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+
+  InteractionEngine::Config config;
+  config.openai_api_key = "test-openai-key";
+  config.openai_base_url = kOpenAiChatGptCodexBaseUrl;
+
+  EXPECT_CALL(mock_http, Post(testing::Eq("https://chatgpt.com/backend-api/codex/responses"), testing::_, testing::_))
+      .WillOnce(testing::DoAll(
+          testing::WithArg<1>([](const std::string& body) {
+            auto body_json = nlohmann::json::parse(body);
+            EXPECT_TRUE(body_json.contains("instructions"));
+            ASSERT_TRUE(body_json.contains("input"));
+            ASSERT_EQ(body_json["input"].size(), 1);
+            EXPECT_TRUE(absl::StrContains(body_json["input"][0]["content"].get<std::string>(),
+                                          "compact responses"));
+            ASSERT_TRUE(body_json.contains("tools"));
+            EXPECT_TRUE(body_json["tools"].empty());
+            EXPECT_EQ(body_json["store"], false);
+          }),
+          testing::WithArg<2>([](const std::vector<std::string>& headers) {
+            EXPECT_NE(std::find(headers.begin(), headers.end(), "Authorization: Bearer test-openai-key"),
+                      headers.end());
+          }),
+          testing::Return(R"({"output":[{"type":"message","content":[{"type":"output_text","text":"responses compact"}]}]})")));
+
+  auto result = engine.GenerateOneShot("compact responses", config, {});
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, "responses compact");
 }
 
 }  // namespace slop

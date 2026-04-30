@@ -145,9 +145,19 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   }
   return payload_or;
 }
+absl::StatusOr<nlohmann::json> Orchestrator::AssemblePayload(const std::string& session_id,
+                                                            const std::string& system_instruction,
+                                                            const std::vector<Database::Message>& history) {
+  if (!strategy_) return absl::FailedPreconditionError("Orchestrator strategy is not configured");
+  return strategy_->AssemblePayload(session_id, system_instruction, history);
+}
 absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                   const std::string& group_id) {
   return strategy_->ProcessResponse(session_id, response_json, group_id);
+}
+absl::StatusOr<std::string> Orchestrator::ExtractAssistantText(const std::string& response_body) {
+  if (!strategy_) return absl::FailedPreconditionError("Orchestrator strategy is not configured");
+  return strategy_->ExtractAssistantText(response_body);
 }
 absl::StatusOr<std::vector<ToolCall>> Orchestrator::ParseToolCalls(const Database::Message& msg) {
   return strategy_->ParseToolCalls(msg);

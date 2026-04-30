@@ -60,6 +60,9 @@ class InteractionEngine {
   // Returns InvalidArgument on malformed values.
   static absl::StatusOr<QueryOptions> NormalizeQueryOptions(const QueryOptions& options);
 
+  absl::StatusOr<std::string> GenerateOneShot(const std::string& prompt, const Config& config,
+                                              const std::vector<std::string>& active_skills = {});
+
   static bool IsValidQueryExecutionContext(const QueryOptions& options);
 
   CommandHandler& GetCommandHandler() { return cmd_handler_; }

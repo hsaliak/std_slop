@@ -408,6 +408,52 @@ absl::StatusOr<std::vector<ToolCall>> OpenAiResponsesOrchestrator::ParseToolCall
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }
 
+absl::StatusOr<std::string> OpenAiResponsesOrchestrator::ExtractAssistantText(const std::string& response_body) {
+  auto j_opt = json_parse(response_body);
+  if (!j_opt) {
+    auto sse_normalized = TryNormalizeSseResponsesPayload(response_body);
+    if (sse_normalized.has_value()) {
+      j_opt = sse_normalized;
+    }
+  }
+  if (!j_opt) {
+    return absl::InternalError("Failed to parse LLM response");
+  }
+
+  const auto output = json_get<nlohmann::json::array_t>(*j_opt, "output");
+  if (!output || output->empty()) {
+    return absl::InternalError("OpenAI Responses payload missing output");
+  }
+
+  std::string assistant_text;
+  for (const auto& item : *output) {
+    if (json_get_or(item, "type", std::string{}) != "message") {
+      continue;
+    }
+    const auto content = json_get<nlohmann::json::array_t>(item, "content");
+    if (!content) {
+      continue;
+    }
+    for (const auto& part : *content) {
+      if (json_get_or(part, "type", std::string{}) != "output_text") {
+        continue;
+      }
+      const std::string text = json_get_or(part, "text", std::string{});
+      if (text.empty()) {
+        continue;
+      }
+      if (!assistant_text.empty()) {
+        assistant_text.push_back('\n');
+      }
+      assistant_text.append(text);
+    }
+  }
+  if (assistant_text.empty()) {
+    return absl::InternalError("OpenAI Responses output contained no assistant text");
+  }
+  return assistant_text;
+}
+
 absl::StatusOr<std::vector<ModelInfo>> OpenAiResponsesOrchestrator::GetModels(const std::string& api_key,
                                                                               const std::string& account_id) {
   return GetOpenAiModels(http_client_, base_url_, api_key, account_id);

@@ -45,6 +45,10 @@ class OrchestratorStrategy {
   // Extracts ToolCalls from a database message.
   virtual absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) = 0;
 
+  // Extracts assistant text from a one-shot provider response without writing
+  // conversation state or tool calls to the database.
+  virtual absl::StatusOr<std::string> ExtractAssistantText(const std::string& response_body) = 0;
+
   // Provider-specific API interactions.
   virtual absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key,
                                                            const std::string& account_id) = 0;
