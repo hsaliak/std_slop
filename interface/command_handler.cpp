@@ -573,8 +573,12 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     }
   } else if (sub_cmd == "switch") {
     std::vector<std::string> switch_parts = absl::StrSplit(sub_args, absl::MaxSplits(' ', 1));
-    const std::string target_session = switch_parts.empty() ? "" : switch_parts[0];
-    const std::string switch_mode = (switch_parts.size() > 1) ? switch_parts[1] : "";
+    std::string target_session = switch_parts.empty() ? "" : switch_parts[0];
+    std::string switch_mode = (switch_parts.size() > 1) ? switch_parts[1] : "";
+    if (!switch_mode.empty() && switch_mode != "compact" && !IsSafeBranchToken(switch_mode)) {
+      target_session = sub_args;
+      switch_mode.clear();
+    }
     if (target_session.empty()) {
       std::cout << "Usage: /session switch <name> [group|compact]" << std::endl;
     } else if (switch_mode.empty()) {
