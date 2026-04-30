@@ -10,7 +10,7 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
       {"/session",
        {"list", "switch", "rollback", "remove", "clear", "clone"},
        {},
-       {"/session list", "/session switch <name> [group|compact]", "/session rollback <group>",
+       {"/session list", "/session switch <name> [group]", "/session rollback <group>",
         "/session remove <name>", "/session clear", "/session clone <name>"},
        "Session & Memory"},
       {"/agents_md",

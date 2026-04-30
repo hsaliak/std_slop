@@ -19,10 +19,6 @@ class TestableCommandHandler : public CommandHandler {
   bool editor_was_called = false;
   absl::flat_hash_map<std::string, absl::StatusOr<std::string>> command_responses;
   std::vector<std::string> executed_commands;
-  std::string compact_prompt;
-  std::string compact_summary = "LLM compact summary";
-  std::vector<std::string> compact_active_skills;
-  absl::Status compact_status = absl::OkStatus();
 
  protected:
   std::string TriggerEditor(const std::string& initial_content, const std::string& extension) override {
@@ -37,13 +33,6 @@ class TestableCommandHandler : public CommandHandler {
       return command_responses.at(command);
     }
     return "";
-  }
-  absl::StatusOr<std::string> GenerateCompactSummary(const std::string& prompt,
-                                                     const std::vector<std::string>& active_skills) override {
-    compact_prompt = prompt;
-    compact_active_skills = active_skills;
-    if (!compact_status.ok()) return compact_status;
-    return compact_summary;
   }
 };
 class CommandHandlerTest : public ::testing::Test {
@@ -140,32 +129,6 @@ TEST_F(CommandHandlerTest, SessionSwitchThroughGroupCreatesPrefixSessionAndSwitc
   ASSERT_TRUE(history.ok());
   ASSERT_EQ(history->size(), 4);
   EXPECT_EQ((*history)[3].content, "a2");
-}
-
-TEST_F(CommandHandlerTest, SessionSwitchCompactAppendsSummaryToExistingSessionAndSwitches) {
-  TestableCommandHandler handler(&db);
-  std::string sid = "s1";
-  std::vector<std::string> active_skills = {"planner"};
-  ASSERT_TRUE(db.AppendMessage(sid, "user", "hello", "", "completed", "g1").ok());
-  handler.compact_summary = "Summarized by the LLM";
-
-  std::string input = "/session switch target compact";
-  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
-
-  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-  EXPECT_EQ(sid, "target");
-  EXPECT_TRUE(absl::StrContains(handler.compact_prompt, "You are compacting a coding-agent conversation"));
-  EXPECT_TRUE(absl::StrContains(handler.compact_prompt, "Output only the compacted summary in Markdown"));
-  EXPECT_TRUE(absl::StrContains(handler.compact_prompt, "[user] (group: g1)"));
-  EXPECT_TRUE(absl::StrContains(handler.compact_prompt, "hello"));
-  ASSERT_EQ(handler.compact_active_skills.size(), 1);
-  EXPECT_EQ(handler.compact_active_skills[0], "planner");
-  auto history = db.GetConversationHistory("target");
-  ASSERT_TRUE(history.ok());
-  ASSERT_EQ(history->size(), 1);
-  EXPECT_EQ((*history)[0].role, "assistant");
-  EXPECT_EQ((*history)[0].group_id, "compact");
-  EXPECT_EQ((*history)[0].content, "Summarized by the LLM");
 }
 
 TEST_F(CommandHandlerTest, SessionRollbackDropsLaterMessages) {

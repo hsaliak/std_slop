@@ -389,10 +389,6 @@ int main(int argc, char* argv[]) {
     return engine.Query(query, engine_config, skills, query_options);
   };
 
-  cmd_handler.SetCompactSummaryGenerator([&engine, engine_config](const std::string& prompt, const std::vector<std::string>& skills) {
-    return engine.GenerateOneShot(prompt, engine_config, skills);
-  });
-
   tool_executor->RegisterTool("llm_query",
                               [llm_query_invoker, active_skills](
                                   const nlohmann::json& args,

@@ -28,52 +28,6 @@
 namespace slop {
 namespace {
 
-constexpr absl::string_view kCompactSessionId = "__compact_one_shot__";
-
-std::string BuildOneShotSystemInstruction(const std::vector<std::string>& active_skills) {
-  std::string instruction =
-      "You are compacting a coding-agent conversation so it can be continued in another session. "
-      "Follow the user's compaction prompt exactly. Output only the requested compacted summary.";
-  if (!active_skills.empty()) {
-    absl::StrAppend(&instruction, "\n\nActive skills for context: ");
-    for (size_t i = 0; i < active_skills.size(); ++i) {
-      if (i > 0) {
-        absl::StrAppend(&instruction, ", ");
-      }
-      absl::StrAppend(&instruction, active_skills[i]);
-    }
-  }
-  return instruction;
-}
-
-Database::Message OneShotUserMessage(const std::string& prompt) {
-  Database::Message msg;
-  msg.role = "user";
-  msg.content = prompt;
-  return msg;
-}
-
-absl::StatusOr<std::vector<std::string>> BuildRequestHeaders(Orchestrator& orchestrator,
-                                                             const InteractionEngine::Config& config,
-                                                             OAuthHandler* oauth_handler) {
-  std::vector<std::string> headers = {"Content-Type: application/json"};
-  headers.push_back(std::string("User-Agent: ") + kUserAgent);
-  if (orchestrator.GetProvider() == Orchestrator::Provider::OPENAI) {
-    std::string bearer_token = config.openai_api_key;
-    if (config.openai_oauth && oauth_handler != nullptr) {
-      ASSIGN_OR_RETURN(bearer_token, oauth_handler->GetValidToken());
-      auto account_id_or = oauth_handler->GetOpenAiAccountId();
-      if (account_id_or.ok() && !account_id_or->empty()) {
-        headers.push_back("ChatGPT-Account-Id: " + *account_id_or);
-      }
-    }
-    headers.push_back("Authorization: Bearer " + bearer_token);
-  } else {
-    headers.push_back("x-goog-api-key: " + config.google_api_key);
-  }
-  return headers;
-}
-
 }  // namespace
 
 InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler,
@@ -473,43 +427,9 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   return Query(prompt, config, active_skills, options);
 }
 
-absl::StatusOr<std::string> InteractionEngine::GenerateOneShot(const std::string& prompt, const Config& config,
-                                                               const std::vector<std::string>& active_skills) {
-  const std::string system_instruction = BuildOneShotSystemInstruction(active_skills);
-  const std::vector<Database::Message> history = {OneShotUserMessage(prompt)};
-  auto payload_or = orchestrator_.AssemblePayload(std::string(kCompactSessionId), system_instruction, history);
-  if (!payload_or.ok()) {
-    return payload_or.status();
-  }
-  const bool use_openai_responses =
-      orchestrator_.GetOpenAiApiStyle() == Orchestrator::OpenAiApiStyle::RESPONSES;
-  if (orchestrator_.GetProvider() == Orchestrator::Provider::OPENAI && use_openai_responses) {
-    (*payload_or)["tools"] = nlohmann::json::array();
-    (*payload_or)["store"] = false;
-    (*payload_or)["stream"] = false;
-  }
-
-  ASSIGN_OR_RETURN(std::vector<std::string> headers,
-                   BuildRequestHeaders(orchestrator_, config, oauth_handler_.get()));
-  std::string url;
-  if (orchestrator_.GetProvider() == Orchestrator::Provider::OPENAI) {
-    const std::string default_openai_base_url =
-        config.openai_oauth ? std::string(kOpenAiChatGptCodexBaseUrl) : std::string(kOpenAIBaseUrl);
-    const std::string resolved_openai_base_url =
-        !config.openai_base_url.empty() ? config.openai_base_url : default_openai_base_url;
-    const std::string openai_endpoint = use_openai_responses ? "/responses" : "/chat/completions";
-    url = resolved_openai_base_url + openai_endpoint;
-  } else {
-    url = absl::StrCat(kPublicGeminiBaseUrl, "/models/", orchestrator_.GetModel(), ":generateContent?key=",
-                       config.google_api_key);
-  }
-  ASSIGN_OR_RETURN(std::string response_body, http_client_.Post(url, json_dump(*payload_or), headers));
-  return orchestrator_.ExtractAssistantText(response_body);
-}
-
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,
-                                                     const std::vector<std::string>& active_skills,
-                                                     const QueryOptions& options) {
+                                                      const std::vector<std::string>& active_skills,
+                                                      const QueryOptions& options) {
   ASSIGN_OR_RETURN(QueryOptions normalized_options, NormalizeQueryOptions(options));
   const QueryOptions& effective_options = normalized_options;
 
