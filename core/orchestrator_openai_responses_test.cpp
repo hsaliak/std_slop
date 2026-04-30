@@ -154,6 +154,84 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSseTextDeltas) {
   EXPECT_EQ((*history_or)[0].content, "Hello world");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ExtractAssistantTextParsesCompletedResponseOutput) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
+  const std::string sse_payload =
+      "event: response.created\n"
+      "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp1\",\"output\":[]}}\n\n"
+      "event: response.completed\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\","
+      "\"usage\":{\"input_tokens\":4,\"output_tokens\":5},\"output\":[{"
+      "\"type\":\"message\",\"role\":\"assistant\",\"content\":[{"
+      "\"type\":\"output_text\",\"text\":\"Completed compact summary\"}]}]}}\n\n";
+
+  auto text_or = orchestrator.ExtractAssistantText(sse_payload);
+  ASSERT_TRUE(text_or.ok()) << text_or.status();
+  EXPECT_EQ(*text_or, "Completed compact summary");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ExtractAssistantTextDoesNotDuplicateCompletedResponseOutput) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
+  const std::string sse_payload =
+      "event: response.output_item.done\n"
+      "data: {\"type\":\"response.output_item.done\",\"item\":{"
+      "\"type\":\"message\",\"role\":\"assistant\",\"content\":[{"
+      "\"type\":\"output_text\",\"text\":\"Already streamed\"}]}}\n\n"
+      "event: response.completed\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\","
+      "\"usage\":{\"input_tokens\":4,\"output_tokens\":5},\"output\":[{"
+      "\"type\":\"message\",\"role\":\"assistant\",\"content\":[{"
+      "\"type\":\"output_text\",\"text\":\"Already streamed\"}]}]}}\n\n";
+
+  auto text_or = orchestrator.ExtractAssistantText(sse_payload);
+  ASSERT_TRUE(text_or.ok()) << text_or.status();
+  EXPECT_EQ(*text_or, "Already streamed");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSseOutputTextDoneFallback) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
+  const std::string sse_payload =
+      "event: response.created\n"
+      "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp1\",\"output\":[]}}\n\n"
+      "event: response.output_text.done\n"
+      "data: {\"type\":\"response.output_text.done\",\"text\":\"Done compact summary\"}\n\n"
+      "event: response.completed\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\","
+      "\"usage\":{\"input_tokens\":6,\"output_tokens\":7}}}\n\n";
+
+  auto st_or = orchestrator.ProcessResponse("s1", sse_payload, "g1");
+  ASSERT_TRUE(st_or.ok()) << st_or.status();
+  EXPECT_EQ(*st_or, 13);
+
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 1);
+  EXPECT_EQ((*history_or)[0].role, "assistant");
+  EXPECT_EQ((*history_or)[0].content, "Done compact summary");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseUsesOutputTextDoneAsFinalText) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
+  const std::string sse_payload =
+      "event: response.output_text.delta\n"
+      "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Part\"}\n\n"
+      "event: response.output_text.delta\n"
+      "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ial\"}\n\n"
+      "event: response.output_text.done\n"
+      "data: {\"type\":\"response.output_text.done\",\"text\":\"Final compact summary\"}\n\n"
+      "event: response.completed\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\","
+      "\"usage\":{\"input_tokens\":6,\"output_tokens\":7}}}\n\n";
+
+  auto st_or = orchestrator.ProcessResponse("s1", sse_payload, "g1");
+  ASSERT_TRUE(st_or.ok()) << st_or.status();
+
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 1);
+  EXPECT_EQ((*history_or)[0].content, "Final compact summary");
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseDoesNotDuplicateSseAssistantText) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
   const std::string sse_payload =

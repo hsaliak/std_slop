@@ -4,6 +4,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
@@ -57,7 +58,9 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
   nlohmann::json usage;
   bool saw_stream_event = false;
   std::string output_text_delta;
+  std::string output_text_done;
   bool saw_output_text_item = false;
+  absl::flat_hash_set<std::string> seen_message_texts;
 
   const auto upsert_output_item = [&](const nlohmann::json& item) {
     const std::string type = json_get_or(item, "type", std::string{});
@@ -74,6 +77,13 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
       }
     }
     if (type != "function_call") {
+      const std::string text_key = json_dump(item);
+      if (type == "message" && seen_message_texts.contains(text_key)) {
+        return;
+      }
+      if (type == "message") {
+        seen_message_texts.insert(text_key);
+      }
       output.push_back(item);
       return;
     }
@@ -115,6 +125,16 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
     }
   };
 
+  const auto merge_response_output = [&](const nlohmann::json& response) {
+    const auto response_output = json_get<nlohmann::json::array_t>(response, "output");
+    if (!response_output) {
+      return;
+    }
+    for (const auto& item : *response_output) {
+      upsert_output_item(item);
+    }
+  };
+
   std::string event_data;
   const auto flush_event = [&]() {
     if (event_data.empty()) {
@@ -142,6 +162,10 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
       }
       return;
     }
+    if (type == "response.output_text.done") {
+      output_text_done = json_get_or(evt, "text", std::string{});
+      return;
+    }
     if (type == "response.completed" || type == "response.done") {
       const auto* response = json_at(evt, "response");
       if (response != nullptr) {
@@ -149,6 +173,7 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
         if (usage_obj != nullptr) {
           usage = *usage_obj;
         }
+        merge_response_output(*response);
       }
     }
   };
@@ -182,10 +207,11 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
   if (!saw_stream_event) {
     return std::nullopt;
   }
-  if (!output_text_delta.empty() && !saw_output_text_item) {
+  const std::string fallback_text = !output_text_done.empty() ? output_text_done : output_text_delta;
+  if (!fallback_text.empty() && !saw_output_text_item) {
     output.push_back({{"type", "message"},
                       {"role", "assistant"},
-                      {"content", nlohmann::json::array({{{"type", "output_text"}, {"text", output_text_delta}}})}});
+                      {"content", nlohmann::json::array({{{"type", "output_text"}, {"text", fallback_text}}})}});
   }
 
   nlohmann::json normalized = {{"output", output}};
