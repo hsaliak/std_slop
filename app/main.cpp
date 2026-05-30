@@ -29,6 +29,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#include "app/prompt_mode.h"
 #include "core/cancellation.h"
 #include "core/config.h"
 #include "core/constants.h"
@@ -67,8 +68,11 @@ ABSL_FLAG(bool, fetch_openai_oauth_device_token, false,
 
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
+ABSL_FLAG(std::string, prompt_file, "", "Read a single batch-mode prompt from this file and exit");
+ABSL_FLAG(bool, prompt_stdin, false, "Read a single batch-mode prompt from stdin and exit");
 ABSL_FLAG(std::string, prompt_db, "",
           "Database to use for batch mode. Defaults to in-memory (':memory:'). Mutually exclusive with --db.");
+ABSL_FLAG(std::string, output, "text", "Prompt-mode output format: text or json");
 
 // Help text is now in interface/ui.h
 
@@ -105,6 +109,20 @@ class FileLogSink : public absl::LogSink {
   std::mutex mu_;
   std::ofstream file_;
 };
+
+int ReturnPromptPreflightError(const absl::Status& status, const std::string& output_mode) {
+  if (output_mode == "json") {
+    slop::InteractionEngine::PromptRunResult result;
+    result.ok = false;
+    result.session_id = absl::GetFlag(FLAGS_session).empty() ? "default_session" : absl::GetFlag(FLAGS_session);
+    result.error_code = absl::StatusCodeToString(status.code());
+    result.error_message = std::string(status.message());
+    std::cout << slop::PromptRunResultToJson(result) << std::endl;
+  } else {
+    std::cerr << "Error: " << status.message() << std::endl;
+  }
+  return 1;
+}
 
 void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slop::Orchestrator& orchestrator,
                         slop::ToolExecutor& tool_executor, std::string& session_id,
@@ -178,17 +196,33 @@ int main(int argc, char* argv[]) {
     absl::AddLogSink(log_sink.get());
   }
 
-  std::string prompt = absl::GetFlag(FLAGS_prompt);
+  slop::PromptInputFlags prompt_flags{absl::GetFlag(FLAGS_prompt), absl::GetFlag(FLAGS_prompt_file),
+                                      absl::GetFlag(FLAGS_prompt_stdin)};
+  const bool has_prompt_input = slop::HasPromptInputSource(prompt_flags);
+  std::string output_mode = absl::GetFlag(FLAGS_output);
+  if (auto status = slop::ValidatePromptOutputMode(output_mode); !status.ok()) {
+    return ReturnPromptPreflightError(status, "text");
+  }
+  if (output_mode == "json" && !has_prompt_input) {
+    return ReturnPromptPreflightError(absl::InvalidArgumentError("--output=json requires prompt mode."), output_mode);
+  }
+  absl::StatusOr<std::string> prompt_or;
+  if (has_prompt_input) {
+    prompt_or = slop::ResolvePromptInput(prompt_flags, &std::cin);
+    if (!prompt_or.ok()) {
+      return ReturnPromptPreflightError(prompt_or.status(), output_mode);
+    }
+  }
   const bool fetch_openai_oauth_token = absl::GetFlag(FLAGS_fetch_openai_oauth_token);
   const bool fetch_openai_oauth_device_token = absl::GetFlag(FLAGS_fetch_openai_oauth_device_token);
   std::string db_path;
 
-  if (!prompt.empty()) {
+  if (has_prompt_input) {
     // Batch mode defaults to in-memory database unless --prompt-db is specified.
     // --db is forbidden on the command line in batch mode to prevent accidental
     // pollution of the main database.
     if (db_on_cli) {
-      std::cerr << "Error: --db and --prompt are mutually exclusive. Use --prompt-db "
+      std::cerr << "Error: --db and prompt mode are mutually exclusive. Use --prompt-db "
                    "if you need a persistent database for a single prompt."
                 << std::endl;
       return 1;
@@ -298,7 +332,7 @@ int main(int argc, char* argv[]) {
     if (openai_oauth) {
       resolved_openai_base_url = slop::kOpenAiChatGptCodexBaseUrl;
       if (!openai_base_url.empty()) {
-        std::cout << "--openai_base_url ignored in --openai_oauth mode; using " << slop::kOpenAiChatGptCodexBaseUrl
+        std::cerr << "--openai_base_url ignored in --openai_oauth mode; using " << slop::kOpenAiChatGptCodexBaseUrl
                   << "." << std::endl;
       }
     } else {
@@ -359,7 +393,11 @@ int main(int argc, char* argv[]) {
   std::string session_id = absl::GetFlag(FLAGS_session);
   if (session_id.empty()) {
     session_id = "default_session";
-    std::cout << "Using default session: " << session_id << std::endl;
+    if (output_mode == "json") {
+      std::cerr << "Using default session: " << session_id << std::endl;
+    } else {
+      std::cout << "Using default session: " << session_id << std::endl;
+    }
   }
   tool_executor->SetSessionId(session_id);
 
@@ -417,10 +455,22 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  std::string batch_prompt = absl::GetFlag(FLAGS_prompt);
-  if (!batch_prompt.empty()) {
+  if (has_prompt_input) {
     engine_config.is_batch_mode = true;
-    engine.Process(batch_prompt, session_id, active_skills, engine_config);
+    if (output_mode == "json") {
+      engine_config.silent = true;
+    }
+    slop::InteractionEngine::PromptRunResult result =
+        engine.ProcessPrompt(*prompt_or, session_id, active_skills, engine_config);
+    if (output_mode == "json") {
+      std::cout << slop::PromptRunResultToJson(result) << std::endl;
+    }
+    if (!result.ok) {
+      if (output_mode != "json") {
+        std::cerr << "Error: " << result.error_message << std::endl;
+      }
+      return 1;
+    }
   } else {
     RunInteractiveLoop(engine, db, *orchestrator, *tool_executor, session_id, engine_config);
   }

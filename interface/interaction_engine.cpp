@@ -15,6 +15,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "core/cancellation.h"
 #include "core/constants.h"
@@ -392,6 +393,46 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   }
 
   return true;
+}
+
+InteractionEngine::PromptRunResult InteractionEngine::ProcessPrompt(std::string input, std::string session_id,
+                                                                    std::vector<std::string> active_skills,
+                                                                    Config config) {
+  const absl::Time start = absl::Now();
+  config.is_batch_mode = true;
+  PromptRunResult result;
+  result.session_id = session_id;
+  result.model = orchestrator_.GetModel();
+  result.active_skills = active_skills;
+
+  const bool process_ok = Process(input, session_id, active_skills, config);
+  result.session_id = session_id;
+  result.active_skills = active_skills;
+  result.duration_ms = absl::ToInt64Milliseconds(absl::Now() - start);
+  if (!process_ok) {
+    result.ok = false;
+    result.error_code = "cancelled";
+    result.error_message = "Prompt processing did not complete.";
+    return result;
+  }
+
+  auto history_or = db_.GetConversationHistory(session_id, false, 1);
+  if (!history_or.ok()) {
+    result.ok = false;
+    result.error_code = "internal";
+    result.error_message = std::string(history_or.status().message());
+    return result;
+  }
+  if (history_or->empty() || history_or->back().role != "assistant") {
+    result.ok = false;
+    result.error_code = "not_found";
+    result.error_message = "No assistant response found.";
+    return result;
+  }
+
+  result.ok = true;
+  result.assistant_message = history_or->back().content;
+  return result;
 }
 
 absl::StatusOr<InteractionEngine::QueryOptions> InteractionEngine::NormalizeQueryOptions(const QueryOptions& options) {

@@ -50,6 +50,20 @@ For quick one-off tasks, you can use **Batch Mode**:
 ```bash
 std_slop --prompt "Refactor main.cpp to remove all unused includes" 
 ```
+Batch mode also accepts prompts from files or stdin:
+```bash
+std_slop --prompt-file task.md
+cat task.md | std_slop --prompt -
+cat task.md | std_slop --prompt-stdin
+```
+Use exactly one prompt source: `--prompt`, `--prompt-file`, or `--prompt-stdin`. `--prompt -` is treated as stdin. Empty prompts are rejected.
+
+For scripts, batch mode can emit one structured JSON object to stdout:
+```bash
+std_slop --prompt-file task.md --output json | jq -r .assistant_message
+```
+The JSON object contains `ok`, `session`, `model`, `active_skills`, `assistant_message`, `error`, and `duration_ms`.
+
 Batch mode also takes in `--model` which is useful to specify the model to use and `--session` which is useful to indicate the session the prompt should be executed under. Batch mode works off an in memory sqlite db. If you want the db persisted you can point it to a DB with the `--prompt-db` argument.
 `/commands` are also supported. 
 

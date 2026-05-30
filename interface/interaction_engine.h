@@ -36,6 +36,20 @@ class InteractionEngine {
   bool Process(std::string& input, std::string& session_id, std::vector<std::string>& active_skills,
                const Config& config);
 
+  struct PromptRunResult {
+    bool ok = false;
+    std::string session_id;
+    std::string model;
+    std::vector<std::string> active_skills;
+    std::string assistant_message;
+    std::string error_code;
+    std::string error_message;
+    int64_t duration_ms = 0;
+  };
+
+  PromptRunResult ProcessPrompt(std::string input, std::string session_id, std::vector<std::string> active_skills,
+                                Config config);
+
   struct QueryOptions {
     enum class ExecutionScope {
       kRoot,

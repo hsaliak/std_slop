@@ -8,6 +8,21 @@ format_test(
 )
 
 cc_library(
+    name = "prompt_mode",
+    srcs = ["prompt_mode.cpp"],
+    hdrs = ["prompt_mode.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:api",
+        "//interface:interaction_engine",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "llm_tool_specializations",
     srcs = ["llm_tool_specializations.cpp"],
     hdrs = ["llm_tool_specializations.h"],
@@ -30,6 +45,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":llm_tool_specializations",
+        ":prompt_mode",
         "//core:api",
         "//core:cancellation",
         "//core:shell_lib",
@@ -50,6 +66,19 @@ cc_binary(
         "@abseil-cpp//absl/time",
         "@nlohmann_json//:json",
         "@sqlite3//:sqlite3",
+    ],
+)
+
+cc_test(
+    name = "prompt_mode_test",
+    srcs = ["prompt_mode_test.cpp"],
+    deps = [
+        ":prompt_mode",
+        "//core:api",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
     ],
 )
 
