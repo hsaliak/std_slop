@@ -292,6 +292,15 @@ TEST(UiTest, GetCliHelpTextOmitsInAppSections) {
   EXPECT_FALSE(absl::StrContains(help, "hey <skill> <query>"));
 }
 
+TEST(UiTest, GetCliHelpTextDocumentsCleanPromptInputContract) {
+  const std::string help = GetCliHelpText();
+
+  EXPECT_TRUE(absl::StrContains(help, "Piped stdin in prompt mode is optional context"));
+  EXPECT_TRUE(absl::StrContains(help, "Specify exactly one instruction source"));
+  EXPECT_FALSE(absl::StrContains(help, "--prompt-stdin"));
+  EXPECT_FALSE(absl::StrContains(help, "--prompt -"));
+}
+
 TEST(UiTest, GetInAppHelpTextShowsSlashCommands) {
   const std::string help = GetInAppHelpText();
 

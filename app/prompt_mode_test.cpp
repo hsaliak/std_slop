@@ -16,41 +16,60 @@ TEST(PromptModeTest, HasPromptInputSourceDetectsAnySource) {
   EXPECT_FALSE(HasPromptInputSource({}));
   EXPECT_TRUE(HasPromptInputSource({.prompt = "hello"}));
   EXPECT_TRUE(HasPromptInputSource({.prompt_file = "task.md"}));
-  EXPECT_TRUE(HasPromptInputSource({.prompt_stdin = true}));
 }
 
-TEST(PromptModeTest, ResolvePromptInputUsesLiteralPrompt) {
+TEST(PromptModeTest, ResolvePromptInputUsesLiteralInstruction) {
   std::istringstream stdin_stream("ignored");
+  auto prompt = ResolvePromptInput({.prompt = "hello"}, &stdin_stream);
+  ASSERT_TRUE(prompt.ok()) << prompt.status();
+  EXPECT_EQ(*prompt, "Context:\nignored\nInstruction:\nhello");
+}
+
+TEST(PromptModeTest, ResolvePromptInputUsesLiteralInstructionWithoutContextStream) {
+  auto prompt = ResolvePromptInput({.prompt = "hello"}, nullptr);
+  ASSERT_TRUE(prompt.ok()) << prompt.status();
+  EXPECT_EQ(*prompt, "hello");
+}
+
+TEST(PromptModeTest, ResolvePromptInputIgnoresWhitespaceOnlyContext) {
+  std::istringstream stdin_stream("  \n\t");
   auto prompt = ResolvePromptInput({.prompt = "hello"}, &stdin_stream);
   ASSERT_TRUE(prompt.ok()) << prompt.status();
   EXPECT_EQ(*prompt, "hello");
 }
 
-TEST(PromptModeTest, ResolvePromptInputReadsFileAndPreservesContent) {
+TEST(PromptModeTest, ResolvePromptInputReadsFileInstructionAndPreservesContent) {
   const std::string path = ::testing::TempDir() + "/prompt_mode_file.md";
   {
     std::ofstream file(path);
     file << "line one\nline two\n";
   }
 
-  std::istringstream stdin_stream("ignored");
+  std::istringstream stdin_stream;
   auto prompt = ResolvePromptInput({.prompt_file = path}, &stdin_stream);
   ASSERT_TRUE(prompt.ok()) << prompt.status();
   EXPECT_EQ(*prompt, "line one\nline two\n");
 }
 
-TEST(PromptModeTest, ResolvePromptInputReadsPromptStdin) {
-  std::istringstream stdin_stream("from stdin\n");
-  auto prompt = ResolvePromptInput({.prompt_stdin = true}, &stdin_stream);
+TEST(PromptModeTest, ResolvePromptInputCombinesStdinContextWithFileInstruction) {
+  const std::string path = ::testing::TempDir() + "/prompt_mode_file.md";
+  {
+    std::ofstream file(path);
+    file << "sort these files\n";
+  }
+
+  std::istringstream stdin_stream("b.cc\na.cc\n");
+  auto prompt = ResolvePromptInput({.prompt_file = path}, &stdin_stream);
   ASSERT_TRUE(prompt.ok()) << prompt.status();
-  EXPECT_EQ(*prompt, "from stdin\n");
+  EXPECT_EQ(*prompt, "Context:\nb.cc\na.cc\n\nInstruction:\nsort these files\n");
 }
 
-TEST(PromptModeTest, ResolvePromptInputReadsPromptDashFromStdin) {
-  std::istringstream stdin_stream("from dash\n");
+TEST(PromptModeTest, ResolvePromptInputRejectsDashPromptAlias) {
+  std::istringstream stdin_stream("context\n");
   auto prompt = ResolvePromptInput({.prompt = "-"}, &stdin_stream);
-  ASSERT_TRUE(prompt.ok()) << prompt.status();
-  EXPECT_EQ(*prompt, "from dash\n");
+  ASSERT_FALSE(prompt.ok());
+  EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(prompt.status().message(), "--prompt=- is not supported"));
 }
 
 TEST(PromptModeTest, ResolvePromptInputRejectsConflicts) {
@@ -58,7 +77,7 @@ TEST(PromptModeTest, ResolvePromptInputRejectsConflicts) {
   auto prompt = ResolvePromptInput({.prompt = "hello", .prompt_file = "task.md"}, &stdin_stream);
   ASSERT_FALSE(prompt.ok());
   EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
-  EXPECT_TRUE(absl::StrContains(prompt.status().message(), "Specify exactly one prompt source"));
+  EXPECT_TRUE(absl::StrContains(prompt.status().message(), "Specify exactly one instruction source"));
 }
 
 TEST(PromptModeTest, ResolvePromptInputRejectsMissingFile) {
@@ -74,6 +93,16 @@ TEST(PromptModeTest, ResolvePromptInputRejectsEmptyPrompt) {
   ASSERT_FALSE(prompt.ok());
   EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
   EXPECT_TRUE(absl::StrContains(prompt.status().message(), "must not be empty"));
+}
+
+TEST(PromptModeTest, ResolvePromptInputRejectsEmptyFileInstruction) {
+  const std::string path = ::testing::TempDir() + "/empty_prompt_mode_file.md";
+  { std::ofstream file(path); }
+
+  std::istringstream stdin_stream("context");
+  auto prompt = ResolvePromptInput({.prompt_file = path}, &stdin_stream);
+  ASSERT_FALSE(prompt.ok());
+  EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
 TEST(PromptModeTest, ValidatePromptOutputModeAcceptsTextAndJson) {

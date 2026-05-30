@@ -8,6 +8,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 #include "absl/debugging/failure_signal_handler.h"
 #include "absl/debugging/symbolize.h"
@@ -68,8 +69,7 @@ ABSL_FLAG(bool, fetch_openai_oauth_device_token, false,
 
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
-ABSL_FLAG(std::string, prompt_file, "", "Read a single batch-mode prompt from this file and exit");
-ABSL_FLAG(bool, prompt_stdin, false, "Read a single batch-mode prompt from stdin and exit");
+ABSL_FLAG(std::string, prompt_file, "", "Read a single batch-mode instruction from this file and exit");
 ABSL_FLAG(std::string, prompt_db, "",
           "Database to use for batch mode. Defaults to in-memory (':memory:'). Mutually exclusive with --db.");
 ABSL_FLAG(std::string, output, "text", "Prompt-mode output format: text or json");
@@ -196,8 +196,7 @@ int main(int argc, char* argv[]) {
     absl::AddLogSink(log_sink.get());
   }
 
-  slop::PromptInputFlags prompt_flags{absl::GetFlag(FLAGS_prompt), absl::GetFlag(FLAGS_prompt_file),
-                                      absl::GetFlag(FLAGS_prompt_stdin)};
+  slop::PromptInputFlags prompt_flags{absl::GetFlag(FLAGS_prompt), absl::GetFlag(FLAGS_prompt_file)};
   const bool has_prompt_input = slop::HasPromptInputSource(prompt_flags);
   std::string output_mode = absl::GetFlag(FLAGS_output);
   if (auto status = slop::ValidatePromptOutputMode(output_mode); !status.ok()) {
@@ -208,7 +207,7 @@ int main(int argc, char* argv[]) {
   }
   absl::StatusOr<std::string> prompt_or;
   if (has_prompt_input) {
-    prompt_or = slop::ResolvePromptInput(prompt_flags, &std::cin);
+    prompt_or = slop::ResolvePromptInput(prompt_flags, isatty(STDIN_FILENO) ? nullptr : &std::cin);
     if (!prompt_or.ok()) {
       return ReturnPromptPreflightError(prompt_or.status(), output_mode);
     }

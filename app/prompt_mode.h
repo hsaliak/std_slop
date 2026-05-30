@@ -13,14 +13,13 @@ namespace slop {
 struct PromptInputFlags {
   std::string prompt;
   std::string prompt_file;
-  bool prompt_stdin = false;
 };
 
 bool HasPromptInputSource(const PromptInputFlags& flags);
 
 absl::Status ValidatePromptOutputMode(const std::string& output_mode);
 
-absl::StatusOr<std::string> ResolvePromptInput(const PromptInputFlags& flags, std::istream* stdin_stream);
+absl::StatusOr<std::string> ResolvePromptInput(const PromptInputFlags& flags, std::istream* context_stream);
 
 std::string PromptRunResultToJson(const InteractionEngine::PromptRunResult& result);
 

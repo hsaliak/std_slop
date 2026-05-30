@@ -13,7 +13,7 @@
 namespace slop {
 
 bool HasPromptInputSource(const PromptInputFlags& flags) {
-  return !flags.prompt.empty() || !flags.prompt_file.empty() || flags.prompt_stdin;
+  return !flags.prompt.empty() || !flags.prompt_file.empty();
 }
 
 absl::Status ValidatePromptOutputMode(const std::string& output_mode) {
@@ -39,37 +39,45 @@ absl::StatusOr<std::string> ReadAll(std::istream* input) {
 
 }  // namespace
 
-absl::StatusOr<std::string> ResolvePromptInput(const PromptInputFlags& flags, std::istream* stdin_stream) {
-  const bool prompt_from_stdin_dash = flags.prompt == "-";
+absl::StatusOr<std::string> ResolvePromptInput(const PromptInputFlags& flags, std::istream* context_stream) {
   int source_count = 0;
   if (!flags.prompt.empty()) ++source_count;
   if (!flags.prompt_file.empty()) ++source_count;
-  if (flags.prompt_stdin) ++source_count;
   if (source_count != 1) {
-    return absl::InvalidArgumentError("Specify exactly one prompt source: --prompt, --prompt-file, or --prompt-stdin.");
+    return absl::InvalidArgumentError("Specify exactly one instruction source: --prompt or --prompt-file.");
+  }
+  if (flags.prompt == "-") {
+    return absl::InvalidArgumentError("--prompt=- is not supported. Use --prompt for the instruction; piped stdin is read as context.");
   }
 
-  std::string prompt;
+  std::string instruction;
   if (!flags.prompt_file.empty()) {
     std::ifstream file(flags.prompt_file);
     if (!file.is_open()) {
       return absl::NotFoundError(absl::StrCat("Failed to open prompt file: ", flags.prompt_file));
     }
-    auto prompt_or = ReadAll(&file);
-    if (!prompt_or.ok()) return prompt_or.status();
-    prompt = *prompt_or;
-  } else if (flags.prompt_stdin || prompt_from_stdin_dash) {
-    auto prompt_or = ReadAll(stdin_stream);
-    if (!prompt_or.ok()) return prompt_or.status();
-    prompt = *prompt_or;
+    auto instruction_or = ReadAll(&file);
+    if (!instruction_or.ok()) return instruction_or.status();
+    instruction = *instruction_or;
   } else {
-    prompt = flags.prompt;
+    instruction = flags.prompt;
   }
 
-  if (absl::StripAsciiWhitespace(prompt).empty()) {
+  if (absl::StripAsciiWhitespace(instruction).empty()) {
     return absl::InvalidArgumentError("Prompt input must not be empty.");
   }
-  return prompt;
+
+  if (context_stream == nullptr) {
+    return instruction;
+  }
+
+  auto context_or = ReadAll(context_stream);
+  if (!context_or.ok()) return context_or.status();
+  if (absl::StripAsciiWhitespace(*context_or).empty()) {
+    return instruction;
+  }
+
+  return absl::StrCat("Context:\n", *context_or, "\nInstruction:\n", instruction);
 }
 
 std::string PromptRunResultToJson(const InteractionEngine::PromptRunResult& result) {

@@ -50,13 +50,13 @@ For quick one-off tasks, you can use **Batch Mode**:
 ```bash
 std_slop --prompt "Refactor main.cpp to remove all unused includes" 
 ```
-Batch mode also accepts prompts from files or stdin:
+Batch mode accepts exactly one instruction source, and optional piped stdin is prepended as context:
 ```bash
 std_slop --prompt-file task.md
-cat task.md | std_slop --prompt -
-cat task.md | std_slop --prompt-stdin
+ls *.cc | std_slop --prompt "sort these files in alphabetical order"
+cat errors.log | std_slop --prompt-file diagnose.md
 ```
-Use exactly one prompt source: `--prompt`, `--prompt-file`, or `--prompt-stdin`. `--prompt -` is treated as stdin. Empty prompts are rejected.
+Use exactly one instruction source: `--prompt` or `--prompt-file`. Empty instructions are rejected. Empty or whitespace-only piped stdin is ignored.
 
 For scripts, batch mode can emit one structured JSON object to stdout:
 ```bash
