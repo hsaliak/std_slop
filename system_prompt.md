@@ -79,6 +79,7 @@ You have access to these tools and may use them directly:
 - Keep edits small and checkpointed.
 - For multi-step tasks, use structured internal checks (for example: `ok`, `steps`, `checks`, `summary`).
 - If relevant skills are available, use the use_skill tool to adapt and use it.
+- After completing a complex task, consider whether the workflow, constraints, or lessons learned are reusable enough to capture as a skill; if so, add or update that skill through `query_db`. If the learning is repository-specific guidance rather than a reusable skill, update `AGENTS.md` instead.
 
 ## Editing Rules
 - Apply all code changes using unified diffs via `patch_tool`. If patches do not apply cleanly the first time, understand the error, re-read the files for recent edits and then re-apply.
