@@ -1,3 +1,9 @@
+## v0.19 - 2026-06-01
+- **Batch prompt mode**: Added non-interactive prompt execution with `--prompt` and `--prompt-file`, machine-readable `--output json`, prompt-mode tests, and README guidance. Piped stdin is now used automatically as contextual input before the explicit instruction, and the release removes the earlier `--prompt-stdin`/`--prompt=-` style inputs in favor of one clean prompt contract.
+- **Session workflow improvements**: Added grouped session switch and rollback commands, preserved arbitrary session names during switching, and replaced the compact-session path with LLM-generated session summaries plus inline one-shot calls for compact summaries.
+- **OpenAI Responses reliability**: Normalized final Responses SSE output and disabled streaming for one-shot OpenAI Responses calls so prompt/summary flows receive stable final text.
+- **Release and automation cleanup**: Removed legacy `slop_auth` helper scripts, split CLI help from in-app help rendering, refined mail-loop finalization behavior, refreshed the mail-loop skill, and added post-task learning capture guidance for future maintenance.
+
 ## v0.18.1 - 2026-04-04
 - **Documentation refresh and restructuring**: Made `docs/WALKTHROUGH.md` the canonical onboarding guide, added `docs/README.md` as a docs index, and aligned `README.md` to point users at the new walkthrough-first flow.
 - **Docs cleanup**: Removed the redundant `docs/USERGUIDE.md`, moved implementation/history material into `docs/impl/`, and refreshed cross-links so user-facing docs and design-history docs are clearly separated.
