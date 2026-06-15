@@ -953,6 +953,22 @@ TEST(ToolExecutorTest, RunJsBridgeRejectsNonCallableToolBeforeDispatch) {
   EXPECT_TRUE(absl::StrContains(result.status().message(), "not callable from run_js"));
 }
 
+TEST(ToolExecutorTest, RunJsBridgeRejectsDefaultWorkflowTools) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto ask_result = executor.Execute("run_js", {{"code", "return tools.ask_user({ prompt: 'hidden?' });"}});
+  ASSERT_FALSE(ask_result.ok());
+  EXPECT_TRUE(absl::StrContains(ask_result.status().message(), "not callable from run_js"));
+
+  auto git_result = executor.Execute("run_js", {{"code", "return tools.git_finalize_series({});"}});
+  ASSERT_FALSE(git_result.ok());
+  EXPECT_TRUE(absl::StrContains(git_result.status().message(), "not callable from run_js"));
+}
+
 TEST(ToolExecutorTest, RunJsBridgePreservesToolValidation) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

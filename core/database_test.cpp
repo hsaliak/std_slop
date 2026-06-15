@@ -65,7 +65,10 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_write_file = true;
       write_file_is_run_js_callable = t.is_run_js_callable;
     }
-    if (t.name == "ask_user") found_ask_user = true;
+    if (t.name == "ask_user") {
+      found_ask_user = true;
+      EXPECT_FALSE(t.is_run_js_callable);
+    }
   }
   EXPECT_FALSE(found_run_js);
   EXPECT_TRUE(found_query_db);
@@ -95,6 +98,9 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(*db.IsRunJsCallableTool("execute_bash"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("patch_tool"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("write_file"));
+  EXPECT_FALSE(*db.IsRunJsCallableTool("ask_user"));
+  EXPECT_FALSE(*db.IsRunJsCallableTool("git_finalize_series"));
+  EXPECT_FALSE(*db.IsRunJsCallableTool("git_commit_patch"));
 
   auto js_functions_res = db.Query("SELECT name FROM js_functions");
   EXPECT_FALSE(js_functions_res.ok());
