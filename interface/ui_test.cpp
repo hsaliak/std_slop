@@ -118,6 +118,24 @@ TEST(UiTest, PrintToolCallMessage) {
   EXPECT_TRUE(absl::StrContains(output, "❯"));
   EXPECT_TRUE(absl::StrContains(output, "query: \"test\""));
 }
+
+TEST(UiTest, PrintToolCallMessageFormatsRunJsCode) {
+  std::string name = "run_js";
+  std::string args = R"({"code":"const value = 21 * 2;\nreturn { ok: true, value };"})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolCallMessage(name, args, "> ");
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "run_js"));
+  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
+  EXPECT_TRUE(absl::StrContains(output, "const value = 21 * 2;"));
+  EXPECT_TRUE(absl::StrContains(output, "return { ok: true, value };"));
+  EXPECT_TRUE(absl::StrContains(output, ">     const value = 21 * 2;"));
+  EXPECT_TRUE(absl::StrContains(output, ">     return { ok: true, value };"));
+}
+
 TEST(UiTest, PrintToolCallMessageWithTokens) {
   std::string name = "test_tool";
   std::string args = R"({"query": "test"})";
@@ -273,6 +291,45 @@ TEST(UiTest, PrintToolResultMessagePatchToolRendersDiffBlock) {
   EXPECT_TRUE(absl::StrContains(output, "+++ foo.txt"));
   EXPECT_TRUE(absl::StrContains(output, "@@ -1 +1 @@"));
   EXPECT_TRUE(absl::StrContains(output, "+new"));
+}
+
+TEST(UiTest, FormatAssembledContextFormatsOpenAiRunJsCode) {
+  const std::string context =
+      R"({"messages":[{"role":"assistant","tool_calls":[{"function":{"name":"run_js","arguments":"{\"code\":\"const n = 7;\\nreturn { n };\"}"}}]}]})";
+
+  const std::string output = FormatAssembledContext(context);
+
+  EXPECT_TRUE(absl::StrContains(output, "Tool Call: run_js"));
+  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
+  EXPECT_TRUE(absl::StrContains(output, "const n = 7;"));
+  EXPECT_TRUE(absl::StrContains(output, "return { n };"));
+  EXPECT_FALSE(absl::StrContains(output, "```json"));
+  EXPECT_FALSE(absl::StrContains(output, "\"code\""));
+}
+
+TEST(UiTest, FormatAssembledContextFormatsGeminiRunJsCode) {
+  const std::string context =
+      R"({"contents":[{"role":"model","parts":[{"functionCall":{"name":"run_js","args":{"code":"const files = tools.list_directory({ path: '.', depth: 1, include_ignored: false });\nreturn { files };"}}}]}]})";
+
+  const std::string output = FormatAssembledContext(context);
+
+  EXPECT_TRUE(absl::StrContains(output, "Tool Call: run_js"));
+  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
+  EXPECT_TRUE(absl::StrContains(output, "tools.list_directory"));
+  EXPECT_TRUE(absl::StrContains(output, "return { files };"));
+  EXPECT_FALSE(absl::StrContains(output, "\"code\""));
+}
+
+TEST(UiTest, FormatAssembledContextKeepsNonRunJsToolArgumentsAsJson) {
+  const std::string context =
+      R"({"messages":[{"role":"assistant","tool_calls":[{"function":{"name":"read_file","arguments":"{\"path\":\"AGENTS.md\",\"start_line\":1,\"end_line\":2}"}}]}]})";
+
+  const std::string output = FormatAssembledContext(context);
+
+  EXPECT_TRUE(absl::StrContains(output, "Tool Call: read_file"));
+  EXPECT_TRUE(absl::StrContains(output, "```json"));
+  EXPECT_TRUE(absl::StrContains(output, "\"path\": \"AGENTS.md\""));
+  EXPECT_TRUE(absl::StrContains(output, "\"start_line\": 1"));
 }
 
 TEST(UiTest, GetCliHelpTextUsesRenamedOpenAiOauthFlags) {

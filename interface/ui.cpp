@@ -48,7 +48,17 @@ namespace slop {
 namespace {
 ABSL_CONST_INIT absl::Mutex g_ui_mu(absl::kConstInit);
 }  // namespace
+
 namespace {
+
+std::optional<std::string> RunJsCodeFromArgs(const nlohmann::json& args) {
+  return json_get<std::string>(args, "code");
+}
+
+void AppendRunJsCodeBlock(std::ostream& out, const std::string& code) {
+  out << "```javascript\n" << code << "\n```\n\n";
+}
+
 /**
  * @brief Renders text within a stylized section with a header.
  *
@@ -384,7 +394,9 @@ std::string FormatAssembledContext(const std::string& json_str) {
               ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
               if (const auto* args = json_at(*fc, "args")) {
                 if (name == "run_js") {
-                  ss << "```javascript\n" << json_get_or(*args, "script", std::string{}) << "\n```\n\n";
+                  if (auto code = RunJsCodeFromArgs(*args)) {
+                    AppendRunJsCodeBlock(ss, *code);
+                  }
                 } else {
                   ss << "```json\n" << args->dump(2) << "\n```\n\n";
                 }
@@ -422,7 +434,13 @@ std::string FormatAssembledContext(const std::string& json_str) {
             std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
             auto args_opt = json_parse(args_str);
             if (args_opt) {
-              ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
+              if (name == "run_js") {
+                if (auto code = RunJsCodeFromArgs(*args_opt)) {
+                  AppendRunJsCodeBlock(ss, *code);
+                }
+              } else {
+                ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
+              }
             } else {
               ss << "```\n" << args_str << "\n```\n\n";
             }
@@ -484,6 +502,19 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
     std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
   }
   std::cout << std::endl;
+
+  if (name == "run_js") {
+    auto args_json = json_parse(args);
+    if (args_json) {
+      if (auto code = RunJsCodeFromArgs(*args_json)) {
+        std::cout << prefix << "    " << Colorize("```javascript", "", ansi::Metadata) << std::endl;
+        for (absl::string_view line : absl::StrSplit(*code, '\n')) {
+          std::cout << prefix << "    " << line << std::endl;
+        }
+        std::cout << prefix << "    " << Colorize("```", "", ansi::Metadata) << std::endl;
+      }
+    }
+  }
 }
 void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result,
                             const std::string& status, const std::string& prefix) {
