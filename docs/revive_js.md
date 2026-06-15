@@ -55,9 +55,12 @@ subquery policy remain authoritative.
   - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
     //js_bridge:interpreter_test //js_bridge:run_js_fuzz_test
     //core:tool_executor_test //tools:subquery_policy_fuzz_test` passed.
-- [ ] Bundle 5: Update prompt guidance and verify the full patch series.
+- [x] Bundle 5: Update prompt guidance and verify the full patch series.
   - Validation: affected Bazel targets, fuzz smoke tests, and
     `git_verify_series` over the chosen deterministic command.
+  - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
+    //js_bridge:interpreter_test //js_bridge:run_js_fuzz_test
+    //core:tool_executor_test //tools:subquery_policy_fuzz_test` passed.
 
 ## Progress log
 
@@ -78,3 +81,7 @@ subquery policy remain authoritative.
   `tools.dispatch(name, args)` for host tools without explicit helpers; added
   unit and fuzz coverage for helper discovery, validation before host calls,
   representative host calls, and malformed helper argument shapes.
+- Bundle 5 complete: updated `system_prompt.md` so the provider-visible tool
+  list documents `run_js`, JS helper APIs, `tools.dispatch`, host validation,
+  subquery restrictions, and the recursive `run_js` guard; verified affected
+  unit/fuzz targets and patch-series bisect safety.
