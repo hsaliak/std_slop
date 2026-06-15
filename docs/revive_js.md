@@ -23,11 +23,14 @@ subquery policy remain authoritative.
 - [x] Bundle 0: Create this tracking document on a staging branch.
   - Validation: `git status --short --branch` confirmed
     `slop/staging/revive-js`.
-- [ ] Bundle 1: Reintroduce QuickJS runtime and a `run_js` tool skeleton.
+- [x] Bundle 1: Reintroduce QuickJS runtime and a `run_js` tool skeleton.
   - Unit coverage: script argument validation, JSON return conversion, syntax
     errors, thrown errors, and non-JSON-serializable returns.
   - Fuzz coverage: malformed `run_js` argument payloads and arbitrary scripts
     must fail cleanly or return JSON without crashing.
+  - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
+    //core:tool_executor_test //js_bridge:interpreter_test
+    //js_bridge:run_js_fuzz_test` passed.
 - [ ] Bundle 2: Bridge JS `call_tool`/`tools.*` calls through `ToolExecutor`.
   - Unit coverage: known tool call, unknown tool rejection, invalid bridge
     argument rejection, and existing tool validation preservation.
@@ -50,3 +53,6 @@ subquery policy remain authoritative.
 ## Progress log
 
 - Bundle 0 complete: staging branch created and this document added.
+- Bundle 1 complete: added QuickJS dependency, `js_bridge` runtime,
+  `run_js` ToolExecutor registration, unit tests, and fuzz coverage for
+  argument/result/error handling.

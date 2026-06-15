@@ -19,13 +19,15 @@
 #include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
-#include "tools/tool_dispatcher.h"
-#include "tools/common.h"
 #include "interface/color.h"
 #include "interface/renderer.h"
 #include "interface/terminal.h"
+#include "tools/common.h"
+#include "tools/tool_dispatcher.h"
 
 namespace slop {
+
+absl::StatusOr<std::string> HandleRunJsTool(const nlohmann::json& args);
 
 ToolExecutor::ToolExecutor(Database* db) : db_(db) { RegisterTools(); }
 
@@ -59,6 +61,7 @@ void ToolExecutor::RegisterTools() {
   RegisterTool("write_file", [this](const nlohmann::json& args, auto) { return HandleWriteFile(args); });
   RegisterTool("read_scratchpad", [this](const nlohmann::json& args, auto) { return HandleReadScratchpad(args); });
   RegisterTool("write_scratchpad", [this](const nlohmann::json& args, auto) { return HandleWriteScratchpad(args); });
+  RegisterTool("run_js", [this](const nlohmann::json& args, auto) { return HandleRunJs(args); });
   RegisterTool("use_skill", [this](const nlohmann::json& args, auto) { return HandleUseSkill(args); });
   RegisterTool("git_create_staging_branch",
                [this](const nlohmann::json& args, auto) { return HandleGitCreateStagingBranch(args); });
@@ -180,6 +183,10 @@ void ToolExecutor::SetMailMode(bool enabled) {
 
 void ToolExecutor::SetExecutionContext(ExecutionScope scope, int depth) { execution_context_ = {scope, depth}; }
 
+absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args) const {
+  return HandleRunJsTool(args);
+}
+
 absl::Status ToolExecutor::ValidateSubqueryPolicy(const std::string& tool_name) const {
   const auto [scope, depth] = execution_context_;
   if (depth > 1) {
@@ -192,8 +199,8 @@ absl::Status ToolExecutor::ValidateSubqueryPolicy(const std::string& tool_name) 
   }
 
   if (tool_name == "llm_query" || absl::StartsWith(tool_name, "llm_tool_")) {
-    return absl::InvalidArgumentError(absl::StrCat("Subquery policy violation: tool '", tool_name,
-                                                   "' is not allowed in subquery scope"));
+    return absl::InvalidArgumentError(
+        absl::StrCat("Subquery policy violation: tool '", tool_name, "' is not allowed in subquery scope"));
   }
   return absl::OkStatus();
 }

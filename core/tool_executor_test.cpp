@@ -349,7 +349,7 @@ TEST(ToolExecutorTest, PromotedMailToolsAreRegisteredTopLevel) {
 
   const std::vector<std::string> mail_tools = {
       "execute_bash",     "git_commit_patch", "git_finalize_series", "git_format_patch_series",
-      "git_reroll_patch", "patch_tool",          "write_file",
+      "git_reroll_patch", "patch_tool",       "write_file",
   };
 
   for (const auto& name : mail_tools) {
@@ -381,6 +381,7 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "query_db",
       "read_file",
       "read_scratchpad",
+      "run_js",
       "use_skill",
       "write_file",
       "write_scratchpad",
@@ -863,6 +864,46 @@ TEST(ToolExecutorTest, DepthGreaterThanOneRejected) {
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kInvalidArgument);
   EXPECT_TRUE(absl::StrContains(res.status().message(), "execution_depth must be <= 1"));
+}
+
+TEST(ToolExecutorTest, RunJsRegisteredAndReturnsJsonText) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto result = executor.Execute("run_js", {{"code", "return { ok: true, value: 21 * 2 };"}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_TRUE(absl::StrContains(*result, "\"ok\":true"));
+  EXPECT_TRUE(absl::StrContains(*result, "\"value\":42"));
+}
+
+TEST(ToolExecutorTest, RunJsRejectsInvalidArgs) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto result = executor.Execute("run_js", {{"code", 42}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(ToolExecutorTest, RunJsRejectsUndefinedResult) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto result = executor.Execute("run_js", {{"code", "return undefined;"}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "not JSON-serializable"));
 }
 
 }  // namespace slop
