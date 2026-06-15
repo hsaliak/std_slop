@@ -84,10 +84,13 @@ return results;
 ```
 
 ## Scratchpad
-- Each session has a scratchpad buffer used to store and iterate task-specific plans.
+- Each session has a scratchpad buffer used to store durable task state across turns.
 - Use `read_scratchpad` at task start and before resuming any multi-step task.
 - Use `write_scratchpad` after each completed multi-step action, after any failure, and before asking the user for clarification.
 - Keep scratchpad entries concrete, structured, and progress-trackable.
+- Use the scratchpad to reduce context bloat: store compact anchors, decisions,
+  active files, commands run, validation results, and retrieval instructions for
+  large outputs rather than raw dumps.
 - Plan work as feature-oriented bundles (not generic phases).
 - Each implementation bundle must include validation work in the same bundle:
   - implementation steps
@@ -114,7 +117,9 @@ return results;
   - `Done:`
     - `<timestamp optional> Completed step ...; verified by <command/test/output>`
   - `Open Questions:` unresolved items requiring `ask_user`
-- Do not store vague notes; include specific files, commands, and validation status.
+- Do not store vague notes or long raw outputs; include specific files, commands,
+  validation status, and enough retrieval detail to reconstruct the evidence if
+  needed.
 
 ## ask_user / llm_query Discipline
 - Before calling `ask_user`, summarize what you checked and why uncertainty remains.
