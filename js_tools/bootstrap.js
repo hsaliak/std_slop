@@ -24,6 +24,19 @@
     return globalThis.call_tool(name, safeArgs);
   }
 
+  const helperNames = [
+    'dispatch', 'help', 'read_file', 'list_directory', 'grep', 'write_file',
+    'patch_tool', 'execute_bash', 'llm_query'
+  ];
+
+  function staticHelp() {
+    return {
+      helpers: helperNames,
+      tools: helperNames,
+      note: 'Use tools.dispatch(name, args) for host tools without a JS helper.'
+    };
+  }
+
   const helpers = {
     dispatch(name, args = {}) {
       if (typeof name !== 'string' || name.length === 0) {
@@ -34,12 +47,31 @@
 
     help(args = {}) {
       requireObject('help', args);
+      let rows;
+      try {
+        rows = call('query_db', {
+          sql: 'SELECT name, description, json_schema, is_enabled, is_top_level, is_run_js_callable FROM tools WHERE is_enabled = 1 ORDER BY name'
+        });
+      } catch (err) {
+        return staticHelp();
+      }
+      if (!Array.isArray(rows)) return staticHelp();
+      const normalized = rows.map(function(row) {
+        return {
+          name: row.name,
+          description: row.description,
+          schema: row.json_schema,
+          top_level: row.is_top_level === 1 || row.is_top_level === true,
+          run_js_callable: row.is_run_js_callable === 1 || row.is_run_js_callable === true,
+          helper: helperNames.indexOf(row.name) !== -1
+        };
+      });
       return {
-        tools: [
-          'dispatch', 'help', 'read_file', 'list_directory', 'grep', 'write_file',
-          'patch_tool', 'execute_bash', 'llm_query'
-        ],
-        note: 'Use tools.dispatch(name, args) for host tools without a JS helper.'
+        helpers: helperNames,
+        tools: normalized,
+        top_level: normalized.filter(function(tool) { return tool.top_level; }).map(function(tool) { return tool.name; }),
+        run_js_callable: normalized.filter(function(tool) { return tool.run_js_callable; }).map(function(tool) { return tool.name; }),
+        note: 'Use helper methods for common run_js workflows; use tools.dispatch(name, args) for run_js-callable host tools without a helper.'
       };
     },
 
