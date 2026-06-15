@@ -123,6 +123,10 @@ TEST(JsToolLibraryTest, HelpListsRevivedHelpers) {
   ASSERT_TRUE((*result)["tools"].is_array());
   EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "read_file"), (*result)["tools"].end());
   EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "grep"), (*result)["tools"].end());
+  EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "write_file"), (*result)["tools"].end());
+  EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "patch_tool"), (*result)["tools"].end());
+  EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "execute_bash"),
+            (*result)["tools"].end());
 }
 
 TEST(JsToolLibraryTest, ReadFileValidatesPathBeforeHostCall) {
@@ -153,6 +157,49 @@ TEST(JsToolLibraryTest, GrepValidatesPatternBeforeHostCall) {
   EXPECT_TRUE(absl::StrContains(result.status().message(), "grep requires string field pattern"));
 }
 
+TEST(JsToolLibraryTest, WriteFileValidatesContentBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.write_file({ path: 'file.txt' });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "write_file requires string field content"));
+}
+
+TEST(JsToolLibraryTest, PatchToolValidatesDryRunBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.patch_tool({ path: 'file.txt', unified_diff: 'diff', ignore_whitespace: false });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "patch_tool requires boolean field dry_run"));
+}
+
+TEST(JsToolLibraryTest, ExecuteBashValidatesAllowNonzeroExitBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.execute_bash({ cwd: '.', command: 'true' });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(),
+                                "execute_bash requires boolean field allow_nonzero_exit"));
+}
+
 TEST(JsToolLibraryTest, ReadFileCallsHostTool) {
   absl::StatusOr<nlohmann::json> result =
       RunJsForJson("return tools.read_file({ path: 'file.txt' });",
@@ -164,6 +211,38 @@ TEST(JsToolLibraryTest, ReadFileCallsHostTool) {
 
   ASSERT_TRUE(result.ok()) << result.status();
   EXPECT_EQ(*result, "contents");
+}
+
+TEST(JsToolLibraryTest, SideEffectHelpersCallHostTools) {
+  std::vector<std::string> called_tools;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson(R"js(
+const write = tools.write_file({ path: 'file.txt', content: 'contents' });
+const patch = tools.patch_tool({
+  path: 'file.txt',
+  unified_diff: '--- a/file.txt\n+++ b/file.txt\n',
+  dry_run: true,
+  ignore_whitespace: false
+});
+const shell = tools.execute_bash({
+  cwd: '.',
+  command: 'true',
+  allow_nonzero_exit: false
+});
+return { write, patch, shell };
+)js",
+                   [&called_tools](const std::string& name,
+                                   const nlohmann::json& args) -> absl::StatusOr<std::string> {
+                     called_tools.push_back(name);
+                     EXPECT_TRUE(args.is_object());
+                     return name;
+                   });
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(called_tools, std::vector<std::string>({"write_file", "patch_tool", "execute_bash"}));
+  EXPECT_EQ((*result)["write"], "write_file");
+  EXPECT_EQ((*result)["patch"], "patch_tool");
+  EXPECT_EQ((*result)["shell"], "execute_bash");
 }
 
 }  // namespace

@@ -30,6 +30,12 @@ constexpr char kToolsBootstrap[] = R"js(
     }
   }
 
+  function requireBoolean(toolName, args, field) {
+    if (typeof args[field] !== 'boolean') {
+      throw new TypeError(toolName + ' requires boolean field ' + field);
+    }
+  }
+
   function call(name, args) {
     const safeArgs = args === undefined ? {} : args;
     requireObject(name, safeArgs);
@@ -48,8 +54,8 @@ constexpr char kToolsBootstrap[] = R"js(
       requireObject('help', args);
       return {
         tools: [
-          'dispatch', 'help', 'read_file', 'list_directory', 'grep',
-          'llm_query'
+          'dispatch', 'help', 'read_file', 'list_directory', 'grep', 'write_file',
+          'patch_tool', 'execute_bash', 'llm_query'
         ],
         note: 'Use tools.dispatch(name, args) for host tools without a JS helper.'
       };
@@ -72,6 +78,30 @@ constexpr char kToolsBootstrap[] = R"js(
       requireString('grep', args, 'path');
       requireString('grep', args, 'pattern');
       return call('grep', args);
+    },
+
+    write_file(args = {}) {
+      requireObject('write_file', args);
+      requireString('write_file', args, 'path');
+      requireString('write_file', args, 'content');
+      return call('write_file', args);
+    },
+
+    patch_tool(args = {}) {
+      requireObject('patch_tool', args);
+      requireString('patch_tool', args, 'path');
+      requireString('patch_tool', args, 'unified_diff');
+      requireBoolean('patch_tool', args, 'dry_run');
+      requireBoolean('patch_tool', args, 'ignore_whitespace');
+      return call('patch_tool', args);
+    },
+
+    execute_bash(args = {}) {
+      requireObject('execute_bash', args);
+      requireString('execute_bash', args, 'cwd');
+      requireString('execute_bash', args, 'command');
+      requireBoolean('execute_bash', args, 'allow_nonzero_exit');
+      return call('execute_bash', args);
     },
 
     llm_query(args = {}) {
