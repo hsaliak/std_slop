@@ -2,6 +2,17 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@aspect_rules_lint//format:defs.bzl", "format_test")
 
+genrule(
+    name = "generate_tools_bootstrap",
+    srcs = ["//js_tools:bootstrap.js"],
+    outs = ["tools_bootstrap_data.h"],
+    cmd = "echo 'namespace slop {' > $@ && " +
+          "echo 'static const char* kToolsBootstrap = R\"JS(' >> $@ && " +
+          "cat $< >> $@ && " +
+          "echo ')JS\";' >> $@ && " +
+          "echo '}' >> $@ ",
+)
+
 format_test(
     name = "format_test",
     cc = "//:clang_format_hermetic",
@@ -11,7 +22,7 @@ format_test(
 cc_library(
     name = "interpreter",
     srcs = ["interpreter.cpp"],
-    hdrs = ["interpreter.h"],
+    hdrs = [":tools_bootstrap_data.h", "interpreter.h"],
     visibility = ["//visibility:public"],
     deps = [
         "//core:json_utils",
