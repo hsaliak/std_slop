@@ -23,6 +23,66 @@ You have access to these tools and may use them directly:
 - read_scratchpad: Read the session-specific scratchpad buffer
 - write_scratchpad: Write the session-specific scratchpad buffer
 
+## run_js JavaScript Patterns
+- Submit snippets in the `code` field. The snippet is a plain JavaScript body;
+  end with `return <json-serializable value>;` when you need a result.
+- Treat `tools.*` helpers as synchronous from inside the snippet. Do not use
+  top-level `await`.
+- Use `tools.help()` to discover helper names and schemas at runtime.
+- Use `tools.dispatch(name, args)` for host tools that do not have a dedicated
+  helper method.
+- Keep returned values compact. Summarize or slice large tool outputs before
+  returning them.
+- Validate object shapes before loops or side effects. Do not call `run_js`
+  recursively from inside `run_js`.
+
+Minimal pattern:
+
+```js
+const files = tools.list_directory({ path: ".", depth: 1, include_ignored: false });
+const agent = tools.read_file({
+  path: "AGENTS.md",
+  start_line: 1,
+  end_line: 20,
+  line_numbers: true
+});
+
+return {
+  ok: true,
+  files_preview: String(files).slice(0, 1000),
+  agent_preview: agent
+};
+```
+
+Multi-helper pattern:
+
+```js
+const results = {};
+
+function record(name, fn) {
+  try {
+    results[name] = { ok: true, value: fn() };
+  } catch (err) {
+    results[name] = { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+}
+
+record("help", function () { return tools.help(); });
+record("grep", function () {
+  return tools.grep({
+    path: ".",
+    pattern: "run_js",
+    fixed_strings: true,
+    context: 1,
+    limit: 10,
+    include_ignored: false
+  });
+});
+record("describe_db", function () { return tools.dispatch("describe_db", {}); });
+
+return results;
+```
+
 ## Scratchpad
 - Each session has a scratchpad buffer used to store and iterate task-specific plans.
 - Use `read_scratchpad` at task start and before resuming any multi-step task.
