@@ -70,7 +70,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       EXPECT_FALSE(t.is_run_js_callable);
     }
   }
-  EXPECT_FALSE(found_run_js);
+  EXPECT_TRUE(found_run_js);
   EXPECT_TRUE(found_query_db);
   EXPECT_TRUE(found_read_file);
   EXPECT_TRUE(read_file_is_run_js_callable);
@@ -463,12 +463,12 @@ TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {
   ASSERT_TRUE(db.Init(":memory:").ok());
 
   auto tools_or = db.Query(
-      "SELECT name, json_schema FROM tools WHERE name IN ('query_db','git_commit_patch') ORDER BY "
+      "SELECT name, json_schema FROM tools WHERE name IN ('query_db','run_js','git_commit_patch') ORDER BY "
       "name");
   ASSERT_TRUE(tools_or.ok());
   auto rows = slop::json_parse(*tools_or).value_or(nlohmann::json::array());
   ASSERT_TRUE(rows.is_array());
-  ASSERT_EQ(rows.size(), 2);
+  ASSERT_EQ(rows.size(), 3);
 
   std::map<std::string, nlohmann::json> by_name;
   for (const auto& row : rows) {
@@ -486,6 +486,10 @@ TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {
   ASSERT_TRUE(by_name.find("git_commit_patch") != by_name.end());
   EXPECT_TRUE(by_name["git_commit_patch"]["properties"].contains("summary"));
   EXPECT_FALSE(by_name["git_commit_patch"]["properties"].contains("message"));
+
+  ASSERT_TRUE(by_name.find("run_js") != by_name.end());
+  EXPECT_TRUE(by_name["run_js"]["properties"].contains("code"));
+  EXPECT_TRUE(by_name["run_js"]["required"].is_array());
 }
 
 TEST(DatabaseTest, ToolUsageCounters) {
