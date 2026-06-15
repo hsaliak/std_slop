@@ -964,4 +964,79 @@ TEST(ToolExecutorTest, RunJsBridgeRejectsRecursiveRunJs) {
   EXPECT_TRUE(absl::StrContains(result.status().message(), "recursively invoke run_js"));
 }
 
+TEST(ToolExecutorTest, RootRunJsBridgeAllowsLlmQueryWhenRegistered) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.RegisterTool("llm_query", [](const nlohmann::json& args, std::shared_ptr<CancellationRequest>) {
+    EXPECT_EQ(args, nlohmann::json({{"query", "summarize"}}));
+    return absl::StatusOr<std::string>(R"({"summary":"ok"})");
+  });
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kRoot, 0);
+  auto result = executor.Execute("run_js", {{"code", "return tools.llm_query({ query: 'summarize' });"}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_TRUE(absl::StrContains(*result, "\"summary\":\"ok\""));
+}
+
+TEST(ToolExecutorTest, SubqueryRunJsBridgeRejectsLlmQuery) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.RegisterTool("llm_query", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
+    return absl::StatusOr<std::string>("should not run");
+  });
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
+  auto result = executor.Execute("run_js", {{"code", "return tools.llm_query({ query: 'blocked' });"}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "not allowed in subquery scope"));
+}
+
+TEST(ToolExecutorTest, SubqueryRunJsBridgeRejectsLlmToolSpecialization) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.RegisterTool("llm_tool_researcher", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
+    return absl::StatusOr<std::string>("should not run");
+  });
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
+  auto result = executor.Execute("run_js", {{"code", "return tools.llm_tool_researcher({ topic: 'blocked' });"}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "not allowed in subquery scope"));
+}
+
+TEST(ToolExecutorTest, SubqueryRunJsBridgeAllowsOrdinaryTool) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.RegisterTool("ordinary_tool", [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
+    return absl::StatusOr<std::string>(R"({"ordinary":true})");
+  });
+
+  executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
+  auto result = executor.Execute("run_js", {{"code", "return tools.ordinary_tool({});"}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_TRUE(absl::StrContains(*result, "\"ordinary\":true"));
+}
+
 }  // namespace slop

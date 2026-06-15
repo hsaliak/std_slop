@@ -188,11 +188,11 @@ void ToolExecutor::SetExecutionContext(ExecutionScope scope, int depth) { execut
 absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args) {
   return HandleRunJsTool(
       args, [this](const std::string& tool_name, const nlohmann::json& tool_args) -> absl::StatusOr<std::string> {
-    if (tool_name == "run_js") {
-      return absl::InvalidArgumentError("run_js bridge cannot recursively invoke run_js");
-    }
-    return Execute(tool_name, tool_args, nullptr);
-  });
+        if (tool_name == "run_js") {
+          return absl::InvalidArgumentError("run_js bridge cannot recursively invoke run_js");
+        }
+        return Execute(tool_name, tool_args, nullptr);
+      });
 }
 
 absl::Status ToolExecutor::ValidateSubqueryPolicy(const std::string& tool_name) const {

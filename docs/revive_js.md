@@ -39,11 +39,14 @@ subquery policy remain authoritative.
   - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
     //core:tool_executor_test //js_bridge:interpreter_test
     //js_bridge:run_js_fuzz_test` passed.
-- [ ] Bundle 3: Preserve LLM/subquery policy through JS calls.
+- [x] Bundle 3: Preserve LLM/subquery policy through JS calls.
   - Unit/integration coverage: normal-scope `llm_query`/`llm_tool_*` routing and
     subquery-scope rejection remain enforced by `ToolExecutor`.
   - Fuzz coverage: generated LLM-like tool names in subquery scope cannot bypass
     policy through JS.
+  - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
+    //core:tool_executor_test //tools:subquery_policy_fuzz_test
+    //js_bridge:interpreter_test //js_bridge:run_js_fuzz_test` passed.
 - [ ] Bundle 4: Restore the JavaScript tool library/bootstrap.
   - Unit coverage: `tools.help()`, representative file/search helpers, library
     load failure reporting, and JSON-serializable helper returns.
@@ -63,3 +66,7 @@ subquery policy remain authoritative.
   calls back through `ToolExecutor::Execute`, rejected recursive `run_js`, and
   covered known tool calls, unknown tools, invalid bridge args, preserved tool
   validation, and fuzzed arbitrary bridge names/payloads.
+- Bundle 3 complete: verified JS bridge calls preserve root-scope LLM routing,
+  subquery-scope rejection for `llm_query` and `llm_tool_*`, and ordinary
+  subquery tool allowance; added fuzz coverage proving generated LLM-like names
+  cannot bypass policy through `call_tool`.

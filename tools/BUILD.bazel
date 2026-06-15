@@ -91,8 +91,10 @@ cc_test(
     ],
     deps = [
         ":runtime",
+        "//core:json_utils",
         "@fuzztest//fuzztest",
         "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )
