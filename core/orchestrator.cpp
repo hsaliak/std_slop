@@ -219,7 +219,7 @@ Technical Anchors: [Ports, IPs, constant values]
     system_instruction = "You are a helpful coding assistant.";
   }
   if (system_instruction.back() != '\n') absl::StrAppend(&system_instruction, "\n");
-  auto tools_or = db_->GetEnabledTools();
+  auto tools_or = db_->GetTopLevelTools();
   if (tools_or.ok() && !tools_or->empty()) {
     absl::StrAppend(&system_instruction, "\n## Available Tools\n",
                     "You have access to the following tools. Use them to fulfill the user's request.\n");

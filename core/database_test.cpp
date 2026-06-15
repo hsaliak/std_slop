@@ -38,26 +38,63 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   bool found_run_js = false;
   bool found_query_db = false;
   bool found_read_file = false;
+  bool read_file_is_run_js_callable = false;
   bool found_execute_bash = false;
+  bool execute_bash_is_run_js_callable = false;
   bool found_patch_tool = false;
+  bool patch_tool_is_run_js_callable = false;
   bool found_write_file = false;
+  bool write_file_is_run_js_callable = false;
   bool found_ask_user = false;
   for (const auto& t : *tools) {
     if (t.name == "run_js") found_run_js = true;
     if (t.name == "query_db") found_query_db = true;
-    if (t.name == "read_file") found_read_file = true;
-    if (t.name == "execute_bash") found_execute_bash = true;
-    if (t.name == "patch_tool") found_patch_tool = true;
-    if (t.name == "write_file") found_write_file = true;
+    if (t.name == "read_file") {
+      found_read_file = true;
+      read_file_is_run_js_callable = t.is_run_js_callable;
+    }
+    if (t.name == "execute_bash") {
+      found_execute_bash = true;
+      execute_bash_is_run_js_callable = t.is_run_js_callable;
+    }
+    if (t.name == "patch_tool") {
+      found_patch_tool = true;
+      patch_tool_is_run_js_callable = t.is_run_js_callable;
+    }
+    if (t.name == "write_file") {
+      found_write_file = true;
+      write_file_is_run_js_callable = t.is_run_js_callable;
+    }
     if (t.name == "ask_user") found_ask_user = true;
   }
   EXPECT_FALSE(found_run_js);
   EXPECT_TRUE(found_query_db);
   EXPECT_TRUE(found_read_file);
+  EXPECT_TRUE(read_file_is_run_js_callable);
   EXPECT_TRUE(found_execute_bash);
+  EXPECT_TRUE(execute_bash_is_run_js_callable);
   EXPECT_TRUE(found_patch_tool);
+  EXPECT_TRUE(patch_tool_is_run_js_callable);
   EXPECT_TRUE(found_write_file);
+  EXPECT_TRUE(write_file_is_run_js_callable);
   EXPECT_TRUE(found_ask_user);
+
+  auto top_level_tools = db.GetTopLevelTools();
+  ASSERT_TRUE(top_level_tools.ok());
+  auto is_top_level = [&](const std::string& name) {
+    return std::any_of(top_level_tools->begin(), top_level_tools->end(),
+                       [&](const auto& t) { return t.name == name; });
+  };
+  EXPECT_TRUE(is_top_level("query_db"));
+  EXPECT_TRUE(is_top_level("ask_user"));
+  EXPECT_FALSE(is_top_level("read_file"));
+  EXPECT_FALSE(is_top_level("execute_bash"));
+  EXPECT_FALSE(is_top_level("patch_tool"));
+  EXPECT_FALSE(is_top_level("write_file"));
+  EXPECT_TRUE(*db.IsRunJsCallableTool("read_file"));
+  EXPECT_TRUE(*db.IsRunJsCallableTool("execute_bash"));
+  EXPECT_TRUE(*db.IsRunJsCallableTool("patch_tool"));
+  EXPECT_TRUE(*db.IsRunJsCallableTool("write_file"));
 
   auto js_functions_res = db.Query("SELECT name FROM js_functions");
   EXPECT_FALSE(js_functions_res.ok());

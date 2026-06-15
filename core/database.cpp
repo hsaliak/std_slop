@@ -192,7 +192,9 @@ absl::Status Database::Init(const std::string& db_path) {
         description TEXT,
         json_schema TEXT,
         is_enabled INTEGER DEFAULT 1,
-        call_count INTEGER DEFAULT 0
+        call_count INTEGER DEFAULT 0,
+        is_top_level INTEGER DEFAULT 1,
+        is_run_js_callable INTEGER DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS skills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -243,6 +245,10 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN is_top_level INTEGER DEFAULT 1;", nullptr, nullptr,
+                     nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN is_run_js_callable INTEGER DEFAULT 1;", nullptr, nullptr,
+                     nullptr);
   (void)sqlite3_exec(raw_db,
                      "CREATE INDEX IF NOT EXISTS idx_messages_session_created_id "
                      "ON messages(session_id, created_at, id);",
@@ -302,23 +308,23 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"read_file", "Read file content with optional line range and line numbers.",
        R"({"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"line_numbers":{"type":"boolean"}}})",
-       true},
+       true, 0, false, true},
       {"list_directory", "List files and folders in a directory.",
        R"({"type":"object","properties":{"path":{"type":"string"},"depth":{"type":["integer","string"]},"include_ignored":{"type":"boolean"}}})",
-       true},
+       true, 0, false, true},
       {"describe_db", "Describe database schema objects and columns.", R"({"type":"object","properties":{}})", true},
       {"grep", "Search for a pattern in files.",
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":["integer","string"]},"limit":{"type":["integer","string"]},"include_ignored":{"type":"boolean"},"fixed_strings":{"type":"boolean"}},"required":["pattern"]})",
-       true},
+       true, 0, false, true},
       {"execute_bash", "Execute a shell command.",
        R"({"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string"},"allow_nonzero_exit":{"type":"boolean"},"timeout_seconds":{"type":"integer","minimum":0,"default":180,"description":"Maximum wall-clock time in seconds before the command is terminated. Set to 0 to disable timeout."}},"required":["command"]})",
-       true},
+       true, 0, false, true},
       {"patch_tool", "Apply a unified diff patch to a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff"]})",
-       true},
+       true, 0, false, true},
       {"write_file", "Create or overwrite a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",
-       true},
+       true, 0, false, true},
       {"read_scratchpad", "Read scratchpad content for the active session.",
        R"({"type":"object","properties":{}})",
        true},
@@ -654,13 +660,19 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 }
 absl::Status Database::RegisterTool(const Tool& tool) {
   std::string sql =
-      "INSERT INTO tools (name, description, json_schema, is_enabled, call_count) VALUES (?, ?, ?, ?, ?) "
+      "INSERT INTO tools (name, description, json_schema, is_enabled, call_count, is_top_level, is_run_js_callable) "
+      "VALUES (?, ?, ?, ?, ?, ?, ?) "
       "ON CONFLICT(name) DO UPDATE SET description=excluded.description, json_schema=excluded.json_schema, "
-      "is_enabled=excluded.is_enabled;";
-  return Execute(sql, tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0, tool.call_count);
+      "is_enabled=excluded.is_enabled, is_top_level=excluded.is_top_level, "
+      "is_run_js_callable=excluded.is_run_js_callable;";
+  return Execute(sql, tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0, tool.call_count,
+                 tool.is_top_level ? 1 : 0, tool.is_run_js_callable ? 1 : 0);
 }
+
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
-  std::string sql = "SELECT name, description, json_schema, is_enabled, call_count FROM tools WHERE is_enabled = 1";
+  std::string sql =
+      "SELECT name, description, json_schema, is_enabled, call_count, is_top_level, is_run_js_callable "
+      "FROM tools WHERE is_enabled = 1";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
   std::vector<Tool> tools;
   while (true) {
@@ -673,9 +685,44 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
     t.json_schema = stmt->ColumnText(2);
     t.is_enabled = stmt->ColumnInt(3) != 0;
     t.call_count = stmt->ColumnInt(4);
+    t.is_top_level = stmt->ColumnInt(5) != 0;
+    t.is_run_js_callable = stmt->ColumnInt(6) != 0;
     tools.push_back(t);
   }
   return tools;
+}
+
+absl::StatusOr<std::vector<Database::Tool>> Database::GetTopLevelTools() {
+  std::string sql =
+      "SELECT name, description, json_schema, is_enabled, call_count, is_top_level, is_run_js_callable "
+      "FROM tools WHERE is_enabled = 1 AND is_top_level = 1";
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+  std::vector<Tool> tools;
+  while (true) {
+    auto row_or = stmt->Step();
+    if (!row_or.ok()) return row_or.status();
+    if (!*row_or) break;
+    Tool t;
+    t.name = stmt->ColumnText(0);
+    t.description = stmt->ColumnText(1);
+    t.json_schema = stmt->ColumnText(2);
+    t.is_enabled = stmt->ColumnInt(3) != 0;
+    t.call_count = stmt->ColumnInt(4);
+    t.is_top_level = stmt->ColumnInt(5) != 0;
+    t.is_run_js_callable = stmt->ColumnInt(6) != 0;
+    tools.push_back(t);
+  }
+  return tools;
+}
+
+absl::StatusOr<bool> Database::IsRunJsCallableTool(const std::string& name) {
+  std::string sql = "SELECT is_run_js_callable FROM tools WHERE name = ? AND is_enabled = 1";
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+  RETURN_IF_ERROR(stmt->BindText(1, name));
+  auto row_or = stmt->Step();
+  if (!row_or.ok()) return row_or.status();
+  if (!*row_or) return false;
+  return stmt->ColumnInt(0) != 0;
 }
 absl::Status Database::RegisterSkill(const Skill& skill) {
   return Execute(

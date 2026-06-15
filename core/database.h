@@ -141,9 +141,13 @@ class Database {
     std::string json_schema;
     bool is_enabled;
     int call_count = 0;
+    bool is_top_level = true;
+    bool is_run_js_callable = true;
   };
   absl::Status RegisterTool(const Tool& tool);
   absl::StatusOr<std::vector<Tool>> GetEnabledTools();
+  absl::StatusOr<std::vector<Tool>> GetTopLevelTools();
+  absl::StatusOr<bool> IsRunJsCallableTool(const std::string& name);
   struct Skill {
     int id;
     std::string name;

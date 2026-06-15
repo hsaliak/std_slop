@@ -51,7 +51,7 @@ nlohmann::json NormalizeToolSchemaForProvider(nlohmann::json schema) {
 
 absl::flat_hash_set<std::string> GetEnabledToolNames(Database* db) {
   absl::flat_hash_set<std::string> enabled_tool_names;
-  auto tools_or = db->GetEnabledTools();
+  auto tools_or = db->GetTopLevelTools();
   if (!tools_or.ok()) {
     return enabled_tool_names;
   }
@@ -63,7 +63,7 @@ absl::flat_hash_set<std::string> GetEnabledToolNames(Database* db) {
 
 nlohmann::json BuildOpenAiChatTools(Database* db) {
   nlohmann::json tools = nlohmann::json::array();
-  auto tools_or = db->GetEnabledTools();
+  auto tools_or = db->GetTopLevelTools();
   if (!tools_or.ok()) {
     return tools;
   }
@@ -81,7 +81,7 @@ nlohmann::json BuildOpenAiChatTools(Database* db) {
 
 nlohmann::json BuildOpenAiResponsesTools(Database* db) {
   nlohmann::json tools = nlohmann::json::array();
-  auto tools_or = db->GetEnabledTools();
+  auto tools_or = db->GetTopLevelTools();
   if (!tools_or.ok()) {
     return tools;
   }

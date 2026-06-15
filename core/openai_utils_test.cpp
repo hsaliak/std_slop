@@ -124,4 +124,27 @@ TEST(OpenAiUtilsTest, BuildOpenAiToolsNormalizesObjectSchemasWithProperties) {
   EXPECT_TRUE(parameters.contains("properties"));
 }
 
+TEST(OpenAiUtilsTest, BuildOpenAiToolsExcludesRunJsOnlyOperationalTools) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+
+  auto tools = BuildOpenAiResponsesTools(&db);
+  ASSERT_TRUE(tools.is_array());
+
+  auto contains_tool = [&](const std::string& name) {
+    for (const auto& t : tools) {
+      if (t.is_object() && t.value("name", "") == name) return true;
+    }
+    return false;
+  };
+
+  EXPECT_TRUE(contains_tool("query_db"));
+  EXPECT_FALSE(contains_tool("read_file"));
+  EXPECT_FALSE(contains_tool("list_directory"));
+  EXPECT_FALSE(contains_tool("grep"));
+  EXPECT_FALSE(contains_tool("write_file"));
+  EXPECT_FALSE(contains_tool("patch_tool"));
+  EXPECT_FALSE(contains_tool("execute_bash"));
+}
+
 }  // namespace slop

@@ -72,7 +72,7 @@ absl::StatusOr<nlohmann::json> GeminiOrchestrator::AssemblePayload(const std::st
   nlohmann::json contents = nlohmann::json::array();
 
   absl::flat_hash_set<std::string> enabled_tool_names;
-  auto tools_or = db_->GetEnabledTools();
+  auto tools_or = db_->GetTopLevelTools();
   if (tools_or.ok()) {
     for (const auto& t : *tools_or) {
       enabled_tool_names.insert(t.name);

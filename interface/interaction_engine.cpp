@@ -305,7 +305,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     if (!history_after_or.ok() || history_after_or->empty()) break;
     bool has_tool_calls = false;
     absl::flat_hash_set<std::string> enabled_tool_names;
-    auto enabled_tools_or = db_.GetEnabledTools();
+    auto enabled_tools_or = db_.GetTopLevelTools();
     if (enabled_tools_or.ok()) {
       for (const auto& t : *enabled_tools_or) {
         enabled_tool_names.insert(t.name);

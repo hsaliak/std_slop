@@ -191,6 +191,13 @@ absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args
         if (tool_name == "run_js") {
           return absl::InvalidArgumentError("run_js bridge cannot recursively invoke run_js");
         }
+        if (db_ != nullptr) {
+          ASSIGN_OR_RETURN(bool is_callable, db_->IsRunJsCallableTool(tool_name));
+          if (!is_callable) {
+            return absl::InvalidArgumentError(
+                absl::StrCat("tool '", tool_name, "' is not callable from run_js"));
+          }
+        }
         return Execute(tool_name, tool_args, nullptr);
       });
 }

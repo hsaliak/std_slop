@@ -918,6 +918,7 @@ TEST(ToolExecutorTest, RunJsCanCallRegisteredToolThroughBridge) {
     return absl::StatusOr<std::string>(R"({"ok":true,"value":42})");
   });
 
+  ASSERT_TRUE(db.RegisterTool({"echo_for_js", "echo", "{}", true}).ok());
   auto result = executor.Execute("run_js", {{"code", "return tools.echo_for_js({ value: 42 });"}});
 
   ASSERT_TRUE(result.ok()) << result.status();
@@ -935,7 +936,21 @@ TEST(ToolExecutorTest, RunJsBridgeRejectsUnknownTool) {
   auto result = executor.Execute("run_js", {{"code", "return call_tool('definitely_missing', {});"}});
 
   ASSERT_FALSE(result.ok());
-  EXPECT_TRUE(absl::StrContains(result.status().message(), "Tool not found"));
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "not callable from run_js"));
+}
+
+TEST(ToolExecutorTest, RunJsBridgeRejectsNonCallableToolBeforeDispatch) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  ASSERT_TRUE(db.RegisterTool({"blocked_for_js", "blocked", "{}", true, 0, true, false}).ok());
+  auto result = executor.Execute("run_js", {{"code", "return tools.blocked_for_js({});"}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "not callable from run_js"));
 }
 
 TEST(ToolExecutorTest, RunJsBridgePreservesToolValidation) {
@@ -976,6 +991,7 @@ TEST(ToolExecutorTest, RootRunJsBridgeAllowsLlmQueryWhenRegistered) {
     return absl::StatusOr<std::string>(R"({"summary":"ok"})");
   });
 
+  ASSERT_TRUE(db.RegisterTool({"llm_query", "llm", "{}", true}).ok());
   executor.SetExecutionContext(ToolExecutor::ExecutionScope::kRoot, 0);
   auto result = executor.Execute("run_js", {{"code", "return tools.llm_query({ query: 'summarize' });"}});
 
@@ -994,6 +1010,7 @@ TEST(ToolExecutorTest, SubqueryRunJsBridgeRejectsLlmQuery) {
     return absl::StatusOr<std::string>("should not run");
   });
 
+  ASSERT_TRUE(db.RegisterTool({"llm_query", "llm", "{}", true}).ok());
   executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
   auto result = executor.Execute("run_js", {{"code", "return tools.llm_query({ query: 'blocked' });"}});
 
@@ -1013,6 +1030,7 @@ TEST(ToolExecutorTest, SubqueryRunJsBridgeRejectsLlmToolSpecialization) {
     return absl::StatusOr<std::string>("should not run");
   });
 
+  ASSERT_TRUE(db.RegisterTool({"llm_tool_researcher", "llm", "{}", true}).ok());
   executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
   auto result = executor.Execute("run_js", {{"code", "return tools.llm_tool_researcher({ topic: 'blocked' });"}});
 
@@ -1032,6 +1050,7 @@ TEST(ToolExecutorTest, SubqueryRunJsBridgeAllowsOrdinaryTool) {
     return absl::StatusOr<std::string>(R"({"ordinary":true})");
   });
 
+  ASSERT_TRUE(db.RegisterTool({"ordinary_tool", "ordinary", "{}", true}).ok());
   executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, 1);
   auto result = executor.Execute("run_js", {{"code", "return tools.ordinary_tool({});"}});
 

@@ -77,6 +77,7 @@ void JsBridgeSubqueryPolicyNoBypass(bool use_llm_query, const std::string& suffi
   executor.RegisterTool(tool_name, [](const nlohmann::json&, std::shared_ptr<CancellationRequest>) {
     return absl::StatusOr<std::string>("should not run");
   });
+  ASSERT_TRUE(db.RegisterTool({tool_name, "blocked", "{}", true}).ok());
   executor.SetExecutionContext(ToolExecutor::ExecutionScope::kSubquery, depth);
 
   const std::string escaped_tool_name = json_dump(nlohmann::json(tool_name));
