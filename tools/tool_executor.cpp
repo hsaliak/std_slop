@@ -27,7 +27,9 @@
 
 namespace slop {
 
-absl::StatusOr<std::string> HandleRunJsTool(const nlohmann::json& args);
+absl::StatusOr<std::string> HandleRunJsTool(
+    const nlohmann::json& args,
+    std::function<absl::StatusOr<std::string>(const std::string&, const nlohmann::json&)> tool_caller);
 
 ToolExecutor::ToolExecutor(Database* db) : db_(db) { RegisterTools(); }
 
@@ -183,8 +185,14 @@ void ToolExecutor::SetMailMode(bool enabled) {
 
 void ToolExecutor::SetExecutionContext(ExecutionScope scope, int depth) { execution_context_ = {scope, depth}; }
 
-absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args) const {
-  return HandleRunJsTool(args);
+absl::StatusOr<std::string> ToolExecutor::HandleRunJs(const nlohmann::json& args) {
+  return HandleRunJsTool(
+      args, [this](const std::string& tool_name, const nlohmann::json& tool_args) -> absl::StatusOr<std::string> {
+    if (tool_name == "run_js") {
+      return absl::InvalidArgumentError("run_js bridge cannot recursively invoke run_js");
+    }
+    return Execute(tool_name, tool_args, nullptr);
+  });
 }
 
 absl::Status ToolExecutor::ValidateSubqueryPolicy(const std::string& tool_name) const {

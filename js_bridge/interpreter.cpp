@@ -18,6 +18,10 @@ constexpr int kMaxRunJsCodeBytes = 256 * 1024;
 
 }  // namespace
 
+struct JsInterpreter::ContextData {
+  JsInterpreter* interpreter = nullptr;
+};
+
 void JsInterpreter::JsRuntimeDeleter::operator()(JSRuntime* runtime) const {
   if (runtime != nullptr) {
     JS_FreeRuntime(runtime);
@@ -30,17 +34,27 @@ void JsInterpreter::JsContextDeleter::operator()(JSContext* context) const {
   }
 }
 
-JsInterpreter::JsInterpreter()
+JsInterpreter::JsInterpreter() : JsInterpreter(nullptr) {}
+
+JsInterpreter::JsInterpreter(ToolCaller tool_caller)
     : runtime_(JS_NewRuntime()), context_(runtime_ == nullptr ? nullptr : JS_NewContext(runtime_.get())) {
+  tool_caller_ = std::move(tool_caller);
   if (runtime_ != nullptr) {
     JS_SetMaxStackSize(runtime_.get(), 1024 * 1024);
   }
   if (context_ != nullptr) {
     js_std_add_helpers(context_.get(), 0, nullptr);
+    context_data_ = std::make_unique<ContextData>(ContextData{this});
+    JS_SetContextOpaque(context_.get(), context_data_.get());
+    (void)InstallToolBridge();
   }
 }
 
-JsInterpreter::~JsInterpreter() = default;
+JsInterpreter::~JsInterpreter() {
+  if (context_ != nullptr) {
+    JS_SetContextOpaque(context_.get(), nullptr);
+  }
+}
 
 absl::StatusOr<nlohmann::json> JsInterpreter::RunJson(std::string code, const std::string& filename) {
   if (runtime_ == nullptr || context_ == nullptr) {
@@ -89,6 +103,85 @@ absl::StatusOr<nlohmann::json> JsInterpreter::ValueToJson(JSValueConst value) {
   return *parsed;
 }
 
+JSValue JsInterpreter::JsonToValue(const nlohmann::json& value) {
+  const std::string serialized = json_dump(value);
+  return JS_ParseJSON(context_.get(), serialized.c_str(), serialized.size(), "<json>");
+}
+
+absl::Status JsInterpreter::InstallToolBridge() {
+  JSValue global = JS_GetGlobalObject(context_.get());
+  absl::Cleanup free_global = [this, global] { JS_FreeValue(context_.get(), global); };
+
+  JSValue call_tool = JS_NewCFunction(
+      context_.get(),
+      [](JSContext* context, JSValueConst, int argc, JSValueConst* argv) -> JSValue {
+        ContextData* data = static_cast<ContextData*>(JS_GetContextOpaque(context));
+        if (data == nullptr || data->interpreter == nullptr || !data->interpreter->tool_caller_) {
+          return JS_ThrowReferenceError(context, "call_tool bridge is not available");
+        }
+        if (argc != 2) {
+          return JS_ThrowTypeError(context, "call_tool requires exactly two arguments");
+        }
+
+        const char* raw_name = JS_ToCString(context, argv[0]);
+        if (raw_name == nullptr) {
+          return JS_ThrowTypeError(context, "call_tool name must be a string");
+        }
+        absl::Cleanup free_name = [context, raw_name] { JS_FreeCString(context, raw_name); };
+        std::string name(raw_name);
+        if (name.empty()) {
+          return JS_ThrowTypeError(context, "call_tool name must not be empty");
+        }
+        if (name == "run_js") {
+          return JS_ThrowTypeError(context, "call_tool cannot recursively invoke run_js");
+        }
+
+        absl::StatusOr<nlohmann::json> args_or = data->interpreter->ValueToJson(argv[1]);
+        if (!args_or.ok()) {
+          return JS_ThrowTypeError(context, "%s", args_or.status().ToString().c_str());
+        }
+        if (!args_or->is_object()) {
+          return JS_ThrowTypeError(context, "call_tool args must be an object");
+        }
+
+        absl::StatusOr<std::string> result_or = data->interpreter->tool_caller_(name, *args_or);
+        if (!result_or.ok()) {
+          return JS_ThrowInternalError(context, "%s", result_or.status().ToString().c_str());
+        }
+
+        nlohmann::json result = *result_or;
+        if (std::optional<nlohmann::json> parsed = json_parse(*result_or); parsed.has_value()) {
+          result = *parsed;
+        }
+        JSValue js_result = data->interpreter->JsonToValue(result);
+        if (JS_IsException(js_result)) {
+          return JS_ThrowInternalError(context, "tool result is not JSON-serializable");
+        }
+        return js_result;
+      },
+      "call_tool", 2);
+  if (JS_IsException(call_tool)) {
+    return absl::InternalError("failed to create call_tool bridge");
+  }
+  JS_SetPropertyStr(context_.get(), global, "call_tool", call_tool);
+
+  const char* tools_source = R"js(
+    globalThis.tools = new Proxy({}, {
+      get(_target, property) {
+        if (typeof property !== 'string') return undefined;
+        return function(args = {}) { return globalThis.call_tool(property, args); };
+      }
+    });
+  )js";
+  JSValue tools_value = JS_Eval(context_.get(), tools_source, std::char_traits<char>::length(tools_source),
+                                "<tools_bootstrap>", JS_EVAL_TYPE_GLOBAL);
+  if (JS_IsException(tools_value)) {
+    return absl::InternalError(absl::StrCat("failed to install tools bridge: ", ExceptionMessage()));
+  }
+  JS_FreeValue(context_.get(), tools_value);
+  return absl::OkStatus();
+}
+
 std::string JsInterpreter::ExceptionMessage() {
   JSValue exception = JS_GetException(context_.get());
   absl::Cleanup free_exception = [this, exception] { JS_FreeValue(context_.get(), exception); };
@@ -101,8 +194,9 @@ std::string JsInterpreter::ExceptionMessage() {
   return raw;
 }
 
-absl::StatusOr<nlohmann::json> RunJsForJson(std::string code, const std::string& filename) {
-  JsInterpreter interpreter;
+absl::StatusOr<nlohmann::json> RunJsForJson(std::string code, JsInterpreter::ToolCaller tool_caller,
+                                            const std::string& filename) {
+  JsInterpreter interpreter(std::move(tool_caller));
   return interpreter.RunJson(std::move(code), filename);
 }
 
@@ -120,10 +214,10 @@ absl::Status ValidateRunJsArgs(const nlohmann::json& args) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<nlohmann::json> ExecuteRunJsArgs(const nlohmann::json& args) {
+absl::StatusOr<nlohmann::json> ExecuteRunJsArgs(const nlohmann::json& args, JsInterpreter::ToolCaller tool_caller) {
   absl::Status status = ValidateRunJsArgs(args);
   if (!status.ok()) return status;
-  return RunJsForJson(*json_get<std::string>(args, "code"));
+  return RunJsForJson(*json_get<std::string>(args, "code"), std::move(tool_caller));
 }
 
 }  // namespace slop

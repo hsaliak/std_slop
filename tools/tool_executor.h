@@ -103,7 +103,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleReadScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleWriteScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleUseSkill(const nlohmann::json& args);
-  absl::StatusOr<std::string> HandleRunJs(const nlohmann::json& args) const;
+  absl::StatusOr<std::string> HandleRunJs(const nlohmann::json& args);
 
   absl::Status ValidateSubqueryPolicy(const std::string& tool_name) const;
 

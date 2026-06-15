@@ -906,4 +906,62 @@ TEST(ToolExecutorTest, RunJsRejectsUndefinedResult) {
   EXPECT_TRUE(absl::StrContains(result.status().message(), "not JSON-serializable"));
 }
 
+TEST(ToolExecutorTest, RunJsCanCallRegisteredToolThroughBridge) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  executor.RegisterTool("echo_for_js", [](const nlohmann::json& args, std::shared_ptr<CancellationRequest>) {
+    EXPECT_EQ(args, nlohmann::json({{"value", 42}}));
+    return absl::StatusOr<std::string>(R"({"ok":true,"value":42})");
+  });
+
+  auto result = executor.Execute("run_js", {{"code", "return tools.echo_for_js({ value: 42 });"}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_TRUE(absl::StrContains(*result, "\"ok\":true"));
+  EXPECT_TRUE(absl::StrContains(*result, "\"value\":42"));
+}
+
+TEST(ToolExecutorTest, RunJsBridgeRejectsUnknownTool) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto result = executor.Execute("run_js", {{"code", "return call_tool('definitely_missing', {});"}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "Tool not found"));
+}
+
+TEST(ToolExecutorTest, RunJsBridgePreservesToolValidation) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto result = executor.Execute("run_js", {{"code", "return tools.read_file({});"}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "path"));
+}
+
+TEST(ToolExecutorTest, RunJsBridgeRejectsRecursiveRunJs) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  auto result = executor.Execute("run_js", {{"code", "return call_tool('run_js', { code: 'return 1;' });"}});
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "recursively invoke run_js"));
+}
+
 }  // namespace slop

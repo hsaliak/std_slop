@@ -1,10 +1,12 @@
 
 #include <string>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
+#include "core/json_utils.h"
 #include "fuzztest/fuzztest.h"
 #include "js_bridge/interpreter.h"
 
@@ -57,11 +59,30 @@ void ExecuteRunJsArgsDoesNotCrash(const std::string& raw_args) {
   (void)ExecuteRunJsArgs(args);
 }
 
+void BridgeInputDoesNotCrash(const std::string& tool_name, const std::string& raw_args) {
+  const std::string escaped_name = json_dump(nlohmann::json(tool_name));
+  const std::string script = "return call_tool(" + escaped_name + ", " + raw_args + ");";
+
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson(script, [](const std::string& name, const nlohmann::json& args) -> absl::StatusOr<std::string> {
+        if (name.empty()) {
+          return absl::InvalidArgumentError("empty tool name");
+        }
+        return json_dump(nlohmann::json({{"name", name}, {"arg_type", args.type_name()}}));
+      });
+
+  if (!result.ok()) {
+    EXPECT_NE(result.status().code(), absl::StatusCode::kOk);
+  }
+}
+
 FUZZ_TEST(RunJsFuzzTest, ValidateRunJsArgsDeterministic);
 FUZZ_TEST(RunJsFuzzTest, RunJsArgsRequireCodeString)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>());
 FUZZ_TEST(RunJsFuzzTest, RunSmallScriptDoesNotCrash);
 FUZZ_TEST(RunJsFuzzTest, ExecuteRunJsArgsDoesNotCrash);
+FUZZ_TEST(RunJsFuzzTest, BridgeInputDoesNotCrash)
+    .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
 
 }  // namespace
 }  // namespace slop

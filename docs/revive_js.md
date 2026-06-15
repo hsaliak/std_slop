@@ -31,11 +31,14 @@ subquery policy remain authoritative.
   - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
     //core:tool_executor_test //js_bridge:interpreter_test
     //js_bridge:run_js_fuzz_test` passed.
-- [ ] Bundle 2: Bridge JS `call_tool`/`tools.*` calls through `ToolExecutor`.
+- [x] Bundle 2: Bridge JS `call_tool`/`tools.*` calls through `ToolExecutor`.
   - Unit coverage: known tool call, unknown tool rejection, invalid bridge
     argument rejection, and existing tool validation preservation.
   - Fuzz coverage: arbitrary bridge names and payload shapes are rejected
     cleanly before side effects.
+  - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
+    //core:tool_executor_test //js_bridge:interpreter_test
+    //js_bridge:run_js_fuzz_test` passed.
 - [ ] Bundle 3: Preserve LLM/subquery policy through JS calls.
   - Unit/integration coverage: normal-scope `llm_query`/`llm_tool_*` routing and
     subquery-scope rejection remain enforced by `ToolExecutor`.
@@ -56,3 +59,7 @@ subquery policy remain authoritative.
 - Bundle 1 complete: added QuickJS dependency, `js_bridge` runtime,
   `run_js` ToolExecutor registration, unit tests, and fuzz coverage for
   argument/result/error handling.
+- Bundle 2 complete: added `call_tool` and `tools.*` JS bridge, routed bridge
+  calls back through `ToolExecutor::Execute`, rejected recursive `run_js`, and
+  covered known tool calls, unknown tools, invalid bridge args, preserved tool
+  validation, and fuzzed arbitrary bridge names/payloads.
