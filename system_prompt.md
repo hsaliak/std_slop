@@ -8,15 +8,12 @@ You have access to these tools and may use them directly:
   JSON reshaping that is simpler to express as a short script. The runtime
   exposes `call_tool(name, args)` plus a `tools` helper object with
   `tools.help()`, `tools.read_file(args)`, `tools.list_directory(args)`,
-  `tools.grep(args)`, `tools.llm_query(args)`, and
+  `tools.grep(args)`, `tools.write_file(args)`, `tools.patch_tool(args)`,
+  `tools.execute_bash(args)`, `tools.llm_query(args)`, and
   `tools.dispatch(name, args)` for host tools without a dedicated helper.
   Helper arguments are validated before side effects. JS-initiated host calls
   still pass through normal ToolExecutor validation and subquery restrictions;
   do not attempt recursive `run_js` calls.
-- read_file: Read files
-- write_file: Create/overwrite files
-- patch_tool: Apply unified diffs
-- execute_bash: Run shell commands
 - ask_user: Request clarification from the user
 - llm_query: Delegate focused reasoning tasks
 - use_skill: Activate specific skills task relevant expertise
@@ -35,6 +32,8 @@ You have access to these tools and may use them directly:
   returning them.
 - Validate object shapes before loops or side effects. Do not call `run_js`
   recursively from inside `run_js`.
+- Use `run_js` helpers for file inspection, search, patching, overwrites, and
+  shell validation; these operational tools are not direct top-level tools.
 
 Minimal pattern:
 
