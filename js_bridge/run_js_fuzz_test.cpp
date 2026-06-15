@@ -76,6 +76,24 @@ void BridgeInputDoesNotCrash(const std::string& tool_name, const std::string& ra
   }
 }
 
+void HelperValidationRejectsMalformedArgs(const std::string& helper, const std::string& raw_args) {
+  if (helper != "read_file" && helper != "grep" && helper != "list_directory" && helper != "llm_query") {
+    return;
+  }
+  const std::string script = "return tools." + helper + "(" + raw_args + ");";
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson(script, [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+        called = true;
+        return std::string("called");
+      });
+
+  if (!result.ok()) {
+    EXPECT_FALSE(called);
+    EXPECT_NE(result.status().code(), absl::StatusCode::kOk);
+  }
+}
+
 FUZZ_TEST(RunJsFuzzTest, ValidateRunJsArgsDeterministic);
 FUZZ_TEST(RunJsFuzzTest, RunJsArgsRequireCodeString)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>());
@@ -83,6 +101,9 @@ FUZZ_TEST(RunJsFuzzTest, RunSmallScriptDoesNotCrash);
 FUZZ_TEST(RunJsFuzzTest, ExecuteRunJsArgsDoesNotCrash);
 FUZZ_TEST(RunJsFuzzTest, BridgeInputDoesNotCrash)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
+FUZZ_TEST(RunJsFuzzTest, HelperValidationRejectsMalformedArgs)
+    .WithDomains(fuzztest::ElementOf<std::string>({"read_file", "grep", "list_directory", "llm_query"}),
+                 fuzztest::Arbitrary<std::string>());
 
 }  // namespace
 }  // namespace slop

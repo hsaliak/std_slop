@@ -47,11 +47,14 @@ subquery policy remain authoritative.
   - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
     //core:tool_executor_test //tools:subquery_policy_fuzz_test
     //js_bridge:interpreter_test //js_bridge:run_js_fuzz_test` passed.
-- [ ] Bundle 4: Restore the JavaScript tool library/bootstrap.
+- [x] Bundle 4: Restore the JavaScript tool library/bootstrap.
   - Unit coverage: `tools.help()`, representative file/search helpers, library
     load failure reporting, and JSON-serializable helper returns.
   - Fuzz coverage: helper entry points validate untrusted shapes before calling
     side-effecting host tools.
+  - Validation: `bazel test --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main
+    //js_bridge:interpreter_test //js_bridge:run_js_fuzz_test
+    //core:tool_executor_test //tools:subquery_policy_fuzz_test` passed.
 - [ ] Bundle 5: Update prompt guidance and verify the full patch series.
   - Validation: affected Bazel targets, fuzz smoke tests, and
     `git_verify_series` over the chosen deterministic command.
@@ -70,3 +73,8 @@ subquery policy remain authoritative.
   subquery-scope rejection for `llm_query` and `llm_tool_*`, and ordinary
   subquery tool allowance; added fuzz coverage proving generated LLM-like names
   cannot bypass policy through `call_tool`.
+- Bundle 4 complete: restored a JS helper bootstrap with `tools.help`,
+  representative file/search helpers, `tools.llm_query`, and
+  `tools.dispatch(name, args)` for host tools without explicit helpers; added
+  unit and fuzz coverage for helper discovery, validation before host calls,
+  representative host calls, and malformed helper argument shapes.

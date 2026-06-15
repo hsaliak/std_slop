@@ -1,6 +1,7 @@
 
 #include "js_bridge/interpreter.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -113,6 +114,56 @@ TEST(JsInterpreterBridgeTest, CallToolRequiresObjectArgs) {
 
   ASSERT_FALSE(result.ok());
   EXPECT_TRUE(absl::StrContains(result.status().message(), "call_tool args must be an object"));
+}
+
+TEST(JsToolLibraryTest, HelpListsRevivedHelpers) {
+  absl::StatusOr<nlohmann::json> result = RunJsForJson("return tools.help();");
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  ASSERT_TRUE((*result)["tools"].is_array());
+  EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "read_file"), (*result)["tools"].end());
+  EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "grep"), (*result)["tools"].end());
+}
+
+TEST(JsToolLibraryTest, ReadFileValidatesPathBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.read_file({});",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "read_file requires string field path"));
+}
+
+TEST(JsToolLibraryTest, GrepValidatesPatternBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.grep({ path: '.' });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "grep requires string field pattern"));
+}
+
+TEST(JsToolLibraryTest, ReadFileCallsHostTool) {
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.read_file({ path: 'file.txt' });",
+                   [](const std::string& name, const nlohmann::json& args) -> absl::StatusOr<std::string> {
+                     EXPECT_EQ(name, "read_file");
+                     EXPECT_EQ(args, nlohmann::json({{"path", "file.txt"}}));
+                     return std::string("contents");
+                   });
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, "contents");
 }
 
 }  // namespace
