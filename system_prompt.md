@@ -93,49 +93,125 @@ record("describe_db", function () { return tools.dispatch("describe_db", {}); })
 return results;
 ```
 
-Dense diagnostic/edit pattern:
+Dense tool patterns:
 
 ```js
-const out = {};
-
-function summarize(value, maxLen) {
+// Search, inspect focused context, and summarize large results.
+function summarize(value, maxLen = 1200) {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   return text.length > maxLen ? text.slice(0, maxLen) + "\n... [truncated]" : text;
 }
 
-function record(name, fn) {
-  try {
-    const value = fn();
-    out[name] = { ok: true, value: summarize(value, 1200) };
-  } catch (err) {
-    out[name] = { ok: false, error: String(err && err.message ? err.message : err) };
-  }
-}
+const hits = tools.grep({
+  path: ".",
+  pattern: "RunJsCodeFromArgs",
+  fixed_strings: true,
+  context: 2,
+  limit: 20,
+  include_ignored: false
+});
+const context = tools.read_file({
+  path: "interface/ui.cpp",
+  start_line: 430,
+  end_line: 490,
+  line_numbers: true
+});
+return { hits: summarize(hits), context };
+```
 
-const files = ["core/database.cpp", "core/database.h", "core/database_test.cpp"];
-for (const file of files) {
-  record("conflicts:" + file, function () {
-    return tools.grep({
-      path: file,
-      pattern: "<<<<<<<",
-      fixed_strings: true,
-      context: 3,
-      limit: 20,
-      include_ignored: false
-    });
-  });
-}
-
-record("status", function () {
-  return tools.execute_bash({
-    cwd: ".",
-    command: "git status --short --branch",
-    allow_nonzero_exit: false,
-    timeout_seconds: 180
-  });
+```js
+// Exact edit, then re-read the changed range.
+tools.edit_tool({
+  path: "path/to/file.cpp",
+  edits: [
+    { op: "replace", find: "exact old text", text: "exact new text" }
+  ]
 });
 
-return out;
+return {
+  changed: tools.read_file({
+    path: "path/to/file.cpp",
+    start_line: 40,
+    end_line: 90,
+    line_numbers: true
+  })
+};
+```
+
+```js
+// Multiple exact edits in one file.
+tools.edit_tool({
+  path: "path/to/file.cpp",
+  edits: [
+    { op: "replace", find: "#include \"old.h\"", text: "#include \"new.h\"" },
+    { op: "replace", find: "old block", text: "new block" }
+  ]
+});
+return { status: tools.execute_bash({
+  cwd: ".",
+  command: "git diff -- path/to/file.cpp",
+  allow_nonzero_exit: false,
+  timeout_seconds: 60
+}) };
+```
+
+```js
+// Write a small generated file when replacement is not appropriate.
+const content = `# Example
+
+Short generated content.
+`;
+tools.write_file({ path: "docs/example.md", content });
+return { written: tools.read_file({
+  path: "docs/example.md",
+  start_line: 1,
+  end_line: 40,
+  line_numbers: true
+}) };
+```
+
+```js
+// Edit, re-read, and run focused validation.
+tools.edit_tool({
+  path: "path/to/file.cpp",
+  edits: [{ op: "replace", find: "old code", text: "new code" }]
+});
+const changed = tools.read_file({
+  path: "path/to/file.cpp",
+  start_line: 100,
+  end_line: 150,
+  line_numbers: true
+});
+const test = tools.execute_bash({
+  cwd: ".",
+  command: "bazel test //path:target",
+  allow_nonzero_exit: false,
+  timeout_seconds: 600
+});
+return { changed, test };
+```
+
+```js
+// Capture expected failure output for diagnosis only.
+const result = tools.execute_bash({
+  cwd: ".",
+  command: "bazel test //path:target",
+  allow_nonzero_exit: true,
+  timeout_seconds: 600
+});
+return {
+  exit_code: result.exit_code,
+  output: String(result.stdout || result.stderr || result).slice(0, 4000)
+};
+```
+
+```js
+// Use host tools without direct helpers through dispatch.
+const schema = tools.dispatch("describe_db", {});
+const rows = tools.dispatch("query_db", {
+  sql: "SELECT id, role, status FROM messages ORDER BY id DESC LIMIT 5"
+});
+return { schema, rows };
 ```
 
 ## Scratchpad
