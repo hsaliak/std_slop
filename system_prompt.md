@@ -23,6 +23,9 @@ You have access to these tools and may use them directly:
 ## run_js JavaScript Patterns
 - Submit snippets in the `code` field. The snippet is a plain JavaScript body;
   end with `return <json-serializable value>;` when you need a result.
+- Put source-code or edit payload strings in the optional `input` field,
+  not inside JavaScript string literals. `input` is exposed to the snippet as
+  `globalThis.input` and defaults to `{}`.
 - Treat `tools.*` helpers as synchronous from inside the snippet. Do not use
   top-level `await`, `async` wrappers, or Promise-based helper calls.
 - Use `tools.help()` to discover helper names and schemas at runtime.
@@ -120,38 +123,32 @@ return { hits: summarize(hits), context };
 ```
 
 ```js
-// Exact edit, then re-read the changed range.
+// Exact edit with payload text supplied via run_js.input, then re-read.
 tools.edit_tool({
-  path: "path/to/file.cpp",
+  path: input.path,
   edits: [
-    { op: "replace", find: "exact old text", text: "exact new text" }
+    { op: "replace", find: input.find, text: input.text }
   ]
 });
 
 return {
   changed: tools.read_file({
-    path: "path/to/file.cpp",
-    start_line: 40,
-    end_line: 90,
+    path: input.path,
+    start_line: input.start_line,
+    end_line: input.end_line,
     line_numbers: true
   })
 };
 ```
 
 ```js
-// Multiple exact edits in one file.
-tools.edit_tool({
-  path: "path/to/file.cpp",
-  edits: [
-    { op: "replace", find: "#include \"old.h\"", text: "#include \"new.h\"" },
-    { op: "replace", find: "old block", text: "new block" }
-  ]
-});
-return { status: tools.execute_bash({
-  cwd: ".",
-  command: "git diff -- path/to/file.cpp",
-  allow_nonzero_exit: false,
-  timeout_seconds: 60
+// Multiple exact edits in one file; keep edit payloads in input.edits.
+tools.edit_tool({ path: input.path, edits: input.edits });
+return { changed: tools.read_file({
+  path: input.path,
+  start_line: input.start_line,
+  end_line: input.end_line,
+  line_numbers: true
 }) };
 ```
 
@@ -171,15 +168,13 @@ return { written: tools.read_file({
 ```
 
 ```js
-// Edit, re-read, and run focused validation.
-tools.edit_tool({
-  path: "path/to/file.cpp",
-  edits: [{ op: "replace", find: "old code", text: "new code" }]
-});
+// Edit with input payloads, re-read, and run focused validation.
+// Keep shell commands literal or build them from validated allowlisted values.
+tools.edit_tool({ path: input.path, edits: input.edits });
 const changed = tools.read_file({
-  path: "path/to/file.cpp",
-  start_line: 100,
-  end_line: 150,
+  path: input.path,
+  start_line: input.start_line,
+  end_line: input.end_line,
   line_numbers: true
 });
 const test = tools.execute_bash({

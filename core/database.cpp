@@ -350,7 +350,7 @@ absl::Status Database::RegisterDefaultTools() {
        R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"]}},"required":["name"]})",
        true},
       {"run_js", "Execute JavaScript in the embedded control plane and return a JSON result.",
-       R"({"type":"object","properties":{"code":{"type":"string","description":"JavaScript source to execute."}},"required":["code"]})",
+       R"({"type":"object","properties":{"code":{"type":"string","description":"JavaScript source to execute."},"input":{"description":"Optional JSON value exposed as globalThis.input."}},"required":["code"]})",
        true},
       {"git_create_staging_branch", "Create or switch to a staging branch in mail mode.",
        R"({"type":"object","properties":{"name":{"type":"string"},"base_branch":{"type":"string"}},"required":["name"]})",

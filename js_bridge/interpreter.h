@@ -24,6 +24,7 @@ class JsInterpreter {
   ~JsInterpreter();
 
   absl::StatusOr<nlohmann::json> RunJson(std::string code, const std::string& filename = "<run_js>");
+  absl::Status SetGlobalJson(const std::string& name, const nlohmann::json& value);
 
  private:
   struct ContextData;
@@ -49,6 +50,9 @@ class JsInterpreter {
 };
 
 absl::StatusOr<nlohmann::json> RunJsForJson(std::string code, JsInterpreter::ToolCaller tool_caller = nullptr,
+                                            const std::string& filename = "<run_js>");
+absl::StatusOr<nlohmann::json> RunJsForJson(std::string code, const nlohmann::json& input,
+                                            JsInterpreter::ToolCaller tool_caller = nullptr,
                                             const std::string& filename = "<run_js>");
 
 absl::Status ValidateRunJsArgs(const nlohmann::json& args);

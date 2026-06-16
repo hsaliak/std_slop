@@ -7,9 +7,12 @@ operations, reshape JSON, and return a compact result to the model.
 
 ## Contract
 
-- Tool arguments are `{ "code": "..." }`.
+- Tool arguments are `{ "code": "...", "input": ... }`; `input` is optional
+  and defaults to `{}`.
 - The code is a plain JavaScript body. Use `return <json-serializable value>;`
-  when the caller needs a result.
+  when the caller needs a result. Optional JSON `input` is exposed as
+  `globalThis.input`; use it for large source-code/edit payload strings instead
+  of embedding those strings in JavaScript literals.
 - `tools.*` helpers are synchronous. Do not use top-level `await`, async
   wrappers, or Promise-based helper calls.
 - Helper methods validate obvious argument-shape errors before side effects.
@@ -40,6 +43,26 @@ The returned object includes:
 
 For host tools without a dedicated helper, use
 `tools.dispatch(name, args)` after checking `tools.help()`.
+
+## Quote-safe input payloads
+
+Large source-code strings should be passed as `input` data, not embedded in the
+JavaScript snippet. This avoids quote/escape bugs with backticks, `${...}`, raw
+strings, Markdown fences, regular expressions, and other language-specific text.
+
+```js
+// Tool call argument shape:
+// {
+//   "code": "return tools.edit_tool({ path: input.path, edits: input.edits });",
+//   "input": {
+//     "path": "file.cpp",
+//     "edits": [{ "op": "replace", "find": "large old block", "text": "large new block" }]
+//   }
+// }
+return tools.edit_tool({ path: input.path, edits: input.edits });
+```
+
+Keep JavaScript as the control plane and treat large edit payloads as JSON data.
 
 ## Persisted functions
 

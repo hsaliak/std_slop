@@ -80,6 +80,26 @@ absl::StatusOr<JSValue> JsInterpreter::Evaluate(std::string code, const std::str
   return value;
 }
 
+absl::Status JsInterpreter::SetGlobalJson(const std::string& name, const nlohmann::json& value) {
+  if (runtime_ == nullptr || context_ == nullptr) {
+    return absl::InternalError("failed to initialize QuickJS runtime");
+  }
+  if (name.empty()) {
+    return absl::InvalidArgumentError("global JSON name must not be empty");
+  }
+
+  JSValue global = JS_GetGlobalObject(context_.get());
+  absl::Cleanup free_global = [this, global] { JS_FreeValue(context_.get(), global); };
+  JSValue js_value = JsonToValue(value);
+  if (JS_IsException(js_value)) {
+    return absl::InvalidArgumentError("global JSON value is not JSON-serializable");
+  }
+  if (JS_SetPropertyStr(context_.get(), global, name.c_str(), js_value) < 0) {
+    return absl::InternalError(absl::StrCat("failed to set global JSON value: ", name));
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<nlohmann::json> JsInterpreter::ValueToJson(JSValueConst value) {
   JSValue stringified = JS_JSONStringify(context_.get(), value, JS_UNDEFINED, JS_UNDEFINED);
   if (JS_IsException(stringified)) {
@@ -193,6 +213,14 @@ absl::StatusOr<nlohmann::json> RunJsForJson(std::string code, JsInterpreter::Too
   return interpreter.RunJson(std::move(code), filename);
 }
 
+absl::StatusOr<nlohmann::json> RunJsForJson(std::string code, const nlohmann::json& input,
+                                            JsInterpreter::ToolCaller tool_caller, const std::string& filename) {
+  JsInterpreter interpreter(std::move(tool_caller));
+  absl::Status status = interpreter.SetGlobalJson("input", input);
+  if (!status.ok()) return status;
+  return interpreter.RunJson(std::move(code), filename);
+}
+
 absl::Status ValidateRunJsArgs(const nlohmann::json& args) {
   if (!args.is_object()) {
     return absl::InvalidArgumentError("run_js args must be an object");
@@ -210,7 +238,9 @@ absl::Status ValidateRunJsArgs(const nlohmann::json& args) {
 absl::StatusOr<nlohmann::json> ExecuteRunJsArgs(const nlohmann::json& args, JsInterpreter::ToolCaller tool_caller) {
   absl::Status status = ValidateRunJsArgs(args);
   if (!status.ok()) return status;
-  return RunJsForJson(*json_get<std::string>(args, "code"), std::move(tool_caller));
+  const nlohmann::json* input = json_at(args, "input");
+  return RunJsForJson(*json_get<std::string>(args, "code"), input == nullptr ? nlohmann::json::object() : *input,
+                      std::move(tool_caller));
 }
 
 }  // namespace slop

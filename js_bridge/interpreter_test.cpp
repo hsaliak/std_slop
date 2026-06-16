@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
@@ -64,6 +65,77 @@ TEST(RunJsArgsTest, ExecuteRunJsArgsReturnsJson) {
 
   ASSERT_TRUE(result.ok()) << result.status();
   EXPECT_EQ(*result, nlohmann::json::array({1, 2, 3}));
+}
+
+TEST(RunJsArgsTest, ExecuteRunJsArgsExposesInputGlobal) {
+  const nlohmann::json input = {
+      {"message", "hello"},
+      {"nested", {{"value", 42}}},
+      {"list", nlohmann::json::array({"a", "b"})},
+  };
+  absl::StatusOr<nlohmann::json> result =
+      ExecuteRunJsArgs(nlohmann::json{{"code", "return input;"}, {"input", input}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, input);
+}
+
+TEST(RunJsArgsTest, ExecuteRunJsArgsDefaultsInputToObject) {
+  absl::StatusOr<nlohmann::json> result = ExecuteRunJsArgs(nlohmann::json{{"code", "return input;"}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, nlohmann::json::object());
+}
+
+TEST(RunJsArgsTest, InputCarriesTextThatWouldBreakJsLiterals) {
+  std::string hostile_text = "backtick ";
+  hostile_text.push_back('`');
+  hostile_text += " and template ${value} and quote ";
+  hostile_text.push_back('\"');
+  hostile_text += " and slash ";
+  hostile_text.push_back('\\');
+  hostile_text += "\nmarkdown fence ```cpp\nstd::string s = raw;\n```\n";
+  hostile_text += "python triple quotes ";
+  hostile_text += "\"\"\"";
+  hostile_text += " and regex /a\\/b/ and trailing backslash ";
+  hostile_text.push_back('\\');
+  const nlohmann::json input = {{"old", hostile_text}, {"replacement", hostile_text + "\nreplacement"}};
+  absl::StatusOr<nlohmann::json> result = ExecuteRunJsArgs(
+      nlohmann::json{{"code", "return { old: input.old, replacement: input.replacement };"}, {"input", input}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ((*result)["old"], input["old"]);
+  EXPECT_EQ((*result)["replacement"], input["replacement"]);
+}
+
+TEST(RunJsArgsTest, InputSupportsQuoteSafeEditPayload) {
+  const std::string old_text = "const tricky = `template ${value}`;\nregex = /a\\/b/;\n";
+  const std::string new_text = "const tricky = String.raw`template ${value}`;\nregex = /c\\/d/;\n";
+  const nlohmann::json input = {
+      {"edit", {{"path", "quoted.txt"},
+                 {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", old_text}, {"text", new_text}}})}}},
+      {"after", {{"path", "quoted.txt"}}},
+  };
+  std::vector<nlohmann::json> edit_calls;
+  absl::StatusOr<nlohmann::json> result = ExecuteRunJsArgs(
+      nlohmann::json{{"code", "const edit = tools.edit_tool(input.edit); const after = tools.read_file(input.after); return { edit, after };"},
+                     {"input", input}},
+      [&edit_calls](const std::string& name, const nlohmann::json& args) -> absl::StatusOr<std::string> {
+        if (name == "edit_tool") {
+          edit_calls.push_back(args);
+          return std::string(R"({"edits":1,"ok":true})");
+        }
+        if (name == "read_file") {
+          return std::string(R"({"content":"updated"})");
+        }
+        return absl::InvalidArgumentError("unexpected tool: " + name);
+      });
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  ASSERT_EQ(edit_calls.size(), 1);
+  EXPECT_EQ(edit_calls[0], input["edit"]);
+  EXPECT_EQ((*result)["edit"]["edits"], 1);
+  EXPECT_EQ((*result)["after"]["content"], "updated");
 }
 
 TEST(JsInterpreterBridgeTest, CallToolReturnsParsedJsonResult) {

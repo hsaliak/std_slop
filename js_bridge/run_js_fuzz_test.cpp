@@ -59,6 +59,19 @@ void ExecuteRunJsArgsDoesNotCrash(const std::string& raw_args) {
   (void)ExecuteRunJsArgs(args);
 }
 
+void ExecuteRunJsArgsInputDoesNotCrash(const std::string& code, const std::string& raw_input) {
+  if (code.size() > 4096 || raw_input.size() > 4096) return;
+  nlohmann::json input = nlohmann::json::parse(raw_input, nullptr, false);
+  if (input.is_discarded()) {
+    input = raw_input;
+  }
+
+  absl::StatusOr<nlohmann::json> result = ExecuteRunJsArgs(nlohmann::json{{"code", code}, {"input", input}});
+  if (!result.ok()) {
+    EXPECT_NE(result.status().code(), absl::StatusCode::kOk);
+  }
+}
+
 void BridgeInputDoesNotCrash(const std::string& tool_name, const std::string& raw_args) {
   const std::string escaped_name = json_dump(nlohmann::json(tool_name));
   const std::string script = "return call_tool(" + escaped_name + ", " + raw_args + ");";
@@ -99,6 +112,8 @@ FUZZ_TEST(RunJsFuzzTest, RunJsArgsRequireCodeString)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>());
 FUZZ_TEST(RunJsFuzzTest, RunSmallScriptDoesNotCrash);
 FUZZ_TEST(RunJsFuzzTest, ExecuteRunJsArgsDoesNotCrash);
+FUZZ_TEST(RunJsFuzzTest, ExecuteRunJsArgsInputDoesNotCrash)
+    .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
 FUZZ_TEST(RunJsFuzzTest, BridgeInputDoesNotCrash)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
 FUZZ_TEST(RunJsFuzzTest, HelperValidationRejectsMalformedArgs)

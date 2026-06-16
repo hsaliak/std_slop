@@ -494,6 +494,7 @@ TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {
 
   ASSERT_TRUE(by_name.find("run_js") != by_name.end());
   EXPECT_TRUE(by_name["run_js"]["properties"].contains("code"));
+  EXPECT_TRUE(by_name["run_js"]["properties"].contains("input"));
   EXPECT_TRUE(by_name["run_js"]["required"].is_array());
 }
 
