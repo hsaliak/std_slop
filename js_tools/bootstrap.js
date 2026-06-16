@@ -25,13 +25,14 @@
   }
 
   const helperNames = [
-    'dispatch', 'help', 'read_file', 'list_directory', 'grep', 'write_file',
-    'edit_tool', 'execute_bash', 'llm_query'
+    'dispatch', 'help', 'persist_function', 'read_file', 'list_directory',
+    'grep', 'write_file', 'edit_tool', 'execute_bash', 'llm_query'
   ];
 
   function staticHelp() {
     return {
       helpers: helperNames,
+      persisted_globals: [],
       tools: helperNames,
       note: 'Use tools.dispatch(name, args) for host tools without a JS helper.'
     };
@@ -56,6 +57,25 @@
         return staticHelp();
       }
       if (!Array.isArray(rows)) return staticHelp();
+
+      let persistedGlobals = [];
+      try {
+        const persistedRows = call('query_db', {
+          sql: 'SELECT name, description, json_schema FROM js_functions ORDER BY name'
+        });
+        if (Array.isArray(persistedRows)) {
+          persistedGlobals = persistedRows.map(function(row) {
+            return {
+              name: row.name,
+              description: row.description || '',
+              schema: row.json_schema || ''
+            };
+          });
+        }
+      } catch (err) {
+        persistedGlobals = [];
+      }
+
       const normalized = rows.map(function(row) {
         return {
           name: row.name,
@@ -68,11 +88,25 @@
       });
       return {
         helpers: helperNames,
+        persisted_globals: persistedGlobals,
         tools: normalized,
         top_level: normalized.filter(function(tool) { return tool.top_level; }).map(function(tool) { return tool.name; }),
         run_js_callable: normalized.filter(function(tool) { return tool.run_js_callable; }).map(function(tool) { return tool.name; }),
         note: 'Use helper methods for common run_js workflows; use tools.dispatch(name, args) for run_js-callable host tools without a helper.'
       };
+    },
+
+    persist_function(args = {}) {
+      requireObject('persist_function', args);
+      requireString('persist_function', args, 'name');
+      requireString('persist_function', args, 'code');
+      if (args.description !== undefined && typeof args.description !== 'string') {
+        throw new TypeError('persist_function description must be a string');
+      }
+      if (args.test_args !== undefined && !Array.isArray(args.test_args)) {
+        throw new TypeError('persist_function test_args must be an array');
+      }
+      return call('persist_function', args);
     },
 
     read_file(args = {}) {

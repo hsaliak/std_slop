@@ -104,7 +104,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_FALSE(*db.IsRunJsCallableTool("git_commit_patch"));
 
   auto js_functions_res = db.Query("SELECT name FROM js_functions");
-  EXPECT_FALSE(js_functions_res.ok());
+  ASSERT_TRUE(js_functions_res.ok()) << js_functions_res.status();
   bool found_planner = false;
   bool found_code_reviewer = false;
   bool found_patcher = false;
@@ -451,12 +451,16 @@ TEST(DatabaseTest, SkillTracking) {
   EXPECT_EQ((*restored)[0], "skill1");
   EXPECT_EQ((*restored)[1], "skill2");
 }
-TEST(DatabaseTest, JsFunctionsTableRemoved) {
+TEST(DatabaseTest, JsFunctionsTableExistsForPersistedRunJsHelpers) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
-  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions WHERE name = 'edit_tool'");
-  EXPECT_FALSE(funcs_or.ok());
+  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions ORDER BY name");
+  ASSERT_TRUE(funcs_or.ok()) << funcs_or.status();
+  auto funcs = slop::json_parse(*funcs_or);
+  ASSERT_TRUE(funcs.has_value());
+  ASSERT_TRUE(funcs->is_array());
+  EXPECT_TRUE(funcs->empty());
 }
 
 TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {

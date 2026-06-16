@@ -615,6 +615,33 @@ TEST_F(CommandHandlerTest, ToolListShowsOnlyTopLevelTools) {
   EXPECT_FALSE(absl::StrContains(output, "Promoted JS Tools (Top-Level Enabled)"));
 }
 
+TEST_F(CommandHandlerTest, ToolsAliasAndJsHelpShowPersistedFunctions) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+
+  ASSERT_TRUE(db.Query("INSERT INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?)",
+                       {"tripleValue", "return function(value) { return value * 3; }",
+                        "Return three times the numeric input. | table-safe", "{\"type\":\"number\"}"})
+                  .ok());
+
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+
+  testing::internal::CaptureStdout();
+  std::string input = "/tools js_help";
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "JavaScript run_js Helpers"));
+  EXPECT_TRUE(absl::StrContains(output, "tools.persist_function"));
+  EXPECT_TRUE(absl::StrContains(output, "Host Tools Visible"));
+  EXPECT_TRUE(absl::StrContains(output, "Persisted Global JS Functions"));
+  EXPECT_TRUE(absl::StrContains(output, "tripleValue"));
+  EXPECT_TRUE(absl::StrContains(output, "Return three times the numeric input."));
+  EXPECT_TRUE(absl::StrContains(output, "\\| table-safe"));
+}
 TEST_F(CommandHandlerTest, SkillListTruncatesDescription) {
   TestableCommandHandler handler(&db);
   std::string sid = "s1";

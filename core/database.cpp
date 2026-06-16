@@ -221,6 +221,13 @@ absl::Status Database::Init(const std::string& db_path) {
         session_id TEXT PRIMARY KEY,
         state_blob TEXT
     );
+    CREATE TABLE IF NOT EXISTS js_functions (
+        name TEXT PRIMARY KEY,
+        code TEXT,
+        description TEXT,
+        json_schema TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS scratchpads (
         session_id TEXT PRIMARY KEY,
         content TEXT NOT NULL DEFAULT '',
@@ -249,6 +256,14 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN is_run_js_callable INTEGER DEFAULT 1;", nullptr, nullptr,
                      nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "CREATE TABLE IF NOT EXISTS js_functions ("
+                     "name TEXT PRIMARY KEY, "
+                     "code TEXT, "
+                     "description TEXT, "
+                     "json_schema TEXT, "
+                     "created_at DATETIME DEFAULT CURRENT_TIMESTAMP);",
+                     nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db,
                      "CREATE INDEX IF NOT EXISTS idx_messages_session_created_id "
                      "ON messages(session_id, created_at, id);",

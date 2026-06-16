@@ -129,6 +129,43 @@ TEST(JsToolLibraryTest, HelpListsRevivedHelpers) {
             (*result)["tools"].end());
 }
 
+
+TEST(JsToolLibraryTest, PersistFunctionValidatesRequiredFieldsBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.persist_function({ name: 'missingCode' });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "persist_function requires string field code"));
+}
+
+TEST(JsToolLibraryTest, HelpIncludesPersistedGlobalsFromDatabase) {
+  bool queried_functions = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.help();",
+                   [&queried_functions](const std::string& name,
+                                         const nlohmann::json& args) -> absl::StatusOr<std::string> {
+                     if (name != "query_db") return absl::NotFoundError("unexpected tool");
+                     const std::string sql = args.value("sql", "");
+                     if (absl::StrContains(sql, "js_functions")) {
+                       queried_functions = true;
+                       return std::string(R"([{"name":"tripleValue","description":"Return triple","json_schema":""}])");
+                     }
+                     return std::string(R"([{"name":"read_file","description":"Read file","json_schema":"{}","is_enabled":1,"is_top_level":0,"is_run_js_callable":1}])");
+                   });
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_TRUE(queried_functions);
+  ASSERT_TRUE((*result)["persisted_globals"].is_array());
+  ASSERT_EQ((*result)["persisted_globals"].size(), 1);
+  EXPECT_EQ((*result)["persisted_globals"][0]["name"], "tripleValue");
+  EXPECT_EQ((*result)["persisted_globals"][0]["description"], "Return triple");
+}
 TEST(JsToolLibraryTest, ReadFileValidatesPathBeforeHostCall) {
   bool called = false;
   absl::StatusOr<nlohmann::json> result =

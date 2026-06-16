@@ -327,6 +327,67 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
         PrintMarkdown(md);
       }
     }
+  } else if (sub_cmd == "js_help") {
+    std::string md = "### JavaScript run_js Helpers\n\n";
+    md += "Use these helpers inside `run_js` snippets as `tools.<helper>(args)`. Use `tools.dispatch(name, args)"
+          " for run_js-callable host tools without a dedicated helper.\n\n";
+    md += "#### Built-in JS Helpers\n\n";
+    md += "| Helper | Description |\n";
+    md += "| :--- | :--- |\n";
+    md += "| `tools.dispatch(name, args)` | Call a run_js-callable host tool by name. |\n";
+    md += "| `tools.help(args)` | Return the JS helper and tool catalog. |\n";
+    md += "| `tools.persist_function(args)` | Persist a reusable JS helper after a dry-run test. |\n";
+    md += "| `tools.read_file(args)` | Read file content. |\n";
+    md += "| `tools.list_directory(args)` | List files and directories. |\n";
+    md += "| `tools.grep(args)` | Search file content. |\n";
+    md += "| `tools.write_file(args)` | Create or overwrite a file. |\n";
+    md += "| `tools.edit_tool(args)` | Apply exact textual edits. |\n";
+    md += "| `tools.execute_bash(args)` | Execute a shell command. |\n";
+    md += "| `tools.llm_query(args)` | Run a bounded LLM subquery. |\n\n";
+
+    auto tools_res = db_->Query(
+        "SELECT name, description, json_schema, is_top_level, is_run_js_callable FROM tools WHERE is_enabled = 1 ORDER BY "
+        "name");
+    if (tools_res.ok()) {
+      auto j = json_parse(*tools_res).value_or(nlohmann::json::object());
+      if (!j.is_discarded() && j.is_array()) {
+        md += "#### Host Tools Visible to `tools.help()`\n\n";
+        md += "| Tool | Run JS Callable | Top Level | Description |\n";
+        md += "| :--- | :---: | :---: | :--- |\n";
+        for (const auto& row : j) {
+          std::string description = json_get_or(row, "description", std::string{});
+          description = absl::StrReplaceAll(description, {{"|", "\\|"}, {"\n", " "}});
+          md += absl::Substitute("| `$0` | $1 | $2 | $3 |\n", json_get_or(row, "name", std::string{}),
+                                 json_get_or(row, "is_run_js_callable", 1) ? "✅" : "❌",
+                                 json_get_or(row, "is_top_level", 1) ? "✅" : "❌", description);
+        }
+        md += "\n";
+      }
+    }
+
+    auto functions_res = db_->Query("SELECT name, description, json_schema FROM js_functions ORDER BY name");
+    if (functions_res.ok()) {
+      auto j = json_parse(*functions_res).value_or(nlohmann::json::object());
+      if (!j.is_discarded() && j.is_array() && !j.empty()) {
+        md += "#### Persisted Global JS Functions\n\n";
+        md += "These functions are loaded as globals in each `run_js` invocation.\n\n";
+        md += "| Function | Description | Schema |\n";
+        md += "| :--- | :--- | :--- |\n";
+        for (const auto& row : j) {
+          std::string description = json_get_or(row, "description", std::string{});
+          description = absl::StrReplaceAll(description, {{"|", "\\|"}, {"\n", " "}});
+          std::string schema = json_get_or(row, "json_schema", std::string{});
+          schema = absl::StrReplaceAll(schema, {{"|", "\\|"}, {"\n", " "}});
+          md += absl::Substitute("| `$0` | $1 | `$2` |\n", json_get_or(row, "name", std::string{}), description,
+                                 schema.empty() ? "" : schema);
+        }
+        md += "\n";
+      } else {
+        md += "#### Persisted Global JS Functions\n\nNo persisted JS functions found.\n";
+      }
+    }
+
+    PrintMarkdown(md);
   } else if (sub_cmd == "show") {
     auto res = db_->Query("SELECT name, description, json_schema FROM tools WHERE name = ?", {sub_args});
     if (res.ok()) {
