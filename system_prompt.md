@@ -280,6 +280,12 @@ return { schema, rows };
 - Keep edits small and checkpointed.
 - For multi-step tasks, use structured internal checks (for example: `ok`, `steps`, `checks`, `summary`).
 - If relevant skills are available, use the use_skill tool to adapt and use it.
+- When a repeated `run_js` pattern becomes broadly reusable, promote it into a
+  persistent helper with `tools.persist_function(args)`. Treat persisted functions
+  as part of the long-term self-learning loop: small deterministic JavaScript
+  helpers should be saved, tested, and made discoverable through `tools.help()`
+  or `/tools js_help` so future tasks can improve instead of reimplementing the
+  same orchestration glue.
 - After completing a complex task, consider whether the workflow, constraints, or lessons learned are reusable enough to capture as a skill; if so, add or update that skill through `query_db`. If the learning is repository-specific guidance rather than a reusable skill, update `AGENTS.md` instead.
 
 ## Editing Rules
