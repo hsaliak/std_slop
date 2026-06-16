@@ -132,8 +132,8 @@ TEST(UiTest, PrintToolCallMessageFormatsRunJsCode) {
   EXPECT_TRUE(absl::StrContains(output, "```javascript"));
   EXPECT_TRUE(absl::StrContains(output, "const value = 21 * 2;"));
   EXPECT_TRUE(absl::StrContains(output, "return { ok: true, value };"));
-  EXPECT_TRUE(absl::StrContains(output, ">     const value = 21 * 2;"));
-  EXPECT_TRUE(absl::StrContains(output, ">     return { ok: true, value };"));
+  EXPECT_TRUE(absl::StrContains(output, ">     "));
+  EXPECT_TRUE(absl::StrContains(output, ansi::theme::syntax::Keyword));
 }
 
 TEST(UiTest, PrintToolCallMessageWithTokens) {
@@ -341,6 +341,20 @@ TEST(UiTest, FormatAssembledContextKeepsNonRunJsToolArgumentsAsJson) {
   EXPECT_TRUE(absl::StrContains(output, "```json"));
   EXPECT_TRUE(absl::StrContains(output, "\"path\": \"AGENTS.md\""));
   EXPECT_TRUE(absl::StrContains(output, "\"start_line\": 1"));
+}
+
+TEST(UiTest, PrintToolCallMessageRendersRunJsCodeThroughMarkdown) {
+  const std::string args = R"({"code":"const value = 'highlight me';\nreturn { value };"})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolCallMessage("run_js", args);
+  std::cout.rdbuf(old);
+
+  const std::string output = buffer.str();
+  EXPECT_TRUE(absl::StrContains(output, "const value"));
+  EXPECT_TRUE(absl::StrContains(output, ansi::theme::syntax::Keyword));
+  EXPECT_TRUE(absl::StrContains(output, ansi::theme::syntax::String));
+  EXPECT_TRUE(absl::StrContains(output, "highlight me"));
 }
 
 TEST(UiTest, GetCliHelpTextUsesRenamedOpenAiOauthFlags) {

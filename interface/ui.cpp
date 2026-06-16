@@ -41,6 +41,7 @@ inline constexpr std::string_view kTool = "tool";
 #include "core/json_utils.h"
 #include "core/message_parser.h"
 #include "interface/color.h"
+#include "interface/renderer.h"
 #include "interface/command_definitions.h"
 #include "interface/completer.h"
 
@@ -474,11 +475,12 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
     auto args_json = json_parse(args);
     if (args_json) {
       if (auto code = RunJsCodeFromArgs(*args_json)) {
-        std::cout << prefix << "    " << Colorize("```javascript", "", ansi::Metadata) << std::endl;
-        for (absl::string_view line : absl::StrSplit(*code, '\n')) {
+        std::string rendered_code;
+        Renderer::Get().RenderMarkdown(absl::StrCat("```javascript\n", *code, "\n```"), "", &rendered_code);
+        for (absl::string_view line : absl::StrSplit(rendered_code, '\n')) {
+          if (line.empty()) continue;
           std::cout << prefix << "    " << line << std::endl;
         }
-        std::cout << prefix << "    " << Colorize("```", "", ansi::Metadata) << std::endl;
       }
     }
   }
