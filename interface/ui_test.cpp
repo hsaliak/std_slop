@@ -184,6 +184,35 @@ TEST(UiTest, PrintToolResultMessageStderr) {
   EXPECT_TRUE(absl::StrContains(output, "stderr line 2"));
 }
 
+
+TEST(UiTest, PrintToolResultMessageRunJsSummarizesJsonResult) {
+  std::string result = R"({"ok":true,"files_preview":"very long raw data that should not be rendered"})";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolResultMessage("run_js", result, "completed");
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "completed"));
+  EXPECT_TRUE(absl::StrContains(output, "javascript_success"));
+  EXPECT_TRUE(absl::StrContains(output, "true"));
+  EXPECT_FALSE(absl::StrContains(output, "files_preview"));
+  EXPECT_FALSE(absl::StrContains(output, "very long raw data"));
+}
+
+TEST(UiTest, PrintToolResultMessageRunJsSummarizesError) {
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintToolResultMessage("run_js", "Error: JavaScript error: boom", "error");
+  std::cout.rdbuf(old);
+  std::string output = buffer.str();
+
+  EXPECT_TRUE(absl::StrContains(output, "error"));
+  EXPECT_TRUE(absl::StrContains(output, "javascript_success"));
+  EXPECT_TRUE(absl::StrContains(output, "false"));
+  EXPECT_FALSE(absl::StrContains(output, "boom"));
+}
+
 TEST(UiTest, PrintToolResultMessageUnknownToolJsonDefaultFormatting) {
   std::string name = "custom_persisted_tool";
   std::string result = R"({"alpha":1,"beta":"two"})";

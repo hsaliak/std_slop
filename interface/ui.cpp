@@ -123,6 +123,21 @@ bool IsCommandOutputEnvelope(const nlohmann::json& value) {
           json_at(value, "exitCode") != nullptr);
 }
 
+std::string JsSuccessLabelFromStatusAndResult(const std::string& status, const std::string& result) {
+  if (status == "error" || absl::StartsWith(result, "Error:")) return "false";
+  auto parsed = json_parse(result);
+  if (parsed) return "true";
+  return "unknown";
+}
+
+std::string FormatRunJsResultSummary(const std::string& status, const std::string& result) {
+  std::stringstream ss;
+  ss << "- completed: `" << (status == "completed" ? "true" : "false") << "`\n";
+  ss << "- status: `" << status << "`\n";
+  ss << "- javascript_success: `" << JsSuccessLabelFromStatusAndResult(status, result) << "`\n";
+  return ss.str();
+}
+
 std::string FormatCommandOutputEnvelopeAsMarkdown(const nlohmann::json& envelope) {
   std::stringstream ss;
 
@@ -491,9 +506,9 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   std::cout << prefix << "    " << Colorize("  │", "", ansi::ToolResultPrefix) << " " << Colorize(summary, "", color)
             << std::endl;
 
-  // Render stdout in markdown, formatting structured JSON by default.
+  const std::string formatted_stdout =
+      name == "run_js" ? FormatRunJsResultSummary(status, stdout_part) : FormatToolStdoutForMarkdown(stdout_part);
   std::string rendered_stdout;
-  const std::string formatted_stdout = FormatToolStdoutForMarkdown(stdout_part);
   RenderMarkdown(formatted_stdout, "", &rendered_stdout);
   std::vector<absl::string_view> rendered_out_lines =
       absl::StrSplit(absl::StripAsciiWhitespace(rendered_stdout), '\n', absl::SkipEmpty());
