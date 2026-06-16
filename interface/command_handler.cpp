@@ -312,11 +312,11 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
   std::string sub_cmd = sub_parts[0];
   std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
   if (sub_cmd == "list") {
-    auto res = db_->Query("SELECT name, description, is_enabled FROM tools");
+    auto res = db_->Query("SELECT name, description, is_enabled FROM tools WHERE is_top_level = 1");
     if (res.ok()) {
       auto j = json_parse(*res).value_or(nlohmann::json::object());
       if (!j.is_discarded() && j.is_array()) {
-        std::string md = "### Available Tools\n\n";
+        std::string md = "### Top-Level Tools\n\n";
         md += "| Name | Description | Enabled |\n";
         md += "| :--- | :--- | :---: |\n";
         for (const auto& row : j) {

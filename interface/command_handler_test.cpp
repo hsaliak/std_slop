@@ -592,10 +592,13 @@ TEST_F(CommandHandlerTest, FeedbackNoCommentsDoesNothing) {
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(handler.editor_was_called);
 }
-TEST_F(CommandHandlerTest, ToolListDoesNotShowPromotedJsToolsSecondTable) {
+TEST_F(CommandHandlerTest, ToolListShowsOnlyTopLevelTools) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
+
+  ASSERT_TRUE(db.RegisterTool({"top_level_test_tool", "visible tool", "{}", true, 0, true}).ok());
+  ASSERT_TRUE(db.RegisterTool({"run_js_only_test_tool", "hidden tool", "{}", true, 0, false}).ok());
 
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -606,7 +609,9 @@ TEST_F(CommandHandlerTest, ToolListDoesNotShowPromotedJsToolsSecondTable) {
   std::string output = testing::internal::GetCapturedStdout();
 
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(absl::StrContains(output, "Available Tools"));
+  EXPECT_TRUE(absl::StrContains(output, "Top-Level Tools"));
+  EXPECT_TRUE(absl::StrContains(output, "top_level_test_tool"));
+  EXPECT_FALSE(absl::StrContains(output, "run_js_only_test_tool"));
   EXPECT_FALSE(absl::StrContains(output, "Promoted JS Tools (Top-Level Enabled)"));
 }
 
