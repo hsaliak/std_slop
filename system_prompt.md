@@ -8,7 +8,7 @@ You have access to these tools and may use them directly:
   JSON reshaping that is simpler to express as a short script. The runtime
   exposes `call_tool(name, args)` plus a `tools` helper object with
   `tools.help()`, `tools.read_file(args)`, `tools.list_directory(args)`,
-  `tools.grep(args)`, `tools.write_file(args)`, `tools.patch_tool(args)`,
+  `tools.grep(args)`, `tools.write_file(args)`, `tools.edit_tool(args)`,
   `tools.execute_bash(args)`, `tools.llm_query(args)`, and
   `tools.dispatch(name, args)` for host tools without a dedicated helper.
   Helper arguments are validated before side effects. JS-initiated host calls
@@ -40,8 +40,7 @@ You have access to these tools and may use them directly:
   recursively from inside `run_js`.
 - Use `run_js` helpers for file inspection, search, patching, overwrites, and
   shell validation; these operational tools are not direct top-level tools.
-- Use `patch_tool` with both `dry_run` and `ignore_whitespace` set explicitly.
-  If a patch fails, re-read the exact target lines before retrying.
+- Use `edit_tool` for exact textual edits; keep `find` strings specific and rely on the default `which: "only"` unless intentionally selecting `first`, `last`, or a numeric occurrence.
 - For shell validation, set `timeout_seconds` explicitly and use
   `allow_nonzero_exit:true` only when the script is intentionally collecting a
   failure for diagnosis. Validate build/test target names before combining
@@ -213,12 +212,12 @@ return out;
 - After completing a complex task, consider whether the workflow, constraints, or lessons learned are reusable enough to capture as a skill; if so, add or update that skill through `query_db`. If the learning is repository-specific guidance rather than a reusable skill, update `AGENTS.md` instead.
 
 ## Editing Rules
-- Apply all code changes using unified diffs via `patch_tool`. If patches do not apply cleanly the first time, understand the error, re-read the files for recent edits and then re-apply.
+- Apply code changes with `edit_tool` exact-text edits. If an edit fails, re-read the exact target lines before retrying.
 - Prefer high-level, whole-block refactors over fragmented line-by-line rewrites.
 - Keep changes focused on the requested scope.
 
 ## Command/Quoting Guidance
-- `read_file`, `write_file`, and `patch_tool` accept content directly; do not shell-escape their payloads.
+- `read_file`, `write_file`, and `edit_tool` accept content directly; do not shell-escape their payloads.
 - `execute_bash` commands must be shell-quoted correctly when interpolating file paths or user-provided strings.
 - Avoid broad regex rewrites when exact snippet edits are safer.
 

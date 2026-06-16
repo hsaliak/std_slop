@@ -275,24 +275,6 @@ TEST(UiTest, PrintToolResultMessageNestedJsonStringTruncationMarker) {
   EXPECT_TRUE(absl::StrContains(output, "... (truncated)"));
 }
 
-TEST(UiTest, PrintToolResultMessagePatchToolRendersDiffBlock) {
-  std::string name = "patch_tool";
-  std::string result = R"({"ok":true,"mode":"apply","path":"foo.txt","applied":1,"unified_diff":"--- foo.txt\n+++ foo.txt\n@@ -1 +1 @@\n-old\n+new\n"})";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolResultMessage(name, result, "completed");
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-
-  EXPECT_TRUE(absl::StrContains(output, "mode"));
-  EXPECT_TRUE(absl::StrContains(output, "apply"));
-  EXPECT_TRUE(absl::StrContains(output, "Diff"));
-  EXPECT_TRUE(absl::StrContains(output, "--- foo.txt"));
-  EXPECT_TRUE(absl::StrContains(output, "+++ foo.txt"));
-  EXPECT_TRUE(absl::StrContains(output, "@@ -1 +1 @@"));
-  EXPECT_TRUE(absl::StrContains(output, "+new"));
-}
-
 TEST(UiTest, FormatAssembledContextFormatsOpenAiRunJsCode) {
   const std::string context =
       R"({"messages":[{"role":"assistant","tool_calls":[{"function":{"name":"run_js","arguments":"{\"code\":\"const n = 7;\\nreturn { n };\"}"}}]}]})";
@@ -378,40 +360,6 @@ TEST(UiTest, GetInAppHelpTextOmitsCliOptions) {
   EXPECT_FALSE(absl::StrContains(help, "## Usage"));
   EXPECT_FALSE(absl::StrContains(help, "--prompt"));
   EXPECT_FALSE(absl::StrContains(help, "--helpfull"));
-}
-
-TEST(UiTest, PrintToolResultMessagePatchToolLongDiffTruncatesWithExistingRules) {
-  std::string name = "patch_tool";
-  std::string long_diff;
-  for (int i = 0; i < 30; ++i) {
-    absl::StrAppend(&long_diff, "@@ -", i + 1, " +", i + 1, " @@\n-", i, "\n+", i + 1, "\n");
-  }
-  std::string escaped_diff = long_diff;
-  absl::StrReplaceAll({{"\\", "\\\\"}, {"\"", "\\\""}, {"\n", "\\n"}}, &escaped_diff);
-  std::string payload =
-      absl::StrCat("{\"ok\":true,\"mode\":\"apply\",\"path\":\"foo.txt\",\"applied\":30,\"unified_diff\":\"",
-                   escaped_diff, "\"}");
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolResultMessage(name, payload, "completed");
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-
-  EXPECT_TRUE(absl::StrContains(output, "... (truncated)"));
-}
-
-TEST(UiTest, PrintToolResultMessagePatchToolWithoutDiffFallsBack) {
-  std::string name = "patch_tool";
-  std::string result = R"({"ok":true,"mode":"apply","path":"foo.txt","applied":1})";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolResultMessage(name, result, "completed");
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-
-  EXPECT_TRUE(absl::StrContains(output, "ok"));
-  EXPECT_TRUE(absl::StrContains(output, "completed"));
-  EXPECT_TRUE(!absl::StrContains(output, "### Diff"));
 }
 
 TEST(UiTest, PrintToolResultMessageHTTPError) {

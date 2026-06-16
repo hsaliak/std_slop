@@ -33,7 +33,7 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   // Since kBuiltinSystemPrompt is baked in at compile time from system_prompt.md,
   // verify key contract guidance is present.
   EXPECT_TRUE(absl::StrContains(instr, "execute_bash")) << "Missing execute_bash guidance";
-  EXPECT_TRUE(absl::StrContains(instr, "patch_tool")) << "Missing patch_tool guidance";
+  EXPECT_TRUE(absl::StrContains(instr, "edit_tool")) << "Missing edit_tool guidance";
 }
 
 }  // namespace slop

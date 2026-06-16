@@ -26,7 +26,7 @@
 
   const helperNames = [
     'dispatch', 'help', 'read_file', 'list_directory', 'grep', 'write_file',
-    'patch_tool', 'execute_bash', 'llm_query'
+    'edit_tool', 'execute_bash', 'llm_query'
   ];
 
   function staticHelp() {
@@ -101,13 +101,11 @@
       return call('write_file', args);
     },
 
-    patch_tool(args = {}) {
-      requireObject('patch_tool', args);
-      requireString('patch_tool', args, 'path');
-      requireString('patch_tool', args, 'unified_diff');
-      requireBoolean('patch_tool', args, 'dry_run');
-      requireBoolean('patch_tool', args, 'ignore_whitespace');
-      return call('patch_tool', args);
+    edit_tool(args = {}) {
+      requireObject('edit_tool', args);
+      requireString('edit_tool', args, 'path');
+      if (!Array.isArray(args.edits)) throw new Error('INVALID_ARGUMENT: edit_tool.edits must be an array');
+      return call('edit_tool', args);
     },
 
     execute_bash(args = {}) {

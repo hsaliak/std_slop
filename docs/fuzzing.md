@@ -37,8 +37,8 @@ This complements unit tests (exact behavior/regression coverage) with adversaria
   - Fuzzes `ValidateQueryDbArgs` (`sql` type requirements, `params` shape, determinism).
 - `//tools:exec_tool_args_fuzz_test`
   - Fuzzes `ValidateExecuteBashArgs` (`command` required, timeout/type constraints, determinism).
-- `//tools:patch_tool_fuzz_test`
-  - Fuzzes patch application argument handling and dry-run invariants.
+- `//tools:edit_tool_fuzz_test`
+  - Fuzzes exact text edit argument handling and atomic failure invariants.
 - `//tools:dispatcher_executor_boundary_fuzz_test`
   - Fuzzes dispatcher call-shape validation and executor boundary behavior for unknown or malformed tool calls.
 - `//tools:grep_tool_fuzz_test`

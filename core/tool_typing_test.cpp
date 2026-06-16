@@ -93,30 +93,24 @@ TEST_F(ToolTypingTest, GrepDirectTypedArgs) {
   EXPECT_TRUE(res_ok.ok() || res_ok.status().code() == absl::StatusCode::kNotFound);
 }
 
-TEST_F(ToolTypingTest, ApplyPatchTyped) {
-  std::string unified_diff =
-      "--- test_patch.txt\n"
-      "+++ test_patch.txt\n"
-      "@@ -1,1 +1,1 @@\n"
-      "-old content\n"
-      "+new content\n";
-  nlohmann::json args = {{"path", "test_patch.txt"}, {"unified_diff", unified_diff}};
+TEST_F(ToolTypingTest, EditToolTyped) {
+  nlohmann::json args = {{"path", "test_edit.txt"},
+                         {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "old content"}, {"text", "new content"}}})}};
 
-  std::ofstream ofs("test_patch.txt");
+  std::ofstream ofs("test_edit.txt");
   ofs << "old content\n";
   ofs.close();
 
-  auto res = executor_->Execute("patch_tool", args);
-  ASSERT_TRUE(res.ok());
-  ASSERT_TRUE(absl::StrContains(*res, R"("ok":true)")) << *res;
-  ASSERT_TRUE(absl::StrContains(*res, R"("mode":"apply")"));
-  ASSERT_TRUE(absl::StrContains(*res, R"("applied":1)"));
+  auto res = executor_->Execute("edit_tool", args);
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  ASSERT_TRUE(absl::StrContains(*res, R"("edits":1)")) << *res;
+  ASSERT_TRUE(absl::StrContains(*res, R"("bytes_before")"));
 
-  std::ifstream ifs("test_patch.txt");
+  std::ifstream ifs("test_edit.txt");
   std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
   EXPECT_TRUE(absl::StrContains(content, "new content"));
 
-  std::filesystem::remove("test_patch.txt");
+  std::filesystem::remove("test_edit.txt");
 }
 
 }  // namespace slop

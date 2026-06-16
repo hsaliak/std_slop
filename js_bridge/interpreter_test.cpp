@@ -124,7 +124,7 @@ TEST(JsToolLibraryTest, HelpListsRevivedHelpers) {
   EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "read_file"), (*result)["tools"].end());
   EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "grep"), (*result)["tools"].end());
   EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "write_file"), (*result)["tools"].end());
-  EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "patch_tool"), (*result)["tools"].end());
+  EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "edit_tool"), (*result)["tools"].end());
   EXPECT_NE(std::find((*result)["tools"].begin(), (*result)["tools"].end(), "execute_bash"),
             (*result)["tools"].end());
 }
@@ -171,10 +171,10 @@ TEST(JsToolLibraryTest, WriteFileValidatesContentBeforeHostCall) {
   EXPECT_TRUE(absl::StrContains(result.status().message(), "write_file requires string field content"));
 }
 
-TEST(JsToolLibraryTest, PatchToolValidatesDryRunBeforeHostCall) {
+TEST(JsToolLibraryTest, EditToolValidatesEditsBeforeHostCall) {
   bool called = false;
   absl::StatusOr<nlohmann::json> result =
-      RunJsForJson("return tools.patch_tool({ path: 'file.txt', unified_diff: 'diff', ignore_whitespace: false });",
+      RunJsForJson("return tools.edit_tool({ path: 'file.txt', edits: 'not an array' });",
                    [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
                      called = true;
                      return std::string("unreachable");
@@ -182,7 +182,7 @@ TEST(JsToolLibraryTest, PatchToolValidatesDryRunBeforeHostCall) {
 
   ASSERT_FALSE(result.ok());
   EXPECT_FALSE(called);
-  EXPECT_TRUE(absl::StrContains(result.status().message(), "patch_tool requires boolean field dry_run"));
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "edit_tool.edits must be an array"));
 }
 
 TEST(JsToolLibraryTest, ExecuteBashValidatesAllowNonzeroExitBeforeHostCall) {
@@ -218,18 +218,16 @@ TEST(JsToolLibraryTest, SideEffectHelpersCallHostTools) {
   absl::StatusOr<nlohmann::json> result =
       RunJsForJson(R"js(
 const write = tools.write_file({ path: 'file.txt', content: 'contents' });
-const patch = tools.patch_tool({
+const edit = tools.edit_tool({
   path: 'file.txt',
-  unified_diff: '--- a/file.txt\n+++ b/file.txt\n',
-  dry_run: true,
-  ignore_whitespace: false
+  edits: [{ op: 'replace', find: 'old', text: 'new' }]
 });
 const shell = tools.execute_bash({
   cwd: '.',
   command: 'true',
   allow_nonzero_exit: false
 });
-return { write, patch, shell };
+return { write, edit, shell };
 )js",
                    [&called_tools](const std::string& name,
                                    const nlohmann::json& args) -> absl::StatusOr<std::string> {
@@ -239,9 +237,9 @@ return { write, patch, shell };
                    });
 
   ASSERT_TRUE(result.ok()) << result.status();
-  EXPECT_EQ(called_tools, std::vector<std::string>({"write_file", "patch_tool", "execute_bash"}));
+  EXPECT_EQ(called_tools, std::vector<std::string>({"write_file", "edit_tool", "execute_bash"}));
   EXPECT_EQ((*result)["write"], "write_file");
-  EXPECT_EQ((*result)["patch"], "patch_tool");
+  EXPECT_EQ((*result)["edit"], "edit_tool");
   EXPECT_EQ((*result)["shell"], "execute_bash");
 }
 

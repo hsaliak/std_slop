@@ -143,7 +143,7 @@ TEST(OpenAiUtilsTest, BuildOpenAiToolsExcludesRunJsOnlyOperationalTools) {
   EXPECT_FALSE(contains_tool("list_directory"));
   EXPECT_FALSE(contains_tool("grep"));
   EXPECT_FALSE(contains_tool("write_file"));
-  EXPECT_FALSE(contains_tool("patch_tool"));
+  EXPECT_FALSE(contains_tool("edit_tool"));
   EXPECT_FALSE(contains_tool("execute_bash"));
 }
 

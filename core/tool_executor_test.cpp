@@ -207,7 +207,8 @@ TEST(ToolExecutorTest, MailModelEnforcementAppliesToAllMailTools) {
 
   const std::vector<std::pair<std::string, nlohmann::json>> mail_tools = {
       {"write_file", {{"path", "mm_guard.txt"}, {"content", "x"}}},
-      {"patch_tool", {{"path", "mm_guard.txt"}, {"unified_diff", "--- a\n+++ a\n@@ -1 +1 @@\n-x\n+y\n"}}},
+      {"edit_tool", {{"path", "mm_guard.txt"},
+                     {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "x"}, {"text", "y"}}})}}},
       {"execute_bash", {{"command", "echo guard"}}},
       {"git_commit_patch", {{"summary", "s"}, {"rationale", "r"}}},
       {"git_format_patch_series", nlohmann::json::object()},
@@ -349,7 +350,7 @@ TEST(ToolExecutorTest, PromotedMailToolsAreRegisteredTopLevel) {
 
   const std::vector<std::string> mail_tools = {
       "execute_bash",     "git_commit_patch", "git_finalize_series", "git_format_patch_series",
-      "git_reroll_patch", "patch_tool",       "write_file",
+      "git_reroll_patch", "edit_tool",        "write_file",
   };
 
   for (const auto& name : mail_tools) {
@@ -368,6 +369,7 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
   const std::vector<std::string> expected = {
       "ask_user",
       "describe_db",
+      "edit_tool",
       "execute_bash",
       "git_commit_patch",
       "git_create_staging_branch",
@@ -377,7 +379,6 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "git_verify_series",
       "grep",
       "list_directory",
-      "patch_tool",
       "query_db",
       "read_file",
       "read_scratchpad",
@@ -567,182 +568,175 @@ TEST(ToolExecutorTest, ExecuteBashStderr) {
   EXPECT_TRUE(res->find("hello stderr") != std::string::npos);
 }
 
-TEST(ToolExecutorTest, ApplyPatch_Success) {
+TEST(ToolExecutorTest, EditToolAppliesSequentialEdits) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
   auto executor_or = ToolExecutor::Create(&db);
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  std::string test_file = "patch_success.txt";
-  std::string initial_content = "void function1() {\n  // First\n}\n\nvoid function2() {\n  // Second\n}\n";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
-
-  std::string unified_diff =
-      "--- patch_success.txt\n"
-      "+++ patch_success.txt\n"
-      "@@ -4,4 +4,4 @@\n"
-      " \n"
-      " void function2() {\n"
-      "-  // Second\n"
-      "+  // Updated Second\n"
-      " }\n";
-
-  auto patch_res = executor.Execute("patch_tool", {{"path", test_file}, {"unified_diff", unified_diff}});
-  ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
-  const std::string patch_text = EnvelopeResultText(*patch_res);
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)"));
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("applied":1)"));
-
-  auto read_res = executor.Execute("read_file", {{"path", test_file}});
-  ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "// Updated Second"));
-
-  std::filesystem::remove(test_file);
-}
-
-TEST(ToolExecutorTest, ApplyPatch_DryRun) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  std::string test_file = "patch_dry_run.txt";
-  std::string initial_content = "void function1() {\n  // First\n}\n";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
-
-  std::string unified_diff =
-      "--- patch_dry_run.txt\n"
-      "+++ patch_dry_run.txt\n"
-      "@@ -1,3 +1,3 @@\n"
-      " void function1() {\n"
-      "-  // First\n"
-      "+  // Updated First\n"
-      " }\n";
-
-  auto patch_res =
-      executor.Execute("patch_tool", {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}});
-  ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
-  const std::string patch_text = EnvelopeResultText(*patch_res);
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("ok":true)"));
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("can_apply":true)"));
-  EXPECT_TRUE(absl::StrContains(patch_text, R"("mode":"dry_run")"));
-
-  auto read_res = executor.Execute("read_file", {{"path", test_file}});
-  ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*read_res), "// Updated First"));
-
-  std::filesystem::remove(test_file);
-}
-TEST(ToolExecutorTest, ApplyPatchUnifiedDiff) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  std::string test_file = "patch_unified.txt";
-  std::string initial_content = "alpha\nbeta\ngamma\n";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
-
-  std::string unified_diff =
-      "--- patch_unified.txt\n"
-      "+++ patch_unified.txt\n"
-      "@@ -1,3 +1,3 @@\n"
-      " alpha\n"
-      "-beta\n"
-      "+beta patched\n"
-      " gamma\n";
-
-  auto dry_res = executor.Execute(
-      "patch_tool",
-      {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}, {"ignore_whitespace", true}});
-  ASSERT_TRUE(dry_res.ok()) << dry_res.status().message();
-  const std::string dry_text = EnvelopeResultText(*dry_res);
-  EXPECT_TRUE(absl::StrContains(dry_text, R"("ok":true)"));
-  EXPECT_TRUE(absl::StrContains(dry_text, "dry_run"));
-  EXPECT_TRUE(absl::StrContains(dry_text, R"("can_apply":true)"));
-
-  auto apply_res = executor.Execute("patch_tool",
-                                    {{"path", test_file}, {"unified_diff", unified_diff}, {"ignore_whitespace", true}});
-  ASSERT_TRUE(apply_res.ok()) << apply_res.status().message();
-  const std::string apply_text = EnvelopeResultText(*apply_res);
-  EXPECT_TRUE(absl::StrContains(apply_text, R"("ok":true)"));
-  EXPECT_TRUE(absl::StrContains(apply_text, R"("mode":"apply")"));
-
-  auto read_res = executor.Execute("read_file", {{"path", test_file}});
-  ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "beta patched"));
-
-  std::filesystem::remove(test_file);
-}
-
-TEST(ToolExecutorTest, ApplyPatch_IgnoresLineNumbersAndWhitespace) {
-  Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-  auto executor_or = ToolExecutor::Create(&db);
-  ASSERT_TRUE(executor_or.ok());
-  auto& executor = **executor_or;
-
-  std::string test_file = "patch_relaxed_match.txt";
-  std::string initial_content =
+  const std::string test_file = "edit_success.txt";
+  const std::string initial_content =
       "alpha\n"
-      "beta    value\n"
-      "gamma\n";
+      "beta\n"
+      "gamma\n"
+      "beta\n";
   ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
 
-  // Deliberately wrong line numbers and different spacing in the removal line.
-  std::string unified_diff =
-      "--- patch_relaxed_match.txt\n"
-      "+++ patch_relaxed_match.txt\n"
-      "@@ -90,5 +90,5 @@\n"
-      " alpha\n"
-      "-beta value\n"
-      "+beta patched value\n"
-      " gamma\n";
+  nlohmann::json edits = nlohmann::json::array(
+      {{{"op", "replace"}, {"find", "beta"}, {"text", "BETA"}, {"which", "first"}},
+       {{"op", "insert_after"}, {"find", "gamma"}, {"text", "\ndelta"}},
+       {{"op", "insert_before"}, {"find", "alpha"}, {"text", "start\n"}},
+       {{"op", "delete"}, {"find", "beta"}, {"which", "last"}}});
 
-  auto apply_res = executor.Execute("patch_tool",
-                                    {{"path", test_file}, {"unified_diff", unified_diff}, {"ignore_whitespace", true}});
-  ASSERT_TRUE(apply_res.ok()) << apply_res.status().message();
-  const std::string apply_text = EnvelopeResultText(*apply_res);
-  EXPECT_TRUE(absl::StrContains(apply_text, "\"ok\":true"));
-  EXPECT_TRUE(absl::StrContains(apply_text, "\"mode\":\"apply\""));
+  auto edit_res = executor.Execute("edit_tool", {{"path", test_file}, {"edits", edits}});
+  ASSERT_TRUE(edit_res.ok()) << edit_res.status().message();
+  const std::string edit_text = EnvelopeResultText(*edit_res);
+  EXPECT_TRUE(absl::StrContains(edit_text, R"("edits":4)"));
+  EXPECT_TRUE(absl::StrContains(edit_text, R"("changes")"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "beta patched value"));
+  const std::string content = EnvelopeResultText(*read_res);
+  EXPECT_TRUE(absl::StrContains(content, "start\nalpha\nBETA\ngamma\ndelta\n"));
+  EXPECT_TRUE(!absl::StrContains(content, "delta\nbeta"));
 
   std::filesystem::remove(test_file);
 }
 
-TEST(ToolExecutorTest, ApplyPatch_DryRunFailureForUnmatchedHunk) {
+TEST(ToolExecutorTest, EditToolOnlyFailsOnAmbiguousMatchAndLeavesFileUnchanged) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
   auto executor_or = ToolExecutor::Create(&db);
   ASSERT_TRUE(executor_or.ok());
   auto& executor = **executor_or;
 
-  std::string test_file = "patch_unmatched.txt";
-  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "alpha\nbeta\n"}}).ok());
+  const std::string test_file = "edit_ambiguous.txt";
+  const std::string initial_content = "same\nsame\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
 
-  std::string unified_diff =
-      "--- patch_unmatched.txt\n"
-      "+++ patch_unmatched.txt\n"
-      "@@ -1,2 +1,2 @@\n"
-      "-does-not-exist\n"
-      "+replacement\n";
-
-  auto patch_res =
-      executor.Execute("patch_tool", {{"path", test_file}, {"unified_diff", unified_diff}, {"dry_run", true}});
-  ASSERT_TRUE(patch_res.ok()) << patch_res.status().message();
-  const std::string patch_text = *patch_res;
-  EXPECT_TRUE(absl::StrContains(patch_text, "\"ok\":false"));
-  EXPECT_TRUE(absl::StrContains(patch_text, "PATCH_DRY_RUN_FAILED")) << patch_text;
+  nlohmann::json edits = nlohmann::json::array({{{"op", "replace"}, {"find", "same"}, {"text", "other"}}});
+  auto edit_res = executor.Execute("edit_tool", {{"path", test_file}, {"edits", edits}});
+  ASSERT_FALSE(edit_res.ok());
+  EXPECT_TRUE(absl::StrContains(std::string(edit_res.status().message()), "expected exactly one match"));
 
   auto read_res = executor.Execute("read_file", {{"path", test_file}});
   ASSERT_TRUE(read_res.ok());
-  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*read_res), "replacement"));
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "same\nsame\n"));
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, EditToolFailureAfterEarlierEditLeavesFileUnchanged) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::string test_file = "edit_atomic.txt";
+  const std::string initial_content = "alpha\nbeta\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
+
+  nlohmann::json edits = nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}, {"text", "ALPHA"}},
+                                                {{"op", "delete"}, {"find", "missing"}}});
+  auto edit_res = executor.Execute("edit_tool", {{"path", test_file}, {"edits", edits}});
+  ASSERT_FALSE(edit_res.ok());
+  EXPECT_TRUE(absl::StrContains(std::string(edit_res.status().message()), "find text was not found"));
+
+  auto read_res = executor.Execute("read_file", {{"path", test_file}});
+  ASSERT_TRUE(read_res.ok());
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "alpha\nbeta\n"));
+  EXPECT_TRUE(!absl::StrContains(EnvelopeResultText(*read_res), "ALPHA"));
+
+  std::filesystem::remove(test_file);
+}
+
+
+TEST(ToolExecutorTest, EditToolRejectsInvalidArgShapesWithoutChangingFile) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::string test_file = "edit_invalid_args.txt";
+  const std::string initial_content = "alpha\nbeta\n";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", initial_content}}).ok());
+
+  const std::vector<nlohmann::json> invalid_args = {
+      nlohmann::json::array(),
+      {{"edits", nlohmann::json::array()}},
+      {{"path", test_file}, {"edits", "not-array"}},
+      {{"path", test_file}, {"edits", nlohmann::json::array()}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({"not-object"})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"find", "alpha"}, {"text", "ALPHA"}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", ""}, {"text", "ALPHA"}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}, {"text", "alpha"}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "delete"}, {"find", "alpha"}, {"text", "ignored"}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}, {"text", "ALPHA"}, {"which", "bad"}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}, {"text", "ALPHA"}, {"which", -1}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}, {"text", "ALPHA"}, {"which", true}}})}},
+      {{"path", test_file}, {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}, {"text", "ALPHA"}, {"which", 2}}})}},
+  };
+
+  for (const auto& args : invalid_args) {
+    auto edit_res = executor.Execute("edit_tool", args);
+    EXPECT_FALSE(edit_res.ok()) << args.dump();
+
+    auto read_res = executor.Execute("read_file", {{"path", test_file}});
+    ASSERT_TRUE(read_res.ok());
+    EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), initial_content)) << args.dump();
+  }
+
+  nlohmann::json valid_edits =
+      nlohmann::json::array({{{"op", "replace"}, {"find", "alpha"}, {"text", "ALPHA"}}});
+  EXPECT_FALSE(executor.Execute("edit_tool", {{"path", "/tmp/edit_invalid_args.txt"}, {"edits", valid_edits}}).ok());
+  EXPECT_FALSE(executor.Execute("edit_tool", {{"path", "../edit_invalid_args.txt"}, {"edits", valid_edits}}).ok());
+
+  std::filesystem::remove(test_file);
+}
+
+TEST(ToolExecutorTest, EditToolFirstLastAndOnlySelectors) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::string test_file = "edit_selectors.txt";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "x x x"}}).ok());
+
+  nlohmann::json edits = nlohmann::json::array({{{"op", "replace"}, {"find", "x"}, {"text", "a"}, {"which", "first"}},
+                                                {{"op", "replace"}, {"find", "x"}, {"text", "z"}, {"which", "last"}},
+                                                {{"op", "replace"}, {"find", "a"}, {"text", "A"}, {"which", "only"}}});
+  auto edit_res = executor.Execute("edit_tool", {{"path", test_file}, {"edits", edits}});
+  ASSERT_TRUE(edit_res.ok()) << edit_res.status().message();
+
+  auto read_res = executor.Execute("read_file", {{"path", test_file}});
+  ASSERT_TRUE(read_res.ok());
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "A x z"));
+
+  std::filesystem::remove(test_file);
+}
+TEST(ToolExecutorTest, EditToolNumericWhichSelectsOccurrence) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::string test_file = "edit_numeric.txt";
+  ASSERT_TRUE(executor.Execute("write_file", {{"path", test_file}, {"content", "x x x"}}).ok());
+
+  nlohmann::json edits = nlohmann::json::array({{{"op", "replace"}, {"find", "x"}, {"text", "y"}, {"which", 1}}});
+  auto edit_res = executor.Execute("edit_tool", {{"path", test_file}, {"edits", edits}});
+  ASSERT_TRUE(edit_res.ok()) << edit_res.status().message();
+
+  auto read_res = executor.Execute("read_file", {{"path", test_file}});
+  ASSERT_TRUE(read_res.ok());
+  EXPECT_TRUE(absl::StrContains(EnvelopeResultText(*read_res), "x y x"));
 
   std::filesystem::remove(test_file);
 }

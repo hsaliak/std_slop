@@ -65,7 +65,7 @@ void ExecutorUnknownToolRejected(const std::string& name, const std::string& arg
   }
 
   if (name != "read_file" && name != "write_file" && name != "query_db" && name != "execute_bash" && name != "list_directory" &&
-      name != "describe_db" && name != "grep" && name != "patch_tool" && name != "read_scratchpad" &&
+      name != "describe_db" && name != "grep" && name != "edit_tool" && name != "read_scratchpad" &&
       name != "write_scratchpad" && name != "use_skill" && name != "git_create_staging_branch" &&
       name != "git_commit_patch" && name != "git_format_patch_series" && name != "git_reroll_patch" &&
       name != "git_verify_series" && name != "git_finalize_series") {

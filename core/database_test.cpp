@@ -41,8 +41,8 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   bool read_file_is_run_js_callable = false;
   bool found_execute_bash = false;
   bool execute_bash_is_run_js_callable = false;
-  bool found_patch_tool = false;
-  bool patch_tool_is_run_js_callable = false;
+  bool found_edit_tool = false;
+  bool edit_tool_is_run_js_callable = false;
   bool found_write_file = false;
   bool write_file_is_run_js_callable = false;
   bool found_ask_user = false;
@@ -57,9 +57,9 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_execute_bash = true;
       execute_bash_is_run_js_callable = t.is_run_js_callable;
     }
-    if (t.name == "patch_tool") {
-      found_patch_tool = true;
-      patch_tool_is_run_js_callable = t.is_run_js_callable;
+    if (t.name == "edit_tool") {
+      found_edit_tool = true;
+      edit_tool_is_run_js_callable = t.is_run_js_callable;
     }
     if (t.name == "write_file") {
       found_write_file = true;
@@ -76,8 +76,8 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(read_file_is_run_js_callable);
   EXPECT_TRUE(found_execute_bash);
   EXPECT_TRUE(execute_bash_is_run_js_callable);
-  EXPECT_TRUE(found_patch_tool);
-  EXPECT_TRUE(patch_tool_is_run_js_callable);
+  EXPECT_TRUE(found_edit_tool);
+  EXPECT_TRUE(edit_tool_is_run_js_callable);
   EXPECT_TRUE(found_write_file);
   EXPECT_TRUE(write_file_is_run_js_callable);
   EXPECT_TRUE(found_ask_user);
@@ -93,11 +93,11 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(is_top_level("ask_user"));
   EXPECT_FALSE(is_top_level("read_file"));
   EXPECT_FALSE(is_top_level("execute_bash"));
-  EXPECT_FALSE(is_top_level("patch_tool"));
+  EXPECT_FALSE(is_top_level("edit_tool"));
   EXPECT_FALSE(is_top_level("write_file"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("read_file"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("execute_bash"));
-  EXPECT_TRUE(*db.IsRunJsCallableTool("patch_tool"));
+  EXPECT_TRUE(*db.IsRunJsCallableTool("edit_tool"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("write_file"));
   EXPECT_FALSE(*db.IsRunJsCallableTool("ask_user"));
   EXPECT_FALSE(*db.IsRunJsCallableTool("git_finalize_series"));
@@ -455,7 +455,7 @@ TEST(DatabaseTest, JsFunctionsTableRemoved) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
-  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions WHERE name = 'patch_tool'");
+  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions WHERE name = 'edit_tool'");
   EXPECT_FALSE(funcs_or.ok());
 }
 
