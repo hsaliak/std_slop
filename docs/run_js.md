@@ -11,8 +11,8 @@ operations, reshape JSON, and return a compact result to the model.
   and defaults to `{}`.
 - The code is a plain JavaScript body. Use `return <json-serializable value>;`
   when the caller needs a result. Optional JSON `input` is exposed as
-  `globalThis.input`; use it for large source-code/edit payload strings instead
-  of embedding those strings in JavaScript literals.
+  `globalThis.input`; use it for source-code/edit payload strings instead of
+  embedding those strings in JavaScript literals.
 - `tools.*` helpers are synchronous. Do not use top-level `await`, async
   wrappers, or Promise-based helper calls.
 - Helper methods validate obvious argument-shape errors before side effects.
@@ -46,23 +46,32 @@ For host tools without a dedicated helper, use
 
 ## Quote-safe input payloads
 
-Large source-code strings should be passed as `input` data, not embedded in the
-JavaScript snippet. This avoids quote/escape bugs with backticks, `${...}`, raw
-strings, Markdown fences, regular expressions, and other language-specific text.
+Source-code and edit payload strings should be passed as `input` data, not
+embedded in the JavaScript snippet. This avoids quote/escape bugs with backticks,
+`${...}`, raw strings, Markdown fences, regular expressions, and other
+language-specific text.
 
-```js
-// Tool call argument shape:
-// {
-//   "code": "return tools.edit_tool({ path: input.path, edits: input.edits });",
-//   "input": {
-//     "path": "file.cpp",
-//     "edits": [{ "op": "replace", "find": "large old block", "text": "large new block" }]
-//   }
-// }
-return tools.edit_tool({ path: input.path, edits: input.edits });
+Tool call argument shape:
+
+```json
+{
+  "code": "tools.edit_tool({ path: input.path, edits: input.edits });\nreturn tools.read_file({ path: input.path, start_line: 1, end_line: 80 });",
+  "input": {
+    "path": "file.cpp",
+    "edits": [
+      { "op": "replace", "find": "quote-heavy old block", "text": "quote-heavy new block" }
+    ]
+  }
+}
 ```
 
-Keep JavaScript as the control plane and treat large edit payloads as JSON data.
+Inside the snippet, keep JavaScript as the control plane and treat edit payloads
+as JSON data:
+
+```js
+tools.edit_tool({ path: input.path, edits: input.edits });
+return tools.read_file({ path: input.path, start_line: input.start_line, end_line: input.end_line });
+```
 
 ## Persisted functions
 
@@ -110,20 +119,25 @@ const matches = tools.grep({
 return { files: summarize(files), matches: summarize(matches) };
 ```
 
-Edit and validate in one bounded snippet:
+Edit with payloads supplied through `input`, then validate in one bounded
+snippet. Keep shell commands literal or build them from validated allowlisted
+values:
 
 ```js
-tools.edit_tool({
-  path: 'path/to/file.cpp',
-  edits: [{ op: 'replace', find: 'old code', text: 'new code' }]
+tools.edit_tool({ path: input.path, edits: input.edits });
+const changed = tools.read_file({
+  path: input.path,
+  start_line: input.start_line,
+  end_line: input.end_line,
+  line_numbers: true
 });
-const diff = tools.execute_bash({
+const test = tools.execute_bash({
   cwd: '.',
-  command: 'git diff -- path/to/file.cpp',
+  command: 'bazel test //path:target',
   allow_nonzero_exit: false,
-  timeout_seconds: 60
+  timeout_seconds: 600
 });
-return { diff: diff.stdout };
+return { changed, test };
 ```
 
 ## Operational guidance
@@ -133,5 +147,8 @@ return { diff: diff.stdout };
 - Keep returned data small; summarize or slice large outputs.
 - Validate object shapes before loops or side effects.
 - Prefer exact `edit_tool` replacements over broad shell rewrites.
-- Set explicit shell timeouts; use `allow_nonzero_exit: true` only when
+- File helper paths are repo-relative; absolute paths and path traversal are
+  rejected.
+- Keep shell commands literal or construct them only from validated allowlisted
+  values. Set explicit shell timeouts; use `allow_nonzero_exit: true` only when
   collecting an expected failure for diagnosis.

@@ -127,8 +127,8 @@ snippet when a task is easier to express as local control flow: batching file
 reads, reshaping JSON, looping over small file edits, or running a focused shell
 validation. Pass a JavaScript body in the `code` field and end with
 `return <json-serializable value>;` when a result is needed. Optional JSON
-`input` is exposed as `globalThis.input`; use it for large source-code or edit
-payload strings instead of embedding those strings in JavaScript literals.
+`input` is exposed as `globalThis.input`; use it for source-code or edit payload
+strings instead of embedding those strings in JavaScript literals.
 
 Inside the snippet, `tools.*` helper methods validate arguments before they
 call the host tool. Use `tools.help()` to discover the current helper/tool
