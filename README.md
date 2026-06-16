@@ -121,6 +121,45 @@ For a complete multi-specialization example, see
 Detailed behavior and policy constraints are documented in
 [docs/impl/subqueries.md](docs/impl/subqueries.md).
 
+#### JavaScript control-plane helpers (`run_js`)
+Agents can use the top-level `run_js` tool to execute a synchronous QuickJS
+snippet when a task is easier to express as local control flow: batching file
+reads, reshaping JSON, looping over small file edits, or running a focused shell
+validation. Pass a JavaScript body in the `code` field and end with
+`return <json-serializable value>;` when a result is needed.
+
+Inside the snippet, `tools.*` helper methods validate arguments before they
+call the host tool. Use `tools.help()` to discover the current helper/tool
+catalog, and use `tools.dispatch(name, args)` for run-js-callable host tools
+that do not have a dedicated helper method. Host calls still pass through the
+normal tool executor, permission checks, and subquery policy. `run_js` cannot
+recursively invoke itself.
+
+Minimal example:
+
+```js
+return tools.read_file({ path: 'README.md', start_line: 1, end_line: 20 });
+```
+
+Batching example:
+
+```js
+const status = tools.execute_bash({
+  cwd: '.',
+  command: 'git status --short',
+  allow_nonzero_exit: false,
+  timeout_seconds: 60
+});
+const help = tools.help();
+return { status: status.stdout, run_js_callable: help.run_js_callable };
+```
+
+Keep snippets bounded and deterministic, summarize large outputs before
+returning them, and prefer exact `edit_tool` edits for source changes. For reusable
+JavaScript, use `tools.persist_function(args)` after checking the current helper
+catalog with `tools.help()`; persisted functions are stored in `js_functions` and
+shown by `/tools js_help`.
+
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
@@ -143,6 +182,7 @@ Detailed behavior and policy constraints are documented in
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
 - **[Subquery Implementation Notes](docs/impl/subqueries.md)**: Design and policy notes for INI-configured `llm_query` specializations.
+- **[run_js JavaScript Control Plane](docs/run_js.md)**: Helper contract, discovery, examples, and operational guidance for agent-side JavaScript snippets.
 - **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 
