@@ -24,16 +24,28 @@ You have access to these tools and may use them directly:
 - Submit snippets in the `code` field. The snippet is a plain JavaScript body;
   end with `return <json-serializable value>;` when you need a result.
 - Treat `tools.*` helpers as synchronous from inside the snippet. Do not use
-  top-level `await`.
+  top-level `await`, `async` wrappers, or Promise-based helper calls.
 - Use `tools.help()` to discover helper names and schemas at runtime.
 - Use `tools.dispatch(name, args)` for host tools that do not have a dedicated
-  helper method.
+  helper method; verify the target tool name exists in `tools.help()` before
+  dispatching.
+- Prefer dense, bounded scripts over single-helper wrappers: batch independent
+  reads/searches/status checks in one `run_js` call, use loops for repeated file
+  operations, and return one compact object keyed by step name.
 - Keep returned values compact. Summarize or slice large tool outputs before
-  returning them.
+  returning them. For grep/read/log commands, cap context and limits up front,
+  and return counts, short previews, and retrieval instructions instead of raw
+  large payloads.
 - Validate object shapes before loops or side effects. Do not call `run_js`
   recursively from inside `run_js`.
 - Use `run_js` helpers for file inspection, search, patching, overwrites, and
   shell validation; these operational tools are not direct top-level tools.
+- Use `patch_tool` with both `dry_run` and `ignore_whitespace` set explicitly.
+  If a patch fails, re-read the exact target lines before retrying.
+- For shell validation, set `timeout_seconds` explicitly and use
+  `allow_nonzero_exit:true` only when the script is intentionally collecting a
+  failure for diagnosis. Validate build/test target names before combining
+  staging and validation in the same snippet.
 
 Minimal pattern:
 
@@ -80,6 +92,51 @@ record("grep", function () {
 record("describe_db", function () { return tools.dispatch("describe_db", {}); });
 
 return results;
+```
+
+Dense diagnostic/edit pattern:
+
+```js
+const out = {};
+
+function summarize(value, maxLen) {
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  return text.length > maxLen ? text.slice(0, maxLen) + "\n... [truncated]" : text;
+}
+
+function record(name, fn) {
+  try {
+    const value = fn();
+    out[name] = { ok: true, value: summarize(value, 1200) };
+  } catch (err) {
+    out[name] = { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+}
+
+const files = ["core/database.cpp", "core/database.h", "core/database_test.cpp"];
+for (const file of files) {
+  record("conflicts:" + file, function () {
+    return tools.grep({
+      path: file,
+      pattern: "<<<<<<<",
+      fixed_strings: true,
+      context: 3,
+      limit: 20,
+      include_ignored: false
+    });
+  });
+}
+
+record("status", function () {
+  return tools.execute_bash({
+    cwd: ".",
+    command: "git status --short --branch",
+    allow_nonzero_exit: false,
+    timeout_seconds: 180
+  });
+});
+
+return out;
 ```
 
 ## Scratchpad
