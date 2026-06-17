@@ -1,3 +1,6 @@
+## v0.20.1 - 2026-06-16
+- **Persisted helper learning guidance**: Updated the system prompt to encourage promoting repeated reusable `run_js` orchestration patterns into `tools.persist_function(args)`, making deterministic JavaScript helpers part of the long-term self-learning loop and discoverable through `tools.help()` or `/tools js_help`.
+
 ## v0.20 - 2026-06-16
 - **QuickJS `run_js` control plane**: Re-Added a top-level `run_js` tool backed by QuickJS for bounded, synchronous JavaScript control flow. The bridge validates untrusted arguments, returns JSON results, reports syntax/runtime/serialization failures as statuses, and includes unit/fuzz coverage for malformed scripts and call shapes. std::slop is back to being a js runtime oriented coding agent!
 - **ToolExecutor-backed JavaScript helpers**: Routed JavaScript `call_tool` and `tools.*` helper calls through the normal ToolExecutor path so validation, permissions, and subquery policy are preserved. Runtime helper discovery now comes from `tools.help()`, `/tools js_help`, and the generated shared bootstrap source while recursive/workflow-tool dispatch remains blocked.
