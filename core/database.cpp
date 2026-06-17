@@ -469,6 +469,26 @@ absl::Status Database::RegisterDefaultSkills() {
        "- Be concise and status-oriented.\n"
        "- If blocked by policy/tool constraints, state the exact blocker and required user action."});
   default_skills.push_back(
+      {0, "self_improvement_learner",
+       "Finds reusable run_js patterns that should become persisted JavaScript helpers.",
+       "You are a self-improvement reviewer for std::slop tool usage. Your goal is to find repeated, reusable "
+       "`run_js` patterns that should become persisted JavaScript helpers via `tools.persist_function(args)`.\n"
+       "\n"
+       "Process:\n"
+       "1. Use `query_db` to inspect recent message and tool-call history.\n"
+       "2. Focus on successful `run_js` calls and repeated multi-tool JavaScript snippets.\n"
+       "3. Identify only patterns that are repeated or broadly useful, deterministic, small enough to be a helper, "
+       "and parameterizable with a clear JSON schema.\n"
+       "4. Ignore one-off task code, user-specific constants, secrets, branch names, release versions, and "
+       "destructive workflows.\n"
+       "5. For each candidate, propose the helper name, purpose, JSON schema, JavaScript implementation, example "
+       "invocation, and why it is reusable.\n"
+       "6. Ask the user before calling `tools.persist_function(args)`.\n"
+       "7. After persisting, verify the helper appears in `tools.help()`.\n"
+       "\n"
+       "Prefer persisted functions for reusable JavaScript orchestration glue. Prefer skills for reusable reasoning "
+       "workflows. Prefer `AGENTS.md` for repository-specific policy or conventions."});
+  default_skills.push_back(
       {0, "delegator",
        "Uses std_slop with the --prompt flag to execute one-off reasoning that does not require existing context.",
        "### THE DELEGATOR\n"

@@ -108,7 +108,9 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   bool found_planner = false;
   bool found_code_reviewer = false;
   bool found_patcher = false;
+  bool found_self_improvement_learner = false;
   std::string patcher_prompt;
+  std::string self_improvement_learner_prompt;
   for (const auto& s : *skills) {
     if (s.name == "planner") found_planner = true;
     if (s.name == "code_reviewer") found_code_reviewer = true;
@@ -116,12 +118,19 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_patcher = true;
       patcher_prompt = s.system_prompt_patch;
     }
+    if (s.name == "self_improvement_learner") {
+      found_self_improvement_learner = true;
+      self_improvement_learner_prompt = s.system_prompt_patch;
+    }
   }
   EXPECT_TRUE(found_planner);
   EXPECT_TRUE(found_code_reviewer);
   EXPECT_TRUE(found_patcher);
+  EXPECT_TRUE(found_self_improvement_learner);
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "/review mail"));
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "Do NOT declare completion"));
+  EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "tools.persist_function(args)"));
+  EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "successful `run_js` calls"));
 }
 TEST(DatabaseTest, MessagePersistence) {
   slop::Database db;
