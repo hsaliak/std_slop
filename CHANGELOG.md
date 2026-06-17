@@ -1,3 +1,7 @@
+## v0.22 - 2026-06-17
+- **Persisted `run_js` helpers fixed**: Made `tools.persist_function(args)` callable from `run_js`, safely validates helpers before storage, and loads persisted helpers into later `run_js` invocations so reusable JavaScript helpers such as `runCommandSummary` work end-to-end.
+- **Persisted helper safety checks**: Added validation for helper names, JSON schema metadata, optional `test_args`, size limits, global-name collisions, no-mutation failure paths, and regression coverage for malformed or unsafe helper definitions.
+
 ## v0.20.1 - 2026-06-16
 - **Persisted helper learning guidance**: Updated the system prompt to encourage promoting repeated reusable `run_js` orchestration patterns into `tools.persist_function(args)`, making deterministic JavaScript helpers part of the long-term self-learning loop and discoverable through `tools.help()` or `/tools js_help`.
 
