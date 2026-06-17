@@ -379,6 +379,7 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "git_verify_series",
       "grep",
       "list_directory",
+      "persist_function",
       "query_db",
       "read_file",
       "read_scratchpad",
@@ -395,6 +396,132 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
     ASSERT_FALSE(res.ok()) << "expected NOT_FOUND for dropped tool: " << dropped;
     EXPECT_EQ(res.status().code(), absl::StatusCode::kNotFound);
   }
+}
+
+TEST(ToolExecutorTest, RunJsCanPersistJavaScriptFunction) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::string code = R"js(
+const persisted = tools.persist_function({
+  name: 'doubleValue',
+  code: 'function doubleValue(value) { return value * 2; }',
+  description: 'Double a number',
+  json_schema: '{"type":"number"}',
+  test_args: [21]
+});
+const rows = tools.dispatch('query_db', {
+  sql: 'SELECT name, description, json_schema FROM js_functions WHERE name = ?',
+  params: ['doubleValue']
+});
+return { persisted, rows };
+)js";
+  auto persist_res = executor.Execute("run_js", {{"code", code}});
+  ASSERT_TRUE(persist_res.ok()) << persist_res.status();
+  const nlohmann::json persist_result = ParseEnvelope(*persist_res);
+  ASSERT_EQ(persist_result["persisted"]["persisted"], true);
+  ASSERT_EQ(persist_result["persisted"]["name"], "doubleValue");
+  ASSERT_EQ(persist_result["rows"].size(), 1);
+  EXPECT_EQ(persist_result["rows"][0]["description"], "Double a number");
+
+  auto invoke_res = executor.Execute("run_js", {{"code", "return doubleValue(21);"}});
+  ASSERT_TRUE(invoke_res.ok()) << invoke_res.status();
+  EXPECT_EQ(ParseEnvelope(*invoke_res), 42);
+
+  auto help_res = executor.Execute("run_js", {{"code", "return tools.help().persisted_globals;"}});
+  ASSERT_TRUE(help_res.ok()) << help_res.status();
+  const nlohmann::json persisted_globals = ParseEnvelope(*help_res);
+  ASSERT_EQ(persisted_globals.size(), 1);
+  EXPECT_EQ(persisted_globals[0]["name"], "doubleValue");
+  EXPECT_EQ(persisted_globals[0]["description"], "Double a number");
+}
+
+TEST(ToolExecutorTest, PersistFunctionRejectsInvalidShapeBeforeMutation) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  struct Case {
+    std::string name;
+    std::string code;
+    std::string expected_error;
+  };
+  const std::vector<Case> cases = {
+      {"missingCode", "return tools.persist_function({ name: 'badHelper' });",
+       "persist_function requires string field code"},
+      {"invalidName", "return tools.persist_function({ name: 'bad-helper', code: 'function bad() { return 1; }' });",
+       "persist_function name must be a valid JavaScript identifier"},
+      {"reservedName", "return tools.persist_function({ name: 'tools', code: 'function tools() { return 1; }' });",
+       "persist_function name collides with a built-in run_js global"},
+      {"intrinsicName", "return tools.persist_function({ name: 'Function', code: 'function Function() { return 1; }' });",
+       "persist_function name collides with a built-in run_js global"},
+      {"globalName", "return tools.persist_function({ name: 'Map', code: 'function Map() { return 1; }' });",
+       "persisted function name collides with existing run_js global"},
+      {"invalidSchema", "return tools.persist_function({ name: 'badSchema', code: 'function badSchema() { return 1; }', json_schema: 'not json' });",
+       "persist_function json_schema must be a JSON object string"},
+      {"syntaxError", "return tools.persist_function({ name: 'syntaxBad', code: 'function syntaxBad( {' });",
+       "persist_function code must be a single named function declaration matching name"},
+      {"wrongName", "return tools.persist_function({ name: 'wrongName', code: 'function otherName() { return 1; }' });",
+       "persist_function code must be a single named function declaration matching name"},
+      {"topLevelSideEffect", "return tools.persist_function({ name: 'sideEffect', code: 'function sideEffect() { return 1; }\\ntools.dispatch(\\\"query_db\\\", {sql: \\\"SELECT 1\\\"});' });",
+       "persist_function code must be a single named function declaration matching name"},
+      {"oversizeCode", "return tools.persist_function({ name: 'tooLarge', code: 'function tooLarge() { return \\\"' + 'x'.repeat(70 * 1024) + '\\\"; }' });",
+       "persist_function code exceeds maximum size"},
+      {"failingTestArg", "return tools.persist_function({ name: 'mustBePositive', code: 'function mustBePositive(value) { if (value <= 0) throw new Error(\\\"bad arg\\\"); return value; }', test_args: [0] });",
+       "bad arg"},
+  };
+
+  for (const auto& test_case : cases) {
+    auto res = executor.Execute("run_js", {{"code", test_case.code}});
+    ASSERT_FALSE(res.ok()) << test_case.name;
+    EXPECT_TRUE(absl::StrContains(res.status().message(), test_case.expected_error))
+        << test_case.name << ": " << res.status().message();
+  }
+
+  auto rows = db.Query("SELECT name FROM js_functions WHERE name LIKE '%bad%' OR name IN ('wrongName', 'tools', 'mustBePositive', 'sideEffect', 'tooLarge') ORDER BY name");
+  ASSERT_TRUE(rows.ok()) << rows.status();
+  EXPECT_EQ(*rows, "[]");
+
+  auto still_usable = executor.Execute("run_js", {{"code", "return 7;"}});
+  ASSERT_TRUE(still_usable.ok()) << still_usable.status();
+  EXPECT_EQ(ParseEnvelope(*still_usable), 7);
+}
+
+TEST(ToolExecutorTest, PersistFunctionRejectsAggregatePreloadLimitBeforeMutation) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  const std::string large_literal(50 * 1024, 'x');
+  const std::string existing_code_a = absl::StrCat("function existingA() { return '", large_literal, "'; }");
+  const std::string existing_code_b = absl::StrCat("function existingB() { return '", large_literal, "'; }");
+  ASSERT_TRUE(db.Execute(
+                  "INSERT INTO js_functions(name, code, description, json_schema) VALUES (?, ?, '', '')",
+                  "existingA", existing_code_a)
+                  .ok());
+  ASSERT_TRUE(db.Execute(
+                  "INSERT INTO js_functions(name, code, description, json_schema) VALUES (?, ?, '', '')",
+                  "existingB", existing_code_b)
+                  .ok());
+
+  const std::string candidate_code = absl::StrCat(
+      "return tools.persist_function({ name: 'candidateLarge', code: 'function candidateLarge() { return \\\"",
+      large_literal, "\\\"; }' });");
+  auto res = executor.Execute("run_js", {{"code", candidate_code}});
+  ASSERT_FALSE(res.ok());
+  EXPECT_TRUE(absl::StrContains(res.status().message(), "persist_function would exceed persisted preload size limit"))
+      << res.status().message();
+
+  auto rows = db.Query("SELECT name FROM js_functions WHERE name = ?", {"candidateLarge"});
+  ASSERT_TRUE(rows.ok()) << rows.status();
+  EXPECT_EQ(*rows, "[]");
 }
 
 TEST(ToolExecutorTest, SlopGuardIsInternalOnlyAndNotTopLevelCallable) {

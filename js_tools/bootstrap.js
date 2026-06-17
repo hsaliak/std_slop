@@ -99,23 +99,7 @@
       }
       if (!Array.isArray(rows)) return staticHelp();
 
-      let persistedGlobals = [];
-      try {
-        const persistedRows = call('query_db', {
-          sql: 'SELECT name, description, json_schema FROM js_functions ORDER BY name'
-        });
-        if (Array.isArray(persistedRows)) {
-          persistedGlobals = persistedRows.map(function(row) {
-            return {
-              name: row.name,
-              description: row.description || '',
-              schema: row.json_schema || ''
-            };
-          });
-        }
-      } catch (err) {
-        persistedGlobals = [];
-      }
+      const persistedGlobals = loadPersistedGlobals();
 
       const normalized = rows.map(function(row) {
         return {
@@ -143,6 +127,9 @@
       requireString('persist_function', args, 'code');
       if (args.description !== undefined && typeof args.description !== 'string') {
         throw new TypeError('persist_function description must be a string');
+      }
+      if (args.json_schema !== undefined && typeof args.json_schema !== 'string') {
+        throw new TypeError('persist_function json_schema must be a string');
       }
       if (args.test_args !== undefined && !Array.isArray(args.test_args)) {
         throw new TypeError('persist_function test_args must be an array');
@@ -211,4 +198,22 @@
       return function(args = {}) { return globalThis.call_tool(property, args); };
     }
   });
+
+  function loadPersistedGlobals() {
+    try {
+      const persistedRows = call('query_db', {
+        sql: 'SELECT name, description, json_schema FROM js_functions ORDER BY name'
+      });
+      if (!Array.isArray(persistedRows)) return [];
+      return persistedRows.map(function(row) {
+        return {
+          name: row.name,
+          description: row.description || '',
+          schema: row.json_schema || ''
+        };
+      });
+    } catch (err) {
+      return [];
+    }
+  }
 })();

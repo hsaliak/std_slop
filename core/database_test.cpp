@@ -45,6 +45,8 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   bool edit_tool_is_run_js_callable = false;
   bool found_write_file = false;
   bool write_file_is_run_js_callable = false;
+  bool found_persist_function = false;
+  bool persist_function_is_run_js_callable = false;
   bool found_ask_user = false;
   for (const auto& t : *tools) {
     if (t.name == "run_js") found_run_js = true;
@@ -65,6 +67,10 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_write_file = true;
       write_file_is_run_js_callable = t.is_run_js_callable;
     }
+    if (t.name == "persist_function") {
+      found_persist_function = true;
+      persist_function_is_run_js_callable = t.is_run_js_callable;
+    }
     if (t.name == "ask_user") {
       found_ask_user = true;
       EXPECT_FALSE(t.is_run_js_callable);
@@ -80,6 +86,8 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(edit_tool_is_run_js_callable);
   EXPECT_TRUE(found_write_file);
   EXPECT_TRUE(write_file_is_run_js_callable);
+  EXPECT_TRUE(found_persist_function);
+  EXPECT_TRUE(persist_function_is_run_js_callable);
   EXPECT_TRUE(found_ask_user);
 
   auto top_level_tools = db.GetTopLevelTools();
@@ -95,10 +103,12 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_FALSE(is_top_level("execute_bash"));
   EXPECT_FALSE(is_top_level("edit_tool"));
   EXPECT_FALSE(is_top_level("write_file"));
+  EXPECT_FALSE(is_top_level("persist_function"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("read_file"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("execute_bash"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("edit_tool"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("write_file"));
+  EXPECT_TRUE(*db.IsRunJsCallableTool("persist_function"));
   EXPECT_FALSE(*db.IsRunJsCallableTool("ask_user"));
   EXPECT_FALSE(*db.IsRunJsCallableTool("git_finalize_series"));
   EXPECT_FALSE(*db.IsRunJsCallableTool("git_commit_patch"));

@@ -100,6 +100,7 @@ class ToolExecutor {
   absl::StatusOr<std::string> HandleExecuteBash(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleEditTool(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleWriteFile(const nlohmann::json& args) const;
+  absl::StatusOr<std::string> HandlePersistFunction(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleReadScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleWriteScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleUseSkill(const nlohmann::json& args);

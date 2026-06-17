@@ -94,10 +94,23 @@ Required fields:
 Optional fields:
 
 - `description`: human-readable summary.
-- `test_args`: array of dry-run arguments for validation.
+- `json_schema`: JSON schema object string describing the helper arguments.
+- `test_args`: array of arguments to call the helper with before it is persisted.
 
 
 ## Examples
+
+Persist a validated helper:
+
+```js
+return tools.persist_function({
+  name: 'doubleValue',
+  code: 'function doubleValue(value) { return value * 2; }',
+  description: 'Double a number',
+  json_schema: '{"type":"number"}',
+  test_args: [21]
+});
+```
 
 Minimal read:
 
