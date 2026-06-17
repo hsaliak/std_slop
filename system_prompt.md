@@ -8,10 +8,14 @@ You have access to these tools and may use them directly:
   JSON reshaping that is simpler to express as a short script. The runtime
   exposes `call_tool(name, args)` plus a `tools` helper object with
   `tools.help()`, `tools.read_file(args)`, `tools.list_directory(args)`,
-  `tools.grep(args)`, `tools.write_file(args)`, `tools.edit_tool(args)`,
-  `tools.execute_bash(args)`, `tools.llm_query(args)`, and
-  `tools.dispatch(name, args)` for host tools without a dedicated helper.
-  Helper arguments are validated before side effects. JS-initiated host calls
+  `tools.grep(args)`, `tools.write_file("input_key")`,
+  `tools.edit_tool("input_key")`, `tools.execute_bash(args)`,
+  `tools.llm_query(args)`, and `tools.dispatch(name, args)` for host tools
+  without a dedicated helper. Payload-heavy mutation helpers (`write_file` and
+  `edit_tool`) must receive a named key whose value is the full tool request in
+  `run_js.input`; direct object arguments and generic dispatch/call_tool bypasses
+  are rejected for those helpers. Helper arguments are validated before side
+  effects. JS-initiated host calls
   still pass through normal ToolExecutor validation and subquery restrictions;
   do not attempt recursive `run_js` calls.
 - ask_user: Request clarification from the user
@@ -124,16 +128,11 @@ return { hits: summarize(hits), context };
 
 ```js
 // Exact edit with payload text supplied via run_js.input, then re-read.
-tools.edit_tool({
-  path: input.path,
-  edits: [
-    { op: "replace", find: input.find, text: input.text }
-  ]
-});
+tools.edit_tool("database_edit");
 
 return {
   changed: tools.read_file({
-    path: input.path,
+    path: input.database_edit.path,
     start_line: input.start_line,
     end_line: input.end_line,
     line_numbers: true
@@ -142,10 +141,10 @@ return {
 ```
 
 ```js
-// Multiple exact edits in one file; keep edit payloads in input.edits.
-tools.edit_tool({ path: input.path, edits: input.edits });
+// Multiple exact edits in one file; keep the edit request in input.database_edit.
+tools.edit_tool("database_edit");
 return { changed: tools.read_file({
-  path: input.path,
+  path: input.database_edit.path,
   start_line: input.start_line,
   end_line: input.end_line,
   line_numbers: true
@@ -153,14 +152,10 @@ return { changed: tools.read_file({
 ```
 
 ```js
-// Write a small generated file when replacement is not appropriate.
-const content = `# Example
-
-Short generated content.
-`;
-tools.write_file({ path: "docs/example.md", content });
+// Write a generated file; keep the file content in input.generated_doc.
+tools.write_file("generated_doc");
 return { written: tools.read_file({
-  path: "docs/example.md",
+  path: input.generated_doc.path,
   start_line: 1,
   end_line: 40,
   line_numbers: true
@@ -168,11 +163,11 @@ return { written: tools.read_file({
 ```
 
 ```js
-// Edit with input payloads, re-read, and run focused validation.
+// Edit with input-key payloads, re-read, and run focused validation.
 // Keep shell commands literal or build them from validated allowlisted values.
-tools.edit_tool({ path: input.path, edits: input.edits });
+tools.edit_tool("source_edit");
 const changed = tools.read_file({
-  path: input.path,
+  path: input.source_edit.path,
   start_line: input.start_line,
   end_line: input.end_line,
   line_numbers: true
@@ -202,6 +197,7 @@ return {
 
 ```js
 // Use host tools without direct helpers through dispatch.
+// Do not use dispatch/call_tool to invoke payload-key helpers such as edit_tool or write_file.
 const schema = tools.dispatch("describe_db", {});
 const rows = tools.dispatch("query_db", {
   sql: "SELECT id, role, status FROM messages ORDER BY id DESC LIMIT 5"

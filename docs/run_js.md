@@ -55,12 +55,14 @@ Tool call argument shape:
 
 ```json
 {
-  "code": "tools.edit_tool({ path: input.path, edits: input.edits });\nreturn tools.read_file({ path: input.path, start_line: 1, end_line: 80 });",
+  "code": "tools.edit_tool(\"source_edit\");\nreturn tools.read_file({ path: input.source_edit.path, start_line: 1, end_line: 80 });",
   "input": {
-    "path": "file.cpp",
-    "edits": [
-      { "op": "replace", "find": "quote-heavy old block", "text": "quote-heavy new block" }
-    ]
+    "source_edit": {
+      "path": "file.cpp",
+      "edits": [
+        { "op": "replace", "find": "quote-heavy old block", "text": "quote-heavy new block" }
+      ]
+    }
   }
 }
 ```
@@ -69,8 +71,12 @@ Inside the snippet, keep JavaScript as the control plane and treat edit payloads
 as JSON data:
 
 ```js
-tools.edit_tool({ path: input.path, edits: input.edits });
-return tools.read_file({ path: input.path, start_line: input.start_line, end_line: input.end_line });
+tools.edit_tool("source_edit");
+return tools.read_file({
+  path: input.source_edit.path,
+  start_line: input.start_line,
+  end_line: input.end_line
+});
 ```
 
 ## Persisted functions
@@ -119,14 +125,17 @@ const matches = tools.grep({
 return { files: summarize(files), matches: summarize(matches) };
 ```
 
-Edit with payloads supplied through `input`, then validate in one bounded
-snippet. Keep shell commands literal or build them from validated allowlisted
-values:
+CRITICAL: payload-heavy mutation helpers (`edit_tool` and `write_file`) MUST be
+called with a named `input` key and the full request MUST live at
+`run_js.input[input_key]`. Direct object arguments are rejected, and
+`dispatch`/`call_tool` bypasses are MANDATORY rejection paths. After the mutation,
+validate in the same bounded snippet. Keep shell commands literal or build them
+only from validated allowlisted values:
 
 ```js
-tools.edit_tool({ path: input.path, edits: input.edits });
+tools.edit_tool("source_edit");
 const changed = tools.read_file({
-  path: input.path,
+  path: input.source_edit.path,
   start_line: input.start_line,
   end_line: input.end_line,
   line_numbers: true
@@ -146,7 +155,11 @@ return { changed, test };
   deterministic operation.
 - Keep returned data small; summarize or slice large outputs.
 - Validate object shapes before loops or side effects.
-- Prefer exact `edit_tool` replacements over broad shell rewrites.
+- Prefer exact `edit_tool` replacements over broad shell rewrites; call
+  `tools.edit_tool("input_key")` and place the full edit request at
+  `input[input_key]`.
+- For generated file content, call `tools.write_file("input_key")` and place the
+  full write request at `input[input_key]`.
 - File helper paths are repo-relative; absolute paths and path traversal are
   rejected.
 - Keep shell commands literal or construct them only from validated allowlisted

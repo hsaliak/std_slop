@@ -18,11 +18,51 @@
     }
   }
 
+  const payloadKeyOnlyTools = ['edit_tool', 'write_file'];
+  const rawCallTool = globalThis.call_tool;
+
+  function isPayloadKeyOnlyTool(name) {
+    return payloadKeyOnlyTools.indexOf(name) !== -1;
+  }
+
   function call(name, args) {
     const safeArgs = args === undefined ? {} : args;
     requireObject(name, safeArgs);
-    return globalThis.call_tool(name, safeArgs);
+    return rawCallTool(name, safeArgs);
   }
+
+  function requireInputPayload(toolName, key) {
+    if (typeof key !== 'string' || key.length === 0) {
+      throw new TypeError(
+          'tools.' + toolName + ' inside run_js only accepts a non-empty input key string; ' +
+          'place the full ' + toolName + ' request at run_js.input[key]');
+    }
+    if (globalThis.input === null || typeof globalThis.input !== 'object' || Array.isArray(globalThis.input)) {
+      throw new TypeError('tools.' + toolName + ' requires run_js.input to be an object');
+    }
+    if (!Object.prototype.hasOwnProperty.call(globalThis.input, key)) {
+      throw new TypeError('tools.' + toolName + '("' + key + '") could not find input.' + key);
+    }
+    const payload = globalThis.input[key];
+    requireObject(toolName, payload);
+    return payload;
+  }
+
+  function rejectPayloadToolBypass(name) {
+    if (isPayloadKeyOnlyTool(name)) {
+      throw new TypeError(
+          'tools.' + name + ' inside run_js only accepts an input key string; ' +
+          'use tools.' + name + '("input_key") and place the full request at run_js.input[input_key]');
+    }
+  }
+
+  globalThis.call_tool = function(name, args) {
+    if (typeof name !== 'string' || name.length === 0) {
+      throw new TypeError('call_tool name must be a non-empty string');
+    }
+    rejectPayloadToolBypass(name);
+    return call(name, args);
+  };
 
   const helperNames = [
     'dispatch', 'help', 'persist_function', 'read_file', 'list_directory',
@@ -43,6 +83,7 @@
       if (typeof name !== 'string' || name.length === 0) {
         throw new TypeError('tools.dispatch requires a non-empty tool name');
       }
+      rejectPayloadToolBypass(name);
       return call(name, args);
     },
 
@@ -128,15 +169,21 @@
       return call('grep', args);
     },
 
-    write_file(args = {}) {
-      requireObject('write_file', args);
+    write_file(key) {
+      if (arguments.length !== 1) {
+        throw new TypeError('tools.write_file inside run_js requires exactly one input key string');
+      }
+      const args = requireInputPayload('write_file', key);
       requireString('write_file', args, 'path');
       requireString('write_file', args, 'content');
       return call('write_file', args);
     },
 
-    edit_tool(args = {}) {
-      requireObject('edit_tool', args);
+    edit_tool(key) {
+      if (arguments.length !== 1) {
+        throw new TypeError('tools.edit_tool inside run_js requires exactly one input key string');
+      }
+      const args = requireInputPayload('edit_tool', key);
       requireString('edit_tool', args, 'path');
       if (!Array.isArray(args.edits)) throw new Error('INVALID_ARGUMENT: edit_tool.edits must be an array');
       return call('edit_tool', args);

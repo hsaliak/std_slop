@@ -118,7 +118,7 @@ TEST(RunJsArgsTest, InputSupportsQuoteSafeEditPayload) {
   };
   std::vector<nlohmann::json> edit_calls;
   absl::StatusOr<nlohmann::json> result = ExecuteRunJsArgs(
-      nlohmann::json{{"code", "const edit = tools.edit_tool(input.edit); const after = tools.read_file(input.after); return { edit, after };"},
+      nlohmann::json{{"code", "const edit = tools.edit_tool('edit'); const after = tools.read_file(input.after); return { edit, after };"},
                      {"input", input}},
       [&edit_calls](const std::string& name, const nlohmann::json& args) -> absl::StatusOr<std::string> {
         if (name == "edit_tool") {
@@ -185,7 +185,7 @@ TEST(JsInterpreterBridgeTest, CallToolRequiresObjectArgs) {
                    });
 
   ASSERT_FALSE(result.ok());
-  EXPECT_TRUE(absl::StrContains(result.status().message(), "call_tool args must be an object"));
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "echo args must be an object"));
 }
 
 TEST(JsToolLibraryTest, HelpListsRevivedHelpers) {
@@ -266,10 +266,25 @@ TEST(JsToolLibraryTest, GrepValidatesPatternBeforeHostCall) {
   EXPECT_TRUE(absl::StrContains(result.status().message(), "grep requires string field pattern"));
 }
 
-TEST(JsToolLibraryTest, WriteFileValidatesContentBeforeHostCall) {
+TEST(JsToolLibraryTest, WriteFileRejectsDirectArgsBeforeHostCall) {
   bool called = false;
   absl::StatusOr<nlohmann::json> result =
-      RunJsForJson("return tools.write_file({ path: 'file.txt' });",
+      RunJsForJson("return tools.write_file({ path: 'file.txt', content: 'contents' });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "tools.write_file inside run_js only accepts a non-empty input key string"));
+}
+
+TEST(JsToolLibraryTest, WriteFileValidatesInputPayloadBeforeHostCall) {
+  const nlohmann::json input = {{"file_write", {{"path", "file.txt"}}}};
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.write_file('file_write');", input,
                    [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
                      called = true;
                      return std::string("unreachable");
@@ -280,10 +295,25 @@ TEST(JsToolLibraryTest, WriteFileValidatesContentBeforeHostCall) {
   EXPECT_TRUE(absl::StrContains(result.status().message(), "write_file requires string field content"));
 }
 
-TEST(JsToolLibraryTest, EditToolValidatesEditsBeforeHostCall) {
+TEST(JsToolLibraryTest, EditToolRejectsDirectArgsBeforeHostCall) {
   bool called = false;
   absl::StatusOr<nlohmann::json> result =
-      RunJsForJson("return tools.edit_tool({ path: 'file.txt', edits: 'not an array' });",
+      RunJsForJson("return tools.edit_tool({ path: 'file.txt', edits: [] });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "tools.edit_tool inside run_js only accepts a non-empty input key string"));
+}
+
+TEST(JsToolLibraryTest, EditToolValidatesInputPayloadBeforeHostCall) {
+  const nlohmann::json input = {{"file_edit", {{"path", "file.txt"}, {"edits", "not an array"}}}};
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.edit_tool('file_edit');", input,
                    [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
                      called = true;
                      return std::string("unreachable");
@@ -292,6 +322,20 @@ TEST(JsToolLibraryTest, EditToolValidatesEditsBeforeHostCall) {
   ASSERT_FALSE(result.ok());
   EXPECT_FALSE(called);
   EXPECT_TRUE(absl::StrContains(result.status().message(), "edit_tool.edits must be an array"));
+}
+
+TEST(JsToolLibraryTest, EditToolRejectsMissingInputPayloadBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.edit_tool('missing_edit');", nlohmann::json::object(),
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(), "could not find input.missing_edit"));
 }
 
 TEST(JsToolLibraryTest, ExecuteBashValidatesAllowNonzeroExitBeforeHostCall) {
@@ -323,14 +367,18 @@ TEST(JsToolLibraryTest, ReadFileCallsHostTool) {
 }
 
 TEST(JsToolLibraryTest, SideEffectHelpersCallHostTools) {
+  const nlohmann::json input = {
+      {"file_write", {{"path", "file.txt"}, {"content", "contents"}}},
+      {"file_edit",
+       {{"path", "file.txt"},
+        {"edits", nlohmann::json::array({{{"op", "replace"}, {"find", "old"}, {"text", "new"}}})}}},
+  };
   std::vector<std::string> called_tools;
+  std::vector<nlohmann::json> called_args;
   absl::StatusOr<nlohmann::json> result =
       RunJsForJson(R"js(
-const write = tools.write_file({ path: 'file.txt', content: 'contents' });
-const edit = tools.edit_tool({
-  path: 'file.txt',
-  edits: [{ op: 'replace', find: 'old', text: 'new' }]
-});
+const write = tools.write_file('file_write');
+const edit = tools.edit_tool('file_edit');
 const shell = tools.execute_bash({
   cwd: '.',
   command: 'true',
@@ -338,18 +386,53 @@ const shell = tools.execute_bash({
 });
 return { write, edit, shell };
 )js",
-                   [&called_tools](const std::string& name,
-                                   const nlohmann::json& args) -> absl::StatusOr<std::string> {
+                   input,
+                   [&called_tools, &called_args](const std::string& name,
+                                                 const nlohmann::json& args) -> absl::StatusOr<std::string> {
                      called_tools.push_back(name);
+                     called_args.push_back(args);
                      EXPECT_TRUE(args.is_object());
                      return name;
                    });
 
   ASSERT_TRUE(result.ok()) << result.status();
   EXPECT_EQ(called_tools, std::vector<std::string>({"write_file", "edit_tool", "execute_bash"}));
+  ASSERT_EQ(called_args.size(), 3);
+  EXPECT_EQ(called_args[0], input["file_write"]);
+  EXPECT_EQ(called_args[1], input["file_edit"]);
   EXPECT_EQ((*result)["write"], "write_file");
   EXPECT_EQ((*result)["edit"], "edit_tool");
   EXPECT_EQ((*result)["shell"], "execute_bash");
+}
+
+TEST(JsToolLibraryTest, PayloadToolsRejectDispatchBypassBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return tools.dispatch('edit_tool', { path: 'file.txt', edits: [] });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(),
+                                "tools.edit_tool inside run_js only accepts an input key string"));
+}
+
+TEST(JsToolLibraryTest, PayloadToolsRejectCallToolBypassBeforeHostCall) {
+  bool called = false;
+  absl::StatusOr<nlohmann::json> result =
+      RunJsForJson("return call_tool('write_file', { path: 'file.txt', content: 'contents' });",
+                   [&called](const std::string&, const nlohmann::json&) -> absl::StatusOr<std::string> {
+                     called = true;
+                     return std::string("unreachable");
+                   });
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_FALSE(called);
+  EXPECT_TRUE(absl::StrContains(result.status().message(),
+                                "tools.write_file inside run_js only accepts an input key string"));
 }
 
 }  // namespace

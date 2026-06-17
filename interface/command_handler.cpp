@@ -329,8 +329,10 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     }
   } else if (sub_cmd == "js_help") {
     std::string md = "### JavaScript run_js Helpers\n\n";
-    md += "Use these helpers inside `run_js` snippets as `tools.<helper>(args)`. Use `tools.dispatch(name, args)"
-          " for run_js-callable host tools without a dedicated helper.\n\n";
+    md += "Use most helpers inside `run_js` snippets as `tools.<helper>(args)`. Use `tools.dispatch(name, args)"
+          " for run_js-callable host tools without a dedicated helper. `write_file` and `edit_tool` are payload-key "
+          "helpers: call `tools.write_file(\"input_key\")` or `tools.edit_tool(\"input_key\")` with the full request "
+          "stored at `run_js.input[input_key]`; dispatch/call_tool bypasses are rejected for them.\n\n";
     md += "#### Built-in JS Helpers\n\n";
     md += "| Helper | Description |\n";
     md += "| :--- | :--- |\n";
@@ -340,8 +342,8 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
     md += "| `tools.read_file(args)` | Read file content. |\n";
     md += "| `tools.list_directory(args)` | List files and directories. |\n";
     md += "| `tools.grep(args)` | Search file content. |\n";
-    md += "| `tools.write_file(args)` | Create or overwrite a file. |\n";
-    md += "| `tools.edit_tool(args)` | Apply exact textual edits. |\n";
+    md += "| `tools.write_file(\"input_key\")` | Create or overwrite a file using a request from `run_js.input[input_key]`. |\n";
+    md += "| `tools.edit_tool(\"input_key\")` | Apply exact textual edits using a request from `run_js.input[input_key]`. |\n";
     md += "| `tools.execute_bash(args)` | Execute a shell command. |\n";
     md += "| `tools.llm_query(args)` | Run a bounded LLM subquery. |\n\n";
 
