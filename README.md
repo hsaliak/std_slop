@@ -7,11 +7,15 @@
 
 ![std::slop](docs/slop.png)
 
-`std::slop` is a persistent, SQLite-driven C++ CLI agent. It remembers your work through per-session ledgers, providing long-term recall, structured state management. std::slop features built-in Git integration. It's goal is to be an agent for which the context and its use fully transparent and configurable.
+`std::slop` is a persistent, SQLite-driven C++ CLI agent built around a JavaScript control plane based on QuickJS-ng. Its primary way to inspect repositories, compose tool calls, validate results, and make changes is `run_js`: a synchronous JavaScript execution environment with safe `tools.*` helpers for file edits, shell commands, database queries, scratchpad updates, and higher-level workflow orchestration. That programmable control plane is what makes std::slop different from agents that only issue one tool call at a time: repeated operations can become deterministic scripts, scripts can be validated, and successful patterns can be promoted into reusable helpers.
+
+The agent can also learn from its own workflows. The `self_improvement_learner` skill can be invoked directly with requests such as "hey self_improvement_learner learn from session history"; it identifies repeated `run_js` orchestration patterns and promotes them into persisted JavaScript functions through `tools.persist_function(args)`. Persisted helpers are validated before storage, discovered through `tools.help()` and `/tools js_help`, and loaded automatically in later `run_js` invocations. This lets std::slop simplify future tool calling: a verbose sequence of reads, edits, shell validation, or JSON reshaping can become a single reusable function such as `runCommandSummary(...)`.
 
 ## ✨ Key Features
 
+- **🧠 `run_js` control plane**: std::slop primarily operates through `run_js`, a programmable JavaScript layer that batches local tool calls, loops over structured data, validates intermediate state, and returns compact JSON results.
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
+- **🌱 Self-improving helpers**: The `self_improvement_learner` skill can turn repeated `run_js` workflows into persisted functions via `tools.persist_function(args)`, reducing complex tool orchestration to small reusable helpers.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
