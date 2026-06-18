@@ -31,7 +31,7 @@ class HttpClient {
   static bool IsTerminalError(long response_code, const std::string& response_body);
 
   void Abort();
-  bool IsAborted() const { return abort_requested_.load(); }
+  bool IsAborted() const { return abort_generation_.load() != active_generation_.load(); }
 
   // Callbacks and internal parsing (public for testing)
   static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
@@ -49,7 +49,8 @@ class HttpClient {
   absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,
                                                const std::string& body, const std::vector<std::string>& headers);
 
-  std::atomic<bool> abort_requested_{false};
+  std::atomic<uint64_t> abort_generation_{0};
+  std::atomic<uint64_t> active_generation_{0};
   absl::Mutex abort_mutex_;
   absl::CondVar abort_cv_;
 

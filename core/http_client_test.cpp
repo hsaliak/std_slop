@@ -14,6 +14,17 @@ TEST(HttpClientTest, PostInit) {
   // Basic test to ensure it doesn't crash
 }
 
+TEST(HttpClientTest, AbortDoesNotPoisonNextRequest) {
+  HttpClient client(0, 0);
+
+  client.Abort();
+  EXPECT_TRUE(client.IsAborted());
+
+  auto res = client.Get("http://localhost:1", {});
+  EXPECT_FALSE(res.ok());
+  EXPECT_FALSE(client.IsAborted());
+}
+
 TEST(HttpClientTest, GetError) {
   HttpClient client(0, 0);
   // Should fail on a non-existent local port or invalid URL
