@@ -91,6 +91,82 @@ raw outputs accumulate in context, repeated inspection patterns consume many
 turns, and simple loops require repeated model decisions even when the procedure
 is deterministic.
 
+## Practical advantages of our approach
+
+The advantages of std::slop's `run_js` are operational rather than cognitive.
+For long-context reasoning, the fair comparison is mostly against conventional
+single-tool calling: `run_js` is a step up when it can search, filter, and
+summarize local evidence before the model sees it, because that reduces context
+pressure and tool-call overhead. It is still not the same kind of step as an RLM:
+RLMs change how a model recursively decomposes and aggregates a huge semantic
+input, while `run_js` makes known local procedures cheaper, more compact, and
+easier to validate.
+
+Precise advantages:
+
+- **Fewer model/tool round trips for mechanical work.** A single snippet can run a
+  bounded sequence such as list, search, read selected ranges, run one focused
+  test, and return a compact summary. This is useful when the next steps are
+  procedural rather than judgment-heavy.
+- **Local output reduction before context ingestion.** Logs, grep output, file
+  ranges, and command results can be sliced or summarized inside the snippet.
+  This avoids spending model context on intermediate data that is only needed to
+  decide whether a check passed.
+- **Deterministic loops and conditionals.** Simple loops over files, allowlisted
+  targets, or validation cases can run in JavaScript without asking the model to
+  choose each next call. That is valuable for repetitive repo inspection and
+  validation sweeps.
+- **One place to enforce orchestration guardrails.** The implementation can make
+  helper calls synchronous, validate helper arguments, require explicit shell
+  timeouts, and force large edit/write payloads through named `input` keys. These
+  rules are easier to apply consistently than if every multi-step sequence is
+  improvised across many turns.
+- **Clear separation between reasoning and deterministic execution.** The outer
+  model decides the plan; the snippet performs the mechanical part. When used
+  well, this reduces accidental reasoning inside shell pipelines or ad hoc text
+  processing.
+- **Lower integration cost for coding-agent tasks.** `run_js` works over the same
+  file, shell, edit, and host-tool primitives the agent already uses. It does not
+  require training a model, designing a recursive summarization policy, or
+  changing the repository tools into an RLM-specific environment.
+- **Composable with specialized tools.** A snippet can combine ordinary helpers
+  with domain tools exposed through `dispatch`, while still returning a small
+  JSON result. This is practical for workflows such as "inspect, edit, run test,
+  report evidence".
+- **Reusable deterministic glue.** When the same orchestration pattern recurs,
+  small helpers can be persisted instead of reimplemented in prompts. That is a
+  narrower and more auditable form of reuse than relying on the model to remember
+  a multi-step procedure.
+
+These are real advantages for day-to-day coding-agent work. They do not imply
+that `run_js` is universally superior.
+
+Cases where `run_js` does not deliver the RLM benefit:
+
+- **Tasks that require semantic decomposition across huge text.** RLMs are a
+  better fit when the hard part is recursively understanding and aggregating a
+  corpus larger than the context window. `run_js` can retrieve and summarize
+  snippets, but it does not provide recursive model cognition by itself. Examples
+  include answering a question that depends on comparing hundreds of long design
+  documents, or synthesizing a consistent timeline from a very large chat archive
+  where the relevant evidence is not known in advance.
+- **Tasks where each step needs fresh judgment.** If every tool result changes the
+  plan, atomic tool use is more transparent and often safer.
+- **High-risk side effects.** Batched scripts can obscure the exact sequence of
+  operations. Destructive actions, broad edits, or unclear shell commands should
+  stay explicit and individually reviewed.
+- **Simple one-step operations.** Calling `run_js` to wrap a single read or edit
+  adds ceremony without benefit.
+- **Untrusted or poorly bounded procedures.** The approach depends on small,
+  validated snippets. If the script is large, open-ended, or returns huge raw
+  output, it loses the main benefits and becomes harder to audit than atomic tool
+  use.
+
+So the forthright claim is: `run_js` is advantageous for bounded, mechanical,
+local orchestration in coding-agent workflows. It is not an RLM substitute, and
+it should not be used to hide complex judgment or risky side effects inside a
+single script.
+
 ## Practical differences
 
 ### Reasoning layer versus operations layer
