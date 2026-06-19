@@ -13,7 +13,8 @@ Use this index to find the right `std::slop` doc for your task.
 - [mail_mode.md](mail_mode.md) — manual patch-based workflow using staging branches, patch commits, review, rerolls, and finalize.
 - [mail-loop/README.md](mail-loop/README.md) — human-oriented overview of the automated mail-loop persona.
 - [mail-loop/SKILL.md](mail-loop/SKILL.md) — the precise operational contract for the `mail-loop` skill.
-- [run_js.md](run_js.md) — JavaScript control-plane helper contract, discovery, examples, and operational guidance.
+- [run_js.md](run_js.md) — JavaScript control-plane tool usage, helper APIs, mutation payload rules, and operational guidance.
+- [rlm_run_js_comparison.md](rlm_run_js_comparison.md) — practical comparison of std::slop `run_js`, Recursive Language Models, and regular coding agents.
 
 ## Core Concepts and Reference
 
