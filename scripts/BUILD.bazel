@@ -4,6 +4,7 @@ exports_files([
     "clang_tidy_wrapper.sh",
     "fix.sh",
     "clang_tidy_fix.sh",
+    "generate_builtin_skills.sh",
 ])
 
 

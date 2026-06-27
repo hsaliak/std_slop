@@ -1,0 +1,9 @@
+exports_files([
+    "planner.md",
+    "dba.md",
+    "cpp_expert.md",
+    "code_reviewer.md",
+    "patcher.md",
+    "self_improvement_learner.md",
+    "delegator.md",
+])

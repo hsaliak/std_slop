@@ -12,6 +12,30 @@ genrule(
  "echo '}' >> $@ ",
 )
 
+genrule(
+ name = "generate_builtin_skills",
+ srcs = [
+  # Built-in skills are registered in this order.
+  "//skills:planner.md",
+  "//skills:dba.md",
+  "//skills:cpp_expert.md",
+  "//skills:code_reviewer.md",
+  "//skills:patcher.md",
+  "//skills:self_improvement_learner.md",
+  "//skills:delegator.md",
+ ],
+ outs = ["builtin_skills_data.h"],
+ tools = ["//scripts:generate_builtin_skills.sh"],
+ cmd = "$(location //scripts:generate_builtin_skills.sh) --out $@ " +
+       "$(location //skills:planner.md) " +
+       "$(location //skills:dba.md) " +
+       "$(location //skills:cpp_expert.md) " +
+       "$(location //skills:code_reviewer.md) " +
+       "$(location //skills:patcher.md) " +
+       "$(location //skills:self_improvement_learner.md) " +
+       "$(location //skills:delegator.md)",
+)
+
 cc_library(
  name = "cancellation",
  srcs = ["cancellation.cpp"],
@@ -47,6 +71,7 @@ cc_library(
  name = "data",
  srcs = [
  "database.cpp",
+ ":generate_builtin_skills",
  ],
  hdrs = [
  "database.h",

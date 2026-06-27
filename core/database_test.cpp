@@ -132,7 +132,9 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_self_improvement_learner = true;
       self_improvement_learner_prompt = s.system_prompt_patch;
     }
+    EXPECT_FALSE(s.system_prompt_patch.empty());
   }
+  EXPECT_EQ(skills->size(), 7);
   EXPECT_TRUE(found_planner);
   EXPECT_TRUE(found_code_reviewer);
   EXPECT_TRUE(found_patcher);
