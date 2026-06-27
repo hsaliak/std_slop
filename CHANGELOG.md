@@ -1,4 +1,4 @@
-## Unreleased
+## v0.23 - 2026-06-27
 - **Built-in skill files**: Externalized built-in skills into generated Markdown-backed skill data so core skills can be reviewed, registered, and tested as normal repository files.
 - **Subagent creator skill**: Added `subagent_creator` guidance for safely creating config-backed `llm_tool_*` specializations with restart-aware setup instructions.
 - **Dynamic workflow harness skill**: Added `dynamic_workflow_harness`, a built-in skill for choosing bounded `run_js` workflow templates such as repository surveys, fan-out analysis, evaluator loops, proposal tournaments, external content review, and implementation-validation guards.
