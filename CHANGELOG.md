@@ -1,3 +1,9 @@
+## Unreleased
+- **Built-in skill files**: Externalized built-in skills into generated Markdown-backed skill data so core skills can be reviewed, registered, and tested as normal repository files.
+- **Subagent creator skill**: Added `subagent_creator` guidance for safely creating config-backed `llm_tool_*` specializations with restart-aware setup instructions.
+- **Dynamic workflow harness skill**: Added `dynamic_workflow_harness`, a built-in skill for choosing bounded `run_js` workflow templates such as repository surveys, fan-out analysis, evaluator loops, proposal tournaments, external content review, and implementation-validation guards.
+- **HTTP transfer diagnostics**: Improved HTTP request timeout handling with low-speed transfer checks and diagnostics for stalled model/API calls.
+
 ## v0.22 - 2026-06-17
 - **Persisted `run_js` helpers fixed**: Made `tools.persist_function(args)` callable from `run_js`, safely validates helpers before storage, and loads persisted helpers into later `run_js` invocations so reusable JavaScript helpers such as `runCommandSummary` work end-to-end.
 - **Persisted helper safety checks**: Added validation for helper names, JSON schema metadata, optional `test_args`, size limits, global-name collisions, no-mutation failure paths, and regression coverage for malformed or unsafe helper definitions.

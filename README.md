@@ -16,6 +16,7 @@ The agent can also learn from its own workflows. The `self_improvement_learner` 
 - **🧠 `run_js` control plane**: std::slop primarily operates through `run_js`, a programmable JavaScript layer that batches local tool calls, loops over structured data, validates intermediate state, and returns compact JSON results.
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
 - **🌱 Self-improving helpers**: The `self_improvement_learner` skill can turn repeated `run_js` workflows into persisted functions via `tools.persist_function(args)`, reducing complex tool orchestration to small reusable helpers.
+- **🧭 Dynamic workflow harnesses**: The `dynamic_workflow_harness` skill helps agents choose bounded `run_js` patterns for repository surveys, fan-out analysis, evaluator loops, proposal tournaments, external content review, and validation guards.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: Granular control over conversation history via SQL-backed retrieval and rolling windows. As the context is built per-session, you can create multiple sessions and even clone existing ones to go down different paths.
@@ -164,7 +165,9 @@ Keep snippets bounded and deterministic, summarize large outputs before
 returning them, and prefer exact `edit_tool` edits for source changes. For reusable
 JavaScript, use `tools.persist_function(args)` after checking the current helper
 catalog with `tools.help()`; persisted functions are stored in `js_functions` and
-shown by `/tools js_help`.
+shown by `/tools js_help`. For adaptive multi-step tasks, activate the
+`dynamic_workflow_harness` skill to select a small, budgeted `run_js` template
+instead of hand-rolling an unbounded workflow.
 
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
