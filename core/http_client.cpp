@@ -25,6 +25,25 @@ namespace {
 absl::once_flag g_curl_init_once;
 bool g_curl_init_ok = false;
 
+// Use an idle/low-speed timeout instead of a total wall-clock timeout so
+// stream-required APIs can run as long as bytes continue to arrive.
+constexpr long kHttpLowSpeedLimitBytesPerSecond = 1L;
+constexpr long kHttpLowSpeedTimeSeconds = 360L;
+
+struct ResponseBuffer {
+  std::string body;
+  size_t bytes_received = 0;
+};
+
+std::string HttpFailureDetails(CURLcode result, long response_code, size_t bytes_received,
+                               absl::Duration elapsed) {
+  return absl::StrCat("curl_code=", static_cast<int>(result), " curl_error=\"", curl_easy_strerror(result),
+                      "\" response_code=", response_code, " bytes_received=", bytes_received,
+                      " elapsed=", absl::FormatDuration(elapsed),
+                      " low_speed_limit_bytes_per_second=", kHttpLowSpeedLimitBytesPerSecond,
+                      " low_speed_time_seconds=", kHttpLowSpeedTimeSeconds);
+}
+
 void EnsureCurlGlobalInit() {
   absl::call_once(g_curl_init_once, []() {
     g_curl_init_ok = (curl_global_init(CURL_GLOBAL_ALL) == CURLE_OK);
@@ -51,8 +70,11 @@ HttpClient::HttpClient(int max_retries, int64_t initial_backoff_ms)
 HttpClient::~HttpClient() = default;
 
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-  static_cast<std::string*>(userp)->append(static_cast<char*>(contents), size * nmemb);
-  return size * nmemb;
+  const size_t total_size = size * nmemb;
+  auto* response = static_cast<ResponseBuffer*>(userp);
+  response->body.append(static_cast<char*>(contents), total_size);
+  response->bytes_received += total_size;
+  return total_size;
 }
 
 size_t HttpClient::HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
@@ -104,7 +126,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       return absl::InternalError("Failed to initialize CURL");
     }
 
-    std::string response_body;
+    ResponseBuffer response;
     absl::flat_hash_map<std::string, std::string> response_headers;
     struct curl_slist* chunk = nullptr;
     absl::Cleanup chunk_cleaner = [&chunk] { curl_slist_free_all(chunk); };
@@ -128,52 +150,62 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_headers);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, ProgressCallback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 360L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, kHttpLowSpeedLimitBytesPerSecond);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, kHttpLowSpeedTimeSeconds);
 
     if (method == "POST") {
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     }
 
+    const absl::Time start_time = absl::Now();
     CURLcode res = curl_easy_perform(curl);
+    const absl::Duration elapsed = absl::Now() - start_time;
     long response_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
     if (IsDebugHttpEnabled()) {
       if (res != CURLE_OK) {
-        LOG(INFO) << "CURL error: " << curl_easy_strerror(res) << " (code " << res << ") for " << url;
+        LOG(INFO) << "CURL error for " << method << " " << url << ": "
+                  << HttpFailureDetails(res, response_code, response.bytes_received, elapsed);
       } else {
-        LOG(INFO) << "HTTP response: " << response_code << " for " << url;
-        if (response_body.size() < 1000) {
-          LOG(INFO) << "Response body: " << response_body;
+        LOG(INFO) << "HTTP response: " << response_code << " for " << url
+                  << " bytes_received=" << response.bytes_received << " elapsed=" << absl::FormatDuration(elapsed);
+        if (response.body.size() < 1000) {
+          LOG(INFO) << "Response body: " << response.body;
         } else {
-          LOG(INFO) << "Response body: " << response_body.substr(0, 1000) << "... [truncated]";
+          LOG(INFO) << "Response body: " << response.body.substr(0, 1000) << "... [truncated]";
         }
       }
     }
 
     if (res == CURLE_OK) {
       if (response_code >= 200 && response_code < 300) {
-        return response_body;
+        return response.body;
       }
 
-      if (IsTerminalError(response_code, response_body)) {
+      if (IsTerminalError(response_code, response.body)) {
         if (IsDebugHttpEnabled()) {
-          LOG(WARNING) << "Terminal HTTP error detected: " << response_code << " for " << url;
+          LOG(WARNING) << "Terminal HTTP error detected for " << method << " " << url << ": "
+                       << HttpFailureDetails(res, response_code, response.bytes_received, elapsed);
         }
-        return absl::UnavailableError(absl::StrCat("Terminal HTTP error: ", response_code, " Body: ", response_body));
+        return absl::UnavailableError(absl::StrCat("Terminal HTTP error. ",
+                                                   HttpFailureDetails(res, response_code, response.bytes_received, elapsed),
+                                                   " Body: ", response.body));
       }
     }
 
     if (retry_count >= max_retries_ || IsAborted()) {
-      return absl::UnavailableError(
-          absl::StrCat("HTTP request failed after ", retry_count, " retries. Code: ", response_code));
+      return absl::UnavailableError(absl::StrCat("HTTP request failed after ", retry_count,
+                                                 " retries. ", HttpFailureDetails(res, response_code,
+                                                                                  response.bytes_received, elapsed)));
     }
 
     int64_t header_delay = ParseRetryAfter(response_headers);
@@ -181,7 +213,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       header_delay = ParseXRateLimitReset(response_headers);
     }
     if (header_delay == -1) {
-      header_delay = ParseGoogleRetryDelay(response_body);
+      header_delay = ParseGoogleRetryDelay(response.body);
     }
 
     static absl::BitGen bitgen;
