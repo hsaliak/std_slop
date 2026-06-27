@@ -135,7 +135,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, ProgressCallback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 360L);
 
     if (method == "POST") {
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
