@@ -120,9 +120,11 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   bool found_patcher = false;
   bool found_self_improvement_learner = false;
   bool found_subagent_creator = false;
+  bool found_dynamic_workflow_harness = false;
   std::string patcher_prompt;
   std::string self_improvement_learner_prompt;
   std::string subagent_creator_prompt;
+  std::string dynamic_workflow_harness_prompt;
   for (const auto& s : *skills) {
     if (s.name == "planner") found_planner = true;
     if (s.name == "code_reviewer") found_code_reviewer = true;
@@ -138,14 +140,19 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_subagent_creator = true;
       subagent_creator_prompt = s.system_prompt_patch;
     }
+    if (s.name == "dynamic_workflow_harness") {
+      found_dynamic_workflow_harness = true;
+      dynamic_workflow_harness_prompt = s.system_prompt_patch;
+    }
     EXPECT_FALSE(s.system_prompt_patch.empty());
   }
-  EXPECT_EQ(skills->size(), 8);
+  EXPECT_EQ(skills->size(), 9);
   EXPECT_TRUE(found_planner);
   EXPECT_TRUE(found_code_reviewer);
   EXPECT_TRUE(found_patcher);
   EXPECT_TRUE(found_self_improvement_learner);
   EXPECT_TRUE(found_subagent_creator);
+  EXPECT_TRUE(found_dynamic_workflow_harness);
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "/review mail"));
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "Do NOT declare completion"));
   EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "tools.persist_function(args)"));
@@ -153,6 +160,10 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "[llm_tool_<suffix>]"));
   EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "ask_user"));
   EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "restart"));
+  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "run_js"));
+  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "tools.llm_query"));
+  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "bounded repository survey"));
+  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "Never call `run_js` recursively"));
 }
 TEST(DatabaseTest, MessagePersistence) {
   slop::Database db;

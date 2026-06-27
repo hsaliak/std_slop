@@ -24,6 +24,7 @@ genrule(
   "//skills:self_improvement_learner.md",
   "//skills:delegator.md",
   "//skills:subagent_creator.md",
+  "//skills:dynamic_workflow_harness.md",
  ],
  outs = ["builtin_skills_data.h"],
  tools = ["//scripts:generate_builtin_skills.sh"],
@@ -35,7 +36,8 @@ genrule(
        "$(location //skills:patcher.md) " +
        "$(location //skills:self_improvement_learner.md) " +
        "$(location //skills:delegator.md) " +
-       "$(location //skills:subagent_creator.md)",
+       "$(location //skills:subagent_creator.md) " +
+       "$(location //skills:dynamic_workflow_harness.md)",
 )
 
 cc_library(
