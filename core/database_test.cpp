@@ -119,8 +119,10 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   bool found_code_reviewer = false;
   bool found_patcher = false;
   bool found_self_improvement_learner = false;
+  bool found_subagent_creator = false;
   std::string patcher_prompt;
   std::string self_improvement_learner_prompt;
+  std::string subagent_creator_prompt;
   for (const auto& s : *skills) {
     if (s.name == "planner") found_planner = true;
     if (s.name == "code_reviewer") found_code_reviewer = true;
@@ -132,17 +134,25 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_self_improvement_learner = true;
       self_improvement_learner_prompt = s.system_prompt_patch;
     }
+    if (s.name == "subagent_creator") {
+      found_subagent_creator = true;
+      subagent_creator_prompt = s.system_prompt_patch;
+    }
     EXPECT_FALSE(s.system_prompt_patch.empty());
   }
-  EXPECT_EQ(skills->size(), 7);
+  EXPECT_EQ(skills->size(), 8);
   EXPECT_TRUE(found_planner);
   EXPECT_TRUE(found_code_reviewer);
   EXPECT_TRUE(found_patcher);
   EXPECT_TRUE(found_self_improvement_learner);
+  EXPECT_TRUE(found_subagent_creator);
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "/review mail"));
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "Do NOT declare completion"));
   EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "tools.persist_function(args)"));
   EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "successful `run_js` calls"));
+  EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "[llm_tool_<suffix>]"));
+  EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "ask_user"));
+  EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "restart"));
 }
 TEST(DatabaseTest, MessagePersistence) {
   slop::Database db;
