@@ -25,6 +25,8 @@ namespace {
 absl::once_flag g_curl_init_once;
 bool g_curl_init_ok = false;
 
+// Context-limit parsing is exposed through HttpClient::ContextOverflowStatus for tests.
+
 // Use an idle/low-speed timeout instead of a total wall-clock timeout so
 // stream-required APIs can run as long as bytes continue to arrive.
 constexpr long kHttpLowSpeedLimitBytesPerSecond = 1L;
@@ -196,9 +198,12 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
           LOG(WARNING) << "Terminal HTTP error detected for " << method << " " << url << ": "
                        << HttpFailureDetails(res, response_code, response.bytes_received, elapsed);
         }
-        return absl::UnavailableError(absl::StrCat("Terminal HTTP error. ",
-                                                   HttpFailureDetails(res, response_code, response.bytes_received, elapsed),
-                                                   " Body: ", response.body));
+        const std::string diagnostic = absl::StrCat("Terminal HTTP error. ",
+                                                    HttpFailureDetails(res, response_code, response.bytes_received, elapsed),
+                                                    " Body: ", response.body);
+        const absl::Status context_status = ContextOverflowStatus(response_code, response.body);
+        if (!context_status.ok()) return absl::ResourceExhaustedError(diagnostic);
+        return absl::UnavailableError(diagnostic);
       }
     }
 
@@ -254,13 +259,29 @@ void HttpClient::CancellableSleep(int64_t wait_ms) {
   }
 }
 
+absl::Status HttpClient::ContextOverflowStatus(long response_code, absl::string_view response_body) {
+  if (response_code == 413) return absl::ResourceExhaustedError("Provider context overflow");
+  if (response_code != 400) return absl::OkStatus();
+  const std::string normalized = absl::AsciiStrToLower(std::string(response_body));
+  if (absl::StrContains(normalized, "context length") ||
+      absl::StrContains(normalized, "context_length_exceeded") ||
+      absl::StrContains(normalized, "maximum context") ||
+      absl::StrContains(normalized, "maximum number of tokens") ||
+      absl::StrContains(normalized, "too many tokens") ||
+      absl::StrContains(normalized, "resource_exhausted")) {
+    return absl::ResourceExhaustedError("Provider context overflow");
+  }
+  return absl::OkStatus();
+}
+
 bool HttpClient::IsTerminalError(long response_code, const std::string& response_body) {
   // Non-retryable client errors:
   // 400 Bad Request: Request is invalid.
   // 401 Unauthorized: API key missing or invalid.
   // 403 Forbidden: Permission denied or invalid key.
   // 404 Not Found: Model or endpoint not found.
-  if (response_code == 400 || response_code == 401 || response_code == 403 || response_code == 404) {
+  if (response_code == 400 || response_code == 401 || response_code == 403 || response_code == 404 ||
+      response_code == 413) {
     return true;
   }
 

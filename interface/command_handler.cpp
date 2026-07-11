@@ -260,51 +260,46 @@ CommandHandler::Result CommandHandler::HandleUndo(CommandArgs& args) {
   return Result::HANDLED;
 }
 CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
-  std::vector<std::string> sub_parts = absl::StrSplit(args.args, absl::MaxSplits(' ', 1));
-  std::string sub_cmd = sub_parts[0];
-  std::string sub_args = (sub_parts.size() > 1) ? sub_parts[1] : "";
-  if (sub_cmd == "window") {
-    int n = sub_args.empty() ? 0 : std::atoi(sub_args.c_str());
-    HandleStatus(db_->SetContextWindow(args.session_id, n));
-    if (n > 0)
-      std::cout << "Rolling Window Context: Last " << n << " interaction groups." << std::endl;
-    else if (n == 0)
-      std::cout << "Full Context Mode (infinite buffer)." << std::endl;
-    else
-      std::cout << "Context Hidden (None)." << std::endl;
-    return Result::HANDLED;
-  }
-  if (sub_cmd == "rebuild") {
-    if (orchestrator_) {
-      auto status = orchestrator_->RebuildContext(args.session_id);
-      if (status.ok())
-        std::cout << "Context rebuilt from history." << std::endl;
-      else
-        HandleStatus(status, "Error");
-    } else {
-      std::cerr << "Orchestrator not available for rebuilding context." << std::endl;
+  const std::vector<std::string> parts = absl::StrSplit(args.args, ' ', absl::SkipWhitespace());
+  if (parts.size() == 1 && parts[0] == "show") {
+    auto settings_or = db_->GetAccordionContextSettings(args.session_id);
+    if (!settings_or.ok()) {
+      HandleStatus(settings_or.status(), "Error");
+      return Result::HANDLED;
     }
-    return Result::HANDLED;
-  }
-  if (sub_cmd == "show") {
-    auto s = db_->GetContextSettings(args.session_id);
-    std::stringstream ss;
-    ss << "## Context Status\n";
-    ss << "Session: " << args.session_id << "\n";
-    ss << "Window Size: ";
-    ss << (s.ok() ? (s->size == 0 ? "Infinite" : std::to_string(s->size)) : "Error");
-    ss << "\n";
-    if (!args.active_skills.empty()) {
-      ss << "Active Skills: " << absl::StrJoin(args.active_skills, ", ") << std::endl;
-    }
+    const auto& settings = *settings_or;
+    std::cout << "## Accordion Context Status\n"
+              << "Session: " << args.session_id << "\n"
+              << "Retain Groups: " << settings.retain_groups << "\n"
+              << "High Watermark: " << settings.watermark_tokens << " tokens\n"
+              << "Epoch Start Group: "
+              << (settings.epoch_start_group_id.empty() ? "Not initialized" : settings.epoch_start_group_id)
+              << "\n";
     if (orchestrator_) {
       auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
-      if (prompt_or.ok()) {
-        DisplayAssembledContext(prompt_or->dump());
-      }
+      if (prompt_or.ok()) DisplayAssembledContext(prompt_or->dump());
     }
     return Result::HANDLED;
   }
+  if (parts.empty() || parts.size() > 2) {
+    std::cerr << "Usage: /context <retain_groups> [watermark_tokens] or /context show" << std::endl;
+    return Result::HANDLED;
+  }
+  int retain_groups = 0;
+  int watermark_tokens = 350000;
+  if (!absl::SimpleAtoi(parts[0], &retain_groups) ||
+      (parts.size() == 2 && !absl::SimpleAtoi(parts[1], &watermark_tokens))) {
+    std::cerr << "Context retain groups and watermark must be integers." << std::endl;
+    return Result::HANDLED;
+  }
+  const absl::Status status =
+      db_->SetAccordionContextSettings(args.session_id, retain_groups, watermark_tokens);
+  if (!status.ok()) {
+    HandleStatus(status, "Error");
+    return Result::HANDLED;
+  }
+  std::cout << "Accordion context enabled. Retain " << retain_groups << " completed groups after reset; high "
+            << "watermark " << watermark_tokens << " tokens." << std::endl;
   return Result::HANDLED;
 }
 CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {

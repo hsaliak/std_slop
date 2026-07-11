@@ -170,6 +170,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     return true;
   };
 
+  bool context_overflow_retried = false;
   while (true) {
     auto prompt_or = orchestrator_.AssemblePrompt(session_id, active_skills);
     if (!prompt_or.ok()) {
@@ -264,6 +265,16 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     }
     http_t.join();
     if (!resp_or.ok()) {
+      if (resp_or.status().code() == absl::StatusCode::kResourceExhausted && !context_overflow_retried) {
+        context_overflow_retried = true;
+        const absl::Status reset_status = orchestrator_.ForceAccordionReset(session_id);
+        if (!reset_status.ok()) {
+          slop::HandleStatus(reset_status, "Accordion reset error");
+          break;
+        }
+        LOG(WARNING) << "Provider context overflow; reset accordion history and retrying once.";
+        continue;
+      }
       if (resp_or.status().code() == absl::StatusCode::kInvalidArgument) {
         LOG(WARNING) << "HTTP 400 error detected. Attempting to auto-fix history...";
         auto history_or = db_.GetConversationHistory(session_id, false, 10);
@@ -284,6 +295,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         }
       }
       if (!resp_or.ok()) {
+        if (resp_or.status().code() == absl::StatusCode::kResourceExhausted) {
+          std::cerr << "Context remains too large after accordion reset. Use /context <retain_groups> "
+                    << "<watermark_tokens> with a watermark near 80% of model context capacity, or reduce retain groups."
+                    << std::endl;
+        }
         slop::HandleStatus(resp_or.status(), "HTTP Error");
         if (config.openai_oauth && oauth_handler_ &&
             (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
@@ -479,11 +495,7 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
   if (!status.ok()) return status;
 
   const std::string query_session_id = effective_options.session_id;
-  if (effective_options.context_window.has_value()) {
-    const absl::Status window_status =
-        transient_db.SetContextWindow(query_session_id, *effective_options.context_window);
-    if (!window_status.ok()) return window_status;
-  }
+  // Transient queries use the default accordion context settings.
   (void)transient_db.Execute("UPDATE tools SET is_enabled = 0 WHERE name = 'ask_user'");
 
   auto sub_orch_or = orchestrator_.Update().WithDatabase(&transient_db).Build();

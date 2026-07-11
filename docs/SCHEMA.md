@@ -52,7 +52,9 @@ Tracks active conversation sessions.
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | id | TEXT | Primary Key. Session identifier. |
-| context_size | INTEGER | Number of messages to include in context. Default: 5. |
+| accordion_retain_groups | INTEGER | Complete interaction groups retained after accordion reset. Default: 2. |
+| accordion_watermark_tokens | INTEGER | Latest actual prompt-token threshold that resets context before the next generation. Default: 350000. |
+| accordion_epoch_start_group_id | TEXT | First group in the append-only accordion epoch; reset to the oldest retained group. |
 | active_skills | TEXT | Comma-separated list of active skill names. |
 | parent_session_id | TEXT | Parent session for branching conversations. |
 | depth | INTEGER | Nesting depth of the session. Default: 0. |
@@ -186,7 +188,9 @@ CREATE TABLE IF NOT EXISTS skills (
 
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
-    context_size INTEGER DEFAULT 5,
+    accordion_retain_groups INTEGER NOT NULL DEFAULT 2,
+    accordion_watermark_tokens INTEGER NOT NULL DEFAULT 350000,
+    accordion_epoch_start_group_id TEXT,
     active_skills TEXT,
     parent_session_id TEXT,
     depth INTEGER DEFAULT 0,

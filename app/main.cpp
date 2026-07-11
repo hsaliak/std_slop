@@ -145,11 +145,11 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
     engine.GetCommandHandler().RefreshMailModeFromDb();
     std::vector<std::string> active_skills = tool_executor.GetActiveSkills();
 
-    auto settings_or = db.GetContextSettings(session_id);
-    int window_size = settings_or.ok() ? settings_or->size : 0;
+    auto settings_or = db.GetAccordionContextSettings(session_id);
+    int window_size = settings_or.ok() ? settings_or->retain_groups : 2;
     std::string model_name = orchestrator.GetModel();
     std::string persona = active_skills.empty() ? "default" : absl::StrJoin(active_skills, ",");
-    std::string window_str = (window_size == 0) ? "all" : std::to_string(window_size);
+    std::string window_str = std::to_string(window_size);
     bool is_mail = engine.GetCommandHandler().IsMailMode();
     std::string color = is_mail ? ansi::MailMode : ansi::StandardMode;
     std::string mode_label =

@@ -101,11 +101,11 @@ Every interaction with the LLM is stateless. To provide context, the orchestrato
 ### Behavioral Characteristics
 *   **Growth**: As long as the session history is preserved, the token count will strictly increase turn-by-turn as the history "Prompt Tokens" grows.
 *   **Intra-Turn Consistency**: In a single turn containing multiple tool calls (Parallel Tool Calling), every tool call and assistant message will display the **same** token count. This represents the weight of the *entire interaction* that produced those calls.
-*   **Pruning Discontinuity**: The token count will only decrease when the **Rolling Context Window** prunes old messages. If a large historical block is dropped to fit the window limit, the next turn's count will drop accordingly.
+*   **Accordion Reset**: Context is append-only within an epoch. When the latest successful provider prompt reaches the high watermark, the next generation resets history to the configured complete-group suffix and begins a new epoch.
 ## Commands Reference
-- `/context window <N>`: Set the size of the rolling window (number of interaction groups). Use 0 for full history.
-- `/context show`: Display the exact assembled context that will be sent to the LLM. The output is human-readable and will automatically open in your `$EDITOR` (e.g., `vim`, `nano`) if it exceeds terminal height.
-- `/context rebuild`: Rebuilds the session state (`### STATE` anchor) from the current context window history.
+- `/context <N> [watermark]`: Enable accordion context. `N` is the number of complete interaction groups retained at reset; the watermark defaults to 350000 actual prompt tokens.
+- `/context show`: Display accordion settings and the exact assembled context that will be sent to the LLM. The output is human-readable and will automatically open in your `$EDITOR` (e.g., `vim`, `nano`) if it exceeds terminal height.
+- If a provider still rejects context length, std::slop resets once and retries generation once. Set the watermark near 80% of known model capacity or reduce `N` if that retry also fails.
 - `/undo`: Shortcut to remove the last interaction and rebuild state.
 - `/message list [N]`: List the last `N` interaction groups with token usage information.
 - `/message show <GID>`: View the full content of a specific interaction group.

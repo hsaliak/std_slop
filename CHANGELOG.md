@@ -1,3 +1,6 @@
+## Unreleased
+- **Accordion context**: Replaced rolling context windows with `/context <retain_groups> [watermark_tokens]`. History now accumulates by complete interaction group until the latest actual prompt usage reaches the watermark, then resets to the retained suffix. Tool results preserve full fidelity up to `full_fidelity_limit`, and provider context overflow gets one reset/retry fallback.
+
 ## v0.23 - 2026-06-27
 - **Built-in skill files**: Externalized built-in skills into generated Markdown-backed skill data so core skills can be reviewed, registered, and tested as normal repository files.
 - **Subagent creator skill**: Added `subagent_creator` guidance for safely creating config-backed `llm_tool_*` specializations with restart-aware setup instructions.

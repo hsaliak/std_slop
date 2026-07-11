@@ -1,6 +1,7 @@
 #ifndef SLOP_SQL_DATABASE_H_
 #define SLOP_SQL_DATABASE_H_
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -135,6 +136,7 @@ class Database {
     int total_tokens;
   };
   absl::StatusOr<TotalUsage> GetTotalUsage(const std::string& session_id = "");
+  absl::StatusOr<std::optional<int>> GetLatestPromptTokens(const std::string& session_id);
   struct Tool {
     std::string name;
     std::string description;
@@ -164,12 +166,21 @@ class Database {
   absl::Status IncrementToolCallCount(const std::string& name);
   absl::Status SetActiveSkills(const std::string& session_id, const std::vector<std::string>& skills);
   absl::StatusOr<std::vector<std::string>> GetActiveSkills(const std::string& session_id);
-  // Context Settings
-  absl::Status SetContextWindow(const std::string& session_id, int size);
-  struct ContextSettings {
-    int size;
+  // Accordion context settings.
+  struct AccordionContextSettings {
+    int retain_groups = 2;
+    int watermark_tokens = 350000;
+    std::string epoch_start_group_id;
   };
-  absl::StatusOr<ContextSettings> GetContextSettings(const std::string& session_id);
+  absl::Status SetAccordionContextSettings(const std::string& session_id, int retain_groups,
+                                           int watermark_tokens);
+  absl::StatusOr<AccordionContextSettings> GetAccordionContextSettings(const std::string& session_id);
+  absl::Status SetAccordionEpochStartGroup(const std::string& session_id,
+                                           const std::string& group_id);
+  absl::StatusOr<std::vector<std::string>> GetSessionGroupIdsFrom(
+      const std::string& session_id, const std::string& inclusive_start_group_id);
+  absl::StatusOr<std::vector<std::string>> GetLastSessionGroupIds(const std::string& session_id,
+                                                                    int count);
   // Session State Management
   absl::Status SetSessionState(const std::string& session_id, const std::string& state_blob);
   absl::StatusOr<std::string> GetSessionState(const std::string& session_id);

@@ -207,7 +207,9 @@ absl::Status Database::Init(const std::string& db_path) {
     );
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
-        context_size INTEGER DEFAULT 3,
+        accordion_retain_groups INTEGER NOT NULL DEFAULT 2,
+        accordion_watermark_tokens INTEGER NOT NULL DEFAULT 350000,
+        accordion_epoch_start_group_id TEXT,
         active_skills TEXT
     );
     CREATE TABLE IF NOT EXISTS usage (
@@ -286,6 +288,16 @@ absl::Status Database::Init(const std::string& db_path) {
                      "messages(session_id, group_id, created_at DESC, id DESC) "
                      "WHERE group_id IS NOT NULL AND status != 'dropped';",
                      nullptr, nullptr, nullptr);
+  // Migrate existing session databases to accordion context settings. The
+  // deprecated context_size column is intentionally ignored after migration.
+  (void)sqlite3_exec(raw_db,
+                     "ALTER TABLE sessions ADD COLUMN accordion_retain_groups INTEGER NOT NULL DEFAULT 2;",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "ALTER TABLE sessions ADD COLUMN accordion_watermark_tokens INTEGER NOT NULL DEFAULT 350000;",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN accordion_epoch_start_group_id TEXT;", nullptr,
+                     nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (
@@ -558,6 +570,14 @@ absl::Status Database::RecordUsage(const std::string& session_id, const std::str
       "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?);",
       session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens);
 }
+absl::StatusOr<std::optional<int>> Database::GetLatestPromptTokens(const std::string& session_id) {
+  ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT prompt_tokens FROM usage WHERE session_id = ? "
+                                      "ORDER BY created_at DESC, id DESC LIMIT 1"));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  ASSIGN_OR_RETURN(bool has_row, stmt->Step());
+  if (!has_row) return std::optional<int>();
+  return std::optional<int>(stmt->ColumnInt(0));
+}
 absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& session_id) {
   std::string sql = "SELECT SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens) FROM usage";
   if (!session_id.empty()) {
@@ -713,21 +733,79 @@ absl::StatusOr<std::vector<std::string>> Database::GetActiveSkills(const std::st
   }
   return std::vector<std::string>();
 }
-absl::Status Database::SetContextWindow(const std::string& session_id, int size) {
+absl::Status Database::SetAccordionContextSettings(const std::string& session_id, int retain_groups,
+                                                    int watermark_tokens) {
+  if (retain_groups < 1) {
+    return absl::InvalidArgumentError("Accordion retain_groups must be at least 1");
+  }
+  if (watermark_tokens < 1) {
+    return absl::InvalidArgumentError("Accordion watermark_tokens must be positive");
+  }
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
-  return Execute("UPDATE sessions SET context_size = ? WHERE id = ?;", size, session_id);
+  return Execute("UPDATE sessions SET accordion_retain_groups = ?, accordion_watermark_tokens = ?, "
+                 "accordion_epoch_start_group_id = NULL WHERE id = ?;",
+                 std::to_string(retain_groups), std::to_string(watermark_tokens), session_id);
 }
-absl::StatusOr<Database::ContextSettings> Database::GetContextSettings(const std::string& session_id) {
-  std::string sql = "SELECT context_size FROM sessions WHERE id = ?";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+absl::StatusOr<Database::AccordionContextSettings> Database::GetAccordionContextSettings(
+    const std::string& session_id) {
+  ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT accordion_retain_groups, accordion_watermark_tokens, "
+                                      "COALESCE(accordion_epoch_start_group_id, '') FROM sessions WHERE id = ?"));
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-  ContextSettings settings = {5};  // Default
+  AccordionContextSettings settings;
   if (*row_or) {
-    settings.size = stmt->ColumnInt(0);
+    settings.retain_groups = stmt->ColumnInt(0);
+    settings.watermark_tokens = stmt->ColumnInt(1);
+    settings.epoch_start_group_id = stmt->ColumnText(2);
   }
   return settings;
+}
+absl::Status Database::SetAccordionEpochStartGroup(const std::string& session_id, const std::string& group_id) {
+  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
+  return Execute("UPDATE sessions SET accordion_epoch_start_group_id = ? WHERE id = ?;", group_id, session_id);
+}
+absl::StatusOr<std::vector<std::string>> Database::GetSessionGroupIdsFrom(
+    const std::string& session_id, const std::string& inclusive_start_group_id) {
+  std::string sql =
+      "SELECT group_id FROM messages WHERE session_id = ? AND status != 'dropped' AND group_id IS NOT NULL "
+      "AND group_id != ''";
+  if (!inclusive_start_group_id.empty()) {
+    sql += " AND id >= (SELECT MIN(id) FROM messages WHERE session_id = ? AND group_id = ?)";
+  }
+  sql += " GROUP BY group_id ORDER BY MIN(id) ASC";
+  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  if (!inclusive_start_group_id.empty()) {
+    RETURN_IF_ERROR(stmt->BindText(2, session_id));
+    RETURN_IF_ERROR(stmt->BindText(3, inclusive_start_group_id));
+  }
+  std::vector<std::string> group_ids;
+  while (true) {
+    auto row_or = stmt->Step();
+    if (!row_or.ok()) return row_or.status();
+    if (!*row_or) break;
+    group_ids.push_back(stmt->ColumnText(0));
+  }
+  return group_ids;
+}
+absl::StatusOr<std::vector<std::string>> Database::GetLastSessionGroupIds(const std::string& session_id,
+                                                                             int count) {
+  if (count < 1) return absl::InvalidArgumentError("Group count must be positive");
+  ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT group_id FROM (SELECT group_id, MAX(id) AS last_id FROM messages "
+                                      "WHERE session_id = ? AND status != 'dropped' AND group_id IS NOT NULL "
+                                      "AND group_id != '' GROUP BY group_id ORDER BY last_id DESC LIMIT ?) "
+                                      "ORDER BY last_id ASC"));
+  RETURN_IF_ERROR(stmt->BindText(1, session_id));
+  RETURN_IF_ERROR(stmt->BindInt(2, count));
+  std::vector<std::string> group_ids;
+  while (true) {
+    auto row_or = stmt->Step();
+    if (!row_or.ok()) return row_or.status();
+    if (!*row_or) break;
+    group_ids.push_back(stmt->ColumnText(0));
+  }
+  return group_ids;
 }
 absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
   // Ensure session exists
@@ -825,8 +903,9 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
     return s;
   };
   absl::Status status = Execute(
-      "INSERT INTO sessions (id, context_size, active_skills) "
-      "SELECT ?, context_size, active_skills FROM sessions "
+      "INSERT INTO sessions (id, accordion_retain_groups, accordion_watermark_tokens, "
+      "accordion_epoch_start_group_id, active_skills) "
+      "SELECT ?, accordion_retain_groups, accordion_watermark_tokens, accordion_epoch_start_group_id, active_skills FROM sessions "
       "WHERE id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
@@ -865,9 +944,12 @@ absl::Status Database::CloneSessionThroughGroup(const std::string& source_id, co
   ASSIGN_OR_RETURN(Database::Message cutoff, LastMessageForGroup(this, source_id, group_id));
 
   RETURN_IF_ERROR(Execute("BEGIN TRANSACTION;"));
-  absl::Status status = Execute("INSERT INTO sessions (id, context_size, active_skills) SELECT ?, context_size, active_skills "
-                                "FROM sessions WHERE id = ?;",
-                                {target_id, source_id});
+  absl::Status status = Execute(
+      "INSERT INTO sessions (id, accordion_retain_groups, accordion_watermark_tokens, "
+      "accordion_epoch_start_group_id, active_skills) "
+      "SELECT ?, accordion_retain_groups, accordion_watermark_tokens, accordion_epoch_start_group_id, active_skills "
+      "FROM sessions WHERE id = ?;",
+      {target_id, source_id});
   if (!status.ok()) return RollbackTransaction(this, status);
   status = Execute(
       "INSERT INTO messages (session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens) "

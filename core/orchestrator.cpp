@@ -22,6 +22,7 @@
 #include "core/orchestrator_gemini.h"
 #include "core/orchestrator_openai.h"
 #include "core/orchestrator_openai_responses.h"
+#include "core/status_macros.h"
 #include "core/system_prompt_data.h"
 #ifdef HAVE_SYSTEM_PROMPT_H
 #endif
@@ -98,42 +99,12 @@ void Orchestrator::UpdateStrategy() {
  */
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id,
                                                             const std::vector<std::string>& active_skills) {
-  auto settings_or = db_->GetContextSettings(session_id);
-  if (!settings_or.ok()) return settings_or.status();
-  if (settings_or->size == -1) {
-    last_selected_groups_.clear();
-    return nlohmann::json({{"contents", nlohmann::json::array()}});
-  }
-  auto history_or = GetRelevantHistory(session_id, settings_or->size);
+  auto history_or = GetAccordionHistory(session_id);
   if (!history_or.ok()) return history_or.status();
   auto history = std::move(*history_or);
-  // Identify the active group_id (the most recent one)
-  std::string active_group_id;
-  if (!history.empty()) {
-    active_group_id = history.back().group_id;
-  }
-  // Pre-truncate tool results based on group activity and recency.
-  size_t total_active_tools = 0;
-  for (const auto& m : history) {
-    if (m.role == "tool" && !active_group_id.empty() && m.group_id == active_group_id) {
-      total_active_tools++;
-    }
-  }
-  size_t active_tool_idx = 0;
-  for (auto& m : history) {
-    if (m.role == "tool") {
-      bool is_active_group = (!active_group_id.empty() && m.group_id == active_group_id);
-      if (!is_active_group) {
-        m.content = SmarterTruncate(m.content, config_.truncation.inactive_limit, m.id);
-      } else {
-        bool is_recent = (active_tool_idx >= (total_active_tools > config_.truncation.full_fidelity_count
-                                                  ? total_active_tools - config_.truncation.full_fidelity_count
-                                                  : 0));
-        size_t limit =
-            is_recent ? config_.truncation.active_full_fidelity_limit : config_.truncation.active_degraded_limit;
-        m.content = SmarterTruncate(m.content, limit, m.id);
-        active_tool_idx++;
-      }
+  for (auto& message : history) {
+    if (message.role == "tool") {
+      message.content = SmarterTruncate(message.content, config_.truncation.full_fidelity_limit, message.id);
     }
   }
   std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
@@ -245,41 +216,49 @@ Technical Anchors: [Ports, IPs, constant values]
   }
   return system_instruction;
 }
-absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetRelevantHistory(const std::string& session_id,
-                                                                                int window_size) {
-  // Use Phase 2 windowed fetching if window_size > 0
-  auto hist_or = db_->GetConversationHistory(session_id, false, window_size);
-  if (!hist_or.ok()) return hist_or.status();
-  std::vector<Database::Message> history;
-  history.reserve(hist_or->size());
-  const std::string& current_strategy = strategy_->GetName();
-  std::set<std::string> group_ids;
-  for (auto& m : *hist_or) {
-    bool is_tool_related = (m.role == "tool" || m.status == "tool_call");
-    bool strategy_matches = (m.parsing_strategy.empty() || m.parsing_strategy == current_strategy ||
-                             (current_strategy == "gemini_gca" && m.parsing_strategy == "gemini") ||
-                             (current_strategy == "gemini" && m.parsing_strategy == "gemini_gca"));
-    if (!is_tool_related || strategy_matches) {
-      if (!m.group_id.empty()) {
-        group_ids.insert(m.group_id);
-      }
-      history.push_back(std::move(m));
+absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetAccordionHistory(
+    const std::string& session_id, bool force_reset) {
+  ASSIGN_OR_RETURN(auto settings, db_->GetAccordionContextSettings(session_id));
+  ASSIGN_OR_RETURN(auto latest_prompt_tokens, db_->GetLatestPromptTokens(session_id));
+  const bool reset = force_reset ||
+                     (latest_prompt_tokens.has_value() && *latest_prompt_tokens >= settings.watermark_tokens);
+  std::vector<std::string> group_ids;
+  if (reset) {
+    ASSIGN_OR_RETURN(group_ids, db_->GetLastSessionGroupIds(session_id, settings.retain_groups));
+    if (!group_ids.empty()) RETURN_IF_ERROR(db_->SetAccordionEpochStartGroup(session_id, group_ids.front()));
+  } else {
+    ASSIGN_OR_RETURN(group_ids, db_->GetSessionGroupIdsFrom(session_id, settings.epoch_start_group_id));
+    if (settings.epoch_start_group_id.empty() && !group_ids.empty()) {
+      RETURN_IF_ERROR(db_->SetAccordionEpochStartGroup(session_id, group_ids.front()));
     }
   }
-  last_selected_groups_.assign(group_ids.begin(), group_ids.end());
+  ASSIGN_OR_RETURN(auto all_messages, db_->GetConversationHistory(session_id));
+  const std::set<std::string> selected_groups(group_ids.begin(), group_ids.end());
+  std::vector<Database::Message> history;
+  history.reserve(all_messages.size());
+  const std::string& current_strategy = strategy_->GetName();
+  for (auto& message : all_messages) {
+    const bool tool_related = message.role == "tool" || message.status == "tool_call";
+    const bool strategy_matches = message.parsing_strategy.empty() || message.parsing_strategy == current_strategy ||
+                                  (current_strategy == "gemini_gca" && message.parsing_strategy == "gemini") ||
+                                  (current_strategy == "gemini" && message.parsing_strategy == "gemini_gca");
+    const bool in_selected_epoch = selected_groups.empty() ||
+                                   selected_groups.find(message.group_id) != selected_groups.end();
+    if (in_selected_epoch && (!tool_related || strategy_matches)) history.push_back(std::move(message));
+  }
+  last_selected_groups_ = std::move(group_ids);
   return history;
 }
+absl::Status Orchestrator::ForceAccordionReset(const std::string& session_id) {
+  auto history_or = GetAccordionHistory(session_id, true);
+  return history_or.ok() ? absl::OkStatus() : history_or.status();
+}
 absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
-  auto settings_or = db_->GetContextSettings(session_id);
-  if (!settings_or.ok()) return settings_or.status();
-  auto history_or = GetRelevantHistory(session_id, settings_or->size);
-  if (!history_or.ok()) return history_or.status();
-  for (const auto& msg : *history_or) {
-    if (msg.role == "assistant") {
-      auto state = ExtractState(msg.content);
-      if (state) {
-        db_->SetSessionState(session_id, *state).IgnoreError();
-      }
+  ASSIGN_OR_RETURN(auto history, GetAccordionHistory(session_id, false));
+  for (const auto& message : history) {
+    if (message.role == "assistant") {
+      auto state = ExtractState(message.content);
+      if (state.has_value()) RETURN_IF_ERROR(db_->SetSessionState(session_id, *state));
     }
   }
   return absl::OkStatus();

@@ -17,14 +17,8 @@ class Orchestrator {
   enum class Provider { GEMINI, OPENAI };
   enum class OpenAiApiStyle { CHAT_COMPLETIONS, RESPONSES };
   struct TruncationSettings {
-    // truncation character length for full fidelity
-    size_t active_full_fidelity_limit = 5000;
-    // truncated character length for degraded
-    size_t active_degraded_limit = 2000;  // its very aggressive
-    // truncated character length for inactive
-    size_t inactive_limit = 1000;  // super aggressive
-    // how many messages should be considered "full fidelity"
-    size_t full_fidelity_count = 10;
+    // Maximum characters retained for a single tool result.
+    size_t full_fidelity_limit = 5000;
   };
   struct Config {
     Provider provider = Provider::GEMINI;
@@ -68,8 +62,9 @@ class Orchestrator {
                                                  const std::vector<Database::Message>& history);
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id = "");
-  // Rebuilds the session state (### STATE anchor) from the current window's history.
+  // Rebuilds the session state from currently selected accordion history.
   absl::Status RebuildContext(const std::string& session_id);
+  absl::Status ForceAccordionReset(const std::string& session_id);
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id = "");
   // Extracts assistant text from a provider response for direct one-shot calls.
@@ -78,8 +73,9 @@ class Orchestrator {
   absl::StatusOr<std::string> ExtractAssistantText(const std::string& response_body);
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
   std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
-  // Exposed for rebuilding and testing
-  absl::StatusOr<std::vector<Database::Message>> GetRelevantHistory(const std::string& session_id, int window_size);
+  // Exposed for testing and context-overflow recovery.
+  absl::StatusOr<std::vector<Database::Message>> GetAccordionHistory(const std::string& session_id,
+                                                                       bool force_reset = false);
   // Refactored: UpdateStrategy is now called by Build() or BuildInto()
   void UpdateStrategy();
   // Utility for truncating large tool results.

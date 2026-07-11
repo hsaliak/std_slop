@@ -53,12 +53,12 @@ TEST_F(OrchestratorTest, AssemblePromptWithMultipleSkills) {
   EXPECT_TRUE(absl::StrContains(instr, "PATCH1"));
   EXPECT_TRUE(absl::StrContains(instr, "PATCH2"));
 }
-TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
+TEST_F(OrchestratorTest, AccordionPreservesHistoricalToolResults) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
   Orchestrator::TruncationSettings ts;
-  std::string long_content(ts.active_full_fidelity_limit / 2, 'a');
+  std::string long_content(ts.full_fidelity_limit / 2, 'a');
   // Group 1: Previous group (fill with enough tools to trigger truncation for the oldest one)
   ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
   for (int i = 0; i < 5; ++i) {
@@ -85,12 +85,12 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
         std::string tool_content = part.value("functionResponse", nlohmann::json::object())
                                        .value("response", nlohmann::json::object())
                                        .value("content", "");
-        if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
-          // Verify it's truncated to ~ts.inactive_limit
-          EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);
-          found_g1 = true;
-        } else if (tool_content == long_content) {
-          found_g2 = true;
+        if (tool_content == long_content) {
+          if (!found_g1) {
+            found_g1 = true;
+          } else {
+            found_g2 = true;
+          }
         }
       }
     }
@@ -98,14 +98,13 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResults) {
   EXPECT_TRUE(found_g1);
   EXPECT_TRUE(found_g2);
 }
-TEST_F(OrchestratorTest, TruncateActiveToolResults) {
+TEST_F(OrchestratorTest, AccordionToolResultsUseFullFidelityLimit) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
   Orchestrator::TruncationSettings ts;
-  std::string long_content(ts.active_degraded_limit * 2, 'a');
-  // Active group with more tools than the full fidelity count.
-  int total_tools = ts.full_fidelity_count + 2;
+  std::string long_content(ts.full_fidelity_limit + 100, 'a');
+  const int total_tools = 2;
   ASSERT_TRUE(db.AppendMessage("s1", "user", "active call", "", "completed", "g1").ok());
   for (int i = 0; i < total_tools; ++i) {
     ASSERT_TRUE(db.AppendMessage("s1", "assistant", "calling", "", "tool_call", "g1").ok());
@@ -127,9 +126,7 @@ TEST_F(OrchestratorTest, TruncateActiveToolResults) {
                                        .value("response", nlohmann::json::object())
                                        .value("content", "");
         if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
-          // Should be truncated to active_degraded_limit
-          EXPECT_GT(tool_content.size(), ts.active_degraded_limit - 100);
-          EXPECT_LT(tool_content.size(), ts.active_degraded_limit + 200);
+          EXPECT_LT(tool_content.size(), ts.full_fidelity_limit + 200);
           truncated_count++;
         } else if (tool_content == long_content) {
           full_fidelity_count++;
@@ -137,15 +134,15 @@ TEST_F(OrchestratorTest, TruncateActiveToolResults) {
       }
     }
   }
-  EXPECT_EQ(truncated_count, 2);
-  EXPECT_EQ(full_fidelity_count, ts.full_fidelity_count);
+  EXPECT_EQ(truncated_count, total_tools);
+  EXPECT_EQ(full_fidelity_count, 0);
 }
-TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
+TEST_F(OrchestratorTest, AccordionPreservesToolResultsBelowFullFidelityLimit) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
   Orchestrator::TruncationSettings ts;
-  std::string long_content(ts.active_full_fidelity_limit / 2, 'a');
+  std::string long_content(ts.full_fidelity_limit / 2, 'a');
   // Group 1: Previous group (fill with enough tools to trigger truncation for the oldest one)
   ASSERT_TRUE(db.AppendMessage("s1", "user", "call tool", "", "completed", "g1").ok());
   for (int i = 0; i < 5; ++i) {
@@ -180,17 +177,41 @@ TEST_F(OrchestratorTest, TruncatePreviousToolResultsOpenAI) {
   for (const auto& msg : prompt.value("messages", nlohmann::json::array())) {
     if (msg.value("role", "") == "tool") {
       std::string tool_content = msg.value("content", "");
-      if (absl::StrContains(tool_content, "TRUNCATED. Use query_db")) {
-        // Verify it's truncated to ~ts.inactive_limit
-        EXPECT_LT(tool_content.size(), ts.inactive_limit + 200);
-        found_g1 = true;
-      } else if (tool_content == long_content) {
-        found_g2 = true;
+      if (tool_content == long_content) {
+        if (!found_g1) {
+          found_g1 = true;
+        } else {
+          found_g2 = true;
+        }
       }
     }
   }
   EXPECT_TRUE(found_g1);
   EXPECT_TRUE(found_g2);
+}
+TEST_F(OrchestratorTest, AccordionResetsFromLatestPromptUsage) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+  ASSERT_TRUE(db.SetAccordionContextSettings("s1", 2, 350000).ok());
+  for (const std::string& group_id : {"g1", "g2", "g3"}) {
+    ASSERT_TRUE(db.AppendMessage("s1", "user", group_id, "", "completed", group_id).ok());
+    ASSERT_TRUE(db.AppendMessage("s1", "assistant", group_id, "", "completed", group_id).ok());
+  }
+  ASSERT_TRUE(db.RecordUsage("other", "model", 999999, 1).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 349999, 1).ok());
+  auto history_or = orchestrator->GetAccordionHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 6);
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 350000, 1).ok());
+  history_or = orchestrator->GetAccordionHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 4);
+  EXPECT_EQ((*history_or)[0].group_id, "g2");
+  EXPECT_EQ((*history_or)[3].group_id, "g3");
+  auto settings_or = db.GetAccordionContextSettings("s1");
+  ASSERT_TRUE(settings_or.ok());
+  EXPECT_EQ(settings_or->epoch_start_group_id, "g2");
 }
 TEST_F(OrchestratorTest, SmarterTruncate) {
   std::string head = "COMMAND_START\n";
@@ -472,10 +493,10 @@ TEST_F(OrchestratorTest, HistoryFiltering) {
   auto gemini_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
   ASSERT_TRUE(gemini_or.ok());
   auto gemini = std::move(*gemini_or);
-  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello", "", "completed", "g0").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Gemini msg", "", "completed", "g1", "gemini").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "OpenAI msg", "", "completed", "g2", "openai").ok());
-  auto hist_or = gemini->GetRelevantHistory("s1", 0);
+  auto hist_or = gemini->GetAccordionHistory("s1");
   ASSERT_TRUE(hist_or.ok());
   // Both Gemini and OpenAI text assistant messages are kept now.
   EXPECT_EQ(hist_or->size(), 3);
@@ -485,7 +506,7 @@ TEST_F(OrchestratorTest, HistoryFiltering) {
   auto openai_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
   ASSERT_TRUE(openai_or.ok());
   auto openai = std::move(*openai_or);
-  hist_or = openai->GetRelevantHistory("s1", 0);
+  hist_or = openai->GetAccordionHistory("s1");
   ASSERT_TRUE(hist_or.ok());
   // Both kept.
   EXPECT_EQ(hist_or->size(), 3);
@@ -497,12 +518,12 @@ TEST_F(OrchestratorTest, ToolResultFiltering) {
   auto gemini_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
   ASSERT_TRUE(gemini_or.ok());
   auto gemini = std::move(*gemini_or);
-  ASSERT_TRUE(db.AppendMessage("s1", "user", "Run tool").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Run tool", "", "completed", "g0").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "call", "my_tool", "tool_call", "g1", "gemini").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "tool", "result", "my_tool", "completed", "g1", "gemini").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "call", "other_tool", "tool_call", "g2", "openai").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "tool", "result", "other_tool", "completed", "g2", "openai").ok());
-  auto hist_or = gemini->GetRelevantHistory("s1", 0);
+  auto hist_or = gemini->GetAccordionHistory("s1");
   ASSERT_TRUE(hist_or.ok());
   // Should have: "Run tool", gemini assistant call, gemini tool result. (3 messages)
   EXPECT_EQ(hist_or->size(), 3);
@@ -515,13 +536,13 @@ TEST_F(OrchestratorTest, CrossModelMessagePreservation) {
   auto gemini_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::GEMINI).Build();
   ASSERT_TRUE(gemini_or.ok());
   auto gemini = std::move(*gemini_or);
-  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello", "", "completed", "g0").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "I am Gemini", "", "completed", "g1", "gemini").ok());
   // 2. Switch to OpenAI
   auto openai_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
   ASSERT_TRUE(openai_or.ok());
   auto openai = std::move(*openai_or);
-  auto hist_or = openai->GetRelevantHistory("s1", 0);
+  auto hist_or = openai->GetAccordionHistory("s1");
   ASSERT_TRUE(hist_or.ok());
   // User "Hello" (text) and "I am Gemini" (text assistant) should both be kept.
   EXPECT_EQ(hist_or->size(), 2);
@@ -529,7 +550,7 @@ TEST_F(OrchestratorTest, CrossModelMessagePreservation) {
   EXPECT_EQ((*hist_or)[1].content, "I am Gemini");
   // 3. Add a Gemini Tool Call (should be filtered for OpenAI)
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{}", "tool_1", "tool_call", "g2", "gemini").ok());
-  hist_or = openai->GetRelevantHistory("s1", 0);
+  hist_or = openai->GetAccordionHistory("s1");
   ASSERT_EQ(hist_or->size(), 2);  // Still 2
 }
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsageGemini) {

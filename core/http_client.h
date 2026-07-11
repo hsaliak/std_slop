@@ -29,6 +29,8 @@ class HttpClient {
 
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
   static bool IsTerminalError(long response_code, const std::string& response_body);
+  // Classifies provider context-limit responses for accordion retry.
+  static absl::Status ContextOverflowStatus(long response_code, absl::string_view response_body);
 
   void Abort();
   bool IsAborted() const { return abort_generation_.load() != active_generation_.load(); }

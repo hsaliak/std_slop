@@ -182,6 +182,16 @@ TEST(HttpClientTest, IsTerminalErrorTest) {
   EXPECT_TRUE(client.IsTerminalError(401, "Unauthorized"));
   EXPECT_TRUE(client.IsTerminalError(403, "Forbidden"));
   EXPECT_TRUE(client.IsTerminalError(404, "Not Found"));
+  // Context overflow uses terminal 400/413 responses and is later normalized
+  // to ResourceExhausted by the request path.
+  EXPECT_TRUE(client.IsTerminalError(400, R"({"error":{"code":"context_length_exceeded"}})"));
+  EXPECT_TRUE(client.IsTerminalError(413, R"({"error":{"status":"RESOURCE_EXHAUSTED"}})"));
+  EXPECT_TRUE(client.IsTerminalError(413, "Payload Too Large"));
+  EXPECT_EQ(HttpClient::ContextOverflowStatus(413, "Payload Too Large").code(),
+            absl::StatusCode::kResourceExhausted);
+  EXPECT_EQ(HttpClient::ContextOverflowStatus(400, R"({"error":{"code":"context_length_exceeded"}})").code(),
+            absl::StatusCode::kResourceExhausted);
+  EXPECT_TRUE(HttpClient::ContextOverflowStatus(400, "invalid request").ok());
 
   // Case 3: 429 with QUOTA_EXHAUSTED
   EXPECT_TRUE(client.IsTerminalError(429, "{\"error\": \"QUOTA_EXHAUSTED\"}"));

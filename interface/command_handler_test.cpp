@@ -184,18 +184,32 @@ TEST_F(CommandHandlerTest, HandlesCommandWithWhitespace) {
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
-TEST_F(CommandHandlerTest, HandlesContextWindow) {
+TEST_F(CommandHandlerTest, HandlesAccordionContext) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
-  std::string input = "/context window 10";
+  std::string input = "/context 3 400000";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-  auto settings = db.GetContextSettings("s1");
-  EXPECT_TRUE(settings.ok());
-  EXPECT_EQ(settings->size, 10);
+  auto settings = db.GetAccordionContextSettings("s1");
+  ASSERT_TRUE(settings.ok());
+  EXPECT_EQ(settings->retain_groups, 3);
+  EXPECT_EQ(settings->watermark_tokens, 400000);
+}
+TEST_F(CommandHandlerTest, ContextUsesDefaultWatermark) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::vector<std::string> active_skills;
+  std::string input = "/context 1";
+  std::string session_id = "s1";
+  EXPECT_EQ(handler.Handle(input, session_id, active_skills, []() {}, {}), CommandHandler::Result::HANDLED);
+  auto settings = db.GetAccordionContextSettings("s1");
+  ASSERT_TRUE(settings.ok());
+  EXPECT_EQ(settings->retain_groups, 1);
+  EXPECT_EQ(settings->watermark_tokens, 350000);
 }
 TEST_F(CommandHandlerTest, ContextWithoutSubcommandShowsUsage) {
   auto handler_or = CommandHandler::Create(&db);
@@ -364,7 +378,7 @@ TEST_F(CommandHandlerTest, HandlesSessionRemove) {
   std::string sid = "test_sid";
   std::vector<std::string> active_skills;
   ASSERT_TRUE(db.AppendMessage(sid, "user", "hello").ok());
-  ASSERT_TRUE(db.SetContextWindow(sid, 10).ok());
+  ASSERT_TRUE(db.SetAccordionContextSettings(sid, 2, 350000).ok());
   std::string input = "/session remove test_sid";
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);

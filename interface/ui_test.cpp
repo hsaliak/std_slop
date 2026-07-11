@@ -391,7 +391,7 @@ TEST(UiTest, GetInAppHelpTextShowsSlashCommands) {
   EXPECT_TRUE(absl::StrContains(help, "`/help`"));
   EXPECT_TRUE(absl::StrContains(help, "`/exit` (aliases: `/quit`)"));
   EXPECT_TRUE(absl::StrContains(help, "`/context`"));
-  EXPECT_TRUE(absl::StrContains(help, "/context window <N>"));
+  EXPECT_TRUE(absl::StrContains(help, "/context <retain_groups> [watermark_tokens]"));
   EXPECT_TRUE(absl::StrContains(help, "`/tool`"));
   EXPECT_TRUE(absl::StrContains(help, "`/skill`"));
   EXPECT_TRUE(absl::StrContains(help, "hey <skill> <query>"));

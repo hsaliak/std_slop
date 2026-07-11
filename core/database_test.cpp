@@ -283,6 +283,34 @@ TEST(DatabaseTest, CloneFullSession) {
   EXPECT_EQ(skills->at(0), "skill1");
   EXPECT_EQ(skills->at(1), "skill2");
 }
+TEST(DatabaseTest, AccordionContextSettingsAndLatestPromptTokens) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto defaults_or = db.GetAccordionContextSettings("s1");
+  ASSERT_TRUE(defaults_or.ok());
+  EXPECT_EQ(defaults_or->retain_groups, 2);
+  EXPECT_EQ(defaults_or->watermark_tokens, 350000);
+  EXPECT_TRUE(defaults_or->epoch_start_group_id.empty());
+  ASSERT_TRUE(db.SetAccordionContextSettings("s1", 3, 400000).ok());
+  ASSERT_TRUE(db.SetAccordionEpochStartGroup("s1", "g2").ok());
+  auto settings_or = db.GetAccordionContextSettings("s1");
+  ASSERT_TRUE(settings_or.ok());
+  EXPECT_EQ(settings_or->retain_groups, 3);
+  EXPECT_EQ(settings_or->watermark_tokens, 400000);
+  EXPECT_EQ(settings_or->epoch_start_group_id, "g2");
+  EXPECT_FALSE(db.SetAccordionContextSettings("s1", 0, 1).ok());
+  EXPECT_FALSE(db.SetAccordionContextSettings("s1", 1, 0).ok());
+  auto latest_or = db.GetLatestPromptTokens("s1");
+  ASSERT_TRUE(latest_or.ok());
+  EXPECT_FALSE(latest_or->has_value());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 100, 10).ok());
+  ASSERT_TRUE(db.RecordUsage("other", "model", 900, 10).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 350000, 10).ok());
+  latest_or = db.GetLatestPromptTokens("s1");
+  ASSERT_TRUE(latest_or.ok());
+  ASSERT_TRUE(latest_or->has_value());
+  EXPECT_EQ(**latest_or, 350000);
+}
 TEST(DatabaseTest, TokenPersistence) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -485,7 +513,7 @@ TEST(DatabaseTest, SkillTracking) {
   // Test Session Skill Persistence
   std::vector<std::string> active = {"skill1", "skill2"};
   // Ensure session exists
-  ASSERT_TRUE(db.SetContextWindow("s1", 10).ok());
+  ASSERT_TRUE(db.SetAccordionContextSettings("s1", 2, 350000).ok());
   ASSERT_TRUE(db.SetActiveSkills("s1", active).ok());
   auto restored = db.GetActiveSkills("s1");
   ASSERT_TRUE(restored.ok());
