@@ -1,6 +1,7 @@
 #ifndef SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
 #define SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,12 @@ struct ModelInfo {
   std::string name;
 };
 
+struct ResponseUsage {
+  int input_tokens = 0;
+  int output_tokens = 0;
+  std::optional<int> cached_input_tokens;
+};
+
 class OrchestratorStrategy {
  public:
   virtual ~OrchestratorStrategy() = default;
@@ -41,6 +48,8 @@ class OrchestratorStrategy {
   // Returns the total tokens used in this turn.
   virtual absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                               const std::string& group_id) = 0;
+
+  virtual std::optional<ResponseUsage> GetLastResponseUsage() const = 0;
 
   // Extracts ToolCalls from a database message.
   virtual absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) = 0;

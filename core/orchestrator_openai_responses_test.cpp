@@ -154,6 +154,24 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSseTextDeltas) {
   EXPECT_EQ((*history_or)[0].content, "Hello world");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ClearsUsageWhenResponseOmitsUsage) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://api.openai.com/v1");
+  const nlohmann::json with_usage = {
+      {"usage", {{"input_tokens", 10}, {"output_tokens", 2}, {"input_tokens_details", {{"cached_tokens", 8}}}}},
+      {"output", {{{"type", "message"},
+                   {"role", "assistant"},
+                   {"content", {{{"type", "output_text"}, {"text", "First"}}}}}}}};
+  ASSERT_TRUE(orchestrator.ProcessResponse("s1", with_usage.dump(), "g1").ok());
+  ASSERT_TRUE(orchestrator.GetLastResponseUsage().has_value());
+
+  const nlohmann::json without_usage = {
+      {"output", {{{"type", "message"},
+                   {"role", "assistant"},
+                   {"content", {{{"type", "output_text"}, {"text", "Second"}}}}}}}};
+  ASSERT_TRUE(orchestrator.ProcessResponse("s1", without_usage.dump(), "g2").ok());
+  EXPECT_FALSE(orchestrator.GetLastResponseUsage().has_value());
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ExtractAssistantTextParsesCompletedResponseOutput) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
   const std::string sse_payload =

@@ -37,6 +37,7 @@
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/json_utils.h"
+#include "core/openai_utils.h"
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
 #include "tools/tool_dispatcher.h"
@@ -151,9 +152,15 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
     std::string color = is_mail ? ansi::MailMode : ansi::StandardMode;
     std::string mode_label =
         is_mail ? absl::StrCat(icons::Mailbox, " MAIL_MODEL") : absl::StrCat(icons::Robot, " STANDARD");
+    std::string cache_status;
+    if (const auto usage = orchestrator.GetLastResponseUsage()) {
+      if (const auto formatted = slop::FormatCachedInputTokens(*usage)) {
+        cache_status = absl::StrCat(", C:", *formatted);
+      }
+    }
     std::string modeline =
         absl::StrCat(color, "── std::slop <", mode_label, ", W:", window_str, ", M:", model_name, ", P:", persona,
-                     ", S:", session_id, ", T:", orchestrator.GetThrottle(), "s>", ansi::Reset);
+                     ", S:", session_id, ", T:", orchestrator.GetThrottle(), "s", cache_status, ">", ansi::Reset);
 
     std::string input = slop::ReadLine(modeline);
     if (!engine.Process(input, session_id, active_skills, engine_config)) {

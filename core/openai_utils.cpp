@@ -2,6 +2,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
 #include "core/constants.h"
 #include "core/json_utils.h"
@@ -80,16 +81,48 @@ nlohmann::json BuildOpenAiResponsesTools(Database* db) {
 }
 
 
+std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& response) {
+  const auto* usage = json_at(response, "usage");
+  if (usage == nullptr || !usage->is_object()) {
+    return std::nullopt;
+  }
+
+  ResponseUsage parsed;
+  const auto input_tokens = json_get<int>(*usage, "input_tokens");
+  if (input_tokens.has_value() && *input_tokens >= 0) {
+    parsed.input_tokens = *input_tokens;
+  }
+  const auto output_tokens = json_get<int>(*usage, "output_tokens");
+  if (output_tokens.has_value() && *output_tokens >= 0) {
+    parsed.output_tokens = *output_tokens;
+  }
+  const auto* input_details = json_at(*usage, "input_tokens_details");
+  if (input_details != nullptr && input_details->is_object()) {
+    const auto cached_tokens = json_get<int>(*input_details, "cached_tokens");
+    if (cached_tokens.has_value() && *cached_tokens >= 0) {
+      parsed.cached_input_tokens = *cached_tokens;
+    }
+  }
+  return parsed;
+}
+
+std::optional<std::string> FormatCachedInputTokens(const ResponseUsage& usage) {
+  if (!usage.cached_input_tokens.has_value() || usage.input_tokens <= 0 ||
+      *usage.cached_input_tokens > usage.input_tokens) {
+    return std::nullopt;
+  }
+  const int64_t percentage = static_cast<int64_t>(*usage.cached_input_tokens) * 100 / usage.input_tokens;
+  return absl::StrCat(*usage.cached_input_tokens, "/", usage.input_tokens, " (", percentage, "%)");
+}
+
 int RecordOpenAiResponsesUsage(Database* db, const std::string& session_id, const std::string& model,
                                const nlohmann::json& response) {
-  const auto* usage = json_at(response, "usage");
-  if (usage == nullptr) {
+  const auto usage = ParseOpenAiResponsesUsage(response);
+  if (!usage.has_value()) {
     return 0;
   }
-  const int prompt = json_get_or(*usage, "input_tokens", 0);
-  const int completion = json_get_or(*usage, "output_tokens", 0);
-  (void)db->RecordUsage(session_id, model, prompt, completion);
-  return prompt + completion;
+  (void)db->RecordUsage(session_id, model, usage->input_tokens, usage->output_tokens);
+  return usage->input_tokens + usage->output_tokens;
 }
 
 absl::StatusOr<std::vector<ModelInfo>> GetOpenAiModels(HttpClient* http_client, const std::string& base_url,

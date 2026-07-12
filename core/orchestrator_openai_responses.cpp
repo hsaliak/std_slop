@@ -322,6 +322,7 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
 absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::string& session_id,
                                                                  const std::string& response_json,
                                                                  const std::string& group_id) {
+  last_response_usage_.reset();
   auto j_opt = json_parse(response_json);
   if (!j_opt) {
     auto sse_normalized = TryNormalizeSseResponsesPayload(response_json);
@@ -334,6 +335,7 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
     return absl::InternalError("Failed to parse OpenAI Responses payload");
   }
   const auto& j = *j_opt;
+  last_response_usage_ = ParseOpenAiResponsesUsage(j);
 
   const int total_tokens = RecordOpenAiResponsesUsage(db_, session_id, model_, j);
 

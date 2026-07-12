@@ -1,5 +1,6 @@
 #include "core/openai_utils.h"
 
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,59 @@ class MockHttpClient : public HttpClient {
               (const std::string&, const std::string&, const std::vector<std::string>&), (override));
   MOCK_METHOD(absl::StatusOr<std::string>, Get, (const std::string&, const std::vector<std::string>&), (override));
 };
+
+TEST(OpenAiUtilsTest, ParsesCachedInputTokens) {
+  const nlohmann::json response = {
+      {"usage", {{"input_tokens", 12480}, {"output_tokens", 1130}, {"input_tokens_details", {{"cached_tokens", 10240}}}}}};
+
+  const auto usage = ParseOpenAiResponsesUsage(response);
+  ASSERT_TRUE(usage.has_value());
+  EXPECT_EQ(usage->input_tokens, 12480);
+  EXPECT_EQ(usage->output_tokens, 1130);
+  ASSERT_TRUE(usage->cached_input_tokens.has_value());
+  EXPECT_EQ(*usage->cached_input_tokens, 10240);
+  EXPECT_EQ(FormatCachedInputTokens(*usage), "10240/12480 (82%)");
+}
+
+TEST(OpenAiUtilsTest, OmitsUnavailableOrInvalidCachedInputTokens) {
+  const auto missing = ParseOpenAiResponsesUsage({{"usage", {{"input_tokens", 5}, {"output_tokens", 2}}}});
+  ASSERT_TRUE(missing.has_value());
+  EXPECT_FALSE(missing->cached_input_tokens.has_value());
+  EXPECT_FALSE(FormatCachedInputTokens(*missing).has_value());
+
+  const auto invalid = ParseOpenAiResponsesUsage(
+      {{"usage", {{"input_tokens", 5}, {"input_tokens_details", {{"cached_tokens", 6}}}}}});
+  ASSERT_TRUE(invalid.has_value());
+  EXPECT_FALSE(FormatCachedInputTokens(*invalid).has_value());
+}
+
+TEST(OpenAiUtilsTest, RejectsMalformedCachedInputTokenDetails) {
+  const auto scalar_details = ParseOpenAiResponsesUsage(
+      {{"usage", {{"input_tokens", 5}, {"input_tokens_details", "not an object"}}}});
+  ASSERT_TRUE(scalar_details.has_value());
+  EXPECT_FALSE(scalar_details->cached_input_tokens.has_value());
+
+  const auto string_cached_tokens = ParseOpenAiResponsesUsage(
+      {{"usage", {{"input_tokens", 5}, {"input_tokens_details", {{"cached_tokens", "five"}}}}}});
+  ASSERT_TRUE(string_cached_tokens.has_value());
+  EXPECT_FALSE(string_cached_tokens->cached_input_tokens.has_value());
+}
+
+TEST(OpenAiUtilsTest, SanitizesNegativeUsageCounts) {
+  const auto usage = ParseOpenAiResponsesUsage(
+      {{"usage", {{"input_tokens", -1}, {"output_tokens", -2}, {"input_tokens_details", {{"cached_tokens", -3}}}}}});
+  ASSERT_TRUE(usage.has_value());
+  EXPECT_EQ(usage->input_tokens, 0);
+  EXPECT_EQ(usage->output_tokens, 0);
+  EXPECT_FALSE(usage->cached_input_tokens.has_value());
+}
+
+TEST(OpenAiUtilsTest, FormatsLargeCachedInputTokenCounts) {
+  ResponseUsage usage;
+  usage.input_tokens = std::numeric_limits<int>::max();
+  usage.cached_input_tokens = usage.input_tokens;
+  EXPECT_EQ(FormatCachedInputTokens(usage), "2147483647/2147483647 (100%)");
+}
 
 TEST(OpenAiUtilsTest, GetOpenAiModelsParsesApiDataShape) {
   MockHttpClient mock_http;

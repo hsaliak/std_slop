@@ -108,6 +108,9 @@ absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id,
                                                   const std::string& group_id) {
   return strategy_->ProcessResponse(session_id, response_json, group_id);
 }
+std::optional<ResponseUsage> Orchestrator::GetLastResponseUsage() const {
+  return strategy_ ? strategy_->GetLastResponseUsage() : std::nullopt;
+}
 absl::StatusOr<std::string> Orchestrator::ExtractAssistantText(const std::string& response_body) {
   if (!strategy_) return absl::FailedPreconditionError("Orchestrator strategy is not configured");
   return strategy_->ExtractAssistantText(response_body);

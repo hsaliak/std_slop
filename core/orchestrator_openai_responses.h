@@ -19,6 +19,7 @@ class OpenAiResponsesOrchestrator : public OrchestratorStrategy {
 
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id) override;
+  std::optional<ResponseUsage> GetLastResponseUsage() const override { return last_response_usage_; }
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg) override;
 
@@ -27,6 +28,8 @@ class OpenAiResponsesOrchestrator : public OrchestratorStrategy {
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token) override;
 
  private:
+  std::optional<ResponseUsage> last_response_usage_;
+
   Database* db_;
   HttpClient* http_client_;
   std::string model_;

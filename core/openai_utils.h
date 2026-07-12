@@ -1,6 +1,7 @@
 #ifndef SLOP_CORE_OPENAI_UTILS_H_
 #define SLOP_CORE_OPENAI_UTILS_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,9 @@ namespace slop {
 absl::flat_hash_set<std::string> GetEnabledToolNames(Database* db);
 
 nlohmann::json BuildOpenAiResponsesTools(Database* db);
+
+std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& response);
+std::optional<std::string> FormatCachedInputTokens(const ResponseUsage& usage);
 
 int RecordOpenAiChatUsage(Database* db, const std::string& session_id, const std::string& model,
                           const nlohmann::json& response);
