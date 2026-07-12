@@ -24,4 +24,3 @@ bazel-*
 .idea/
 .agents/
 .slop/
-MODULE.bazel.lock
