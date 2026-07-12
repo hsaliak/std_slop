@@ -15,9 +15,7 @@ While history is isolated, certain configurations are global or preserved in mem
 | Feature | Scope | Persistence |
 | :--- | :--- | :--- |
 | **Message History** | Session | SQLite (`messages` table) |
-| **Global Anchor (State)** | Session | SQLite (`session_state` table) |
 | **Context Window Size** | Session | SQLite (`sessions` table) |
-**Note**: Global Anchor (State) is persistent across history pruning and session restarts.
 | **Active Skills** | Process | In-memory (Preserved on `/session`) |
 | **Request Throttle** | Process | In-memory (Preserved on `/session`) |
 | **Tool Registry** | Global | SQLite (`tools` table) |
@@ -26,7 +24,7 @@ While history is isolated, certain configurations are global or preserved in mem
 ### Switching Sessions
 The `/session switch <name>` command updates the internal session pointer.
 - **Creation**: If the session name does not exist, it will be implicitly created upon the first message sent to the LLM (when the first record is written to the ledger).
-- **What Changes**: The history retrieved for prompt assembly and the session-specific "Global Anchor" state.
+- **What Changes**: The history retrieved for prompt assembly.
 - **What Stays**: Your currently activated skills and any `/throttle` settings. This allows you to quickly pivot to a new "thread" or project without re-configuring your preferred persona or agentic behavior.
 ### Listing Sessions
 Use `/session list` to see all sessions that have stored history.
@@ -34,19 +32,19 @@ Use `/session list` to see all sessions that have stored history.
 To completely clear your context for a new task, simply `/session switch` to a new name (e.g., `/session switch project_part_2`). This is the recommended way to start fresh.
 Alternatively, you can use `/session clear` to wipe the current session's history while remaining in that session.
 ### Removing Sessions
-The `/session remove <name>` command permanently deletes a session and all its associated data (history, token usage stats, persistent state, and context settings).
+The `/session remove <name>` command permanently deletes a session and all its associated data (history, token usage stats, and context settings).
 - If the current active session is removed, the system automatically switches to `default_session`.
 ### Cloning Sessions
 The `/session clone <name>` command creates a complete "branch" of the current session.
-- **What is copied**: All message history, persistent state, and token usage history.
+- **What is copied**: All message history and token usage history.
 - **Uniqueness**: The target name must not already exist.
 - **Use Case**: This is suitable for exploring different "branches" of a task or saving a stable state before a complex change. After cloning, you are automatically switched to the new session.
 ### Clearing current Session
-The `/session clear` command deletes all data (history, token usage stats, persistent state) for the current session and rebuilds the context (making it empty). This is useful if you want to restart a task without changing the session name.
+The `/session clear` command deletes all data (history and token usage stats) for the current session. This is useful if you want to restart a task without changing the session name.
 ### Persistence
 The ledger is stored in `slop.db` and persists across restarts. Resume a session by providing its name at startup or via `/session`.
 ### Sessions in Batch Mode
-When running in Batch Mode (`--prompt` or `--prompt-file`), `std::slop` will use the provided `--session` (or `default_session` if none specified) to retrieve context and store the new interaction. Piped stdin is optional context prepended before the instruction, so commands such as `ls *.cc | std_slop --prompt "sort these files"` work naturally. This allows for automated "updates" to a persistent project context. Batch mode uses an in-memory database unless `--prompt-db` is set; with the default in-memory database, session state lasts only for that process.
+When running in Batch Mode (`--prompt` or `--prompt-file`), `std::slop` will use the provided `--session` (or `default_session` if none specified) to retrieve context and store the new interaction. Piped stdin is optional context prepended before the instruction, so commands such as `ls *.cc | std_slop --prompt "sort these files"` work naturally. This allows for automated "updates" to a persistent project context. Batch mode uses an in-memory database unless `--prompt-db` is set; with the default in-memory database, session history lasts only for that process.
 
 Batch mode can emit structured output for scripts with `--output json`. The JSON object includes the session id used for the run, the model, active skills, final assistant message, error details when unsuccessful, and duration in milliseconds.
 ## Summary
@@ -54,7 +52,6 @@ Batch mode can emit structured output for scripts with `--output json`. The JSON
 | :--- | :--- |
 | Message History | Yes |
 | LLM Context Window | Yes |
-| Global Anchor State | Yes |
 | Tool Registry | No |
 | Skills Registry | No |
 | Active Skills | No (Preserved on switch) |

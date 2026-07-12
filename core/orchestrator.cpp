@@ -150,7 +150,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
  * @param active_skills List of skill names to include in the instructions.
  * @return std::string The complete system instruction string.
  */
-std::string Orchestrator::BuildSystemInstructions(const std::string& session_id,
+std::string Orchestrator::BuildSystemInstructions(const std::string& /*session_id*/,
                                                   const std::vector<std::string>& active_skills) {
   static constexpr absl::string_view kHistoryInstructions = R"(
 ## Conversation History Guidelines
@@ -210,10 +210,6 @@ Technical Anchors: [Ports, IPs, constant values]
     }
   }
   absl::StrAppend(&system_instruction, kHistoryInstructions, "\n");
-  auto state_or = db_->GetSessionState(session_id);
-  if (state_or.ok() && !state_or->empty()) {
-    absl::StrAppend(&system_instruction, "## Global State (Anchor)\n", *state_or, "\n");
-  }
   return system_instruction;
 }
 absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetAccordionHistory(
@@ -253,16 +249,6 @@ absl::Status Orchestrator::ForceAccordionReset(const std::string& session_id) {
   auto history_or = GetAccordionHistory(session_id, true);
   return history_or.ok() ? absl::OkStatus() : history_or.status();
 }
-absl::Status Orchestrator::RebuildContext(const std::string& session_id) {
-  ASSIGN_OR_RETURN(auto history, GetAccordionHistory(session_id, false));
-  for (const auto& message : history) {
-    if (message.role == "assistant") {
-      auto state = ExtractState(message.content);
-      if (state.has_value()) RETURN_IF_ERROR(db_->SetSessionState(session_id, *state));
-    }
-  }
-  return absl::OkStatus();
-}
 std::string Orchestrator::SmarterTruncate(const std::string& content, size_t limit, int message_id) {
   if (content.size() <= limit) return content;
   // Sandwich Truncation: 20% Head, 80% Tail.
@@ -301,23 +287,6 @@ std::string Orchestrator::SmarterTruncate(const std::string& content, size_t lim
     tail_start++;
   }
   return content.substr(0, head_size) + hint + content.substr(tail_start);
-}
-std::optional<std::string> Orchestrator::ExtractState(const std::string& text) {
-  size_t start_pos = text.find("### STATE");
-  if (start_pos == std::string::npos) return std::nullopt;
-  // Find the next header or the end of the message to terminate the state block.
-  // We look for headers (starts with #) or thematic breaks (---)
-  size_t end_pos = text.find("\n#", start_pos + 9);
-  if (end_pos == std::string::npos) {
-    end_pos = text.find("\n---", start_pos + 9);
-  }
-  std::string state_blob;
-  if (end_pos != std::string::npos) {
-    state_blob = text.substr(start_pos, end_pos - start_pos);
-  } else {
-    state_blob = text.substr(start_pos);
-  }
-  return std::string(absl::StripAsciiWhitespace(state_blob));
 }
 
 absl::Status Orchestrator::LoadAgentMd(const std::string& path) {

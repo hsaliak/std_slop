@@ -74,17 +74,7 @@ Logs LLM API usage statistics.
 | total_tokens | INTEGER | Sum of prompt and completion tokens. |
 | created_at | DATETIME | Timestamp. Default: `CURRENT_TIMESTAMP`. |
 
-### 6. session_state
-
-Persists arbitrary session state as a blob.
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| session_id | TEXT | Primary Key. |
-| state_blob | TEXT | Serialized state data. |
-| last_updated | TIMESTAMP | Last modification time. Default: `CURRENT_TIMESTAMP`. |
-
-### 7. llm_memos
+### 6. llm_memos
 
 Stores semantic memories created by the LLM.
 
@@ -95,7 +85,7 @@ Stores semantic memories created by the LLM.
 | semantic_tags | TEXT | Comma-separated tags for categorization. |
 | created_at | DATETIME | Timestamp. Default: `CURRENT_TIMESTAMP`. |
 
-### 7.5 scratchpads
+### 7. scratchpads
 
 Stores a session-specific scratchpad buffer.
 
@@ -205,12 +195,6 @@ CREATE TABLE IF NOT EXISTS usage (
     completion_tokens INTEGER,
     total_tokens INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS session_state (
-    session_id TEXT PRIMARY KEY,
-    state_blob TEXT,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS scratchpads (

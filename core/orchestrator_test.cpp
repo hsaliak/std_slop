@@ -1,6 +1,7 @@
 #include "core/orchestrator.h"
 
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
 #include "core/database.h"
 
@@ -389,21 +390,26 @@ TEST_F(OrchestratorTest, ProcessOpenAIResponse) {
   ASSERT_EQ(history->size(), 1);
   EXPECT_EQ((*history)[0].content, "Hello from OpenAI");
 }
-TEST_F(OrchestratorTest, ProcessResponseExtractsState) {
+TEST_F(OrchestratorTest, ProcessResponseKeepsStateOnlyInHistory) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
-  std::string mock_response = R"({
-        "candidates": [{
-            "content": {
-                "parts": [{"text": "Hello!\n\n### STATE\nGoal: unit test\nContext: none"}]
-            }
-        }]
-    })";
+  const std::string assistant_state = "Hello!\n\n### STATE\nGoal: unit test\nContext: none";
+  const std::string mock_response = absl::StrCat(
+      R"({"candidates":[{"content":{"parts":[{"text":)", nlohmann::json(assistant_state).dump(), R"(}]}}]})");
   ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response).ok());
-  auto state_or = db.GetSessionState("s1");
-  ASSERT_TRUE(state_or.ok());
-  EXPECT_TRUE(absl::StrContains(*state_or, "Goal: unit test"));
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "next request").ok());
+  auto prompt_or = orchestrator->AssemblePrompt("s1");
+  ASSERT_TRUE(prompt_or.ok());
+  const std::string system_instruction = (*prompt_or)["system_instruction"]["parts"][0]["text"];
+  EXPECT_FALSE(absl::StrContains(system_instruction, "## Global State (Anchor)"));
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 2);
+  EXPECT_EQ((*history_or)[0].content, assistant_state);
+  const std::string serialized_state = nlohmann::json(assistant_state).dump();
+  const std::string prompt_json = prompt_or->dump();
+  EXPECT_EQ(prompt_json.find(serialized_state), prompt_json.rfind(serialized_state));
 }
 TEST_F(OrchestratorTest, ProcessOpenAIToolCall) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).WithProvider(Orchestrator::Provider::OPENAI).Build();
@@ -725,28 +731,5 @@ TEST_F(OrchestratorTest, GeminiProactiveFiltering) {
   // Index 3: user (tool2 response - suppressed and role changed)
   EXPECT_EQ(prompt["contents"][3]["role"], "user");
   EXPECT_TRUE(prompt["contents"][3]["parts"][0].contains("text"));
-}
-TEST_F(OrchestratorTest, ExtractStateBasic) {
-  std::string text = "Here is my response.\n\n### STATE\nGoal: test\nContext: none";
-  auto state = Orchestrator::ExtractState(text);
-  ASSERT_TRUE(state.has_value());
-  EXPECT_EQ(*state, "### STATE\nGoal: test\nContext: none");
-}
-TEST_F(OrchestratorTest, ExtractStateWithHeader) {
-  std::string text = "Response\n\n### STATE\nGoal: test\n\n## Another Header\nMore text.";
-  auto state = Orchestrator::ExtractState(text);
-  ASSERT_TRUE(state.has_value());
-  EXPECT_EQ(*state, "### STATE\nGoal: test");
-}
-TEST_F(OrchestratorTest, ExtractStateWithThematicBreak) {
-  std::string text = "Response\n\n### STATE\nGoal: test\n\n--- \nFooter.";
-  auto state = Orchestrator::ExtractState(text);
-  ASSERT_TRUE(state.has_value());
-  EXPECT_EQ(*state, "### STATE\nGoal: test");
-}
-TEST_F(OrchestratorTest, ExtractStateNotFound) {
-  std::string text = "No state here.";
-  auto state = Orchestrator::ExtractState(text);
-  EXPECT_FALSE(state.has_value());
 }
 }  // namespace slop

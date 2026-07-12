@@ -1,11 +1,13 @@
 #include "core/database.h"
 
 #include <atomic>
+#include <cstdio>
 #include <map>
 #include <thread>
 #include <vector>
 
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/strings/match.h"
 
 #include "json_utils.h"
@@ -13,10 +15,36 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <sqlite3.h>
+
 TEST(DatabaseTest, InitWorks) {
   slop::Database db;
   auto status = db.Init(":memory:");
   EXPECT_TRUE(status.ok()) << status.message();
+}
+TEST(DatabaseTest, InitDropsLegacySessionStateTable) {
+  const std::string path = absl::StrCat(::testing::TempDir(), "/std_slop_session_state_",
+                                        absl::ToUnixNanos(absl::Now()), ".db");
+  sqlite3* raw_db = nullptr;
+  ASSERT_EQ(sqlite3_open(path.c_str(), &raw_db), SQLITE_OK);
+  ASSERT_EQ(sqlite3_exec(raw_db, "CREATE TABLE session_state (session_id TEXT PRIMARY KEY, state_blob TEXT);", nullptr,
+                         nullptr, nullptr),
+            SQLITE_OK);
+  ASSERT_EQ(sqlite3_exec(raw_db, "INSERT INTO session_state VALUES ('s1', 'legacy state');", nullptr, nullptr, nullptr),
+            SQLITE_OK);
+  ASSERT_EQ(sqlite3_close(raw_db), SQLITE_OK);
+
+  {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(path).ok());
+    auto tables_or = db.Query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_state'");
+    ASSERT_TRUE(tables_or.ok());
+    auto tables = slop::json_parse(*tables_or);
+    ASSERT_TRUE(tables.has_value());
+    EXPECT_TRUE(tables->empty());
+    EXPECT_TRUE(db.AppendMessage("s1", "user", "still usable").ok());
+  }
+  EXPECT_EQ(std::remove(path.c_str()), 0);
 }
 TEST(DatabaseTest, TablesExist) {
   slop::Database db;
@@ -268,7 +296,6 @@ TEST(DatabaseTest, CloneFullSession) {
   std::string sid = "full_source";
   ASSERT_TRUE(db.AppendMessage(sid, "user", "msg").ok());
   ASSERT_TRUE(db.RecordUsage(sid, "model", 1, 1).ok());
-  ASSERT_TRUE(db.SetSessionState(sid, "state blob").ok());
   ASSERT_TRUE(db.SetActiveSkills(sid, {"skill1", "skill2"}).ok());
   ASSERT_TRUE(db.CloneSession(sid, "full_target").ok());
   // Verify all
@@ -277,7 +304,6 @@ TEST(DatabaseTest, CloneFullSession) {
   EXPECT_EQ(hist->at(0).content, "msg");
   auto usage = db.GetTotalUsage("full_target");
   EXPECT_EQ(usage->total_tokens, 2);
-  EXPECT_EQ(*db.GetSessionState("full_target"), "state blob");
   auto skills = db.GetActiveSkills("full_target");
   EXPECT_EQ(skills->size(), 2);
   EXPECT_EQ(skills->at(0), "skill1");
@@ -334,7 +360,6 @@ TEST(DatabaseTest, CloneSessionThroughGroupCopiesPrefixOnly) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "u3", "", "completed", "g3").ok());
   ASSERT_TRUE(db.UpdateMessageStatus(3, "dropped").ok());
   ASSERT_TRUE(db.SetScratchpad("s1", "scratch").ok());
-  ASSERT_TRUE(db.SetSessionState("s1", "stale state").ok());
 
   ASSERT_TRUE(db.CloneSessionThroughGroup("s1", "s2", "g2").ok());
 
@@ -347,8 +372,6 @@ TEST(DatabaseTest, CloneSessionThroughGroupCopiesPrefixOnly) {
   auto scratchpad = db.GetScratchpad("s2");
   ASSERT_TRUE(scratchpad.ok());
   EXPECT_EQ(*scratchpad, "scratch");
-  auto state = db.GetSessionState("s2");
-  EXPECT_FALSE(state.ok());
 }
 
 TEST(DatabaseTest, CloneSessionThroughGroupRejectsMissingGroupAndExistingTarget) {
@@ -370,7 +393,6 @@ TEST(DatabaseTest, RollbackSessionToGroupDropsLaterMessages) {
   ASSERT_TRUE(db.AppendMessage("s1", "assistant", "a2", "", "completed", "g2").ok());
   ASSERT_TRUE(db.AppendMessage("other", "user", "interleaved", "", "completed", "other_g").ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "u3", "", "completed", "g3").ok());
-  ASSERT_TRUE(db.SetSessionState("s1", "stale state").ok());
 
   ASSERT_TRUE(db.RollbackSessionToGroup("s1", "g2").ok());
 
@@ -382,8 +404,6 @@ TEST(DatabaseTest, RollbackSessionToGroupDropsLaterMessages) {
   ASSERT_TRUE(all.ok());
   ASSERT_EQ(all->size(), 5);
   EXPECT_EQ((*all)[4].status, "dropped");
-  auto state = db.GetSessionState("s1");
-  EXPECT_FALSE(state.ok());
 }
 
 TEST(DatabaseTest, GetConversationHistoryWindowed) {

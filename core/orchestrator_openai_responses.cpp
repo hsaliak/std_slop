@@ -420,10 +420,6 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
     if (!st.ok()) {
       return st;
     }
-    auto state = Orchestrator::ExtractState(assistant_text);
-    if (state) {
-      db_->SetSessionState(session_id, *state).IgnoreError();
-    }
     return total_tokens;
   }
 

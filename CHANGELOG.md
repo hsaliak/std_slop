@@ -1,4 +1,5 @@
 ## Unreleased
+- **Context state**: Assistant-emitted `### STATE` summaries now remain solely in conversation history. Removed duplicate session-state storage and system-prompt injection to preserve stable prompt prefixes within an accordion epoch.
 - **Accordion context**: Replaced rolling context windows with `/context <retain_groups> [watermark_tokens]`. History now accumulates by complete interaction group until the latest actual prompt usage reaches the watermark, then resets to the retained suffix. Tool results preserve full fidelity up to `full_fidelity_limit`, and provider context overflow gets one reset/retry fallback.
 
 ## v0.23 - 2026-06-27

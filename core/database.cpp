@@ -221,10 +221,6 @@ absl::Status Database::Init(const std::string& db_path) {
         total_tokens INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE TABLE IF NOT EXISTS session_state (
-        session_id TEXT PRIMARY KEY,
-        state_blob TEXT
-    );
     CREATE TABLE IF NOT EXISTS js_functions (
         name TEXT PRIMARY KEY,
         code TEXT,
@@ -298,6 +294,8 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN accordion_epoch_start_group_id TEXT;", nullptr,
                      nullptr, nullptr);
+  // Session state is carried by assistant messages in conversation history.
+  (void)sqlite3_exec(raw_db, "DROP TABLE IF EXISTS session_state;", nullptr, nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (
@@ -807,32 +805,6 @@ absl::StatusOr<std::vector<std::string>> Database::GetLastSessionGroupIds(const 
   }
   return group_ids;
 }
-absl::Status Database::SetSessionState(const std::string& session_id, const std::string& state_blob) {
-  // Ensure session exists
-  RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
-  return Execute("INSERT OR REPLACE INTO session_state (session_id, state_blob) VALUES (?, ?);", session_id,
-                 state_blob);
-}
-/**
- * @brief Retrieves the persisted state blob for a session.
- *
- * Used to store and recover intermediate session state (like partially
- * constructed responses or temporary context) across restarts.
- *
- * @param session_id The session ID.
- * @return absl::StatusOr<std::string> The state blob string, or NotFoundError if missing.
- */
-absl::StatusOr<std::string> Database::GetSessionState(const std::string& session_id) {
-  std::string sql = "SELECT state_blob FROM session_state WHERE session_id = ?";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-  RETURN_IF_ERROR(stmt->BindText(1, session_id));
-  auto row_or = stmt->Step();
-  if (!row_or.ok()) return row_or.status();
-  if (*row_or) {
-    return stmt->ColumnText(0);
-  }
-  return absl::NotFoundError("Session state not found");
-}
 
 absl::Status Database::SetScratchpad(const std::string& session_id, const std::string& content) {
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
@@ -869,7 +841,6 @@ absl::Status Database::DeleteSession(const std::string& session_id) {
   RETURN_IF_ERROR(Execute("DELETE FROM usage WHERE session_id = ?;", session_id));
   RETURN_IF_ERROR(Execute("DELETE FROM scratchpads WHERE session_id = ?;", session_id));
   RETURN_IF_ERROR(Execute("DELETE FROM sessions WHERE id = ?;", session_id));
-  RETURN_IF_ERROR(Execute("DELETE FROM session_state WHERE session_id = ?;", session_id));
   return absl::OkStatus();
 }
 absl::Status Database::CloneSession(const std::string& source_id, const std::string& target_id) {
@@ -921,11 +892,6 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
       "completion_tokens, total_tokens, created_at) "
       "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, "
       "created_at FROM usage WHERE session_id = ?;",
-      {target_id, source_id});
-  if (!status.ok()) return rollback_on_failure(status);
-  status = Execute(
-      "INSERT INTO session_state (session_id, state_blob) "
-      "SELECT ?, state_blob FROM session_state WHERE session_id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
@@ -983,8 +949,6 @@ absl::Status Database::RollbackSessionToGroup(const std::string& session_id, con
                                 {session_id, cutoff.created_at, cutoff.created_at, std::to_string(cutoff.id)});
   if (!status.ok()) return RollbackTransaction(this, status);
   status = Execute("DELETE FROM usage WHERE session_id = ? AND created_at > ?;", {session_id, cutoff.created_at});
-  if (!status.ok()) return RollbackTransaction(this, status);
-  status = Execute("DELETE FROM session_state WHERE session_id = ?;", session_id);
   if (!status.ok()) return RollbackTransaction(this, status);
   return Execute("COMMIT;");
 }

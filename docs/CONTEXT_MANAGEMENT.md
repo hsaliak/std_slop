@@ -1,13 +1,13 @@
 # Context Management in std::slop
-This document outlines the context management strategy in `std::slop`. We focus on a **Sequential Rolling Window** complemented by **Self-Managed State Tracking** and **On-Demand Historical Retrieval**.
+This document outlines the context management strategy in `std::slop`. We use an **append-only accordion history** with assistant-managed state tracking and on-demand historical retrieval.
 The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
-## 1. Static Anchor (Global State)
-To prevent the model from "losing the thread" during long sessions, the orchestrator injects two persistent blocks at the top of every prompt, immediately after the system instructions:
-1.  **Global State (Anchor)**: A high-level technical summary (`### STATE`) stored in the `session_state` table. This is accessible via the global `state` handle and is typically updated at the end of a response.
-2.  **Text Messages**: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.
+## 1. Assistant History State
+The system prompt asks the assistant to include a `### STATE` summary in its responses. That summary remains in the corresponding assistant message in conversation history and is the only state supplied to later model requests. std::slop does not extract, validate, or duplicate the summary into a separate system-prompt anchor; if the assistant omits it, the history simply has no such summary for that turn.
+
+1.  **Text Messages**: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.
 2.  **Tool Isolation**: Messages with a `role` of `tool` or a `status` of `tool_call` are only included if their `parsing_strategy` matches the currently active one.
 3.  **Rationale**: Providers (like Google and OpenAI) use vastly different JSON schemas and sequences for tool interactions. Attempting to "translate" a complex tool chain from one provider to another often leads to hallucinations or API errors. Isolation ensures that the LLM only sees tool interactions it is capable of understanding and continuing.
-This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs. Information that must persist across tool-isolated boundaries should be recorded in the **Global Anchor (State)**.
+This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs.
 ### Centralized Message Parsing
 To handle the divergent JSON schemas between providers, `std::slop` uses a centralized `MessageParser` class (`core/message_parser.h`). This utility:
 - **Extracts Tool Calls**: Parses tool call JSON from both OpenAI (`tool_calls` array) and Gemini (`functionCall` object) formats.
@@ -21,20 +21,19 @@ To maximize context efficiency, the system applies differential truncation limit
 - **Inactive Groups (Compression)**: Once a conversation group becomes inactive (the turn has finished and a new user prompt has started), all tool results in that group are truncated to **300 characters**.
 - **Retrieval Hints**: All truncated results are appended with a hint: `... [TRUNCATED. Use query_db(sql="SELECT content FROM messages WHERE id=<ID>") to see full output]`. This allows the model to retrieve full technical detail on-demand via SQL.del to surgically retrieve full technical detail from its own history if a previous task needs re-investigation.
 **Rationale**: The specific details of a tool's output are essential *while* the task is being performed. However, once the task is complete, the *essence* of the result is usually sufficient. Reducing the limit to 300 characters while providing an explicit recovery path (via `query_db`) offers the optimal trade-off of context efficiency and technical depth.
-## 3. Self-Managed State Tracking (Long-term RAM)
-To prevent the loss of critical technical details when messages age out of the rolling window, `std::slop` implements a self-managed state tracking mechanism. This allows the LLM to maintain a persistent "Global Anchor" of technical truth.
+## 3. Assistant-Managed State Tracking
+The system prompt allows the assistant to summarize technical progress in its response history. The current accordion epoch determines how long those summaries remain available to later requests.
 ### The "Context Layers" Approach
 When building the prompt, the Orchestrator assembles multiple layers of context:
 1.  **System Prompt**: The hard-coded base instructions for the assistant.
-2.  **History Guidelines**: Instructions for the LLM on how to interpret the history and the requirement to maintain the state block.
-3.  **Global Anchor (`### STATE`)**: The persistent state blob retrieved from the `session_state` table.
+2.  **History Guidelines**: Instructions for the LLM on how to interpret optional state blocks in history.
+3.  **Assistant State (`### STATE`)**: A summary retained in the assistant message that produced it.
 4.  **Conversation History**: The sequential messages retrieved via the rolling window.
-### State Persistence and Extraction
-The state is managed autonomously by the LLM:
--   **Extraction**: At the end of every response, the LLM is required to include a `### STATE` block. The `Orchestrator` parses this block from the response and saves it to the `session_state` table in the database.
--   **Injection**: Before every new prompt, the `Orchestrator` retrieves the latest state for the session and injects it as the "Global Anchor."
-This creates a "Long-term RAM" that is actively rewritten and curated by the LLM itself, ensuring that critical information (active files, technical anchors, resolved issues) is preserved even if the original messages that defined them have been truncated.
-### State Format
+### Optional State Summaries
+The assistant may manage state summaries autonomously:
+-   **History**: The system prompt allows the assistant to include a `### STATE` block. When present, it remains in the assistant response in conversation history.
+The assistant-managed summary is not extracted or injected separately. It is available only while the assistant message containing it remains in the selected accordion history.
+### Optional State Format
 ```markdown
 ### STATE
 Goal: [Short description of current task]
@@ -96,17 +95,17 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 Token counts in `std::slop` (displayed as `· NNN tokens`) do not represent the isolated cost of a single message, but rather a **snapshot of the session's total weight** in the LLM's memory at that specific moment.
 ### The Snapshot Principle
 Every interaction with the LLM is stateless. To provide context, the orchestrator sends the entire relevant conversation history back to the model with every new request. The reported token count is the sum of:
-1.  **Prompt Tokens**: The "Input" (System Instructions + Global State + Active  + Conversation History + New User Message).
+1.  **Prompt Tokens**: The "Input" (System Instructions + Conversation History + New User Message).
 2.  **Completion Tokens**: The "Output" (The LLM's new reasoning text and/or tool calls).
 ### Behavioral Characteristics
 *   **Growth**: As long as the session history is preserved, the token count will strictly increase turn-by-turn as the history "Prompt Tokens" grows.
 *   **Intra-Turn Consistency**: In a single turn containing multiple tool calls (Parallel Tool Calling), every tool call and assistant message will display the **same** token count. This represents the weight of the *entire interaction* that produced those calls.
 *   **Accordion Reset**: Context is append-only within an epoch. When the latest successful provider prompt reaches the high watermark, the next generation resets history to the configured complete-group suffix and begins a new epoch.
 ## Commands Reference
-- `/context <N> [watermark]`: Enable accordion context. `N` is the number of complete interaction groups retained at reset; the watermark defaults to 350000 actual prompt tokens.
+- `/context <N> [watermark]`: Enable accordion context. `N` is the number of most-recent interaction groups retained at reset; the watermark defaults to 350000 actual prompt tokens.
 - `/context show`: Display accordion settings and the exact assembled context that will be sent to the LLM. The output is human-readable and will automatically open in your `$EDITOR` (e.g., `vim`, `nano`) if it exceeds terminal height.
 - If a provider still rejects context length, std::slop resets once and retries generation once. Set the watermark near 80% of known model capacity or reduce `N` if that retry also fails.
-- `/undo`: Shortcut to remove the last interaction and rebuild state.
+- `/undo`: Shortcut to remove the last interaction.
 - `/message list [N]`: List the last `N` interaction groups with token usage information.
 - `/message show <GID>`: View the full content of a specific interaction group.
 - `/message remove <GID>`: Permanently **deletes** a specific message group from the database.
@@ -117,12 +116,4 @@ Every interaction with the LLM is stateless. To provide context, the orchestrato
 **Rationale**: Deepening the isolation and efficiency of the context window. By providing a programmatic retrieval hint, the model can safely operate with much smaller historical fragments, as it knows exactly how to get the full data if it becomes relevant again. This significantly extends the effective session length for complex engineering tasks.
 ### 2026-01-27: Intra-Turn Degradation
 **Change**: Implemented a 3-tier truncation strategy: Full-fidelity (5000 chars) for the last 5 tool calls in the active group, Degraded (1000 chars) for older calls in the active group, and Inactive (300 chars) for previous turns.
-**Rationale**: Complex tasks often involve many tool calls within a single "turn" (e.g., recursive file searches or broad refactors). Preserving 5000 characters for *every* call in a 20-call sequence would instantly exhaust the context window. By degrading older calls within the same turn to 1000 characters, we balance technical fidelity for the current task with the need to preserve conversation history and the Global Anchor state.
-### 2026-01-29: Dual-Track State Management
-**Change**: Formalized the use of a "Static Anchor" consisting of two separate blocks: Global State (`### STATE`) and Active .
-**Rationale**: Evaluated three strategies for maintaining continuity during complex engineering sessions:
-1.  **Model-Echo**: Model repeats state at the end of every message. Rejected as fragile; state is lost if the model forgets it once or hits token limits.
-2.  **Merged State/**: Single unified block for all persistent data. Rejected to avoid "context drift"; merging technical anchors (IPs, ports) with high-level roadmaps (checklists) confuses the model's focus.
-3.  **Dual-Track (Current)**: Separate blocks for "Short-Term Memory" (Technical Anchors in State) and "Long-Term Memory" (Project Roadmap in ). This provides maximum robustness across history pruning. Both blocks are DB-backed and can be updated independently (e.g., by the `planner` skill) without disturbing the technical context.
-
-
+**Rationale**: Complex tasks often involve many tool calls within a single "turn" (e.g., recursive file searches or broad refactors). Preserving 5000 characters for *every* call in a 20-call sequence would instantly exhaust the context window. By degrading older calls within the same turn to 1000 characters, we balance technical fidelity for the current task with the need to preserve conversation history and assistant-provided state summaries.

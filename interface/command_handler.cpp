@@ -247,13 +247,6 @@ CommandHandler::Result CommandHandler::HandleUndo(CommandArgs& args) {
     std::string gid = *gid_or;
     HandleStatus(db_->Execute("DELETE FROM messages WHERE group_id = ?", {gid}));
     std::cout << "Undid last interaction (Group ID: " + gid + ")" << std::endl;
-    if (orchestrator_) {
-      auto status = orchestrator_->RebuildContext(args.session_id);
-      if (status.ok())
-        std::cout << "Context rebuilt." << std::endl;
-      else
-        HandleStatus(status, "Error rebuilding context");
-    }
   } else {
     std::cout << "Nothing to undo." << std::endl;
   }
@@ -618,7 +611,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
     } else if (switch_mode.empty()) {
       args.session_id = target_session;
       std::cout << "Session switched to: " << target_session << std::endl;
-      if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
     } else {
       auto status = db_->CloneSessionThroughGroup(args.session_id, target_session, switch_mode);
       if (status.ok()) {
@@ -626,7 +618,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
                   << switch_mode << "'." << std::endl;
         args.session_id = target_session;
         std::cout << "Switched to session: " << target_session << std::endl;
-        if (orchestrator_) (void)orchestrator_->RebuildContext(target_session);
       } else {
         HandleStatus(status, "switching session through group");
       }
@@ -641,7 +632,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
   } else if (sub_cmd == "clear") {
     HandleStatus(db_->DeleteSession(args.session_id));
     std::cout << "Session " << args.session_id << " history and state cleared." << std::endl;
-    if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
   } else if (sub_cmd == "clone") {
     if (sub_args.empty()) {
       std::cout << "Usage: /session clone <new_session_name>" << std::endl;
@@ -652,7 +642,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
         std::cout << "Cloned session '" << args.session_id << "' to '" << new_session_id << "'." << std::endl;
         args.session_id = new_session_id;
         std::cout << "Switched to session: " << new_session_id << std::endl;
-        if (orchestrator_) (void)orchestrator_->RebuildContext(new_session_id);
       } else {
         HandleStatus(status, "cloning session");
       }
@@ -664,7 +653,6 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
       auto status = db_->RollbackSessionToGroup(args.session_id, sub_args);
       if (status.ok()) {
         std::cout << "Rolled back session '" << args.session_id << "' through group '" << sub_args << "'." << std::endl;
-        if (orchestrator_) (void)orchestrator_->RebuildContext(args.session_id);
       } else {
         HandleStatus(status, "rolling back session");
       }

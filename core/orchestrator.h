@@ -62,14 +62,12 @@ class Orchestrator {
                                                  const std::vector<Database::Message>& history);
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id = "");
-  // Rebuilds the session state from currently selected accordion history.
-  absl::Status RebuildContext(const std::string& session_id);
   absl::Status ForceAccordionReset(const std::string& session_id);
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id = "");
   // Extracts assistant text from a provider response for direct one-shot calls.
-  // Unlike ProcessResponse, this does not persist messages, usage, state, or
-  // tool calls to the database.
+  // Unlike ProcessResponse, this does not persist messages, usage, or tool
+  // calls to the database.
   absl::StatusOr<std::string> ExtractAssistantText(const std::string& response_body);
   absl::StatusOr<nlohmann::json> GetQuota(const std::string& oauth_token);
   std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
@@ -80,8 +78,6 @@ class Orchestrator {
   void UpdateStrategy();
   // Utility for truncating large tool results.
   static std::string SmarterTruncate(const std::string& content, size_t limit, int message_id = -1);
-  // Extracts the ### STATE block from a message, terminating at the next header or EOF.
-  static std::optional<std::string> ExtractState(const std::string& text);
   absl::Status LoadAgentMd(const std::string& path);
   void InjectAgentMd(std::string* system_instruction);
   std::string GetActiveAgentMdPath() const { return active_agent_md_path_; }

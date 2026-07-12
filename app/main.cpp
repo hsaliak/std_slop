@@ -134,7 +134,6 @@ void RunInteractiveLoop(slop::InteractionEngine& engine, slop::Database& db, slo
   std::cout << "Type /help for slash commands." << std::endl;
 
   (void)slop::DisplayHistory(db, session_id, 20);
-  (void)orchestrator.RebuildContext(session_id);
 
   while (true) {
     tool_executor.SetSessionId(session_id);

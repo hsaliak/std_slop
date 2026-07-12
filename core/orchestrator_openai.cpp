@@ -129,10 +129,6 @@ absl::StatusOr<int> OpenAiOrchestrator::ProcessResponse(const std::string& sessi
         status =
             db_->AppendMessage(session_id, "assistant", *content, "", "completed", group_id, GetName(), total_tokens);
 
-        auto state = Orchestrator::ExtractState(*content);
-        if (state) {
-          db_->SetSessionState(session_id, *state).IgnoreError();
-        }
       }
 
       // Store reasoning as separate assistant message in DB
