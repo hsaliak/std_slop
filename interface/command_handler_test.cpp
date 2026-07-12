@@ -220,15 +220,40 @@ TEST_F(CommandHandlerTest, ContextWithoutSubcommandShowsUsage) {
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
 }
-TEST_F(CommandHandlerTest, ContextShowIsHandled) {
+TEST_F(CommandHandlerTest, ContextShowIncludesUnavailableTokenStatusWithoutOrchestrator) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
   std::string input = "/context show";
   std::string sid = "s1";
   std::vector<std::string> active_skills;
+
+  testing::internal::CaptureStdout();
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  const std::string output = testing::internal::GetCapturedStdout();
+
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "Latest Provider Input Tokens: No completed provider request"));
+  EXPECT_TRUE(absl::StrContains(output, "Assembled Context Estimate: Unavailable (orchestrator not configured)"));
+}
+
+TEST_F(CommandHandlerTest, ContextShowIncludesEstimatedAssembledContextTokens) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http_client).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  TestableCommandHandler handler(&db, orchestrator_or->get());
+  std::string input = "/context show";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  ASSERT_TRUE(db.AppendMessage(sid, "user", "hello").ok());
+  ASSERT_TRUE(db.RecordUsage(sid, "test-model", 12345, 67).ok());
+
+  testing::internal::CaptureStdout();
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  const std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
+  EXPECT_TRUE(absl::StrContains(output, "Latest Provider Input Tokens: 12345 tokens"));
+  EXPECT_TRUE(absl::StrContains(output, "Assembled Context Estimate: ~"));
 }
 TEST_F(CommandHandlerTest, WindowAliasIsRemoved) {
   auto handler_or = CommandHandler::Create(&db);
