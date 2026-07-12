@@ -632,7 +632,7 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 absl::StatusOr<std::vector<Database::Tool>> Database::GetTopLevelTools() {
   std::string sql =
       "SELECT name, description, json_schema, is_enabled, call_count, is_top_level, is_run_js_callable "
-      "FROM tools WHERE is_enabled = 1 AND is_top_level = 1";
+      "FROM tools WHERE is_enabled = 1 AND is_top_level = 1 ORDER BY name ASC";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
   std::vector<Tool> tools;
   while (true) {
@@ -679,7 +679,7 @@ absl::Status Database::DeleteSkill(const std::string& name_or_id) {
   return Execute(sql, name_or_id, nullptr);
 }
 absl::StatusOr<std::vector<Database::Skill>> Database::GetSkills() {
-  std::string sql = "SELECT id, name, description, system_prompt_patch, activation_count FROM skills";
+  std::string sql = "SELECT id, name, description, system_prompt_patch, activation_count FROM skills ORDER BY name ASC";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
   std::vector<Skill> skills;
   while (true) {

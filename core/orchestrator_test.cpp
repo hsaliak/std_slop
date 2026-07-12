@@ -39,20 +39,20 @@ TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
   ASSERT_TRUE(prompt.contains("instructions"));
   EXPECT_TRUE(absl::StrContains(prompt["instructions"].get<std::string>(), "SYSTEM_PATCH"));
 }
-TEST_F(OrchestratorTest, AssemblePromptWithMultipleSkills) {
+TEST_F(OrchestratorTest, AssemblePromptPreservesActiveSkillOrder) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
-  Database::Skill s1 = {0, "skill1", "desc1", "PATCH1"};
-  Database::Skill s2 = {0, "skill2", "desc2", "PATCH2"};
-  ASSERT_TRUE(db.RegisterSkill(s1).ok());
-  ASSERT_TRUE(db.RegisterSkill(s2).ok());
+  Database::Skill first = {0, "first", "desc1", "FIRST_PATCH"};
+  Database::Skill second = {0, "second", "desc2", "SECOND_PATCH"};
+  ASSERT_TRUE(db.RegisterSkill(first).ok());
+  ASSERT_TRUE(db.RegisterSkill(second).ok());
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
-  auto result = orchestrator->AssemblePrompt("s1", {"skill1", "skill2"});
+
+  auto result = orchestrator->AssemblePrompt("s1", {"second", "first"});
   ASSERT_TRUE(result.ok());
-  std::string instr = (*result)["instructions"].get<std::string>();
-  EXPECT_TRUE(absl::StrContains(instr, "PATCH1"));
-  EXPECT_TRUE(absl::StrContains(instr, "PATCH2"));
+  std::string instructions = (*result)["instructions"].get<std::string>();
+  EXPECT_LT(instructions.find("SECOND_PATCH"), instructions.find("FIRST_PATCH"));
 }
 TEST_F(OrchestratorTest, AccordionPreservesHistoricalToolResults) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();

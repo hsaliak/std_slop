@@ -614,6 +614,31 @@ TEST(DatabaseTest, ToolUsageCounters) {
   EXPECT_EQ(it->description, "updated desc");
 }
 
+TEST(DatabaseTest, PromptMaterialIsOrderedByName) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  ASSERT_TRUE(db.RegisterTool({"zulu", "desc", "{}", true}).ok());
+  ASSERT_TRUE(db.RegisterTool({"alpha", "desc", "{}", true}).ok());
+  ASSERT_TRUE(db.RegisterSkill({0, "zulu", "desc", "patch"}).ok());
+  ASSERT_TRUE(db.RegisterSkill({0, "alpha", "desc", "patch"}).ok());
+
+  auto tools = db.GetTopLevelTools();
+  ASSERT_TRUE(tools.ok());
+  auto alpha_tool = std::find_if(tools->begin(), tools->end(), [](const auto& tool) { return tool.name == "alpha"; });
+  auto zulu_tool = std::find_if(tools->begin(), tools->end(), [](const auto& tool) { return tool.name == "zulu"; });
+  ASSERT_NE(alpha_tool, tools->end());
+  ASSERT_NE(zulu_tool, tools->end());
+  EXPECT_LT(alpha_tool, zulu_tool);
+
+  auto skills = db.GetSkills();
+  ASSERT_TRUE(skills.ok());
+  auto alpha_skill = std::find_if(skills->begin(), skills->end(), [](const auto& skill) { return skill.name == "alpha"; });
+  auto zulu_skill = std::find_if(skills->begin(), skills->end(), [](const auto& skill) { return skill.name == "zulu"; });
+  ASSERT_NE(alpha_skill, skills->end());
+  ASSERT_NE(zulu_skill, skills->end());
+  EXPECT_LT(alpha_skill, zulu_skill);
+}
+
 TEST(DatabaseTest, ScratchpadReadWrite) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

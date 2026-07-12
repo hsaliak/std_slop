@@ -182,12 +182,17 @@ Technical Anchors: [Ports, IPs, constant values]
   }
   auto all_skills_or = db_->GetSkills();
   if (all_skills_or.ok() && !active_skills.empty()) {
-    absl::StrAppend(&system_instruction, "\n## Active Personas & Skills\n");
+    std::map<std::string, const Database::Skill*> skills_by_name;
     for (const auto& skill : *all_skills_or) {
-      for (const auto& active_name : active_skills) {
-        if (skill.name == active_name) {
-          absl::StrAppend(&system_instruction, "### Skill: ", skill.name, "\n", skill.system_prompt_patch, "\n");
-        }
+      skills_by_name.emplace(skill.name, &skill);
+    }
+
+    absl::StrAppend(&system_instruction, "\n## Active Personas & Skills\n");
+    for (const auto& active_name : active_skills) {
+      auto skill_it = skills_by_name.find(active_name);
+      if (skill_it != skills_by_name.end()) {
+        const auto& skill = *skill_it->second;
+        absl::StrAppend(&system_instruction, "### Skill: ", skill.name, "\n", skill.system_prompt_patch, "\n");
       }
     }
   }
