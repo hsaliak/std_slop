@@ -142,6 +142,92 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsSkillSectionWhenNoAc
   }
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyStableAcrossSkillChanges) {
+  Database::Skill first = {0, "first", "desc1", "FIRST_PATCH"};
+  Database::Skill second = {0, "second", "desc2", "SECOND_PATCH"};
+  ASSERT_TRUE(db.RegisterSkill(first).ok());
+  ASSERT_TRUE(db.RegisterSkill(second).ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+
+  auto with_first = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {"first"});
+  ASSERT_TRUE(with_first.ok());
+  ASSERT_TRUE(with_first->contains("prompt_cache_key"));
+  std::string key_with_first = json_get_or(*with_first, "prompt_cache_key", std::string{});
+  EXPECT_TRUE(absl::StartsWith(key_with_first, "slop:"));
+  EXPECT_EQ(key_with_first.size(), 69);  // "slop:" (5) + 64 hex chars
+
+  auto with_second = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {"second"});
+  ASSERT_TRUE(with_second.ok());
+  std::string key_with_second = json_get_or(*with_second, "prompt_cache_key", std::string{});
+
+  // Same static instructions -> same cache key, even though active skills differ.
+  EXPECT_EQ(key_with_first, key_with_second);
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyChangesWithDifferentInstructions) {
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+
+  auto payload_a = orchestrator.AssemblePayload("s1", "Instructions A", *history_or, {});
+  ASSERT_TRUE(payload_a.ok());
+  ASSERT_TRUE(payload_a->contains("prompt_cache_key"));
+  std::string key_a = json_get_or(*payload_a, "prompt_cache_key", std::string{});
+
+  auto payload_b = orchestrator.AssemblePayload("s1", "Instructions B", *history_or, {});
+  ASSERT_TRUE(payload_b.ok());
+  std::string key_b = json_get_or(*payload_b, "prompt_cache_key", std::string{});
+
+  EXPECT_NE(key_a, key_b);
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsCacheKeyForEmptyInstructions) {
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  auto payload_or = orchestrator.AssemblePayload("s1", "", *history_or, {});
+  ASSERT_TRUE(payload_or.ok());
+  EXPECT_FALSE(payload_or->contains("prompt_cache_key"));
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyIdempotentAfterDbRoundTrip) {
+  // Verify that hashing the same system instruction string produces the same cache key,
+  // simulating a write-to-DB and re-read cycle where content is identical.
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+
+  const std::string instruction = "Idempotent test instruction";
+
+  // First payload — cache key derived from instruction.
+  auto first = orchestrator.AssemblePayload("s1", instruction, *history_or, {});
+  ASSERT_TRUE(first.ok());
+  ASSERT_TRUE(first->contains("prompt_cache_key"));
+  std::string key_first = json_get_or(*first, "prompt_cache_key", std::string{});
+
+  // Simulate round-trip: store instruction in DB, re-read, re-hash.
+  ASSERT_TRUE(db.SetAgentMd("./AGENTS.md", instruction).ok());
+  auto reloaded = db.GetAgentMd("./AGENTS.md");
+  ASSERT_TRUE(reloaded.ok());
+  ASSERT_EQ(*reloaded, instruction);
+
+  auto second = orchestrator.AssemblePayload("s1", *reloaded, *history_or, {});
+  ASSERT_TRUE(second.ok());
+  std::string key_second = json_get_or(*second, "prompt_cache_key", std::string{});
+
+  EXPECT_EQ(key_first, key_second);
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSsePayload) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex", "https://chatgpt.com/backend-api/codex");
   const std::string sse_payload =

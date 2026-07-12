@@ -5,6 +5,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 
 #include "absl/container/flat_hash_set.h"
@@ -17,6 +18,7 @@
 #include "core/message_parser.h"
 #include "core/openai_utils.h"
 #include "core/orchestrator.h"
+#include "core/sha256.h"
 #include "json_utils.h"
 
 namespace slop {
@@ -341,6 +343,25 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
   const nlohmann::json tools = BuildOpenAiResponsesTools(db_);
   if (!tools.empty()) {
     payload["tools"] = tools;
+  }
+  // Derive a stable prompt_cache_key from the static prefix (instructions + tools).
+  // The key is a routing hint for server-side prompt caching; it does not change
+  // model input. It must remain stable across turns and only change when the
+  // static prefix (system prompt, tools, AGENTS.md) changes.
+  if (!system_instruction.empty()) {
+    std::string cache_input = system_instruction;
+    if (!tools.empty()) {
+      absl::StrAppend(&cache_input, json_dump(tools));
+    }
+    auto digest_or = Sha256Digest(cache_input);
+    if (digest_or.ok()) {
+      payload["prompt_cache_key"] =
+          absl::StrCat("slop:", absl::BytesToHexString(
+              absl::string_view(reinterpret_cast<const char*>(digest_or->data()),
+                                digest_or->size())));
+    } else {
+      LOG(WARNING) << "Failed to compute prompt_cache_key: " << digest_or.status();
+    }
   }
   if (IsDebugToolsEnabled()) {
     const size_t input_count = input.is_array() ? input.size() : 0;

@@ -183,6 +183,7 @@ cc_library(
  defines = ["HAVE_SYSTEM_PROMPT_H"],
  deps = [
         ":data",
+ ":sha256",
  ":transport",
  ":json_utils",
  "@abseil-cpp//absl/status",
