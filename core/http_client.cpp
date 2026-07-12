@@ -260,16 +260,44 @@ void HttpClient::CancellableSleep(int64_t wait_ms) {
 }
 
 absl::Status HttpClient::ContextOverflowStatus(long response_code, absl::string_view response_body) {
-  if (response_code == 413) return absl::ResourceExhaustedError("Provider context overflow");
-  if (response_code != 400) return absl::OkStatus();
-  const std::string normalized = absl::AsciiStrToLower(std::string(response_body));
-  if (absl::StrContains(normalized, "context length") ||
-      absl::StrContains(normalized, "context_length_exceeded") ||
-      absl::StrContains(normalized, "maximum context") ||
-      absl::StrContains(normalized, "maximum number of tokens") ||
-      absl::StrContains(normalized, "too many tokens") ||
-      absl::StrContains(normalized, "resource_exhausted")) {
+  if (response_code == 413) {
+    if (IsDebugHttpEnabled()) {
+      LOG(INFO) << "Classified provider response as context overflow: HTTP 413 Payload Too Large.";
+    }
     return absl::ResourceExhaustedError("Provider context overflow");
+  }
+  if (response_code != 400) {
+    if (IsDebugHttpEnabled()) {
+      LOG(INFO) << "Context-overflow classification skipped for HTTP " << response_code << ".";
+    }
+    return absl::OkStatus();
+  }
+
+  const std::string normalized = absl::AsciiStrToLower(std::string(response_body));
+  const char* match_reason = nullptr;
+  if (absl::StrContains(normalized, "context length")) {
+    match_reason = "context length";
+  } else if (absl::StrContains(normalized, "context_length_exceeded")) {
+    match_reason = "context_length_exceeded";
+  } else if (absl::StrContains(normalized, "maximum context")) {
+    match_reason = "maximum context";
+  } else if (absl::StrContains(normalized, "maximum number of tokens")) {
+    match_reason = "maximum number of tokens";
+  } else if (absl::StrContains(normalized, "too many tokens")) {
+    match_reason = "too many tokens";
+  } else if (absl::StrContains(normalized, "resource_exhausted")) {
+    match_reason = "resource_exhausted";
+  }
+
+  if (match_reason != nullptr) {
+    if (IsDebugHttpEnabled()) {
+      LOG(INFO) << "Classified provider response as context overflow: HTTP 400 matched \"" << match_reason
+                << "\".";
+    }
+    return absl::ResourceExhaustedError("Provider context overflow");
+  }
+  if (IsDebugHttpEnabled()) {
+    LOG(INFO) << "Provider response was not classified as context overflow: HTTP 400 had no known match.";
   }
   return absl::OkStatus();
 }
