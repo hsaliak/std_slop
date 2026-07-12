@@ -35,6 +35,6 @@ This document captures the implementation plan and design rationale for adding I
 
 ## Notes
 
-Settings like `openai_api_key`, `openai_oauth`, and `use_responses` remain governed by runtime selection logic in `app/main.cpp` and `core/orchestrator.cpp`. The INI loader populates flags, but conflict resolution stays in runtime code.
+Settings like `openai_api_key` and `openai_oauth` remain governed by runtime selection logic in `app/main.cpp` and `core/orchestrator.cpp`. The INI loader populates flags, but conflict resolution stays in runtime code.
 
 See [../example_subqueries.ini](../example_subqueries.ini) for a working specialization example.

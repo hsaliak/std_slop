@@ -8,7 +8,7 @@ Sessions provide isolation of history.
 ## Cross-Model Persistence
 Sessions are designed to be stable across model switches. However, because different providers (like Google and OpenAI) use incompatible tool-calling schemas, `std::slop` implements **tool call isolation**.
 - **Conversational Text**: Regular user and assistant messages are preserved and automatically re-parsed when you switch models.
-- **Tool Isolation**: Tool calls and their results are scoped to the provider strategy that created them. If you switch from Gemini to an OpenAI model, the OpenAI model will see the previous conversation text but will *not* see the Gemini-specific tool calls or results. This prevents parsing errors and "hallucinations" caused by cross-provider format mismatches.
+- **Tool Isolation**: Tool calls are scoped to the orchestrator that created them.
 ## Shared & Preserved State
 While history is isolated, certain configurations are global or preserved in memory when switching.
 ### Persistence Comparison

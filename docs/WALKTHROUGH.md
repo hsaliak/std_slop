@@ -9,7 +9,7 @@ This walkthrough is the fastest way to get `std::slop` working when you are star
 
 `std::slop` needs at least one authentication method before it can talk to an LLM. Choose one of these setup paths:
 
-1. **Gemini with a Google API key**
+1. **OpenAI-compatible API key**
    - Best if you already have a Google AI Studio key.
    - Start with an environment variable or put the key in `config.ini`.
 2. **OpenAI-compatible API key**
@@ -45,17 +45,17 @@ If you do not want to build from source, you can also install pre-built macOS an
 
 ## Authentication and Configuration Paths
 
-### Option 1: Gemini via environment variable
+### Option 1: API key via environment variable
 
 ```bash
-export GOOGLE_API_KEY="your-google-api-key"
+export OPENAI_API_KEY="your-google-api-key"
 std_slop
 ```
 
 You can also choose a model explicitly:
 
 ```bash
-std_slop --google_api_key "$GOOGLE_API_KEY" --model gemini-3-flash-preview
+std_slop --openai_api_key "$OPENAI_API_KEY" --model your-model-name
 ```
 
 ### Option 2: OpenAI-compatible API key
@@ -109,12 +109,12 @@ mkdir -p ~/.config/slop
 cp docs/example_config.ini ~/.config/slop/config.ini
 ```
 
-A minimal Gemini config looks like this:
+A minimal config looks like this:
 
 ```ini
 [slop]
-google_api_key = ${GOOGLE_API_KEY}
-model = gemini-3-flash-preview
+openai_api_key = ${OPENAI_API_KEY}
+model = your-model-name
 ```
 
 A minimal OpenAI-compatible config looks like this:

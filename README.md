@@ -22,7 +22,7 @@ The agent can also learn from its own workflows. The `self_improvement_learner` 
 - **🎛️ Context Control**: SQL-backed, per-session accordion history preserves an append-only prompt prefix between resets, so sessions can grow independently while retaining cache-friendly context.
 - **🪗 Accordion context**: Use `/context <retain_groups> [watermark_tokens]` to grow a cache-friendly prompt prefix, then reset to complete recent groups after the latest actual prompt usage reaches the watermark (defaults: `2`, `350000`). Tool results remain full fidelity up to their configured per-result limit.
 - **📬 Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for the manual patch-based workflow or [docs/mail-loop/README.md](docs/mail-loop/README.md) for the automated mail-loop orchestrator.
-- **🤖 Multi-Model**: Supports Google Gemini and OpenAI-compatible APIs (OpenRouter, etc.) and OpenAI Responses API (with chatgpt plus/pro oauth).
+- **🤖 Multi-Model**: Supports OpenAI-compatible APIs (OpenRouter, etc.) and OpenAI Responses API (with chatgpt plus/pro oauth).
 - **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax. Eg: "hey code_reviewer review these patches".
 
 ## 🚀 Quick Start
@@ -77,7 +77,7 @@ Batch mode also takes in `--model` which is useful to specify the model to use a
 Read the [Walkthrough](docs/WALKTHROUGH.md) first for the recommended getting-started flow, authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use [docs/README.md](docs/README.md) as the docs index for deeper reference material.
 
 ### Authentication Quick Notes
-- Gemini: set `GOOGLE_API_KEY` or put it in `~/.config/slop/config.ini`
+- OpenAI-compatible: set `OPENAI_API_KEY` or put it in `~/.config/slop/config.ini`
 - OpenAI-compatible API key: set `OPENAI_API_KEY`, optionally combine with `--openai_base_url`, or put both in `config.ini`
 - OpenAI OAuth (Responses API): run `std_slop --fetch_openai_oauth_token` or `std_slop --fetch_openai_oauth_device_token`, then start with `--openai_oauth`
 
@@ -93,11 +93,11 @@ For a getting-started walkthrough that covers config methods end-to-end, see [do
 
 ```ini
 [slop]
-model = gemini-3-flash-preview
+model = your-model-name
 # OR
 openai_api_key = sk-...
 openai_base_url = https://api.openai.com/v1
-# use_responses = true   # optional: use OpenAI Responses API with API key mode
+
 # openai_oauth = true    # optional: use OpenAI OAuth token + Responses API
 # openai_oauth_token_path = /custom/path/chatgpt_plus_token.json
 ```
@@ -204,7 +204,7 @@ The core logic is divided into modules:
 - **`database.h`**: Manages the SQLite-backed ledger. Handles persistence for messages, memos, tools, and skills.
 - **`tool_dispatcher.h`**: Implements a thread-safe execution engine. It dispatches multiple tool calls concurrently while ensuring results are returned in the proper order for the LLM.
 - **`cancellation.h`**: Provides a mechanism for interrupting tasks. It supports registering callbacks to kill shell processes or abort HTTP requests.
-- **`orchestrator.h`**: high-level interface for model interaction. Implementations for Gemini and OpenAI manage history windowing and response parsing.
+- **`orchestrator.h`**: high-level interface for model interaction. The Responses API orchestrator manages history windowing and response parsing.
 - **`shell_util.h`**: Executes shell commands in a separate process group, with support for live output polling and termination on cancellation.
 - **`http_client.h`**: A minimalist, cancellation-aware HTTP client used for all model API calls.
 

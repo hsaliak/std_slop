@@ -27,7 +27,7 @@ This complements unit tests (exact behavior/regression coverage) with adversaria
 - `//core:tool_dispatcher_validation_fuzz_test`
   - Verifies tool-call validation behavior with arbitrary IDs/names/args and asserts invalid calls are not executed.
 - `//core:orchestrator_normalization_fuzz_test`
-  - Fuzzes OpenAI chat-completions, OpenAI responses, and Gemini `ProcessResponse` normalization paths.
+  - Fuzzes OpenAI Responses `ProcessResponse` normalization paths.
 
 ### `tools/`
 

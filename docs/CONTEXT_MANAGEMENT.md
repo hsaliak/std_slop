@@ -10,7 +10,7 @@ The system prompt asks the assistant to include a `### STATE` summary in its res
 This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs.
 ### Centralized Message Parsing
 To handle the divergent JSON schemas between providers, `std::slop` uses a centralized `MessageParser` class (`core/message_parser.h`). This utility:
-- **Extracts Tool Calls**: Parses tool call JSON from both OpenAI (`tool_calls` array) and Gemini (`functionCall` object) formats.
+- **Extracts Tool Calls**: Parses tool call JSON from the OpenAI Responses API format.
 - **Extracts Assistant Text**: Retrieves the text content from tool_call messages for display purposes.
 - **Strategy-Aware**: Uses the `parsing_strategy` field to determine the correct parsing logic.
 This centralization eliminates heuristic JSON sniffing and ensures consistent tool call extraction across the UI and orchestrator components.
