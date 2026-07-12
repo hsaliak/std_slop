@@ -3,6 +3,7 @@
 #include <set>
 
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 
 #include "core/database.h"
 #include "core/http_client.h"
@@ -29,7 +30,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "System prompt", *history_or);
+  auto payload_or = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -55,7 +56,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndR
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex", "https://chatgpt.com/backend-api/codex");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or);
+  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -73,7 +74,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesReasoningFromModelSuf
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex:low", "https://chatgpt.com/backend-api/codex");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or);
+  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -88,9 +89,57 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadRejectsInvalidReasoningSu
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex:ultra", "https://chatgpt.com/backend-api/codex");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or);
+  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or, {});
   ASSERT_FALSE(payload_or.ok());
   EXPECT_EQ(payload_or.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadAppendsActiveSkillsToInputTail) {
+  Database::Skill first = {0, "first", "desc1", "FIRST_PATCH"};
+  Database::Skill second = {0, "second", "desc2", "SECOND_PATCH"};
+  ASSERT_TRUE(db.RegisterSkill(first).ok());
+  ASSERT_TRUE(db.RegisterSkill(second).ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  auto payload_or = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {"second", "first"});
+  ASSERT_TRUE(payload_or.ok());
+
+  const auto& payload = *payload_or;
+  std::string instructions = json_get_or(payload, "instructions", std::string{});
+  EXPECT_FALSE(absl::StrContains(instructions, std::string("SECOND_PATCH")));
+  EXPECT_FALSE(absl::StrContains(instructions, std::string("FIRST_PATCH")));
+
+  ASSERT_TRUE(payload.contains("input"));
+  ASSERT_TRUE(payload["input"].is_array());
+  ASSERT_GE(payload["input"].size(), 2);
+
+  // The skill system message should be the second-to-last item (before the user message).
+  const auto& skill_item = payload["input"][payload["input"].size() - 2];
+  EXPECT_EQ(json_get_or(skill_item, "role", std::string{}), "system");
+  std::string skill_content = json_get_or(skill_item, "content", std::string{});
+  EXPECT_LT(skill_content.find("SECOND_PATCH"), skill_content.find("FIRST_PATCH"));
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsSkillSectionWhenNoActiveSkills) {
+  Database::Skill skill = {0, "test_skill", "desc", "PATCH"};
+  ASSERT_TRUE(db.RegisterSkill(skill).ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  auto payload_or = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {});
+  ASSERT_TRUE(payload_or.ok());
+
+  const auto& payload = *payload_or;
+  ASSERT_TRUE(payload.contains("input"));
+  ASSERT_TRUE(payload["input"].is_array());
+  for (const auto& item : payload["input"]) {
+    EXPECT_NE(json_get_or(item, "role", std::string{}), "system");
+  }
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSsePayload) {

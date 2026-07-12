@@ -71,7 +71,7 @@ void Orchestrator::UpdateStrategy() {
  * Orchestrates the prompt assembly by:
  * 1. Fetching session context settings (e.g., window size).
  * 2. Retrieving relevant conversation history from the database.
- * 3. Building system instructions including skills and history guidelines.
+ * 3. Building system instructions including history guidelines.
  * 4. Injecting relevant memos based on history context.
  * 5. delegating the final payload formatting to the strategy (Gemini/OpenAI).
  *
@@ -89,10 +89,10 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
       message.content = SmarterTruncate(message.content, config_.truncation.full_fidelity_limit, message.id);
     }
   }
-  std::string system_instruction = BuildSystemInstructions(session_id, active_skills);
+  std::string system_instruction = BuildSystemInstructions(session_id);
   InjectAgentMd(&system_instruction);
   InjectSkillsSummary(&system_instruction);
-  auto payload_or = strategy_->AssemblePayload(session_id, system_instruction, history);
+  auto payload_or = strategy_->AssemblePayload(session_id, system_instruction, history, active_skills);
   if (payload_or.ok() && std::getenv("SLOP_TOOL_DEBUG")) {
     LOG(INFO) << "--- ASSEMBLED PROMPT ---\n" << payload_or->dump(2) << "\n--- END PROMPT ---";
   }
@@ -100,9 +100,10 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
 }
 absl::StatusOr<nlohmann::json> Orchestrator::AssemblePayload(const std::string& session_id,
                                                             const std::string& system_instruction,
-                                                            const std::vector<Database::Message>& history) {
+                                                            const std::vector<Database::Message>& history,
+                                                            const std::vector<std::string>& active_skills) {
   if (!strategy_) return absl::FailedPreconditionError("Orchestrator strategy is not configured");
-  return strategy_->AssemblePayload(session_id, system_instruction, history);
+  return strategy_->AssemblePayload(session_id, system_instruction, history, active_skills);
 }
 absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                   const std::string& group_id) {
@@ -128,15 +129,15 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
 /**
  * @brief Constructs the system instruction string for the LLM.
  *
- * Combines the builtin system prompt, conversation history guidelines,
- * and the definitions/usage instructions for any active skills.
+ * Combines the builtin system prompt, tool catalog, AGENTS.md context,
+ * and conversation history guidelines. Active skill patches are emitted
+ * separately by the strategy as input items to preserve prompt cache
+ * stability.
  *
  * @param session_id The active session ID.
- * @param active_skills List of skill names to include in the instructions.
  * @return std::string The complete system instruction string.
  */
-std::string Orchestrator::BuildSystemInstructions(const std::string& /*session_id*/,
-                                                  const std::vector<std::string>& active_skills) {
+std::string Orchestrator::BuildSystemInstructions(const std::string& /*session_id*/) {
   static constexpr absl::string_view kHistoryInstructions = R"(
 ## Conversation History Guidelines
 1. The following messages are sequential and chronological.
@@ -181,22 +182,6 @@ Technical Anchors: [Ports, IPs, constant values]
                     "You have access to the following tools. Use them to fulfill the user's request.\n");
     for (const auto& t : *tools_or) {
       absl::StrAppend(&system_instruction, "- ", t.name, ": ", t.description, "\n");
-    }
-  }
-  auto all_skills_or = db_->GetSkills();
-  if (all_skills_or.ok() && !active_skills.empty()) {
-    std::map<std::string, const Database::Skill*> skills_by_name;
-    for (const auto& skill : *all_skills_or) {
-      skills_by_name.emplace(skill.name, &skill);
-    }
-
-    absl::StrAppend(&system_instruction, "\n## Active Personas & Skills\n");
-    for (const auto& active_name : active_skills) {
-      auto skill_it = skills_by_name.find(active_name);
-      if (skill_it != skills_by_name.end()) {
-        const auto& skill = *skill_it->second;
-        absl::StrAppend(&system_instruction, "### Skill: ", skill.name, "\n", skill.system_prompt_patch, "\n");
-      }
     }
   }
   absl::StrAppend(&system_instruction, kHistoryInstructions, "\n");

@@ -42,7 +42,8 @@ class OrchestratorStrategy {
   // The system_instruction and history are provided by the Orchestrator.
   virtual absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id,
                                                          const std::string& system_instruction,
-                                                         const std::vector<Database::Message>& history) = 0;
+                                                         const std::vector<Database::Message>& history,
+                                                         const std::vector<std::string>& active_skills) = 0;
 
   // Parses the provider's response, records usage, and appends messages to the DB.
   // Returns the total tokens used in this turn.

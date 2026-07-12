@@ -1,8 +1,11 @@
 #include "core/orchestrator_openai_responses.h"
 
 #include <cstdlib>
+#include <map>
 #include <optional>
 #include <unordered_map>
+
+#include "absl/strings/str_cat.h"
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -229,7 +232,8 @@ OpenAiResponsesOrchestrator::OpenAiResponsesOrchestrator(Database* db, HttpClien
 
 absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
     const std::string& session_id, const std::string& system_instruction,
-    const std::vector<Database::Message>& history) {
+    const std::vector<Database::Message>& history,
+    const std::vector<std::string>& active_skills) {
   (void)session_id;
   const auto model_selection_or = ParseResponsesModelSelection(model_);
   if (!model_selection_or.ok()) {
@@ -295,6 +299,35 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
     }
 
     input.push_back({{"role", msg.role}, {"content", display_content}});
+  }
+
+  // Active skill patches are emitted as a system-role input item after history
+  // but before the current user message. This keeps the instructions prefix stable
+  // for server-side prompt caching when skills change.
+  if (!active_skills.empty()) {
+    auto all_skills_or = db_->GetSkills();
+    if (all_skills_or.ok()) {
+      std::map<std::string, const Database::Skill*> skills_by_name;
+      for (const auto& skill : *all_skills_or) {
+        skills_by_name.emplace(skill.name, &skill);
+      }
+      std::string skill_content = "## Active Personas & Skills\n";
+      for (const auto& active_name : active_skills) {
+        auto skill_it = skills_by_name.find(active_name);
+        if (skill_it != skills_by_name.end()) {
+          const auto& skill = *skill_it->second;
+          absl::StrAppend(&skill_content, "### Skill: ", skill.name, "\n", skill.system_prompt_patch, "\n");
+        }
+      }
+      nlohmann::json skill_item = {{"role", "system"}, {"content", skill_content}};
+      if (!input.empty()) {
+        input.insert(input.end() - 1, skill_item);
+      } else {
+        input.push_back(skill_item);
+      }
+    } else {
+      LOG(WARNING) << "Failed to load skills for active skill patches: " << all_skills_or.status();
+    }
   }
 
   nlohmann::json payload = {{"model", model_selection.base_model}, {"input", input}, {"store", false}};

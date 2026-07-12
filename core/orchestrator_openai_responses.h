@@ -15,7 +15,8 @@ class OpenAiResponsesOrchestrator : public OrchestratorStrategy {
   std::string GetName() const override { return "openai"; }
 
   absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
-                                                 const std::vector<Database::Message>& history) override;
+                                                 const std::vector<Database::Message>& history,
+                                                 const std::vector<std::string>& active_skills) override;
 
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id) override;

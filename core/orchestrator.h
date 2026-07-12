@@ -53,7 +53,8 @@ class Orchestrator {
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id,
                                                 const std::vector<std::string>& active_skills = {});
   absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
-                                                 const std::vector<Database::Message>& history);
+                                                 const std::vector<Database::Message>& history,
+                                                 const std::vector<std::string>& active_skills = {});
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id = "");
   std::optional<ResponseUsage> GetLastResponseUsage() const;
@@ -84,7 +85,7 @@ class Orchestrator {
   std::string active_agent_md_path_ = "./AGENTS.md";
   std::vector<std::string> last_selected_groups_;
   std::unique_ptr<OrchestratorStrategy> strategy_;
-  std::string BuildSystemInstructions(const std::string& session_id, const std::vector<std::string>& active_skills);
+  std::string BuildSystemInstructions(const std::string& session_id);
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_

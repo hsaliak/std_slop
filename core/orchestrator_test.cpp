@@ -37,7 +37,18 @@ TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
   ASSERT_TRUE(result.ok());
   nlohmann::json prompt = *result;
   ASSERT_TRUE(prompt.contains("instructions"));
-  EXPECT_TRUE(absl::StrContains(prompt["instructions"].get<std::string>(), "SYSTEM_PATCH"));
+  EXPECT_FALSE(absl::StrContains(prompt["instructions"].get<std::string>(), "SYSTEM_PATCH"));
+  ASSERT_TRUE(prompt.contains("input"));
+  ASSERT_TRUE(prompt["input"].is_array());
+  bool found_skill_in_input = false;
+  for (const auto& item : prompt["input"]) {
+    if (item.value("role", "") == "system" &&
+        absl::StrContains(item.value("content", ""), "SYSTEM_PATCH")) {
+      found_skill_in_input = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_skill_in_input);
 }
 TEST_F(OrchestratorTest, AssemblePromptPreservesActiveSkillOrder) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
@@ -51,8 +62,10 @@ TEST_F(OrchestratorTest, AssemblePromptPreservesActiveSkillOrder) {
 
   auto result = orchestrator->AssemblePrompt("s1", {"second", "first"});
   ASSERT_TRUE(result.ok());
-  std::string instructions = (*result)["instructions"].get<std::string>();
-  EXPECT_LT(instructions.find("SECOND_PATCH"), instructions.find("FIRST_PATCH"));
+  std::string input_str = (*result)["input"].dump();
+  EXPECT_FALSE(absl::StrContains((*result)["instructions"].get<std::string>(), "SECOND_PATCH"));
+  EXPECT_FALSE(absl::StrContains((*result)["instructions"].get<std::string>(), "FIRST_PATCH"));
+  EXPECT_LT(input_str.find("SECOND_PATCH"), input_str.find("FIRST_PATCH"));
 }
 TEST_F(OrchestratorTest, AccordionPreservesHistoricalToolResults) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
