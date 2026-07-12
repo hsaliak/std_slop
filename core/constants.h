@@ -3,9 +3,6 @@
 
 namespace slop {
 
-// Gemini / Google Cloud Endpoints
-constexpr char kPublicGeminiBaseUrl[] = "https://generativelanguage.googleapis.com/v1beta";
-
 // Headers
 constexpr char kUserAgent[] = "std::slop/prerelease";
 

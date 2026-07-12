@@ -10,9 +10,8 @@ namespace slop {
 class TestableCommandHandler : public CommandHandler {
  public:
   explicit TestableCommandHandler(Database* db, class Orchestrator* orchestrator = nullptr,
-                                  OAuthHandler* oauth_handler = nullptr, std::string google_api_key = "",
-                                  std::string openai_api_key = "")
-      : CommandHandler(db, orchestrator, oauth_handler, std::move(google_api_key), std::move(openai_api_key)) {}
+                                  OAuthHandler* oauth_handler = nullptr, std::string openai_api_key = "")
+      : CommandHandler(db, orchestrator, oauth_handler, std::move(openai_api_key)) {}
   std::string next_editor_output;
   std::string last_initial_content;
   std::string last_extension;

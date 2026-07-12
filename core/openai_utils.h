@@ -16,7 +16,6 @@ namespace slop {
 
 absl::flat_hash_set<std::string> GetEnabledToolNames(Database* db);
 
-nlohmann::json BuildOpenAiChatTools(Database* db);
 nlohmann::json BuildOpenAiResponsesTools(Database* db);
 
 int RecordOpenAiChatUsage(Database* db, const std::string& session_id, const std::string& model,

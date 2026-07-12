@@ -63,11 +63,8 @@ std::array<std::string, 3> BuildReasoningModelVariants(const std::string& model_
 }
 
 bool ShouldUseResponsesModelVariants(const Orchestrator* orchestrator) {
-  if (orchestrator == nullptr) {
-    return false;
-  }
-  return orchestrator->GetProvider() == Orchestrator::Provider::OPENAI &&
-         orchestrator->GetOpenAiApiStyle() == Orchestrator::OpenAiApiStyle::RESPONSES;
+  (void)orchestrator;
+  return true;
 }
 
 bool IsSafeBranchToken(std::string_view name) {
@@ -80,11 +77,10 @@ bool IsSafeBranchToken(std::string_view name) {
 
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
-                                std::string google_api_key, std::string openai_api_key)
+                                std::string openai_api_key)
     : db_(db),
       orchestrator_(orchestrator),
       oauth_handler_(oauth_handler),
-      google_api_key_(std::move(google_api_key)),
       openai_api_key_(std::move(openai_api_key)) {
   RefreshMailModeFromDb();
   RegisterCommands();
@@ -664,11 +660,9 @@ CommandHandler::Result CommandHandler::HandleSession(CommandArgs& args) {
   return Result::HANDLED;
 }
 /**
- * @brief Displays usage statistics and Gemini user quota.
+ * @brief Displays usage statistics.
  *
  * Fetches token usage from the local database grouped by model.
- * If the provider is Gemini and OAuth is active, it also fetches and displays
- * real-time quota information from the Google API.
  *
  * @param args Command arguments providing the session ID.
  */
@@ -726,41 +720,13 @@ CommandHandler::Result CommandHandler::HandleStats(CommandArgs& args) {
       PrintMarkdown(md);
     }
   }
-  if (orchestrator_ && orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI && oauth_handler_ &&
-      oauth_handler_->IsEnabled()) {
-    auto token_or = oauth_handler_->GetValidToken();
-    if (token_or.ok()) {
-      auto quota_or = orchestrator_->GetQuota(*token_or);
-      if (quota_or.ok() && quota_or->is_object()) {
-        std::string md = "### Gemini User Quota\n\n";
-        if (quota_or->contains("buckets") && (*quota_or)["buckets"].is_array() && !(*quota_or)["buckets"].empty()) {
-          md += "| Model ID | Remaining | % | Reset Time | Type |\n";
-          md += "| :--- | :--- | :---: | :--- | :--- |\n";
-          for (const auto& b : (*quota_or)["buckets"]) {
-            if (!b.is_object()) continue;
-            double fraction = json_get_or(b, "remainingFraction", 0.0);
-            md += absl::Substitute("| `$0` | $1 | $2% | $3 | $4 |\n", json_get_or(b, "modelId", std::string{"N/A"}),
-                                   json_get_or(b, "remainingAmount", std::string{"N/A"}),
-                                   static_cast<int>(fraction * 100), json_get_or(b, "resetTime", std::string{"N/A"}),
-                                   json_get_or(b, "tokenType", std::string{"N/A"}));
-          }
-          PrintMarkdown(md);
-        } else {
-          std::cout << "No quota buckets found." << std::endl;
-        }
-      } else {
-        std::cout << "Could not fetch quota: " << quota_or.status().message() << std::endl;
-      }
-    }
-  }
   return Result::HANDLED;
 }
 CommandHandler::Result CommandHandler::HandleModels(CommandArgs& args) {
   if (!orchestrator_) return Result::HANDLED;
-  std::string api_key =
-      (orchestrator_->GetProvider() == Orchestrator::Provider::GEMINI) ? google_api_key_ : openai_api_key_;
+  std::string api_key = openai_api_key_;
   std::string account_id;
-  if (orchestrator_->GetProvider() == Orchestrator::Provider::OPENAI && oauth_handler_ && oauth_handler_->IsEnabled() &&
+  if (oauth_handler_ && oauth_handler_->IsEnabled() &&
       oauth_handler_->GetProvider() == OAuthHandler::Provider::kOpenAi) {
     auto token_or = oauth_handler_->GetValidToken();
     if (token_or.ok()) api_key = *token_or;

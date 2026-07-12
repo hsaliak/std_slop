@@ -318,7 +318,7 @@ TEST(UiTest, FormatAssembledContextFormatsOpenAiRunJsCode) {
   EXPECT_FALSE(absl::StrContains(output, "\"code\""));
 }
 
-TEST(UiTest, FormatAssembledContextFormatsGeminiRunJsCode) {
+TEST(UiTest, FormatAssembledContextFormatsResponsesRunJsCode) {
   const std::string context =
       R"({"contents":[{"role":"model","parts":[{"functionCall":{"name":"run_js","args":{"code":"const files = tools.list_directory({ path: '.', depth: 1, include_ignored: false });\nreturn { files };"}}}]}]})";
 

@@ -3,7 +3,6 @@
 #include "core/database.h"
 #include "core/http_client.h"
 #include "core/orchestrator.h"
-#include "core/orchestrator_openai.h"
 #include "tools/tool_executor.h"
 #include "interface/command_handler.h"
 

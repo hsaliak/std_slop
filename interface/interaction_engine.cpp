@@ -180,7 +180,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     std::vector<std::string> headers = {"Content-Type: application/json"};
     headers.push_back(std::string("User-Agent: ") + kUserAgent);
     std::string url;
-    if (orchestrator_.GetProvider() == slop::Orchestrator::Provider::OPENAI) {
+    {
       std::string bearer_token = config.openai_api_key;
       if (config.openai_oauth && oauth_handler_) {
         auto token_or = oauth_handler_->GetValidToken();
@@ -199,12 +199,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           config.openai_oauth ? std::string(slop::kOpenAiChatGptCodexBaseUrl) : std::string(slop::kOpenAIBaseUrl);
       const std::string resolved_openai_base_url =
           !config.openai_base_url.empty() ? config.openai_base_url : default_openai_base_url;
-      const std::string openai_endpoint = config.use_responses ? "/responses" : "/chat/completions";
-      url = resolved_openai_base_url + openai_endpoint;
-    } else {
-      headers.push_back("x-goog-api-key: " + config.google_api_key);
-      url = absl::StrCat(slop::kPublicGeminiBaseUrl, "/models/", orchestrator_.GetModel(),
-                         ":generateContent?key=", config.google_api_key);
+      url = resolved_openai_base_url + "/responses";
     }
     auto http_cancellation = std::make_shared<slop::CancellationRequest>();
     http_cancellation->RegisterCallback([&]() { http_client_.Abort(); });

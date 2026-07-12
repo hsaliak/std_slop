@@ -20,11 +20,9 @@ class InteractionEngine {
  public:
   struct Config {
     bool is_batch_mode = false;
-    std::string google_api_key;
     std::string openai_api_key;
     std::string openai_base_url;
     bool openai_oauth = false;
-    bool use_responses = false;
     bool silent = false;
   };
 

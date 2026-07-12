@@ -20,7 +20,7 @@ class InputParsingTest : public ::testing::Test {
 };
 
 TEST_F(InputParsingTest, SquareBracesInNormalInput) {
-  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "");
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
   std::string input = "This is a test [with square braces]";
@@ -31,7 +31,7 @@ TEST_F(InputParsingTest, SquareBracesInNormalInput) {
 }
 
 TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
-  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "");
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
   // Many commands just take the rest of the line as args
@@ -43,7 +43,7 @@ TEST_F(InputParsingTest, SquareBracesInCommandArgs) {
 }
 
 TEST_F(InputParsingTest, SingleQuotesInCommandArgs) {
-  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "");
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
   // This tests if the manual SQL construction fails or is vulnerable
@@ -55,7 +55,7 @@ TEST_F(InputParsingTest, SingleQuotesInCommandArgs) {
 }
 
 TEST_F(InputParsingTest, MalformedCommand) {
-  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "", "");
+  auto handler_or = CommandHandler::Create(&db, nullptr, nullptr, "");
   ASSERT_TRUE(handler_or.ok());
   auto& handler = **handler_or;
   std::string input = "/nonexistent_command [arg]";

@@ -53,27 +53,28 @@ class InteractionEngineTest : public ::testing::Test {
         });
     tool_executor->SetDispatcher(std::move(dispatcher));
 
-    auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "", "");
+    auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "");
     ASSERT_TRUE(cmd_or.ok());
     cmd_handler = std::move(*cmd_or);
   }
 
-  nlohmann::json GeminiResponse(const std::string& text) {
+  nlohmann::json ResponsesResponse(const std::string& text) {
     nlohmann::json res;
-    nlohmann::json candidate;
-    candidate["content"]["parts"] = nlohmann::json::array({{{"text", text}}});
-    res["candidates"] = nlohmann::json::array({candidate});
+    nlohmann::json item;
+    item["type"] = "message";
+    item["content"] = nlohmann::json::array({{{"type", "output_text"}, {"text", text}}});
+    res["output"] = nlohmann::json::array({item});
     return res;
   }
 
-  nlohmann::json GeminiToolCall(const std::string& name, const nlohmann::json& args) {
+  nlohmann::json ResponsesToolCall(const std::string& name, const nlohmann::json& args) {
     nlohmann::json res;
-    nlohmann::json candidate;
-    nlohmann::json functionCall;
-    functionCall["name"] = name;
-    functionCall["args"] = args;
-    candidate["content"]["parts"] = nlohmann::json::array({{{"functionCall", functionCall}}});
-    res["candidates"] = nlohmann::json::array({candidate});
+    nlohmann::json item;
+    item["type"] = "function_call";
+    item["call_id"] = "call_1";
+    item["name"] = name;
+    item["arguments"] = args.dump();
+    res["output"] = nlohmann::json::array({item});
     return res;
   }
 };
@@ -86,7 +87,7 @@ TEST_F(InteractionEngineTest, QueryIsolationTest) {
   config.silent = true;
 
   EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(GeminiResponse("The answer is 42").dump()));
+      .WillOnce(testing::Return(ResponsesResponse("The answer is 42").dump()));
 
   auto result = engine.Query("What is the answer?", config);
   ASSERT_TRUE(result.ok());
@@ -105,8 +106,8 @@ TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
   config.silent = true;
 
   EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(GeminiToolCall("query_db", {{"sql", "SELECT 1"}}).dump()))
-      .WillOnce(testing::Return(GeminiResponse("The result is 1").dump()));
+      .WillOnce(testing::Return(ResponsesToolCall("query_db", {{"sql", "SELECT 1"}}).dump()))
+      .WillOnce(testing::Return(ResponsesResponse("The result is 1").dump()));
 
   auto result = engine.Query("Query something", config);
   ASSERT_TRUE(result.ok());
@@ -134,13 +135,13 @@ TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
       .WillOnce(testing::DoAll(
           testing::WithArg<1>([](const std::string& body) {
             auto body_json = nlohmann::json::parse(body);
-            ASSERT_TRUE(body_json.contains("system_instruction"));
-            ASSERT_TRUE(body_json.contains("contents"));
-            ASSERT_FALSE(body_json["contents"].empty());
-            const auto text = body_json["system_instruction"]["parts"][0]["text"].get<std::string>();
+            ASSERT_TRUE(body_json.contains("instructions"));
+            ASSERT_TRUE(body_json.contains("input"));
+            ASSERT_FALSE(body_json["input"].empty());
+            const auto text = body_json["instructions"].get<std::string>();
             EXPECT_TRUE(absl::StrContains(text, "### Skill: code_reviewer"));
           }),
-          testing::Return(GeminiResponse("specialized").dump())));
+          testing::Return(ResponsesResponse("specialized").dump())));
 
   auto result = engine.Query("Review this patch", config, {}, options);
   ASSERT_TRUE(result.ok());
@@ -181,7 +182,7 @@ TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   config.silent = true;
 
   EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(GeminiResponse("legacy").dump()));
+      .WillOnce(testing::Return(ResponsesResponse("legacy").dump()));
 
   auto result = engine.Query("Legacy query", config);
   ASSERT_TRUE(result.ok());
@@ -221,15 +222,14 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
   }
 
   auto orch_or = Orchestrator::Builder(&db, &mock_http)
-                     .WithProvider(Orchestrator::Provider::OPENAI)
+                     
                      .WithModel("gpt-5.3-codex:medium")
                      .WithBaseUrl(kOpenAiChatGptCodexBaseUrl)
-                     .WithOpenAiApiStyle(Orchestrator::OpenAiApiStyle::RESPONSES)
-                     .Build();
+                                          .Build();
   ASSERT_TRUE(orch_or.ok());
   orchestrator = std::move(*orch_or);
 
-  auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "", "");
+    auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "");
   ASSERT_TRUE(cmd_or.ok());
   cmd_handler = std::move(*cmd_or);
 
@@ -243,7 +243,6 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
   InteractionEngine::Config config;
   config.silent = true;
   config.openai_oauth = true;
-  config.use_responses = true;
   config.openai_base_url = kOpenAiChatGptCodexBaseUrl;
 
   EXPECT_CALL(mock_http, Post(testing::Eq("https://chatgpt.com/backend-api/codex/responses"), testing::_, testing::_))

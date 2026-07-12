@@ -61,23 +61,6 @@ absl::flat_hash_set<std::string> GetEnabledToolNames(Database* db) {
   return enabled_tool_names;
 }
 
-nlohmann::json BuildOpenAiChatTools(Database* db) {
-  nlohmann::json tools = nlohmann::json::array();
-  auto tools_or = db->GetTopLevelTools();
-  if (!tools_or.ok()) {
-    return tools;
-  }
-  for (const auto& t : *tools_or) {
-    auto schema_opt = json_parse(t.json_schema);
-    if (!schema_opt) {
-      continue;
-    }
-    auto schema = NormalizeToolSchemaForProvider(*schema_opt);
-    tools.push_back({{"type", "function"},
-                     {"function", {{"name", t.name}, {"description", t.description}, {"parameters", schema}}}});
-  }
-  return tools;
-}
 
 nlohmann::json BuildOpenAiResponsesTools(Database* db) {
   nlohmann::json tools = nlohmann::json::array();
@@ -96,17 +79,6 @@ nlohmann::json BuildOpenAiResponsesTools(Database* db) {
   return tools;
 }
 
-int RecordOpenAiChatUsage(Database* db, const std::string& session_id, const std::string& model,
-                          const nlohmann::json& response) {
-  const auto* usage = json_at(response, "usage");
-  if (usage == nullptr) {
-    return 0;
-  }
-  const int prompt = json_get_or(*usage, "prompt_tokens", 0);
-  const int completion = json_get_or(*usage, "completion_tokens", 0);
-  (void)db->RecordUsage(session_id, model, prompt, completion);
-  return prompt + completion;
-}
 
 int RecordOpenAiResponsesUsage(Database* db, const std::string& session_id, const std::string& model,
                                const nlohmann::json& response) {

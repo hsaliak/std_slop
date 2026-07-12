@@ -26,8 +26,8 @@ TEST_F(SystemInfoTest, BuiltinPromptIsLoaded) {
   ASSERT_TRUE(result.ok());
 
   nlohmann::json prompt = *result;
-  ASSERT_TRUE(prompt.contains("system_instruction"));
-  std::string instr = prompt["system_instruction"]["parts"][0]["text"];
+  ASSERT_TRUE(prompt.contains("instructions"));
+  std::string instr = prompt["instructions"].get<std::string>();
 
   // Check for core content from system_prompt.md.
   // Since kBuiltinSystemPrompt is baked in at compile time from system_prompt.md,

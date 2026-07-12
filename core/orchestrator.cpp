@@ -19,8 +19,6 @@
 #include "absl/time/clock.h"
 
 #include "core/constants.h"
-#include "core/orchestrator_gemini.h"
-#include "core/orchestrator_openai.h"
 #include "core/orchestrator_openai_responses.h"
 #include "core/status_macros.h"
 #include "core/system_prompt_data.h"
@@ -30,10 +28,6 @@ namespace slop {
 Orchestrator::Builder::Builder(Database* db, HttpClient* http_client) : db_(db), http_client_(http_client) {}
 Orchestrator::Builder::Builder(const Orchestrator& orchestrator)
     : db_(orchestrator.db_), http_client_(orchestrator.http_client_), config_(orchestrator.config_) {}
-Orchestrator::Builder& Orchestrator::Builder::WithProvider(Provider provider) {
-  config_.provider = provider;
-  return *this;
-}
 Orchestrator::Builder& Orchestrator::Builder::WithModel(const std::string& model) {
   config_.model = model;
   return *this;
@@ -44,10 +38,6 @@ Orchestrator::Builder& Orchestrator::Builder::WithBaseUrl(const std::string& url
 }
 Orchestrator::Builder& Orchestrator::Builder::WithThrottle(int seconds) {
   config_.throttle = seconds;
-  return *this;
-}
-Orchestrator::Builder& Orchestrator::Builder::WithOpenAiApiStyle(OpenAiApiStyle style) {
-  config_.openai_api_style = style;
   return *this;
 }
 Orchestrator::Builder& Orchestrator::Builder::WithDatabase(Database* db) {
@@ -73,15 +63,7 @@ void Orchestrator::Builder::BuildInto(Orchestrator* orchestrator) {
 }
 Orchestrator::Orchestrator(Database* db, HttpClient* http_client) : db_(db), http_client_(http_client) {}
 void Orchestrator::UpdateStrategy() {
-  if (config_.provider == Provider::GEMINI) {
-    strategy_ = std::make_unique<GeminiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
-  } else {
-    if (config_.openai_api_style == OpenAiApiStyle::RESPONSES) {
-      strategy_ = std::make_unique<OpenAiResponsesOrchestrator>(db_, http_client_, config_.model, config_.base_url);
-    } else {
-      strategy_ = std::make_unique<OpenAiOrchestrator>(db_, http_client_, config_.model, config_.base_url);
-    }
-  }
+  strategy_ = std::make_unique<OpenAiResponsesOrchestrator>(db_, http_client_, config_.model, config_.base_url);
 }
 /**
  * @brief Constructs the full prompt payload for the LLM.

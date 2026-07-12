@@ -55,11 +55,9 @@ ABSL_FLAG(std::string, config, "", "Path to the configuration INI file");
 ABSL_FLAG(std::string, db, "", "Path to SQLite database (default: slop.db)");
 ABSL_FLAG(std::string, log, "", "Log file path");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
-ABSL_FLAG(std::string, model, "", "Model name (overrides GEMINI_MODEL or OPENAI_MODEL env vars)");
-ABSL_FLAG(std::string, google_api_key, "", "Google API key");
+ABSL_FLAG(std::string, model, "", "Model name");
 ABSL_FLAG(std::string, openai_api_key, "", "OpenAI API key");
 ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL");
-ABSL_FLAG(bool, use_responses, false, "Use OpenAI Responses API instead of chat completions for OpenAI API key mode");
 ABSL_FLAG(bool, openai_oauth, false, "Use OpenAI OAuth token file (~/.config/slop/chatgpt_plus_token.json)");
 ABSL_FLAG(std::string, openai_oauth_token_path, "", "Override OpenAI OAuth token file path");
 ABSL_FLAG(bool, fetch_openai_oauth_token, false,
@@ -236,7 +234,6 @@ int main(int argc, char* argv[]) {
   }
 
   bool openai_oauth = absl::GetFlag(FLAGS_openai_oauth);
-  bool use_responses = absl::GetFlag(FLAGS_use_responses);
 
   slop::Database db;
   if (auto status = db.Init(db_path); !status.ok()) {
@@ -310,13 +307,11 @@ int main(int argc, char* argv[]) {
   std::shared_ptr<slop::OAuthHandler> oauth_handler;
   std::unique_ptr<slop::Orchestrator> orchestrator;
 
-  std::string google_key = absl::GetFlag(FLAGS_google_api_key);
-
   std::string openai_key = absl::GetFlag(FLAGS_openai_api_key);
 
   std::string openai_base_url = absl::GetFlag(FLAGS_openai_base_url);
 
-  if (!openai_oauth && google_key.empty() && openai_key.empty()) {
+  if (!openai_oauth && openai_key.empty()) {
     std::cerr << MissingAuthenticationMessage() << std::endl;
     std::cerr << absl::ProgramUsageMessage() << std::endl;
     return 1;
@@ -324,8 +319,7 @@ int main(int argc, char* argv[]) {
 
   std::string model = absl::GetFlag(FLAGS_model);
 
-  if (openai_oauth || !openai_key.empty()) {
-    const bool openai_responses = openai_oauth || use_responses;
+  {
     std::string resolved_openai_base_url;
     if (openai_oauth) {
       resolved_openai_base_url = slop::kOpenAiChatGptCodexBaseUrl;
@@ -336,14 +330,8 @@ int main(int argc, char* argv[]) {
     } else {
       resolved_openai_base_url = !openai_base_url.empty() ? openai_base_url : slop::kOpenAIBaseUrl;
     }
-    builder.WithProvider(slop::Orchestrator::Provider::OPENAI)
-        .WithModel(!model.empty() ? model : "gpt-5.4-mini:high")
-        .WithBaseUrl(resolved_openai_base_url)
-        .WithOpenAiApiStyle(openai_responses ? slop::Orchestrator::OpenAiApiStyle::RESPONSES
-                                             : slop::Orchestrator::OpenAiApiStyle::CHAT_COMPLETIONS);
-  } else {  // gemini API key
-    builder.WithProvider(slop::Orchestrator::Provider::GEMINI)
-        .WithModel(!model.empty() ? model : "gemini-3-flash-preview");
+    builder.WithModel(!model.empty() ? model : "gpt-5.4-mini:high")
+        .WithBaseUrl(resolved_openai_base_url);
   }
 
   auto orchestrator_or = builder.Build();
@@ -380,7 +368,7 @@ int main(int argc, char* argv[]) {
   tool_executor->SetDispatcher(std::move(dispatcher));
 
   auto cmd_handler_or =
-      slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), google_key, openai_key);
+      slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), openai_key);
   if (!cmd_handler_or.ok()) {
     std::cerr << "Failed to initialize command handler: " << cmd_handler_or.status().message() << std::endl;
     return 1;
@@ -404,11 +392,9 @@ int main(int argc, char* argv[]) {
   slop::InteractionEngine engine(db, *orchestrator, cmd_handler, *tool_executor->dispatcher(), *tool_executor,
                                  http_client, oauth_handler);
   slop::InteractionEngine::Config engine_config;
-  engine_config.google_api_key = google_key;
   engine_config.openai_api_key = openai_key;
   engine_config.openai_base_url = openai_oauth ? slop::kOpenAiChatGptCodexBaseUrl : openai_base_url;
   engine_config.openai_oauth = openai_oauth;
-  engine_config.use_responses = openai_oauth || use_responses;
 
   auto llm_query_invoker = [&engine, engine_config](const std::string& query,
                                                      const std::vector<std::string>& skills,
