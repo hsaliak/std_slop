@@ -22,6 +22,7 @@ TEST(HttpClientTest, AbortDoesNotPoisonNextRequest) {
 
   auto res = client.Get("http://localhost:1", {});
   EXPECT_FALSE(res.ok());
+  EXPECT_TRUE(absl::IsCancelled(res.status()));
   EXPECT_FALSE(client.IsAborted());
 }
 
@@ -53,6 +54,17 @@ TEST(HttpClientTest, PostBasic) {
   // This will likely fail but we check the retry logic doesn't loop forever
   auto res = client.Post("http://localhost:1", "{}", {});
   EXPECT_FALSE(res.ok());
+}
+
+TEST(HttpClientTest, PostStreamPropagatesTransportFailure) {
+  HttpClient client(0, 0);
+  int chunks = 0;
+  auto response = client.PostStream("http://localhost:1", "{}", {}, [&chunks](absl::string_view) {
+    ++chunks;
+    return absl::OkStatus();
+  });
+  EXPECT_FALSE(response.ok());
+  EXPECT_EQ(chunks, 0);
 }
 
 TEST(HttpClientTest, ParseRetryAfterSeconds) {

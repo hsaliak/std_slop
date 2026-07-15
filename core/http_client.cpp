@@ -35,6 +35,8 @@ constexpr long kHttpLowSpeedTimeSeconds = 360L;
 struct ResponseBuffer {
   std::string body;
   size_t bytes_received = 0;
+  HttpClient::ChunkCallback on_chunk;
+  absl::Status callback_status;
 };
 
 std::string HttpFailureDetails(CURLcode result, long response_code, size_t bytes_received,
@@ -74,6 +76,10 @@ HttpClient::~HttpClient() = default;
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   const size_t total_size = size * nmemb;
   auto* response = static_cast<ResponseBuffer*>(userp);
+  if (response->on_chunk) {
+    response->callback_status = response->on_chunk(absl::string_view(static_cast<char*>(contents), total_size));
+    if (!response->callback_status.ok()) return 0;
+  }
   response->body.append(static_cast<char*>(contents), total_size);
   response->bytes_received += total_size;
   return total_size;
@@ -114,10 +120,21 @@ absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::
   return ExecuteWithRetry(url, "POST", body, headers);
 }
 
+absl::StatusOr<std::string> HttpClient::PostStream(const std::string& url, const std::string& body,
+                                                   const std::vector<std::string>& headers,
+                                                   ChunkCallback on_chunk) {
+  return ExecuteWithRetry(url, "POST", body, headers, std::move(on_chunk));
+}
+
 absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url, const std::string& method,
                                                          const std::string& body,
-                                                         const std::vector<std::string>& headers) {
-  active_generation_.store(abort_generation_.load());
+                                                         const std::vector<std::string>& headers,
+                                                         ChunkCallback on_chunk) {
+  // Preserve an abort issued before the worker starts instead of accepting it
+  // as the request's initial generation. Reset after this request so the next
+  // independent request is not poisoned by an earlier cancellation.
+  absl::Cleanup reset_abort_state = [this] { active_generation_.store(abort_generation_.load()); };
+  if (IsAborted()) return absl::CancelledError("HTTP request cancelled before start");
   int retry_count = 0;
   int64_t backoff_ms = initial_backoff_ms_;
 
@@ -129,6 +146,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     }
 
     ResponseBuffer response;
+    response.on_chunk = on_chunk;
     absl::flat_hash_map<std::string, std::string> response_headers;
     struct curl_slist* chunk = nullptr;
     absl::Cleanup chunk_cleaner = [&chunk] { curl_slist_free_all(chunk); };
@@ -173,6 +191,15 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     long response_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
+    if (IsAborted()) return absl::CancelledError("HTTP request cancelled");
+
+    if (!response.callback_status.ok()) return response.callback_status;
+    // Retrying after delivering any chunk would duplicate stream data for the caller.
+    if (on_chunk && response.bytes_received > 0 && (res != CURLE_OK || response_code < 200 || response_code >= 300)) {
+      return absl::UnavailableError(absl::StrCat("Streaming HTTP request failed after receiving response data. ",
+                                                 HttpFailureDetails(res, response_code, response.bytes_received, elapsed)));
+    }
+
     if (IsDebugHttpEnabled()) {
       if (res != CURLE_OK) {
         LOG(INFO) << "CURL error for " << method << " " << url << ": "
@@ -207,7 +234,8 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       }
     }
 
-    if (retry_count >= max_retries_ || IsAborted()) {
+    if (IsAborted()) return absl::CancelledError("HTTP request cancelled");
+    if (retry_count >= max_retries_) {
       return absl::UnavailableError(absl::StrCat("HTTP request failed after ", retry_count,
                                                  " retries. ", HttpFailureDetails(res, response_code,
                                                                                   response.bytes_received, elapsed)));

@@ -2,11 +2,14 @@
 #define SLOP_SQL_HTTP_CLIENT_H_
 
 #include <atomic>
+#include <functional>
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
@@ -16,6 +19,8 @@ namespace slop {
 
 class HttpClient {
  public:
+  using ChunkCallback = std::function<absl::Status(absl::string_view)>;
+
   HttpClient();
   HttpClient(int max_retries, int64_t initial_backoff_ms);
   virtual ~HttpClient();
@@ -26,6 +31,11 @@ class HttpClient {
 
   virtual absl::StatusOr<std::string> Post(const std::string& url, const std::string& body,
                                            const std::vector<std::string>& headers);
+
+  // Delivers response body chunks in transport order and returns the complete body.
+  virtual absl::StatusOr<std::string> PostStream(const std::string& url, const std::string& body,
+                                                 const std::vector<std::string>& headers,
+                                                 ChunkCallback on_chunk);
 
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
   static bool IsTerminalError(long response_code, const std::string& response_body);
@@ -49,7 +59,8 @@ class HttpClient {
   void CancellableSleep(int64_t wait_ms);
 
   absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,
-                                               const std::string& body, const std::vector<std::string>& headers);
+                                               const std::string& body, const std::vector<std::string>& headers,
+                                               ChunkCallback on_chunk = nullptr);
 
   std::atomic<uint64_t> abort_generation_{0};
   std::atomic<uint64_t> active_generation_{0};
