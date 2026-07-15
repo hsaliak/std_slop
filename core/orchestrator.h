@@ -10,7 +10,7 @@
 
 #include "core/database.h"
 #include "core/http_client.h"
-#include "core/orchestrator_strategy.h"
+#include "core/orchestrator_openai_responses.h"
 
 #include <nlohmann/json.hpp>
 
@@ -37,7 +37,7 @@ class Orchestrator {
     Builder& WithThrottle(int seconds);
     Builder& WithDatabase(Database* db);
     absl::StatusOr<std::unique_ptr<Orchestrator>> Build();
-    void BuildInto(Orchestrator* orchestrator);
+    void Apply(Orchestrator* orchestrator);
 
    private:
     Database* db_;
@@ -48,7 +48,6 @@ class Orchestrator {
   Orchestrator(Database* db, HttpClient* http_client);
   std::string GetModel() const { return config_.model; }
   int GetThrottle() const { return config_.throttle; }
-  std::string GetName() const { return strategy_ ? strategy_->GetName() : ""; }
   Builder Update() const { return Builder(*this); }
   absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id,
                                                 const std::vector<std::string>& active_skills = {});
@@ -66,7 +65,6 @@ class Orchestrator {
   std::vector<std::string> GetLastSelectedGroups() const { return last_selected_groups_; }
   absl::StatusOr<std::vector<Database::Message>> GetAccordionHistory(const std::string& session_id,
                                                                        bool force_reset = false);
-  void UpdateStrategy();
   static std::string SmarterTruncate(const std::string& content, size_t limit, int message_id = -1);
   absl::Status LoadAgentMd(const std::string& path);
   void InjectAgentMd(std::string* system_instruction);
@@ -84,7 +82,7 @@ class Orchestrator {
   Config config_;
   std::string active_agent_md_path_ = "./AGENTS.md";
   std::vector<std::string> last_selected_groups_;
-  std::unique_ptr<OrchestratorStrategy> strategy_;
+  std::unique_ptr<OpenAiResponsesOrchestrator> responses_;
   std::string BuildSystemInstructions(const std::string& session_id);
 };
 }  // namespace slop

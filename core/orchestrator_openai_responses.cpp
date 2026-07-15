@@ -463,7 +463,7 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
     const auto* fn = json_at(first_call, "function");
     const std::string first_name = fn == nullptr ? "" : json_get_or(*fn, "name", std::string{});
     auto st = db_->AppendMessage(session_id, "assistant", json_dump(msg), first_id + "|" + first_name, "tool_call",
-                                 group_id, GetName(), assistant_text.empty() ? total_tokens : 0);
+                                 group_id, "openai", assistant_text.empty() ? total_tokens : 0);
     if (!st.ok()) {
       return st;
     }
@@ -472,7 +472,7 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
 
   if (!assistant_text.empty()) {
     auto st =
-        db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, GetName(), total_tokens);
+        db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, "openai", total_tokens);
     if (!st.ok()) {
       return st;
     }
