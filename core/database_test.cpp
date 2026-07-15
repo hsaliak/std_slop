@@ -125,7 +125,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
                        [&](const auto& t) { return t.name == name; });
   };
   EXPECT_TRUE(is_top_level("query_db"));
-  EXPECT_TRUE(is_top_level("run_js"));
+  EXPECT_FALSE(is_top_level("run_js"));
   EXPECT_TRUE(is_top_level("ask_user"));
   EXPECT_TRUE(is_top_level("read_file"));
   EXPECT_TRUE(is_top_level("list_directory"));

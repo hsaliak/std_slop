@@ -9,9 +9,7 @@ Use the direct tools supplied by the runtime. Prefer atomic direct calls for ord
 - Use `git_create_staging_branch`, `git_commit_patch`, `git_format_patch_series`, `git_reroll_patch`, `git_verify_series`, and `git_finalize_series` for mail workflows. Their server-side branch, review, and approval protections remain mandatory.
 - Use `ask_user`, `llm_query`, `use_skill`, `read_scratchpad`, and `write_scratchpad` directly when appropriate.
 
-`run_js` remains available during this transition for bounded local batching, loops, or result reshaping. It is optional and must not bypass direct-tool validation or mail workflow controls.
-
-## run_js JavaScript Patterns
+## Direct Tool Patterns
 - Submit snippets in the `code` field. The snippet is a plain JavaScript body;
   end with `return <json-serializable value>;` when you need a result.
 - Put source-code or edit payload strings in the optional `input` field,
@@ -32,7 +30,7 @@ Use the direct tools supplied by the runtime. Prefer atomic direct calls for ord
   large payloads.
 - Validate object shapes before loops or side effects. Do not call `run_js`
   recursively from inside `run_js`.
-- Prefer direct tools for file inspection, search, patching, overwrites, and shell validation. The remaining `run_js` rules apply only when its bounded orchestration is deliberately chosen.
+- Prefer direct tools for file inspection, search, patching, overwrites, and shell validation.
 - Use `tools.edit_tool("input_key")` for exact textual edits. Re-read the exact target block immediately before constructing the request. Each edit must use a specific, unique `find` anchor and default to `which: "only"`; use `delete`, not `replace` with empty text.
 - Batch only independent edits whose anchors exist in the same file snapshot and do not overlap. If one edit changes a later anchor, make it a separate mutation: apply one edit, re-read the changed block, then construct the next edit. Never retry `find text was not found` with the old request; re-read first. Treat a no-op as evidence that the file needs inspection, not as a mutation to repeat.
 - For shell validation, set `timeout_seconds` explicitly and use
