@@ -379,6 +379,7 @@ TEST(ToolExecutorTest, RegisteredToolSurfaceMatchesLockedCanonicalList) {
       "git_verify_series",
       "grep",
       "list_directory",
+      "patch_tool",
       "persist_function",
       "query_db",
       "read_file",
