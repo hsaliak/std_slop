@@ -26,6 +26,10 @@ class MockHttpClient : public HttpClient {
  public:
   MOCK_METHOD(absl::StatusOr<std::string>, Post,
               (const std::string& url, const std::string& body, const std::vector<std::string>& headers), (override));
+  MOCK_METHOD(absl::StatusOr<std::string>, PostStream,
+              (const std::string& url, const std::string& body, const std::vector<std::string>& headers,
+               ChunkCallback on_chunk),
+              (override));
 };
 
 class InteractionEngineTest : public ::testing::Test {
@@ -86,7 +90,7 @@ TEST_F(InteractionEngineTest, QueryIsolationTest) {
   InteractionEngine::Config config;
   config.silent = true;
 
-  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(ResponsesResponse("The answer is 42").dump()));
 
   auto result = engine.Query("What is the answer?", config);
@@ -105,7 +109,7 @@ TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
   InteractionEngine::Config config;
   config.silent = true;
 
-  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(ResponsesToolCall("query_db", {{"sql", "SELECT 1"}}).dump()))
       .WillOnce(testing::Return(ResponsesResponse("The result is 1").dump()));
 
@@ -131,7 +135,7 @@ TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
   options.execution_scope = InteractionEngine::QueryOptions::ExecutionScope::kSubquery;
   options.execution_depth = 1;
 
-  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
       .WillOnce(testing::DoAll(
           testing::WithArg<1>([](const std::string& body) {
             auto body_json = nlohmann::json::parse(body);
@@ -192,7 +196,7 @@ TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   InteractionEngine::Config config;
   config.silent = true;
 
-  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(ResponsesResponse("legacy").dump()));
 
   auto result = engine.Query("Legacy query", config);
@@ -204,6 +208,40 @@ TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   EXPECT_TRUE(history->empty());
 }
 
+TEST_F(InteractionEngineTest, QueryUsesStreamingResponsesTransport) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+  auto orchestrator_or = Orchestrator::Builder(&db, &mock_http)
+                             .WithModel("gpt-5.3-codex")
+                             .WithBaseUrl(kOpenAiChatGptCodexBaseUrl)
+                             .Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  orchestrator = std::move(*orchestrator_or);
+  auto command_handler_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "");
+  ASSERT_TRUE(command_handler_or.ok());
+  cmd_handler = std::move(*command_handler_or);
+  InteractionEngine streaming_engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor,
+                                     mock_http, nullptr);
+  const std::string response =
+      "data: {\"type\":\"response.output_text.delta\",\"delta\":\"streamed\"}\n\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\","
+      "\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n";
+
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce(testing::Invoke([&response](const std::string&, const std::string&, const std::vector<std::string>&,
+                                            HttpClient::ChunkCallback on_chunk) {
+        EXPECT_TRUE(on_chunk(response.substr(0, 40)).ok());
+        EXPECT_TRUE(on_chunk(response.substr(40)).ok());
+        return absl::StatusOr<std::string>(response);
+      }));
+
+  auto result = streaming_engine.Query("Stream", config);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(*result, "streamed");
+}
+
 TEST_F(InteractionEngineTest, ErrorHandlingTest) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);
@@ -211,7 +249,7 @@ TEST_F(InteractionEngineTest, ErrorHandlingTest) {
   InteractionEngine::Config config;
   config.silent = true;
 
-  EXPECT_CALL(mock_http, Post(testing::_, testing::_, testing::_))
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(absl::InternalError("Network Error")));
 
   auto result = engine.Query("This will fail", config);
@@ -256,7 +294,7 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
   config.openai_oauth = true;
   config.openai_base_url = kOpenAiChatGptCodexBaseUrl;
 
-  EXPECT_CALL(mock_http, Post(testing::Eq("https://chatgpt.com/backend-api/codex/responses"), testing::_, testing::_))
+  EXPECT_CALL(mock_http, PostStream(testing::Eq("https://chatgpt.com/backend-api/codex/responses"), testing::_, testing::_, testing::_))
       .WillOnce(testing::DoAll(
           testing::WithArg<2>([](const std::vector<std::string>& headers) {
             bool has_auth = false;
@@ -268,7 +306,8 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
             EXPECT_TRUE(has_auth);
             EXPECT_TRUE(has_account);
           }),
-          testing::Return(R"({"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]})")));
+          testing::Return("data: {\"type\":\"response.output_text.done\",\"text\":\"ok\"}\n\n"
+                          "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\"}}\n\n")));
 
   auto result = engine.Query("ping", config);
   ASSERT_TRUE(result.ok());

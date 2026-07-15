@@ -22,6 +22,7 @@
 #include "core/shell_util.h"
 #include "core/status_macros.h"
 #include "core/json_utils.h"
+#include "core/responses_event_decoder.h"
 #include "interface/color.h"
 #include "interface/renderer.h"
 #include "interface/terminal.h"
@@ -206,16 +207,35 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
     std::atomic<bool> http_done{false};
     absl::StatusOr<std::string> resp_or;
+    ResponsesEventDecoder responses_decoder;
 
     std::string post_url = url;
     std::string post_body = prompt_or->dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     std::vector<std::string> post_headers = headers;
+    const bool is_streaming_response = json_get_or(*prompt_or, "stream", false);
 
     AskState ask_state;
     install_ask_user_handler(ask_state);
 
     std::thread http_t([&]() {
-      resp_or = http_client_.Post(post_url, post_body, post_headers);
+      resp_or = http_client_.PostStream(post_url, post_body, post_headers, [&](absl::string_view chunk) {
+        if (!is_streaming_response) return absl::OkStatus();
+        auto events_or = responses_decoder.Feed(chunk);
+        return events_or.ok() ? absl::OkStatus() : events_or.status();
+      });
+      if (resp_or.ok() && is_streaming_response) {
+        auto final_events_or = responses_decoder.Finish();
+        if (!final_events_or.ok()) {
+          resp_or = final_events_or.status();
+        } else {
+          auto normalized = ResponsesEventDecoder::NormalizeSsePayload(*resp_or);
+          if (!normalized.has_value()) {
+            resp_or = absl::InvalidArgumentError("Failed to normalize Responses SSE payload");
+          } else {
+            resp_or = json_dump(*normalized);
+          }
+        }
+      }
       http_done = true;
     });
 
