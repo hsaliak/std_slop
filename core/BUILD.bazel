@@ -169,12 +169,14 @@ cc_library(
  "openai_utils.cpp",
  "orchestrator.cpp",
  "orchestrator_openai_responses.cpp",
+ "responses_event_decoder.cpp",
   ],
  hdrs = [
  "message_parser.h",
  "openai_utils.h",
  "orchestrator.h",
  "orchestrator_openai_responses.h",
+ "responses_event_decoder.h",
  "responses_types.h",
  ":generate_system_prompt",
  ],
@@ -264,6 +266,7 @@ cc_library(
   "orchestrator_test",
   "sha256_test",
  "orchestrator_openai_responses_test",
+ "responses_event_decoder_test",
  "tool_executor_test",
  "tool_typing_test",
  "oauth_handler_test",
@@ -396,6 +399,21 @@ cc_test(
  "@fuzztest//fuzztest",
  "@fuzztest//fuzztest:fuzztest_gtest_main",
  "@googletest//:gtest",],
+)
+
+cc_test(
+ name = "responses_event_decoder_fuzz_test",
+ srcs = ["responses_event_decoder_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ ":orchestration",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",
+ ],
 )
 
 format_test(
