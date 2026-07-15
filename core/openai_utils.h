@@ -11,7 +11,7 @@
 
 #include "core/database.h"
 #include "core/http_client.h"
-#include "core/orchestrator_strategy.h"
+#include "core/responses_types.h"
 
 namespace slop {
 

@@ -8,7 +8,7 @@
 #include "nlohmann/json.hpp"
 
 #include "core/database.h"
-#include "core/orchestrator_strategy.h"
+#include "core/responses_types.h"
 
 namespace slop {
 

@@ -1,19 +1,12 @@
-#ifndef SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
-#define SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
+#ifndef SLOP_CORE_RESPONSES_TYPES_H_
+#define SLOP_CORE_RESPONSES_TYPES_H_
 
 #include <optional>
 #include <string>
-#include <vector>
 
-#include "absl/status/statusor.h"
-
-#include "core/database.h"
-
-#include <nlohmann/json.hpp>
+#include "nlohmann/json.hpp"
 
 namespace slop {
-
-class Orchestrator;  // Forward declaration
 
 struct ToolCall {
   std::string id;
@@ -32,7 +25,6 @@ struct ResponseUsage {
   std::optional<int> cached_input_tokens;
 };
 
-
 }  // namespace slop
 
-#endif  // SLOP_SQL_ORCHESTRATOR_STRATEGY_H_
+#endif  // SLOP_CORE_RESPONSES_TYPES_H_

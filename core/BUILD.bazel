@@ -175,7 +175,7 @@ cc_library(
  "openai_utils.h",
  "orchestrator.h",
  "orchestrator_openai_responses.h",
- "orchestrator_strategy.h",
+ "responses_types.h",
  ":generate_system_prompt",
  ],
  visibility = ["//visibility:public"],
