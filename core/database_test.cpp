@@ -127,10 +127,14 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(is_top_level("query_db"));
   EXPECT_TRUE(is_top_level("run_js"));
   EXPECT_TRUE(is_top_level("ask_user"));
-  EXPECT_FALSE(is_top_level("read_file"));
-  EXPECT_FALSE(is_top_level("execute_bash"));
-  EXPECT_FALSE(is_top_level("edit_tool"));
-  EXPECT_FALSE(is_top_level("write_file"));
+  EXPECT_TRUE(is_top_level("read_file"));
+  EXPECT_TRUE(is_top_level("list_directory"));
+  EXPECT_TRUE(is_top_level("grep"));
+  EXPECT_TRUE(is_top_level("execute_bash"));
+  EXPECT_TRUE(is_top_level("edit_tool"));
+  EXPECT_TRUE(is_top_level("write_file"));
+  EXPECT_TRUE(is_top_level("git_commit_patch"));
+  EXPECT_TRUE(is_top_level("git_finalize_series"));
   EXPECT_FALSE(is_top_level("persist_function"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("read_file"));
   EXPECT_TRUE(*db.IsRunJsCallableTool("execute_bash"));

@@ -184,7 +184,7 @@ TEST(OpenAiUtilsTest, BuildOpenAiToolsNormalizesObjectSchemasWithProperties) {
   EXPECT_TRUE(parameters.contains("properties"));
 }
 
-TEST(OpenAiUtilsTest, BuildOpenAiToolsExcludesRunJsOnlyOperationalTools) {
+TEST(OpenAiUtilsTest, BuildOpenAiToolsIncludesDirectOperationalTools) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
@@ -199,12 +199,14 @@ TEST(OpenAiUtilsTest, BuildOpenAiToolsExcludesRunJsOnlyOperationalTools) {
   };
 
   EXPECT_TRUE(contains_tool("query_db"));
-  EXPECT_FALSE(contains_tool("read_file"));
-  EXPECT_FALSE(contains_tool("list_directory"));
-  EXPECT_FALSE(contains_tool("grep"));
-  EXPECT_FALSE(contains_tool("write_file"));
-  EXPECT_FALSE(contains_tool("edit_tool"));
-  EXPECT_FALSE(contains_tool("execute_bash"));
+  EXPECT_TRUE(contains_tool("read_file"));
+  EXPECT_TRUE(contains_tool("list_directory"));
+  EXPECT_TRUE(contains_tool("grep"));
+  EXPECT_TRUE(contains_tool("write_file"));
+  EXPECT_TRUE(contains_tool("edit_tool"));
+  EXPECT_TRUE(contains_tool("execute_bash"));
+  EXPECT_TRUE(contains_tool("git_commit_patch"));
+  EXPECT_TRUE(contains_tool("git_finalize_series"));
 }
 
 }  // namespace slop
