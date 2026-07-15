@@ -318,19 +318,6 @@ TEST(UiTest, FormatAssembledContextFormatsOpenAiRunJsCode) {
   EXPECT_FALSE(absl::StrContains(output, "\"code\""));
 }
 
-TEST(UiTest, FormatAssembledContextFormatsResponsesRunJsCode) {
-  const std::string context =
-      R"({"contents":[{"role":"model","parts":[{"functionCall":{"name":"run_js","args":{"code":"const files = tools.list_directory({ path: '.', depth: 1, include_ignored: false });\nreturn { files };"}}}]}]})";
-
-  const std::string output = FormatAssembledContext(context);
-
-  EXPECT_TRUE(absl::StrContains(output, "Tool Call: run_js"));
-  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
-  EXPECT_TRUE(absl::StrContains(output, "tools.list_directory"));
-  EXPECT_TRUE(absl::StrContains(output, "return { files };"));
-  EXPECT_FALSE(absl::StrContains(output, "\"code\""));
-}
-
 TEST(UiTest, FormatAssembledContextKeepsNonRunJsToolArgumentsAsJson) {
   const std::string context =
       R"({"messages":[{"role":"assistant","tool_calls":[{"function":{"name":"read_file","arguments":"{\"path\":\"AGENTS.md\",\"start_line\":1,\"end_line\":2}"}}]}]})";

@@ -35,11 +35,10 @@ class MessageContext {
   void EnsureParsed() const;
 };
 
-// Shared utility for extracting tool calls from Database::Message objects
-// regardless of the underlying JSON format (OpenAI vs Gemini).
+// Shared utility for extracting tool calls from Responses-format Database::Message objects.
 class MessageParser {
  public:
-  // Extracts ToolCall objects from a message based on its parsing_strategy.
+  // Extracts ToolCall objects from a Responses-format message.
   static absl::StatusOr<std::vector<ToolCall>> ExtractToolCalls(const MessageContext& ctx);
 
   // Extracts any assistant text content from a JSON-encoded tool_call message.

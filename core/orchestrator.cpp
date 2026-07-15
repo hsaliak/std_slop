@@ -204,15 +204,10 @@ absl::StatusOr<std::vector<Database::Message>> Orchestrator::GetAccordionHistory
   const std::set<std::string> selected_groups(group_ids.begin(), group_ids.end());
   std::vector<Database::Message> history;
   history.reserve(all_messages.size());
-  const std::string current_strategy = "openai";
   for (auto& message : all_messages) {
-    const bool tool_related = message.role == "tool" || message.status == "tool_call";
-    const bool strategy_matches = message.parsing_strategy.empty() || message.parsing_strategy == current_strategy ||
-                                  (current_strategy == "gemini_gca" && message.parsing_strategy == "gemini") ||
-                                  (current_strategy == "gemini" && message.parsing_strategy == "gemini_gca");
     const bool in_selected_epoch = selected_groups.empty() ||
                                    selected_groups.find(message.group_id) != selected_groups.end();
-    if (in_selected_epoch && (!tool_related || strategy_matches)) history.push_back(std::move(message));
+    if (in_selected_epoch) history.push_back(std::move(message));
   }
   last_selected_groups_ = std::move(group_ids);
   return history;

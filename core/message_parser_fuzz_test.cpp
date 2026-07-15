@@ -87,11 +87,11 @@ FUZZ_TEST(MessageParserFuzzTest, ExtractToolCallsIsTotal);
 
 FUZZ_TEST(MessageParserFuzzTest, NonToolCallAssistantTextPassesThrough)
     .WithDomains(fuzztest::Arbitrary<std::string>(),
-                 fuzztest::ElementOf<std::string>({"openai", "gemini", "gemini_gca", "unknown", ""}));
+                 fuzztest::ElementOf<std::string>({"openai", "unknown", ""}));
 
 FUZZ_TEST(MessageParserFuzzTest, ToolCallAssistantTextMatchesJsonContent)
     .WithDomains(fuzztest::InRegexp("[\\x20-\\x7E]{0,128}"),
-                 fuzztest::ElementOf<std::string>({"openai", "gemini", "gemini_gca", "unknown", ""}),
+                 fuzztest::ElementOf<std::string>({"openai", "unknown", ""}),
                  fuzztest::InRegexp("[\\x20-\\x7E]{0,128}"));
 
 FUZZ_TEST(MessageParserFuzzTest, OpenAiFunctionCallsExtracted)

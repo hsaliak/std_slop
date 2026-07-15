@@ -452,66 +452,19 @@ TEST_F(OrchestratorTest, ParseToolCallsOpenAI) {
   EXPECT_EQ((*tcs_or)[0].name, "execute_bash");
   EXPECT_EQ((*tcs_or)[0].args["command"], "ls");
 }
-TEST_F(OrchestratorTest, HistoryFiltering) {
-  auto gemini_or = Orchestrator::Builder(&db, &http).Build();
-  ASSERT_TRUE(gemini_or.ok());
-  auto gemini = std::move(*gemini_or);
-  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello", "", "completed", "g0").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "Gemini msg", "", "completed", "g1", "openai").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "OpenAI msg", "", "completed", "g2", "openai").ok());
-  auto hist_or = gemini->GetAccordionHistory("s1");
-  ASSERT_TRUE(hist_or.ok());
-  // Both Gemini and OpenAI text assistant messages are kept now.
-  EXPECT_EQ(hist_or->size(), 3);
-  EXPECT_EQ((*hist_or)[0].content, "Hello");
-  EXPECT_EQ((*hist_or)[1].content, "Gemini msg");
-  EXPECT_EQ((*hist_or)[2].content, "OpenAI msg");
-  auto openai_or = Orchestrator::Builder(&db, &http).Build();
-  ASSERT_TRUE(openai_or.ok());
-  auto openai = std::move(*openai_or);
-  hist_or = openai->GetAccordionHistory("s1");
-  ASSERT_TRUE(hist_or.ok());
-  // Both kept.
-  EXPECT_EQ(hist_or->size(), 3);
-  EXPECT_EQ((*hist_or)[0].content, "Hello");
-  EXPECT_EQ((*hist_or)[1].content, "Gemini msg");
-  EXPECT_EQ((*hist_or)[2].content, "OpenAI msg");
-}
-TEST_F(OrchestratorTest, ToolResultFiltering) {
-  auto gemini_or = Orchestrator::Builder(&db, &http).Build();
-  ASSERT_TRUE(gemini_or.ok());
-  auto gemini = std::move(*gemini_or);
-  ASSERT_TRUE(db.AppendMessage("s1", "user", "Run tool", "", "completed", "g0").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "call", "my_tool", "tool_call", "g1", "openai").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "tool", "result", "my_tool", "completed", "g1", "openai").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "call", "other_tool", "tool_call", "g2", "openai").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "tool", "result", "other_tool", "completed", "g2", "openai").ok());
-  auto hist_or = gemini->GetAccordionHistory("s1");
-  ASSERT_TRUE(hist_or.ok());
-  // All messages kept (no cross-provider filtering)
-  EXPECT_EQ(hist_or->size(), 5);
-}
-TEST_F(OrchestratorTest, CrossProviderMessagePreservation) {
-  // 1. Start with first provider
-  auto gemini_or = Orchestrator::Builder(&db, &http).Build();
-  ASSERT_TRUE(gemini_or.ok());
-  auto gemini = std::move(*gemini_or);
-  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello", "", "completed", "g0").ok());
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "I am assistant", "", "completed", "g1", "openai").ok());
-  // 2. Switch provider
-  auto openai_or = Orchestrator::Builder(&db, &http).Build();
-  ASSERT_TRUE(openai_or.ok());
-  auto openai = std::move(*openai_or);
-  auto hist_or = openai->GetAccordionHistory("s1");
-  ASSERT_TRUE(hist_or.ok());
-  // User "Hello" (text) and "I am assistant" (text assistant) should both be kept.
-  EXPECT_EQ(hist_or->size(), 2);
-  EXPECT_EQ((*hist_or)[0].content, "Hello");
-  EXPECT_EQ((*hist_or)[1].content, "I am assistant");
-  // 3. Add a Gemini Tool Call (should be filtered for OpenAI)
-  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "{}", "tool_1", "tool_call", "g2", "openai").ok());
-  hist_or = openai->GetAccordionHistory("s1");
-  ASSERT_EQ(hist_or->size(), 3);  // Still 2
+TEST_F(OrchestratorTest, AccordionHistoryRetainsResponsesToolCallsAndOutputs) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Run tool", "", "completed", "g1").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "call", "my_tool", "tool_call", "g1", "unknown").ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "tool", "result", "my_tool", "completed", "g1", "unknown").ok());
+
+  auto history_or = orchestrator->GetAccordionHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 3);
+  EXPECT_EQ((*history_or)[1].status, "tool_call");
+  EXPECT_EQ((*history_or)[2].role, "tool");
 }
 TEST_F(OrchestratorTest, ProcessResponseExtractsUsage) {
   auto orchestrator_or =

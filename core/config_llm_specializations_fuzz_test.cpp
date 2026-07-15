@@ -79,7 +79,7 @@ skill = code_reviewer
 FUZZ_TEST(ConfigLlmSpecializationsFuzzTest, ParseSpecializationsDeterministic)
     .WithSeeds(std::vector<std::tuple<std::string>>{
         std::make_tuple(std::string("")),
-        std::make_tuple(std::string("[slop]\nmodel = gemini-2.0-flash\n")),
+        std::make_tuple(std::string("[slop]\nmodel = gpt-4.1\n")),
         std::make_tuple(std::string("[llm_tool_explorer]\nsystem_prompt_patch = x\nsession_id = y\nskill = z\n")),
     });
 

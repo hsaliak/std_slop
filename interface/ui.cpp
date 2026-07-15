@@ -335,55 +335,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
   std::stringstream ss;
   ss << "# Assembled Context\n\n";
 
-  // Handle Gemini format (system_instruction + contents)
-  if (json_at(j, "system_instruction") || json_at(j, "contents")) {
-    if (const auto* sys_instr = json_at(j, "system_instruction")) {
-      ss << "## " << icons::Robot << " System Instruction\n\n";
-      if (auto parts = json_get<nlohmann::json::array_t>(*sys_instr, "parts")) {
-        for (const auto& part : *parts) {
-          if (auto text = json_get<std::string>(part, "text")) {
-            ss << *text << "\n\n";
-          }
-        }
-      }
-    }
-
-    if (auto contents = json_get<nlohmann::json::array_t>(j, "contents")) {
-      for (const auto& item : *contents) {
-        std::string role = json_get_or(item, "role", std::string("unknown"));
-        ss << "## " << (role == "user" ? icons::Input : icons::Robot) << " Role: " << role << "\n\n";
-        if (auto parts = json_get<nlohmann::json::array_t>(item, "parts")) {
-          for (const auto& part : *parts) {
-            if (auto text = json_get<std::string>(part, "text")) {
-              ss << *text << "\n\n";
-            }
-            if (const auto* fc = json_at(part, "functionCall")) {
-              std::string name = json_get_or(*fc, "name", std::string("unknown"));
-              ss << "### " << icons::Tool << " Tool Call: " << name << "\n\n";
-              if (const auto* args = json_at(*fc, "args")) {
-                if (name == "run_js") {
-                  if (auto code = RunJsCodeFromArgs(*args)) {
-                    AppendRunJsCodeBlock(ss, *code);
-                  }
-                } else {
-                  ss << "```json\n" << args->dump(2) << "\n```\n\n";
-                }
-              }
-            }
-            if (const auto* fr = json_at(part, "functionResponse")) {
-              std::string name = json_get_or(*fr, "name", std::string("unknown"));
-              ss << "### " << icons::Tool << " Tool Result: " << name << "\n\n";
-              if (const auto* response = json_at(*fr, "response")) {
-                ss << "```\n" << response->dump(2) << "\n```\n\n";
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  // Handle OpenAI format (messages)
-  else if (auto messages = json_get<nlohmann::json::array_t>(j, "messages")) {
+  if (auto messages = json_get<nlohmann::json::array_t>(j, "messages")) {
     for (const auto& msg : *messages) {
       std::string role = json_get_or(msg, "role", std::string("unknown"));
       ss << "## " << (role == "user" ? icons::Input : (role == "system" ? icons::Info : icons::Robot))
