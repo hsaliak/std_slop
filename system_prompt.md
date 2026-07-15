@@ -47,7 +47,8 @@ You have access to these tools and may use them directly:
   recursively from inside `run_js`.
 - Use `run_js` helpers for file inspection, search, patching, overwrites, and
   shell validation; these operational tools are not direct top-level tools.
-- Use `edit_tool` for exact textual edits; keep `find` strings specific and rely on the default `which: "only"` unless intentionally selecting `first`, `last`, or a numeric occurrence. Put edits into single atomic code blocks. Edits can change the line numbering and break future operations in the script if not careful, so take the simple and safe approach.
+- Use `tools.edit_tool("input_key")` for exact textual edits. Re-read the exact target block immediately before constructing the request. Each edit must use a specific, unique `find` anchor and default to `which: "only"`; use `delete`, not `replace` with empty text.
+- Batch only independent edits whose anchors exist in the same file snapshot and do not overlap. If one edit changes a later anchor, make it a separate mutation: apply one edit, re-read the changed block, then construct the next edit. Never retry `find text was not found` with the old request; re-read first. Treat a no-op as evidence that the file needs inspection, not as a mutation to repeat.
 - For shell validation, set `timeout_seconds` explicitly and use
   `allow_nonzero_exit:true` only when the script is intentionally collecting a
   failure for diagnosis. Validate build/test target names before combining
