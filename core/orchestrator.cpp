@@ -91,7 +91,26 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   std::string system_instruction = BuildSystemInstructions(session_id);
   InjectAgentMd(&system_instruction);
   InjectSkillsSummary(&system_instruction);
-  auto payload_or = responses_->AssemblePayload(session_id, system_instruction, history, active_skills);
+  ASSIGN_OR_RETURN(auto enabled_tools, db_->GetTopLevelTools());
+  std::string active_skill_content;
+  if (!active_skills.empty()) {
+    ASSIGN_OR_RETURN(auto skills, db_->GetSkills());
+    std::map<std::string, const Database::Skill*> skills_by_name;
+    for (const auto& skill : skills) {
+      skills_by_name.emplace(skill.name, &skill);
+    }
+    active_skill_content = "## Active Personas & Skills\n";
+    for (const auto& active_name : active_skills) {
+      const auto skill_it = skills_by_name.find(active_name);
+      if (skill_it != skills_by_name.end()) {
+        absl::StrAppend(&active_skill_content, "### Skill: ", skill_it->second->name, "\n",
+                        skill_it->second->system_prompt_patch, "\n");
+      }
+    }
+  }
+  ResponsesRequestInput request{system_instruction, std::move(history), std::move(enabled_tools),
+                                std::move(active_skill_content)};
+  auto payload_or = responses_->BuildRequest(request);
   if (payload_or.ok() && std::getenv("SLOP_TOOL_DEBUG")) {
     LOG(INFO) << "--- ASSEMBLED PROMPT ---\n" << payload_or->dump(2) << "\n--- END PROMPT ---";
   }
@@ -101,7 +120,26 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePayload(const std::string& 
                                                             const std::string& system_instruction,
                                                             const std::vector<Database::Message>& history,
                                                             const std::vector<std::string>& active_skills) {
-  return responses_->AssemblePayload(session_id, system_instruction, history, active_skills);
+  (void)session_id;
+  ASSIGN_OR_RETURN(auto enabled_tools, db_->GetTopLevelTools());
+  std::string active_skill_content;
+  if (!active_skills.empty()) {
+    ASSIGN_OR_RETURN(auto skills, db_->GetSkills());
+    std::map<std::string, const Database::Skill*> skills_by_name;
+    for (const auto& skill : skills) {
+      skills_by_name.emplace(skill.name, &skill);
+    }
+    active_skill_content = "## Active Personas & Skills\n";
+    for (const auto& active_name : active_skills) {
+      const auto skill_it = skills_by_name.find(active_name);
+      if (skill_it != skills_by_name.end()) {
+        absl::StrAppend(&active_skill_content, "### Skill: ", skill_it->second->name, "\n",
+                        skill_it->second->system_prompt_patch, "\n");
+      }
+    }
+  }
+  return responses_->BuildRequest(
+      {system_instruction, history, std::move(enabled_tools), std::move(active_skill_content)});
 }
 absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                   const std::string& group_id) {

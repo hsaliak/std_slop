@@ -232,11 +232,9 @@ OpenAiResponsesOrchestrator::OpenAiResponsesOrchestrator(Database* db, HttpClien
                                                          const std::string& model, const std::string& base_url)
     : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {}
 
-absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
-    const std::string& session_id, const std::string& system_instruction,
-    const std::vector<Database::Message>& history,
-    const std::vector<std::string>& active_skills) {
-  (void)session_id;
+absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const ResponsesRequestInput& request) {
+  const std::string& system_instruction = request.system_instruction;
+  const std::vector<Database::Message>& history = request.history;
   const auto model_selection_or = ParseResponsesModelSelection(model_);
   if (!model_selection_or.ok()) {
     return model_selection_or.status();
@@ -245,7 +243,7 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
 
   nlohmann::json input = nlohmann::json::array();
 
-  const auto enabled_tool_names = GetEnabledToolNames(db_);
+  const auto enabled_tool_names = GetEnabledToolNames(request.enabled_tools);
 
   for (size_t i = 0; i < history.size(); ++i) {
     const auto& msg = history[i];
@@ -303,32 +301,12 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
     input.push_back({{"role", msg.role}, {"content", display_content}});
   }
 
-  // Active skill patches are emitted as a system-role input item after history
-  // but before the current user message. This keeps the instructions prefix stable
-  // for server-side prompt caching when skills change.
-  if (!active_skills.empty()) {
-    auto all_skills_or = db_->GetSkills();
-    if (all_skills_or.ok()) {
-      std::map<std::string, const Database::Skill*> skills_by_name;
-      for (const auto& skill : *all_skills_or) {
-        skills_by_name.emplace(skill.name, &skill);
-      }
-      std::string skill_content = "## Active Personas & Skills\n";
-      for (const auto& active_name : active_skills) {
-        auto skill_it = skills_by_name.find(active_name);
-        if (skill_it != skills_by_name.end()) {
-          const auto& skill = *skill_it->second;
-          absl::StrAppend(&skill_content, "### Skill: ", skill.name, "\n", skill.system_prompt_patch, "\n");
-        }
-      }
-      nlohmann::json skill_item = {{"role", "system"}, {"content", skill_content}};
-      if (!input.empty()) {
-        input.insert(input.end() - 1, skill_item);
-      } else {
-        input.push_back(skill_item);
-      }
+  if (!request.active_skill_content.empty()) {
+    nlohmann::json skill_item = {{"role", "system"}, {"content", request.active_skill_content}};
+    if (!input.empty()) {
+      input.insert(input.end() - 1, skill_item);
     } else {
-      LOG(WARNING) << "Failed to load skills for active skill patches: " << all_skills_or.status();
+      input.push_back(skill_item);
     }
   }
 
@@ -340,7 +318,7 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
     payload["reasoning"] = {{"effort", model_selection.reasoning_effort}, {"summary", "auto"}};
     payload["stream"] = true;
   }
-  const nlohmann::json tools = BuildOpenAiResponsesTools(db_);
+  const nlohmann::json tools = BuildOpenAiResponsesTools(request.enabled_tools);
   if (!tools.empty()) {
     payload["tools"] = tools;
   }
@@ -366,7 +344,7 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::AssemblePayload(
   if (IsDebugToolsEnabled()) {
     const size_t input_count = input.is_array() ? input.size() : 0;
     const size_t tools_count = tools.is_array() ? tools.size() : 0;
-    LOG(INFO) << "[tool_debug] Responses AssemblePayload session=" << session_id << " model=" << model_
+    LOG(INFO) << "[tool_debug] Responses BuildRequest model=" << model_
               << " input_items=" << input_count << " tools=" << tools_count
               << " stream=" << json_get_or(payload, "stream", false);
   }

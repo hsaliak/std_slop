@@ -128,11 +128,17 @@ TEST(OpenAiUtilsTest, GetOpenAiModelsFailsForUnrecognizedSchema) {
   EXPECT_TRUE(absl::StrContains(models_or.status().message(), "Unrecognized models response schema"));
 }
 
+nlohmann::json BuildOpenAiResponsesToolsFromDatabase(Database* db) {
+  auto tools_or = db->GetTopLevelTools();
+  EXPECT_TRUE(tools_or.ok());
+  return tools_or.ok() ? BuildOpenAiResponsesTools(*tools_or) : nlohmann::json::array();
+}
+
 TEST(OpenAiUtilsTest, BuildOpenAiToolsNormalizesArraySchemasWithItems) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
-  auto tools = BuildOpenAiResponsesTools(&db);
+  auto tools = BuildOpenAiResponsesToolsFromDatabase(&db);
   ASSERT_TRUE(tools.is_array());
 
   nlohmann::json query_db_tool;
@@ -157,7 +163,7 @@ TEST(OpenAiUtilsTest, BuildOpenAiToolsNormalizesObjectSchemasWithProperties) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
-  auto tools = BuildOpenAiResponsesTools(&db);
+  auto tools = BuildOpenAiResponsesToolsFromDatabase(&db);
   ASSERT_TRUE(tools.is_array());
 
   nlohmann::json describe_tool;
@@ -182,7 +188,7 @@ TEST(OpenAiUtilsTest, BuildOpenAiToolsExcludesRunJsOnlyOperationalTools) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
 
-  auto tools = BuildOpenAiResponsesTools(&db);
+  auto tools = BuildOpenAiResponsesToolsFromDatabase(&db);
   ASSERT_TRUE(tools.is_array());
 
   auto contains_tool = [&](const std::string& name) {

@@ -4,6 +4,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
 #include "core/database.h"
 #include "core/http_client.h"
@@ -13,6 +14,31 @@
 
 namespace slop {
 
+absl::StatusOr<nlohmann::json> BuildRequest(OpenAiResponsesOrchestrator& orchestrator, Database& db,
+                                             const std::string& session_id, const std::string& system_instruction,
+                                             const std::vector<Database::Message>& history,
+                                             const std::vector<std::string>& active_skills) {
+  (void)session_id;
+  auto tools_or = db.GetTopLevelTools();
+  if (!tools_or.ok()) return tools_or.status();
+  std::string active_skill_content;
+  if (!active_skills.empty()) {
+    auto skills_or = db.GetSkills();
+    if (!skills_or.ok()) return skills_or.status();
+    active_skill_content = "## Active Personas & Skills\n";
+    for (const auto& active_name : active_skills) {
+      for (const auto& skill : *skills_or) {
+        if (skill.name == active_name) {
+          absl::StrAppend(&active_skill_content, "### Skill: ", skill.name, "\n", skill.system_prompt_patch, "\n");
+          break;
+        }
+      }
+    }
+  }
+  return orchestrator.BuildRequest(
+      {system_instruction, history, std::move(*tools_or), std::move(active_skill_content)});
+}
+
 class OpenAiResponsesOrchestratorTest : public ::testing::Test {
  protected:
   Database db;
@@ -20,6 +46,22 @@ class OpenAiResponsesOrchestratorTest : public ::testing::Test {
 
   void SetUp() override { ASSERT_TRUE(db.Init(":memory:").ok()); }
 };
+
+TEST_F(OpenAiResponsesOrchestratorTest, BuildRequestDoesNotReadDatabase) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  Database::Message user{0, "s1", "user", "Hello", "", "completed", "", "g1", "", 0};
+  Database::Tool tool{"read_file", "Read a file", R"({"type":"object"})", true};
+
+  auto payload_or = orchestrator.BuildRequest({"System prompt", {user}, {tool}, "Skill patch"});
+
+  ASSERT_TRUE(payload_or.ok());
+  EXPECT_EQ(json_get_or(*payload_or, "instructions", std::string{}), "System prompt");
+  ASSERT_EQ((*payload_or)["input"].size(), 2);
+  EXPECT_EQ(json_get_or((*payload_or)["input"][0], "role", std::string{}), "system");
+  EXPECT_EQ(json_get_or((*payload_or)["input"][1], "role", std::string{}), "user");
+  ASSERT_EQ((*payload_or)["tools"].size(), 1);
+  EXPECT_EQ(json_get_or((*payload_or)["tools"][0], "name", std::string{}), "read_file");
+}
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   ASSERT_TRUE(db.RegisterTool({"query_db", "Query database",
@@ -30,7 +72,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {});
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "System prompt", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -56,7 +98,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndR
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex", "https://chatgpt.com/backend-api/codex");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or, {});
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "Codex system instructions", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -74,7 +116,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesReasoningFromModelSuf
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex:low", "https://chatgpt.com/backend-api/codex");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or, {});
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "Codex system instructions", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -89,7 +131,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadRejectsInvalidReasoningSu
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex:ultra", "https://chatgpt.com/backend-api/codex");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "Codex system instructions", *history_or, {});
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "Codex system instructions", *history_or, {});
   ASSERT_FALSE(payload_or.ok());
   EXPECT_EQ(payload_or.status().code(), absl::StatusCode::kInvalidArgument);
 }
@@ -104,7 +146,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadAppendsActiveSkillsToInpu
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {"second", "first"});
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "System prompt", *history_or, {"second", "first"});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -131,7 +173,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsSkillSectionWhenNoAc
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {});
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "System prompt", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
 
   const auto& payload = *payload_or;
@@ -153,14 +195,14 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyStableAcrossSkill
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
 
-  auto with_first = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {"first"});
+  auto with_first = BuildRequest(orchestrator, db, "s1", "System prompt", *history_or, {"first"});
   ASSERT_TRUE(with_first.ok());
   ASSERT_TRUE(with_first->contains("prompt_cache_key"));
   std::string key_with_first = json_get_or(*with_first, "prompt_cache_key", std::string{});
   EXPECT_TRUE(absl::StartsWith(key_with_first, "slop:"));
   EXPECT_EQ(key_with_first.size(), 69);  // "slop:" (5) + 64 hex chars
 
-  auto with_second = orchestrator.AssemblePayload("s1", "System prompt", *history_or, {"second"});
+  auto with_second = BuildRequest(orchestrator, db, "s1", "System prompt", *history_or, {"second"});
   ASSERT_TRUE(with_second.ok());
   std::string key_with_second = json_get_or(*with_second, "prompt_cache_key", std::string{});
 
@@ -175,12 +217,12 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyChangesWithDiffer
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
 
-  auto payload_a = orchestrator.AssemblePayload("s1", "Instructions A", *history_or, {});
+  auto payload_a = BuildRequest(orchestrator, db, "s1", "Instructions A", *history_or, {});
   ASSERT_TRUE(payload_a.ok());
   ASSERT_TRUE(payload_a->contains("prompt_cache_key"));
   std::string key_a = json_get_or(*payload_a, "prompt_cache_key", std::string{});
 
-  auto payload_b = orchestrator.AssemblePayload("s1", "Instructions B", *history_or, {});
+  auto payload_b = BuildRequest(orchestrator, db, "s1", "Instructions B", *history_or, {});
   ASSERT_TRUE(payload_b.ok());
   std::string key_b = json_get_or(*payload_b, "prompt_cache_key", std::string{});
 
@@ -193,7 +235,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsCacheKeyForEmptyInst
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = orchestrator.AssemblePayload("s1", "", *history_or, {});
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "", *history_or, {});
   ASSERT_TRUE(payload_or.ok());
   EXPECT_FALSE(payload_or->contains("prompt_cache_key"));
 }
@@ -210,7 +252,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyIdempotentAfterDb
   const std::string instruction = "Idempotent test instruction";
 
   // First payload — cache key derived from instruction.
-  auto first = orchestrator.AssemblePayload("s1", instruction, *history_or, {});
+  auto first = BuildRequest(orchestrator, db, "s1", instruction, *history_or, {});
   ASSERT_TRUE(first.ok());
   ASSERT_TRUE(first->contains("prompt_cache_key"));
   std::string key_first = json_get_or(*first, "prompt_cache_key", std::string{});
@@ -221,7 +263,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyIdempotentAfterDb
   ASSERT_TRUE(reloaded.ok());
   ASSERT_EQ(*reloaded, instruction);
 
-  auto second = orchestrator.AssemblePayload("s1", *reloaded, *history_or, {});
+  auto second = BuildRequest(orchestrator, db,"s1", *reloaded, *history_or, {});
   ASSERT_TRUE(second.ok());
   std::string key_second = json_get_or(*second, "prompt_cache_key", std::string{});
 

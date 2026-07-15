@@ -43,7 +43,9 @@ void BuildResponsesToolsNeverCrashes(const std::vector<std::string>& names, cons
     EXPECT_TRUE(db.RegisterTool(t).ok());
   }
 
-  const nlohmann::json out = BuildOpenAiResponsesTools(&db);
+  auto tools_or = db.GetTopLevelTools();
+  ASSERT_TRUE(tools_or.ok());
+  const nlohmann::json out = BuildOpenAiResponsesTools(*tools_or);
   EXPECT_TRUE(out.is_array());
   for (const auto& item : out) {
     EXPECT_TRUE(item.is_object());

@@ -7,14 +7,19 @@
 
 namespace slop {
 
+struct ResponsesRequestInput {
+  std::string system_instruction;
+  std::vector<Database::Message> history;
+  std::vector<Database::Tool> enabled_tools;
+  std::string active_skill_content;
+};
+
 class OpenAiResponsesOrchestrator {
  public:
   OpenAiResponsesOrchestrator(Database* db, HttpClient* http_client, const std::string& model,
                               const std::string& base_url);
 
-  absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
-                                                 const std::vector<Database::Message>& history,
-                                                 const std::vector<std::string>& active_skills);
+  absl::StatusOr<nlohmann::json> BuildRequest(const ResponsesRequestInput& input);
 
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id);

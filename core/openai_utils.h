@@ -15,9 +15,9 @@
 
 namespace slop {
 
-absl::flat_hash_set<std::string> GetEnabledToolNames(Database* db);
+absl::flat_hash_set<std::string> GetEnabledToolNames(const std::vector<Database::Tool>& tools);
 
-nlohmann::json BuildOpenAiResponsesTools(Database* db);
+nlohmann::json BuildOpenAiResponsesTools(const std::vector<Database::Tool>& tools);
 
 std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& response);
 std::optional<std::string> FormatCachedInputTokens(const ResponseUsage& usage);
