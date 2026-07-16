@@ -446,7 +446,13 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           install_ask_user_handler(ask_state);
 
           if (!config.silent) {
-            slop::PrintTurnStatus({TurnPhase::kRunningTools, "", 0, std::nullopt, absl::Now() - turn_started});
+            std::string detail;
+            if (dispatcher_calls.size() == 1) {
+              detail = dispatcher_calls.front().name;
+            } else {
+              detail = absl::StrCat(dispatcher_calls.size(), " tools");
+            }
+            slop::PrintTurnStatus({TurnPhase::kRunningTools, detail, 0, std::nullopt, absl::Now() - turn_started});
           }
           std::atomic<bool> done{false};
           std::thread t([&] {
@@ -489,6 +495,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             std::string result_content =
                 res.output.ok() ? *res.output : absl::StrCat("Error: ", res.output.status().message());
             if (!config.silent) {
+              slop::PrintTurnStatus({res.output.ok() ? TurnPhase::kRunningTools : TurnPhase::kFailed,
+                                     absl::StrCat(res.name, res.output.ok() ? " completed" : " failed"), 0,
+                                     std::nullopt, absl::Now() - turn_started});
               slop::PrintToolResultMessage(res.name, result_content, res.output.ok() ? "completed" : "error", "  ");
             }
             (void)db_.AppendMessage(session_id, "tool", result_content, res.id, res.output.ok() ? "completed" : "error",
