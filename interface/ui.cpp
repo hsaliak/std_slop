@@ -36,6 +36,7 @@ inline constexpr std::string_view kTool = "tool";
 #include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "nlohmann/json.hpp"
 
 #include "core/json_utils.h"
@@ -370,6 +371,61 @@ void PrintAssistantTextDelta(const std::string& text, const std::string& prefix)
   if (text.empty()) return;
   absl::MutexLock lock(g_ui_mu);
   std::cout << prefix << Colorize(text, "", ansi::Assistant) << std::flush;
+}
+
+std::string FormatTurnStatus(const TurnStatus& status) {
+  const char* phase = "Preparing context";
+  switch (status.phase) {
+    case TurnPhase::kPreparing:
+      phase = "Preparing context";
+      break;
+    case TurnPhase::kConnecting:
+      phase = "Connecting";
+      break;
+    case TurnPhase::kWaitingForModel:
+      phase = "Waiting for model";
+      break;
+    case TurnPhase::kReceiving:
+      phase = "Receiving";
+      break;
+    case TurnPhase::kRunningTools:
+      phase = "Running tool";
+      break;
+    case TurnPhase::kWaitingForFollowUp:
+      phase = "Waiting for follow-up";
+      break;
+    case TurnPhase::kCompleted:
+      phase = "Done";
+      break;
+    case TurnPhase::kFailed:
+      phase = "Failed";
+      break;
+    case TurnPhase::kCancelled:
+      phase = "Cancelled";
+      break;
+  }
+
+  std::string formatted = phase;
+  if (!status.detail.empty()) absl::StrAppend(&formatted, " · ", status.detail);
+  if (status.received_tokens > 0) absl::StrAppend(&formatted, " · ", status.received_tokens, " tokens");
+  if (status.usage.has_value()) {
+    const ResponseUsage& usage = *status.usage;
+    absl::StrAppend(&formatted, " · Input ", usage.input_tokens);
+    if (usage.cached_input_tokens.has_value() && usage.input_tokens > 0) {
+      const int cached_percentage = *usage.cached_input_tokens * 100 / usage.input_tokens;
+      absl::StrAppend(&formatted, " · Cached ", *usage.cached_input_tokens, " (", cached_percentage, "%)");
+    }
+    absl::StrAppend(&formatted, " · Output ", usage.output_tokens);
+  }
+  if (status.elapsed > absl::ZeroDuration()) {
+    absl::StrAppend(&formatted, " · ", absl::FormatDuration(status.elapsed));
+  }
+  return formatted;
+}
+
+void PrintTurnStatus(const TurnStatus& status) {
+  absl::MutexLock lock(g_ui_mu);
+  std::cout << "  " << Colorize(FormatTurnStatus(status), "", ansi::Metadata) << std::endl;
 }
 std::string FlattenJsonArgs(const std::string& json_str) {
   auto j_opt = json_parse(json_str);

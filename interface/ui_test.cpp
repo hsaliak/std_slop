@@ -132,6 +132,36 @@ TEST(UiTest, PrintAssistantTextDeltaPrintsOnlyNewText) {
   EXPECT_EQ(output.find("partial"), output.rfind("partial"));
 }
 
+TEST(UiTest, FormatTurnStatusIncludesCacheTelemetry) {
+  TurnStatus status;
+  status.phase = TurnPhase::kCompleted;
+  status.detail = "final response";
+  status.usage = ResponseUsage{1000, 200, 750};
+  status.elapsed = absl::Seconds(2);
+
+  const std::string formatted = FormatTurnStatus(status);
+  EXPECT_TRUE(absl::StrContains(formatted, "Done"));
+  EXPECT_TRUE(absl::StrContains(formatted, "Input 1000"));
+  EXPECT_TRUE(absl::StrContains(formatted, "Cached 750 (75%)"));
+  EXPECT_TRUE(absl::StrContains(formatted, "Output 200"));
+}
+
+TEST(UiTest, FormatTurnStatusRendersEveryPhase) {
+  const std::vector<std::pair<TurnPhase, std::string>> phases = {
+      {TurnPhase::kPreparing, "Preparing context"},       {TurnPhase::kConnecting, "Connecting"},
+      {TurnPhase::kWaitingForModel, "Waiting for model"},  {TurnPhase::kReceiving, "Receiving"},
+      {TurnPhase::kRunningTools, "Running tool"},          {TurnPhase::kWaitingForFollowUp, "Waiting for follow-up"},
+      {TurnPhase::kCompleted, "Done"},                     {TurnPhase::kFailed, "Failed"},
+      {TurnPhase::kCancelled, "Cancelled"},
+  };
+
+  for (const auto& [phase, expected] : phases) {
+    TurnStatus status;
+    status.phase = phase;
+    EXPECT_TRUE(absl::StrContains(FormatTurnStatus(status), expected));
+  }
+}
+
 TEST(UiTest, PrintToolCallMessageWithTokens) {
   std::string name = "test_tool";
   std::string args = R"({"query": "test"})";

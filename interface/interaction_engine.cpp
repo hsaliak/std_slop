@@ -172,6 +172,10 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   };
 
   bool context_overflow_retried = false;
+  const absl::Time turn_started = absl::Now();
+  if (!config.silent) {
+    slop::PrintTurnStatus({TurnPhase::kPreparing, "", 0, std::nullopt, absl::ZeroDuration()});
+  }
   while (true) {
     auto prompt_or = orchestrator_.AssemblePrompt(session_id, active_skills);
     if (!prompt_or.ok()) {
@@ -230,6 +234,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       }
     };
 
+    if (!config.silent) {
+      slop::PrintTurnStatus({TurnPhase::kConnecting, "", 0, std::nullopt, absl::Now() - turn_started});
+      slop::PrintTurnStatus({TurnPhase::kWaitingForModel, "", 0, std::nullopt, absl::Now() - turn_started});
+    }
+
     std::thread http_t([&]() {
       resp_or = http_client_.PostStream(post_url, post_body, post_headers, [&](absl::string_view chunk) {
         if (!is_streaming_response) return absl::OkStatus();
@@ -261,37 +270,29 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         raw = std::make_unique<slop::ScopedRawMode>();
       }
 
-      slop::AsyncAnimator animator;
-      if (!config.silent) animator.Start();
-
+      bool http_cancellation_announced = false;
+      bool receiving_announced = false;
       while (!http_done) {
         std::string stream_text;
         {
           absl::MutexLock lock(stream_text_mu);
           stream_text.swap(pending_stream_text);
         }
+        if (received_stream_text && !receiving_announced && !config.silent) {
+          receiving_announced = true;
+          slop::PrintTurnStatus({TurnPhase::kReceiving, "", 0, std::nullopt, absl::Now() - turn_started});
+        }
         if (!stream_text.empty() && !config.silent) {
-          animator.Stop();
           slop::PrintAssistantTextDelta(stream_text, "  ");
         }
         if (maybe_handle_ask_user_prompt(
-                ask_state,
-                [&]() {
-                  if (!config.silent) {
-                    animator.Stop();
-                    raw.reset();
-                  }
-                },
-                [&]() {
-                  if (!config.silent) {
-                    raw = std::make_unique<slop::ScopedRawMode>();
-                    animator.Start();
-                  }
-                })) {
+                ask_state, [&]() { raw.reset(); },
+                [&]() { raw = std::make_unique<slop::ScopedRawMode>(); })) {
           continue;
         }
-        if (!config.silent && slop::IsInterruptPressed()) {
-          animator.Stop();
+        if (!config.silent && !http_cancellation_announced && slop::IsInterruptPressed()) {
+          http_cancellation_announced = true;
+          slop::PrintTurnStatus({TurnPhase::kCancelled, "", 0, std::nullopt, absl::Now() - turn_started});
           http_cancellation->Cancel();
           std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
         }
@@ -304,14 +305,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         final_stream_text.swap(pending_stream_text);
       }
       if (!final_stream_text.empty() && !config.silent) {
-        animator.Stop();
         slop::PrintAssistantTextDelta(final_stream_text, "  ");
       }
 
       // Cleanup handler
       tool_executor_.SetAskUserHandler(nullptr);
-
-      if (!config.silent) animator.Stop();
     }
     http_t.join();
     if (!resp_or.ok()) {
@@ -350,6 +348,10 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                     << "<watermark_tokens> with a watermark near 80% of model context capacity, or reduce retain groups."
                     << std::endl;
         }
+        if (!config.silent) {
+          slop::PrintTurnStatus({TurnPhase::kFailed, std::string(resp_or.status().message()), 0, std::nullopt,
+                                 absl::Now() - turn_started});
+        }
         slop::HandleStatus(resp_or.status(), "HTTP Error");
         if (config.openai_oauth && oauth_handler_ &&
             (absl::IsUnauthenticated(resp_or.status()) || absl::IsPermissionDenied(resp_or.status()))) {
@@ -363,6 +365,10 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     size_t start_idx = history_before_or.ok() ? history_before_or->size() : 0;
     auto process_or = orchestrator_.ProcessResponse(session_id, *resp_or, group_id);
     if (!process_or.ok()) {
+      if (!config.silent) {
+        slop::PrintTurnStatus({TurnPhase::kFailed, std::string(process_or.status().message()), 0, std::nullopt,
+                               absl::Now() - turn_started});
+      }
       slop::HandleStatus(process_or.status(), "Process Error");
       break;
     }
@@ -403,6 +409,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           AskState ask_state;
           install_ask_user_handler(ask_state);
 
+          if (!config.silent) {
+            slop::PrintTurnStatus({TurnPhase::kRunningTools, "", 0, std::nullopt, absl::Now() - turn_started});
+          }
           std::atomic<bool> done{false};
           std::thread t([&] {
             if (!dispatcher_calls.empty()) {
@@ -416,6 +425,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
             if (!config.silent) {
               raw = std::make_unique<slop::ScopedRawMode>();
             }
+            bool tool_cancellation_announced = false;
             while (!done) {
               if (maybe_handle_ask_user_prompt(
                       ask_state, [&]() { raw.reset(); },
@@ -425,7 +435,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
                         }
                       })) {
               } else {
-                if (!config.silent && slop::IsInterruptPressed()) {
+                if (!config.silent && !tool_cancellation_announced && slop::IsInterruptPressed()) {
+                  tool_cancellation_announced = true;
+                  slop::PrintTurnStatus({TurnPhase::kCancelled, "", 0, std::nullopt, absl::Now() - turn_started});
                   cancellation->Cancel();
                   std::cerr << "\n"
                             << "  " << slop::Colorize("[Esc/Ctrl-C] Cancellation requested...", "", ansi::Red)
@@ -451,10 +463,18 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       }
     }
     if (has_tool_calls) {
+      if (!config.silent) {
+        slop::PrintTurnStatus({TurnPhase::kWaitingForFollowUp, "", 0, orchestrator_.GetLastResponseUsage(),
+                               absl::Now() - turn_started});
+      }
       if (orchestrator_.GetThrottle() > 0) {
         std::this_thread::sleep_for(std::chrono::seconds(orchestrator_.GetThrottle()));
       }
       continue;  // Loop for next LLM turn
+    }
+    if (!config.silent) {
+      slop::PrintTurnStatus({TurnPhase::kCompleted, "", 0, orchestrator_.GetLastResponseUsage(),
+                             absl::Now() - turn_started});
     }
     break;
   }

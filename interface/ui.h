@@ -11,6 +11,7 @@
 #include "interface/animator.h"
 #include "interface/color.h"
 #include "interface/renderer.h"
+#include "interface/turn_status.h"
 
 namespace slop {
 
@@ -56,6 +57,8 @@ std::string FlattenJsonArgs(const std::string& json_str);
 void PrintAssistantMessage(const std::string& content, const std::string& prefix = "", int tokens = 0);
 // Prints one incremental assistant-text fragment without re-rendering prior fragments.
 void PrintAssistantTextDelta(const std::string& text, const std::string& prefix = "");
+std::string FormatTurnStatus(const TurnStatus& status);
+void PrintTurnStatus(const TurnStatus& status);
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix = "",
                           int tokens = 0);
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status = "completed",
