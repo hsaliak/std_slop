@@ -356,6 +356,22 @@ TEST_F(OpenAiResponsesOrchestratorTest, PreservesCompletedOutputItemsInMemory) {
   EXPECT_EQ(items[1].id, "msg_1");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ParsesToolCallsFromActiveOutputItems) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://api.openai.com/v1");
+  const nlohmann::json response = {
+      {"output", nlohmann::json::array({{{"id", "fc_1"}, {"type", "function_call"},
+                                           {"call_id", "call_1"}, {"name", "query_db"},
+                                           {"arguments", "{\"sql\":\"select 1\"}"}}})}};
+
+  ASSERT_TRUE(orchestrator.ProcessResponse("s1", response.dump(), "g1").ok());
+  auto calls_or = orchestrator.ParseLastOutputToolCalls();
+  ASSERT_TRUE(calls_or.ok());
+  ASSERT_EQ(calls_or->size(), 1);
+  EXPECT_EQ((*calls_or)[0].id, "call_1");
+  EXPECT_EQ((*calls_or)[0].name, "query_db");
+  EXPECT_EQ((*calls_or)[0].args["sql"], "select 1");
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ClearsUsageWhenResponseOmitsUsage) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://api.openai.com/v1");
   const nlohmann::json with_usage = {

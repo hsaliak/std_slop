@@ -152,6 +152,10 @@ std::optional<ResponseUsage> Orchestrator::GetLastResponseUsage() const {
 const std::vector<ResponsesOutputItem>& Orchestrator::GetLastOutputItems() const {
   return responses_->GetLastOutputItems();
 }
+
+absl::StatusOr<std::vector<ToolCall>> Orchestrator::ParseLastOutputToolCalls() const {
+  return responses_->ParseLastOutputToolCalls();
+}
 absl::StatusOr<std::string> Orchestrator::ExtractAssistantText(const std::string& response_body) {
   return responses_->ExtractAssistantText(response_body);
 }

@@ -470,6 +470,34 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
   return absl::InternalError("OpenAI Responses output contained no tool calls or assistant text");
 }
 
+absl::StatusOr<std::vector<ToolCall>> OpenAiResponsesOrchestrator::ParseLastOutputToolCalls() const {
+  std::vector<ToolCall> calls;
+  for (const ResponsesOutputItem& item : last_output_items_) {
+    if (item.type != "function_call") continue;
+    ToolCall call;
+    call.id = json_get_or(item.raw, "call_id", item.id);
+    call.name = json_get_or(item.raw, "name", std::string{});
+    if (call.id.empty() || call.name.empty()) {
+      return absl::InvalidArgumentError("Responses function call is missing call_id or name");
+    }
+    const auto* arguments = json_at(item.raw, "arguments");
+    if (arguments == nullptr) {
+      return absl::InvalidArgumentError("Responses function call is missing arguments");
+    }
+    if (arguments->is_string()) {
+      auto args_or = json_parse(json_get_or(item.raw, "arguments", std::string{}));
+      if (!args_or) return absl::InvalidArgumentError("Responses function call arguments are invalid JSON");
+      call.args = *args_or;
+    } else if (arguments->is_object() || arguments->is_array()) {
+      call.args = *arguments;
+    } else {
+      return absl::InvalidArgumentError("Responses function call arguments must be JSON");
+    }
+    calls.push_back(std::move(call));
+  }
+  return calls;
+}
+
 absl::StatusOr<std::vector<ToolCall>> OpenAiResponsesOrchestrator::ParseToolCalls(const Database::Message& msg) {
   return MessageParser::ExtractToolCalls(MessageContext(msg));
 }

@@ -25,6 +25,7 @@ class OpenAiResponsesOrchestrator {
                                       const std::string& group_id);
   std::optional<ResponseUsage> GetLastResponseUsage() const { return last_response_usage_; }
   const std::vector<ResponsesOutputItem>& GetLastOutputItems() const { return last_output_items_; }
+  absl::StatusOr<std::vector<ToolCall>> ParseLastOutputToolCalls() const;
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
 
