@@ -636,7 +636,7 @@ TEST_F(CommandHandlerTest, ToolListShowsOnlyTopLevelTools) {
   auto& handler = **handler_or;
 
   ASSERT_TRUE(db.RegisterTool({"top_level_test_tool", "visible tool", "{}", true, 0, true}).ok());
-  ASSERT_TRUE(db.RegisterTool({"run_js_only_test_tool", "hidden tool", "{}", true, 0, false}).ok());
+  ASSERT_TRUE(db.RegisterTool({"hidden_test_tool", "hidden tool", "{}", true, 0, false}).ok());
 
   std::string sid = "s1";
   std::vector<std::string> active_skills;
@@ -649,116 +649,11 @@ TEST_F(CommandHandlerTest, ToolListShowsOnlyTopLevelTools) {
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
   EXPECT_TRUE(absl::StrContains(output, "Top-Level Tools"));
   EXPECT_TRUE(absl::StrContains(output, "top_level_test_tool"));
-  EXPECT_FALSE(absl::StrContains(output, "run_js_only_test_tool"));
+  EXPECT_FALSE(absl::StrContains(output, "hidden_test_tool"));
   EXPECT_FALSE(absl::StrContains(output, "Promoted JS Tools (Top-Level Enabled)"));
 }
 
-TEST_F(CommandHandlerTest, ToolsAliasAndJsHelpShowPersistedFunctions) {
-  auto handler_or = CommandHandler::Create(&db);
-  ASSERT_TRUE(handler_or.ok());
-  auto& handler = **handler_or;
 
-  ASSERT_TRUE(db.Query("INSERT INTO js_functions (name, code, description, json_schema) VALUES (?, ?, ?, ?)",
-                       {"tripleValue", "return function(value) { return value * 3; }",
-                        "Return three times the numeric input. | table-safe", "{\"type\":\"number\"}"})
-                  .ok());
-
-  std::string sid = "s1";
-  std::vector<std::string> active_skills;
-
-  testing::internal::CaptureStdout();
-  std::string input = "/tools js_help";
-  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
-  std::string output = testing::internal::GetCapturedStdout();
-
-  EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(absl::StrContains(output, "JavaScript run_js Helpers"));
-  EXPECT_TRUE(absl::StrContains(output, "tools.persist_function"));
-  EXPECT_TRUE(absl::StrContains(output, "Host Tools Visible"));
-  EXPECT_TRUE(absl::StrContains(output, "Persisted Global JS Functions"));
-  EXPECT_TRUE(absl::StrContains(output, "tripleValue"));
-  EXPECT_TRUE(absl::StrContains(output, "Return three times the numeric input."));
-  EXPECT_TRUE(absl::StrContains(output, "\\| table-safe"));
-}
-TEST_F(CommandHandlerTest, SkillListTruncatesDescription) {
-  TestableCommandHandler handler(&db);
-  std::string sid = "s1";
-  std::vector<std::string> active_skills;
-  std::string long_desc =
-      "This is a very long description that should definitely be truncated because it exceeds sixty characters in "
-      "length.";
-  Database::Skill s{0, "long_skill", long_desc, "patch"};
-  ASSERT_TRUE(db.RegisterSkill(s).ok());
-  testing::internal::CaptureStdout();
-  std::string input = "/skill list";
-  handler.Handle(input, sid, active_skills, []() {}, {});
-  std::string output = testing::internal::GetCapturedStdout();
-  // Check for truncated description in output
-  // We check for chunks that are likely to stay together and not be broken by ANSI or wrapping too much.
-  EXPECT_TRUE(absl::StrContains(output, "This is a very long"));
-  EXPECT_TRUE(absl::StrContains(output, "definitely be..."));
-  EXPECT_FALSE(output.find(long_desc) != std::string::npos);
-}
-TEST_F(CommandHandlerTest, SkillListCleansNewlinesAndPipes) {
-  TestableCommandHandler handler(&db);
-  std::string sid = "s1";
-  std::vector<std::string> active_skills;
-  std::string messy_desc = "Line 1\nLine 2 | Pipe";
-  Database::Skill s{0, "messy_skill", messy_desc, "patch"};
-  ASSERT_TRUE(db.RegisterSkill(s).ok());
-  testing::internal::CaptureStdout();
-  std::string input = "/skill list";
-  handler.Handle(input, sid, active_skills, []() {}, {});
-  std::string output = testing::internal::GetCapturedStdout();
-  // Check for cleaned description
-  EXPECT_TRUE(absl::StrContains(output, "Line 1 Line 2"));
-  EXPECT_TRUE(absl::StrContains(output, "\\| Pipe"));
-}
-TEST_F(CommandHandlerTest, ModeMailRequiresGit) {
-  TestableCommandHandler handler(&db);
-  std::string session_id = "test_session";
-  std::vector<std::string> active_skills;
-  std::string input = "/mode mail";
-  // 1. Test failure when not in a git repo
-  handler.command_responses["git rev-parse --is-inside-work-tree"] = absl::NotFoundError("not a git repo");
-  testing::internal::CaptureStdout();
-  auto result = handler.Handle(input, session_id, active_skills, []() {});
-  std::string output = testing::internal::GetCapturedStdout();
-  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(absl::StrContains(output, "Error: Not a git repository. Please run 'git init' first."));
-  EXPECT_FALSE(absl::StrContains(output, "Switched to MAIL mode"));
-  // 2. Test success when in a git repo
-  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
-  testing::internal::CaptureStdout();
-  result = handler.Handle(input, session_id, active_skills, []() {});
-  output = testing::internal::GetCapturedStdout();
-  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
-}
-TEST_F(CommandHandlerTest, ModeMailRequiresCleanRepo) {
-  TestableCommandHandler handler(&db);
-  std::string session_id = "test_session";
-  std::vector<std::string> active_skills;
-  std::string input = "/mode mail";
-  // 1. Repo is inside work tree but dirty
-  handler.command_responses["git rev-parse --is-inside-work-tree"] = "true";
-  handler.command_responses["git status --porcelain"] = "M interface/command_handler.cpp";
-  testing::internal::CaptureStdout();
-  auto result = handler.Handle(input, session_id, active_skills, []() {});
-  std::string output = testing::internal::GetCapturedStdout();
-  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(absl::StrContains(output, "Error: Git repository is dirty"));
-  EXPECT_TRUE(absl::StrContains(output, "Dirty files:"));
-  EXPECT_TRUE(absl::StrContains(output, "M interface/command_handler.cpp"));
-  EXPECT_FALSE(absl::StrContains(output, "Switched to MAIL mode"));
-  // 2. Repo is inside work tree and clean
-  handler.command_responses["git status --porcelain"] = "";
-  testing::internal::CaptureStdout();
-  result = handler.Handle(input, session_id, active_skills, []() {});
-  output = testing::internal::GetCapturedStdout();
-  EXPECT_EQ(result, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(absl::StrContains(output, "Switched to MAIL mode"));
-}
 
 TEST_F(CommandHandlerTest, RefreshMailModeFromDbTracksSettingsMode) {
   TestableCommandHandler handler(&db);

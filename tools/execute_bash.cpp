@@ -61,7 +61,7 @@ absl::StatusOr<std::string> ToolExecutor::HandleExecuteBash(const nlohmann::json
   }
 
   // Preserve top-level behavior as printable output while still exposing
-  // structured fields to run_js callers (via JSON parse fallback).
+  // structured fields for callers that consume the JSON envelope.
   const nlohmann::json payload = {
       {"stdout", stdout_text},
       {"stderr", stderr_text},

@@ -195,8 +195,7 @@ absl::Status Database::Init(const std::string& db_path) {
         json_schema TEXT,
         is_enabled INTEGER DEFAULT 1,
         call_count INTEGER DEFAULT 0,
-        is_top_level INTEGER DEFAULT 1,
-        is_run_js_callable INTEGER DEFAULT 1
+        is_top_level INTEGER DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS skills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -219,13 +218,6 @@ absl::Status Database::Init(const std::string& db_path) {
         prompt_tokens INTEGER,
         completion_tokens INTEGER,
         total_tokens INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS js_functions (
-        name TEXT PRIMARY KEY,
-        code TEXT,
-        description TEXT,
-        json_schema TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS scratchpads (
@@ -254,16 +246,6 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN call_count INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN is_top_level INTEGER DEFAULT 1;", nullptr, nullptr,
                      nullptr);
-  (void)sqlite3_exec(raw_db, "ALTER TABLE tools ADD COLUMN is_run_js_callable INTEGER DEFAULT 1;", nullptr, nullptr,
-                     nullptr);
-  (void)sqlite3_exec(raw_db,
-                     "CREATE TABLE IF NOT EXISTS js_functions ("
-                     "name TEXT PRIMARY KEY, "
-                     "code TEXT, "
-                     "description TEXT, "
-                     "json_schema TEXT, "
-                     "created_at DATETIME DEFAULT CURRENT_TIMESTAMP);",
-                     nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db,
                      "CREATE INDEX IF NOT EXISTS idx_messages_session_created_id "
                      "ON messages(session_id, created_at, id);",
@@ -335,29 +317,26 @@ absl::Status Database::RegisterDefaultTools() {
        true},
       {"read_file", "Read file content with optional line range and line numbers.",
        R"({"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"line_numbers":{"type":"boolean"}}})",
-       true, 0, true, true},
+       true, 0, true},
       {"list_directory", "List files and folders in a directory.",
        R"({"type":"object","properties":{"path":{"type":"string"},"depth":{"type":["integer","string"]},"include_ignored":{"type":"boolean"}}})",
-       true, 0, true, true},
+       true, 0, true},
       {"describe_db", "Describe database schema objects and columns.", R"({"type":"object","properties":{}})", true},
       {"grep", "Search for a pattern in files.",
        R"({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"context":{"type":["integer","string"]},"limit":{"type":["integer","string"]},"include_ignored":{"type":"boolean"},"fixed_strings":{"type":"boolean"}},"required":["pattern"]})",
-       true, 0, true, true},
+       true, 0, true},
       {"execute_bash", "Execute a shell command.",
        R"({"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string"},"allow_nonzero_exit":{"type":"boolean"},"timeout_seconds":{"type":"integer","minimum":0,"default":180,"description":"Maximum wall-clock time in seconds before the command is terminated. Set to 0 to disable timeout."}},"required":["command"]})",
-       true, 0, true, true},
+       true, 0, true},
       {"edit_tool", "Apply exact text edits to a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"edits":{"type":"array","items":{"type":"object","properties":{"op":{"type":"string","enum":["replace","insert_before","insert_after","delete"]},"find":{"type":"string"},"text":{"type":"string"},"which":{"oneOf":[{"type":"string","enum":["only","first","last"]},{"type":"integer","minimum":0}]}},"required":["op","find"]}}},"required":["path","edits"]})",
-       true, 0, true, true},
+       true, 0, true},
       {"patch_tool", "Apply a unified diff patch to a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff"]})",
-       true, 0, true, false},
+       true, 0, true},
       {"write_file", "Create or overwrite a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",
-       true, 0, true, true},
-      {"persist_function", "Persist a reusable JavaScript helper for future run_js invocations.",
-       R"({"type":"object","properties":{"name":{"type":"string"},"code":{"type":"string"},"description":{"type":"string"},"json_schema":{"type":"string"},"test_args":{"type":"array"}},"required":["name","code"]})",
-       true, 0, false, true},
+       true, 0, true},
       {"read_scratchpad", "Read scratchpad content for the active session.",
        R"({"type":"object","properties":{}})",
        true},
@@ -367,32 +346,29 @@ absl::Status Database::RegisterDefaultTools() {
       {"use_skill", "Activate or run a skill by name.",
        R"({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"string","enum":["activate","deactivate"]}},"required":["name"]})",
        true},
-      {"run_js", "Retired JavaScript control-plane tool.",
-       R"({"type":"object","properties":{"code":{"type":"string","description":"JavaScript source to execute."},"input":{"description":"Optional JSON value exposed as globalThis.input."}},"required":["code"]})",
-       true, 0, false, true},
       {"git_create_staging_branch", "Create or switch to a staging branch in mail mode.",
        R"({"type":"object","properties":{"name":{"type":"string"},"base_branch":{"type":"string"}},"required":["name"]})",
-       true, 0, true, false},
+       true, 0, true},
       {"git_commit_patch", "Commit a patch with a message in mail mode.",
        R"({"type":"object","properties":{"summary":{"type":"string"},"rationale":{"type":"string"}},"required":["summary"]})",
-       true, 0, true, false},
+       true, 0, true},
       {"git_format_patch_series", "Generate a patch series for review.",
-       R"({"type":"object","properties":{"base_branch":{"type":"string"}}})", true, 0, true, false},
+       R"({"type":"object","properties":{"base_branch":{"type":"string"}}})", true, 0, true},
       {"git_reroll_patch", "Reroll an existing patch series.",
        R"({"type":"object","properties":{"index":{"type":["integer","string"]},"base_branch":{"type":"string"}}})",
-       true, 0, true, false},
+       true, 0, true},
       {"git_verify_series", "Verify each commit in a patch series by running a command per commit.",
        R"({"type":"object","properties":{"command":{"type":"string"},"base_branch":{"type":"string"}},"required":["command"]})",
-       true, 0, true, false},
+       true, 0, true},
       {"git_finalize_series", "Finalize a patch series workflow.",
-       R"({"type":"object","properties":{"target_branch":{"type":"string"}}})", true, 0, true, false},
+       R"({"type":"object","properties":{"target_branch":{"type":"string"}}})", true, 0, true},
       {"llm_query",
        "Executes a synchronous LLM query in a transient, isolated environment. Useful for sub-tasks or analysis.",
        R"({"type":"object","properties":{"query":{"type":"string","description":"The prompt to send to the LLM."}},"required":["query"]})",
        true},
       {"ask_user", "Prompt the human operator for input when the agent needs clarification or a decision.",
        R"({"type":"object","properties":{"prompt":{"type":"string","description":"Optional message to display when requesting input."}}})",
-       true, 0, true, false}};
+       true, 0, true}};
   // Automatically register all core tools defined in the default_tools list.
   // This ensures the agent always has access to the fundamental building blocks
   // for code manipulation and system interaction.
@@ -600,18 +576,17 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
 }
 absl::Status Database::RegisterTool(const Tool& tool) {
   std::string sql =
-      "INSERT INTO tools (name, description, json_schema, is_enabled, call_count, is_top_level, is_run_js_callable) "
-      "VALUES (?, ?, ?, ?, ?, ?, ?) "
+      "INSERT INTO tools (name, description, json_schema, is_enabled, call_count, is_top_level) "
+      "VALUES (?, ?, ?, ?, ?, ?) "
       "ON CONFLICT(name) DO UPDATE SET description=excluded.description, json_schema=excluded.json_schema, "
-      "is_enabled=excluded.is_enabled, is_top_level=excluded.is_top_level, "
-      "is_run_js_callable=excluded.is_run_js_callable;";
+      "is_enabled=excluded.is_enabled, is_top_level=excluded.is_top_level;";
   return Execute(sql, tool.name, tool.description, tool.json_schema, tool.is_enabled ? 1 : 0, tool.call_count,
-                 tool.is_top_level ? 1 : 0, tool.is_run_js_callable ? 1 : 0);
+                 tool.is_top_level ? 1 : 0);
 }
 
 absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
   std::string sql =
-      "SELECT name, description, json_schema, is_enabled, call_count, is_top_level, is_run_js_callable "
+      "SELECT name, description, json_schema, is_enabled, call_count, is_top_level "
       "FROM tools WHERE is_enabled = 1";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
   std::vector<Tool> tools;
@@ -626,7 +601,6 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
     t.is_enabled = stmt->ColumnInt(3) != 0;
     t.call_count = stmt->ColumnInt(4);
     t.is_top_level = stmt->ColumnInt(5) != 0;
-    t.is_run_js_callable = stmt->ColumnInt(6) != 0;
     tools.push_back(t);
   }
   return tools;
@@ -634,7 +608,7 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetEnabledTools() {
 
 absl::StatusOr<std::vector<Database::Tool>> Database::GetTopLevelTools() {
   std::string sql =
-      "SELECT name, description, json_schema, is_enabled, call_count, is_top_level, is_run_js_callable "
+      "SELECT name, description, json_schema, is_enabled, call_count, is_top_level "
       "FROM tools WHERE is_enabled = 1 AND is_top_level = 1 ORDER BY name ASC";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
   std::vector<Tool> tools;
@@ -649,21 +623,11 @@ absl::StatusOr<std::vector<Database::Tool>> Database::GetTopLevelTools() {
     t.is_enabled = stmt->ColumnInt(3) != 0;
     t.call_count = stmt->ColumnInt(4);
     t.is_top_level = stmt->ColumnInt(5) != 0;
-    t.is_run_js_callable = stmt->ColumnInt(6) != 0;
     tools.push_back(t);
   }
   return tools;
 }
 
-absl::StatusOr<bool> Database::IsRunJsCallableTool(const std::string& name) {
-  std::string sql = "SELECT is_run_js_callable FROM tools WHERE name = ? AND is_enabled = 1";
-  ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
-  RETURN_IF_ERROR(stmt->BindText(1, name));
-  auto row_or = stmt->Step();
-  if (!row_or.ok()) return row_or.status();
-  if (!*row_or) return false;
-  return stmt->ColumnInt(0) != 0;
-}
 absl::Status Database::RegisterSkill(const Skill& skill) {
   return Execute(
       "INSERT OR IGNORE INTO skills (name, description, system_prompt_patch, activation_count) VALUES (?, ?, ?, ?);",

@@ -7,16 +7,15 @@
 
 ![std::slop](docs/slop.png)
 
-`std::slop` is a persistent, SQLite-driven C++ CLI agent built around a JavaScript control plane based on QuickJS-ng. Its primary way to inspect repositories, compose tool calls, validate results, and make changes is `run_js`: a synchronous JavaScript execution environment with safe `tools.*` helpers for file edits, shell commands, database queries, scratchpad updates, and higher-level workflow orchestration. That programmable control plane is what makes std::slop different from agents that only issue one tool call at a time: repeated operations can become deterministic scripts, scripts can be validated, and successful patterns can be promoted into reusable helpers.
+`std::slop` is a persistent, SQLite-driven C++ CLI coding agent. It exposes direct, schema-validated tools for repository inspection, exact edits, unified patches, shell validation, database access, scratchpad state, and mail-mode git workflows.
 
-The agent can also learn from its own workflows. The `self_improvement_learner` skill can be invoked directly with requests such as "hey self_improvement_learner learn from session history"; it identifies repeated `run_js` orchestration patterns and promotes them into persisted JavaScript functions through `tools.persist_function(args)`. Persisted helpers are validated before storage, discovered through `tools.help()` and `/tools js_help`, and loaded automatically in later `run_js` invocations. This lets std::slop simplify future tool calling: a verbose sequence of reads, edits, shell validation, or JSON reshaping can become a single reusable function such as `runCommandSummary(...)`.
+Direct tools keep ordinary operations explicit and individually reviewable. Mail workflow tools enforce staging, review, approval, and finalization protections server-side.
 
 ## ✨ Key Features
 
-- **🧠 `run_js` control plane**: std::slop primarily operates through `run_js`, a programmable JavaScript layer that batches local tool calls, loops over structured data, validates intermediate state, and returns compact JSON results.
+- **🧰 Direct coding tools**: Inspect, edit, patch, validate, and query through independent schema-validated calls.
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
-- **🌱 Self-improving helpers**: The `self_improvement_learner` skill can turn repeated `run_js` workflows into persisted functions via `tools.persist_function(args)`, reducing complex tool orchestration to small reusable helpers.
-- **🧭 Dynamic workflow harnesses**: The `dynamic_workflow_harness` skill helps agents choose bounded `run_js` patterns for repository surveys, fan-out analysis, evaluator loops, proposal tournaments, external content review, and validation guards.
+- **🧭 Workflow guidance**: Skills help agents perform bounded repository surveys, focused reviews, and validation with direct tools.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: SQL-backed, per-session accordion history preserves an append-only prompt prefix between resets, so sessions can grow independently while retaining cache-friendly context.
@@ -127,49 +126,6 @@ For a complete multi-specialization example, see
 Detailed behavior and policy constraints are documented in
 [docs/impl/subqueries.md](docs/impl/subqueries.md).
 
-#### JavaScript control-plane helpers (`run_js`)
-Agents can use the top-level `run_js` tool to execute a synchronous QuickJS
-snippet when a task is easier to express as local control flow: batching file
-reads, reshaping JSON, looping over small file edits, or running a focused shell
-validation. Pass a JavaScript body in the `code` field and end with
-`return <json-serializable value>;` when a result is needed. Optional JSON
-`input` is exposed as `globalThis.input`; use it for source-code or edit payload
-strings instead of embedding those strings in JavaScript literals.
-
-Inside the snippet, `tools.*` helper methods validate arguments before they
-call the host tool. Use `tools.help()` to discover the current helper/tool
-catalog, and use `tools.dispatch(name, args)` for run-js-callable host tools
-that do not have a dedicated helper method. Host calls still pass through the
-normal tool executor, permission checks, and subquery policy. `run_js` cannot
-recursively invoke itself.
-
-Minimal example:
-
-```js
-return tools.read_file({ path: 'README.md', start_line: 1, end_line: 20 });
-```
-
-Batching example:
-
-```js
-const status = tools.execute_bash({
-  cwd: '.',
-  command: 'git status --short',
-  allow_nonzero_exit: false,
-  timeout_seconds: 60
-});
-const help = tools.help();
-return { status: status.stdout, run_js_callable: help.run_js_callable };
-```
-
-Keep snippets bounded and deterministic, summarize large outputs before
-returning them, and prefer exact `edit_tool` edits for source changes. For reusable
-JavaScript, use `tools.persist_function(args)` after checking the current helper
-catalog with `tools.help()`; persisted functions are stored in `js_functions` and
-shown by `/tools js_help`. For adaptive multi-step tasks, activate the
-`dynamic_workflow_harness` skill to select a small, budgeted `run_js` template
-instead of hand-rolling an unbounded workflow.
-
 #### Environment Variables
 - `SLOP_DEBUG_HTTP=1`: Enable full verbose logging of all HTTP traffic (headers & bodies).
 
@@ -192,7 +148,6 @@ instead of hand-rolling an unbounded workflow.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
 - **[Subquery Implementation Notes](docs/impl/subqueries.md)**: Design and policy notes for INI-configured `llm_query` specializations.
-- **[run_js JavaScript Control Plane](docs/run_js.md)**: Helper contract, discovery, examples, and operational guidance for agent-side JavaScript snippets.
 - **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
 

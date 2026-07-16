@@ -52,14 +52,6 @@ ABSL_CONST_INIT absl::Mutex g_ui_mu(absl::kConstInit);
 
 namespace {
 
-std::optional<std::string> RunJsCodeFromArgs(const nlohmann::json& args) {
-  return json_get<std::string>(args, "code");
-}
-
-void AppendRunJsCodeBlock(std::ostream& out, const std::string& code) {
-  out << "```javascript\n" << code << "\n```\n\n";
-}
-
 /**
  * @brief Renders text within a stylized section with a header.
  *
@@ -122,21 +114,6 @@ bool IsCommandOutputEnvelope(const nlohmann::json& value) {
   return json_at(value, "output") != nullptr &&
          (json_at(value, "stdout") != nullptr || json_at(value, "exit_code") != nullptr ||
           json_at(value, "exitCode") != nullptr);
-}
-
-std::string JsSuccessLabelFromStatusAndResult(const std::string& status, const std::string& result) {
-  if (status == "error" || absl::StartsWith(result, "Error:")) return "false";
-  auto parsed = json_parse(result);
-  if (parsed) return "true";
-  return "unknown";
-}
-
-std::string FormatRunJsResultSummary(const std::string& status, const std::string& result) {
-  std::stringstream ss;
-  ss << "- completed: `" << (status == "completed" ? "true" : "false") << "`\n";
-  ss << "- status: `" << status << "`\n";
-  ss << "- javascript_success: `" << JsSuccessLabelFromStatusAndResult(status, result) << "`\n";
-  return ss.str();
 }
 
 std::string FormatCommandOutputEnvelopeAsMarkdown(const nlohmann::json& envelope) {
@@ -354,13 +331,7 @@ std::string FormatAssembledContext(const std::string& json_str) {
             std::string args_str = json_get_or(*fn, "arguments", std::string("{}"));
             auto args_opt = json_parse(args_str);
             if (args_opt) {
-              if (name == "run_js") {
-                if (auto code = RunJsCodeFromArgs(*args_opt)) {
-                  AppendRunJsCodeBlock(ss, *code);
-                }
-              } else {
-                ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
-              }
+              ss << "```json\n" << args_opt->dump(2) << "\n```\n\n";
             } else {
               ss << "```\n" << args_str << "\n```\n\n";
             }
@@ -423,19 +394,6 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
   }
   std::cout << std::endl;
 
-  if (name == "run_js") {
-    auto args_json = json_parse(args);
-    if (args_json) {
-      if (auto code = RunJsCodeFromArgs(*args_json)) {
-        std::string rendered_code;
-        Renderer::Get().RenderMarkdown(absl::StrCat("```javascript\n", *code, "\n```"), "", &rendered_code);
-        for (absl::string_view line : absl::StrSplit(rendered_code, '\n')) {
-          if (line.empty()) continue;
-          std::cout << prefix << "    " << line << std::endl;
-        }
-      }
-    }
-  }
 }
 void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result,
                             const std::string& status, const std::string& prefix) {
@@ -460,8 +418,7 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   std::cout << prefix << "    " << Colorize("  │", "", ansi::ToolResultPrefix) << " " << Colorize(summary, "", color)
             << std::endl;
 
-  const std::string formatted_stdout =
-      name == "run_js" ? FormatRunJsResultSummary(status, stdout_part) : FormatToolStdoutForMarkdown(stdout_part);
+  const std::string formatted_stdout = FormatToolStdoutForMarkdown(stdout_part);
   std::string rendered_stdout;
   RenderMarkdown(formatted_stdout, "", &rendered_stdout);
   std::vector<absl::string_view> rendered_out_lines =

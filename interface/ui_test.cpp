@@ -119,23 +119,6 @@ TEST(UiTest, PrintToolCallMessage) {
   EXPECT_TRUE(absl::StrContains(output, "query: \"test\""));
 }
 
-TEST(UiTest, PrintToolCallMessageFormatsRunJsCode) {
-  std::string name = "run_js";
-  std::string args = R"({"code":"const value = 21 * 2;\nreturn { ok: true, value };"})";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolCallMessage(name, args, "> ");
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-
-  EXPECT_TRUE(absl::StrContains(output, "run_js"));
-  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
-  EXPECT_TRUE(absl::StrContains(output, "const value = 21 * 2;"));
-  EXPECT_TRUE(absl::StrContains(output, "return { ok: true, value };"));
-  EXPECT_TRUE(absl::StrContains(output, ">     "));
-  EXPECT_TRUE(absl::StrContains(output, ansi::theme::syntax::Keyword));
-}
-
 TEST(UiTest, PrintToolCallMessageWithTokens) {
   std::string name = "test_tool";
   std::string args = R"({"query": "test"})";
@@ -184,34 +167,6 @@ TEST(UiTest, PrintToolResultMessageStderr) {
   EXPECT_TRUE(absl::StrContains(output, "stderr line 2"));
 }
 
-
-TEST(UiTest, PrintToolResultMessageRunJsSummarizesJsonResult) {
-  std::string result = R"({"ok":true,"files_preview":"very long raw data that should not be rendered"})";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolResultMessage("run_js", result, "completed");
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-
-  EXPECT_TRUE(absl::StrContains(output, "completed"));
-  EXPECT_TRUE(absl::StrContains(output, "javascript_success"));
-  EXPECT_TRUE(absl::StrContains(output, "true"));
-  EXPECT_FALSE(absl::StrContains(output, "files_preview"));
-  EXPECT_FALSE(absl::StrContains(output, "very long raw data"));
-}
-
-TEST(UiTest, PrintToolResultMessageRunJsSummarizesError) {
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolResultMessage("run_js", "Error: JavaScript error: boom", "error");
-  std::cout.rdbuf(old);
-  std::string output = buffer.str();
-
-  EXPECT_TRUE(absl::StrContains(output, "error"));
-  EXPECT_TRUE(absl::StrContains(output, "javascript_success"));
-  EXPECT_TRUE(absl::StrContains(output, "false"));
-  EXPECT_FALSE(absl::StrContains(output, "boom"));
-}
 
 TEST(UiTest, PrintToolResultMessageUnknownToolJsonDefaultFormatting) {
   std::string name = "custom_persisted_tool";
@@ -304,21 +259,7 @@ TEST(UiTest, PrintToolResultMessageNestedJsonStringTruncationMarker) {
   EXPECT_TRUE(absl::StrContains(output, "... (truncated)"));
 }
 
-TEST(UiTest, FormatAssembledContextFormatsOpenAiRunJsCode) {
-  const std::string context =
-      R"({"messages":[{"role":"assistant","tool_calls":[{"function":{"name":"run_js","arguments":"{\"code\":\"const n = 7;\\nreturn { n };\"}"}}]}]})";
-
-  const std::string output = FormatAssembledContext(context);
-
-  EXPECT_TRUE(absl::StrContains(output, "Tool Call: run_js"));
-  EXPECT_TRUE(absl::StrContains(output, "```javascript"));
-  EXPECT_TRUE(absl::StrContains(output, "const n = 7;"));
-  EXPECT_TRUE(absl::StrContains(output, "return { n };"));
-  EXPECT_FALSE(absl::StrContains(output, "```json"));
-  EXPECT_FALSE(absl::StrContains(output, "\"code\""));
-}
-
-TEST(UiTest, FormatAssembledContextKeepsNonRunJsToolArgumentsAsJson) {
+TEST(UiTest, FormatAssembledContextKeepsToolArgumentsAsJson) {
   const std::string context =
       R"({"messages":[{"role":"assistant","tool_calls":[{"function":{"name":"read_file","arguments":"{\"path\":\"AGENTS.md\",\"start_line\":1,\"end_line\":2}"}}]}]})";
 
@@ -328,20 +269,6 @@ TEST(UiTest, FormatAssembledContextKeepsNonRunJsToolArgumentsAsJson) {
   EXPECT_TRUE(absl::StrContains(output, "```json"));
   EXPECT_TRUE(absl::StrContains(output, "\"path\": \"AGENTS.md\""));
   EXPECT_TRUE(absl::StrContains(output, "\"start_line\": 1"));
-}
-
-TEST(UiTest, PrintToolCallMessageRendersRunJsCodeThroughMarkdown) {
-  const std::string args = R"({"code":"const value = 'highlight me';\nreturn { value };"})";
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintToolCallMessage("run_js", args);
-  std::cout.rdbuf(old);
-
-  const std::string output = buffer.str();
-  EXPECT_TRUE(absl::StrContains(output, "const value"));
-  EXPECT_TRUE(absl::StrContains(output, ansi::theme::syntax::Keyword));
-  EXPECT_TRUE(absl::StrContains(output, ansi::theme::syntax::String));
-  EXPECT_TRUE(absl::StrContains(output, "highlight me"));
 }
 
 TEST(UiTest, GetCliHelpTextUsesRenamedOpenAiOauthFlags) {

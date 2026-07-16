@@ -63,60 +63,11 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
 
   auto tools = db.GetEnabledTools();
   ASSERT_TRUE(tools.ok());
-  bool found_run_js = false;
   bool found_query_db = false;
-  bool found_read_file = false;
-  bool read_file_is_run_js_callable = false;
-  bool found_execute_bash = false;
-  bool execute_bash_is_run_js_callable = false;
-  bool found_edit_tool = false;
-  bool edit_tool_is_run_js_callable = false;
-  bool found_write_file = false;
-  bool write_file_is_run_js_callable = false;
-  bool found_persist_function = false;
-  bool persist_function_is_run_js_callable = false;
-  bool found_ask_user = false;
   for (const auto& t : *tools) {
-    if (t.name == "run_js") found_run_js = true;
     if (t.name == "query_db") found_query_db = true;
-    if (t.name == "read_file") {
-      found_read_file = true;
-      read_file_is_run_js_callable = t.is_run_js_callable;
-    }
-    if (t.name == "execute_bash") {
-      found_execute_bash = true;
-      execute_bash_is_run_js_callable = t.is_run_js_callable;
-    }
-    if (t.name == "edit_tool") {
-      found_edit_tool = true;
-      edit_tool_is_run_js_callable = t.is_run_js_callable;
-    }
-    if (t.name == "write_file") {
-      found_write_file = true;
-      write_file_is_run_js_callable = t.is_run_js_callable;
-    }
-    if (t.name == "persist_function") {
-      found_persist_function = true;
-      persist_function_is_run_js_callable = t.is_run_js_callable;
-    }
-    if (t.name == "ask_user") {
-      found_ask_user = true;
-      EXPECT_FALSE(t.is_run_js_callable);
-    }
   }
-  EXPECT_TRUE(found_run_js);
   EXPECT_TRUE(found_query_db);
-  EXPECT_TRUE(found_read_file);
-  EXPECT_TRUE(read_file_is_run_js_callable);
-  EXPECT_TRUE(found_execute_bash);
-  EXPECT_TRUE(execute_bash_is_run_js_callable);
-  EXPECT_TRUE(found_edit_tool);
-  EXPECT_TRUE(edit_tool_is_run_js_callable);
-  EXPECT_TRUE(found_write_file);
-  EXPECT_TRUE(write_file_is_run_js_callable);
-  EXPECT_TRUE(found_persist_function);
-  EXPECT_TRUE(persist_function_is_run_js_callable);
-  EXPECT_TRUE(found_ask_user);
 
   auto top_level_tools = db.GetTopLevelTools();
   ASSERT_TRUE(top_level_tools.ok());
@@ -125,7 +76,6 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
                        [&](const auto& t) { return t.name == name; });
   };
   EXPECT_TRUE(is_top_level("query_db"));
-  EXPECT_FALSE(is_top_level("run_js"));
   EXPECT_TRUE(is_top_level("ask_user"));
   EXPECT_TRUE(is_top_level("read_file"));
   EXPECT_TRUE(is_top_level("list_directory"));
@@ -135,18 +85,6 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(is_top_level("write_file"));
   EXPECT_TRUE(is_top_level("git_commit_patch"));
   EXPECT_TRUE(is_top_level("git_finalize_series"));
-  EXPECT_FALSE(is_top_level("persist_function"));
-  EXPECT_TRUE(*db.IsRunJsCallableTool("read_file"));
-  EXPECT_TRUE(*db.IsRunJsCallableTool("execute_bash"));
-  EXPECT_TRUE(*db.IsRunJsCallableTool("edit_tool"));
-  EXPECT_TRUE(*db.IsRunJsCallableTool("write_file"));
-  EXPECT_TRUE(*db.IsRunJsCallableTool("persist_function"));
-  EXPECT_FALSE(*db.IsRunJsCallableTool("ask_user"));
-  EXPECT_FALSE(*db.IsRunJsCallableTool("git_finalize_series"));
-  EXPECT_FALSE(*db.IsRunJsCallableTool("git_commit_patch"));
-
-  auto js_functions_res = db.Query("SELECT name FROM js_functions");
-  ASSERT_TRUE(js_functions_res.ok()) << js_functions_res.status();
   bool found_planner = false;
   bool found_code_reviewer = false;
   bool found_patcher = false;
@@ -187,15 +125,12 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   EXPECT_TRUE(found_dynamic_workflow_harness);
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "/review mail"));
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "Do NOT declare completion"));
-  EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "tools.persist_function(args)"));
-  EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "successful `run_js` calls"));
+  EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "direct tool usage"));
   EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "[llm_tool_<suffix>]"));
   EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "ask_user"));
   EXPECT_TRUE(absl::StrContains(subagent_creator_prompt, "restart"));
-  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "run_js"));
-  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "tools.llm_query"));
   EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "bounded repository survey"));
-  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "Never call `run_js` recursively"));
+  EXPECT_TRUE(absl::StrContains(dynamic_workflow_harness_prompt, "direct tools"));
 }
 TEST(DatabaseTest, MessagePersistence) {
   slop::Database db;
@@ -545,53 +480,6 @@ TEST(DatabaseTest, SkillTracking) {
   EXPECT_EQ((*restored)[0], "skill1");
   EXPECT_EQ((*restored)[1], "skill2");
 }
-TEST(DatabaseTest, JsFunctionsTableExistsForPersistedRunJsHelpers) {
-  slop::Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-
-  auto funcs_or = db.Query("SELECT name, json_schema FROM js_functions ORDER BY name");
-  ASSERT_TRUE(funcs_or.ok()) << funcs_or.status();
-  auto funcs = slop::json_parse(*funcs_or);
-  ASSERT_TRUE(funcs.has_value());
-  ASSERT_TRUE(funcs->is_array());
-  EXPECT_TRUE(funcs->empty());
-}
-
-TEST(DatabaseTest, DefaultCppToolSchemasMatchCurrentContracts) {
-  slop::Database db;
-  ASSERT_TRUE(db.Init(":memory:").ok());
-
-  auto tools_or = db.Query(
-      "SELECT name, json_schema FROM tools WHERE name IN ('query_db','run_js','git_commit_patch') ORDER BY "
-      "name");
-  ASSERT_TRUE(tools_or.ok());
-  auto rows = slop::json_parse(*tools_or).value_or(nlohmann::json::array());
-  ASSERT_TRUE(rows.is_array());
-  ASSERT_EQ(rows.size(), 3);
-
-  std::map<std::string, nlohmann::json> by_name;
-  for (const auto& row : rows) {
-    ASSERT_TRUE(row.is_object());
-    const std::string name = row.value("name", "");
-    auto schema = slop::json_parse(row.value("json_schema", std::string{})).value_or(nlohmann::json::object());
-    ASSERT_TRUE(schema.is_object());
-    by_name[name] = schema;
-  }
-
-  ASSERT_TRUE(by_name.find("query_db") != by_name.end());
-  ASSERT_TRUE(by_name["query_db"]["properties"].contains("params"));
-  EXPECT_TRUE(by_name["query_db"]["properties"]["params"].contains("items"));
-
-  ASSERT_TRUE(by_name.find("git_commit_patch") != by_name.end());
-  EXPECT_TRUE(by_name["git_commit_patch"]["properties"].contains("summary"));
-  EXPECT_FALSE(by_name["git_commit_patch"]["properties"].contains("message"));
-
-  ASSERT_TRUE(by_name.find("run_js") != by_name.end());
-  EXPECT_TRUE(by_name["run_js"]["properties"].contains("code"));
-  EXPECT_TRUE(by_name["run_js"]["properties"].contains("input"));
-  EXPECT_TRUE(by_name["run_js"]["required"].is_array());
-}
-
 TEST(DatabaseTest, ToolUsageCounters) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
