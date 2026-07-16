@@ -311,6 +311,7 @@ absl::Status Database::Init(const std::string& db_path) {
   return absl::OkStatus();
 }
 absl::Status Database::RegisterDefaultTools() {
+  RETURN_IF_ERROR(Execute("DELETE FROM tools WHERE name = 'patch_tool'"));
   std::vector<Tool> default_tools = {
       {"query_db", "Execute a SQL query against the internal SQLite database.",
        R"({"type":"object","properties":{"sql":{"type":"string"},"params":{"type":"array","items":{}}},"required":["sql"]})",
@@ -330,9 +331,6 @@ absl::Status Database::RegisterDefaultTools() {
        true, 0, true},
       {"edit_tool", "Apply exact text edits to a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"edits":{"type":"array","items":{"type":"object","properties":{"op":{"type":"string","enum":["replace","insert_before","insert_after","delete"]},"find":{"type":"string"},"text":{"type":"string"},"which":{"oneOf":[{"type":"string","enum":["only","first","last"]},{"type":"integer","minimum":0}]}},"required":["op","find"]}}},"required":["path","edits"]})",
-       true, 0, true},
-      {"patch_tool", "Apply a unified diff patch to a file.",
-       R"({"type":"object","properties":{"path":{"type":"string"},"unified_diff":{"type":"string"},"dry_run":{"type":"boolean"},"ignore_whitespace":{"type":"boolean"}},"required":["path","unified_diff"]})",
        true, 0, true},
       {"write_file", "Create or overwrite a file.",
        R"({"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]})",

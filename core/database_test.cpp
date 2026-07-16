@@ -46,6 +46,27 @@ TEST(DatabaseTest, InitDropsLegacySessionStateTable) {
   }
   EXPECT_EQ(std::remove(path.c_str()), 0);
 }
+TEST(DatabaseTest, InitRemovesRetiredPatchTool) {
+  const std::string path =
+      absl::StrCat(::testing::TempDir(), "/std_slop_retired_patch_tool_", absl::ToUnixNanos(absl::Now()), ".db");
+  {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(path).ok());
+    ASSERT_TRUE(db.RegisterTool({"patch_tool", "legacy", "{}", true, 0, true}).ok());
+  }
+
+  {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(path).ok());
+    auto tools_or = db.GetEnabledTools();
+    ASSERT_TRUE(tools_or.ok());
+    EXPECT_EQ(std::find_if(tools_or->begin(), tools_or->end(),
+                           [](const auto& tool) { return tool.name == "patch_tool"; }),
+              tools_or->end());
+  }
+  EXPECT_EQ(std::remove(path.c_str()), 0);
+}
+
 TEST(DatabaseTest, TablesExist) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

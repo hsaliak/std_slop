@@ -5,7 +5,7 @@ Use direct tools to build the smallest deterministic workflow that answers the t
 
 Guidelines:
 - Inspect with `list_directory`, `read_file`, and `grep`; bound ranges and result limits.
-- Mutate with `edit_tool`, `write_file`, or `patch_tool` only after reading exact context.
+- Mutate with `edit_tool` or `write_file` only after reading exact context.
 - Validate with `execute_bash` using explicit timeouts.
 - Use `llm_query` only for narrow advisory analysis; the main agent owns decisions and mutations.
 - Prefer sequential, reviewable tool calls. Do not add orchestration layers for one-step operations.

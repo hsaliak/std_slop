@@ -59,7 +59,6 @@ void ToolExecutor::RegisterTools() {
   RegisterTool("grep", [this](const nlohmann::json& args, auto) { return HandleGrep(args); });
   RegisterTool("execute_bash", [this](const nlohmann::json& args, auto) { return HandleExecuteBash(args); });
   RegisterTool("edit_tool", [this](const nlohmann::json& args, auto) { return HandleEditTool(args); });
-  RegisterTool("patch_tool", [this](const nlohmann::json& args, auto) { return HandlePatchTool(args); });
   RegisterTool("write_file", [this](const nlohmann::json& args, auto) { return HandleWriteFile(args); });
   RegisterTool("read_scratchpad", [this](const nlohmann::json& args, auto) { return HandleReadScratchpad(args); });
   RegisterTool("write_scratchpad", [this](const nlohmann::json& args, auto) { return HandleWriteScratchpad(args); });

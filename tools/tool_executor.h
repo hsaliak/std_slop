@@ -99,7 +99,6 @@ class ToolExecutor {
                                                       std::shared_ptr<CancellationRequest> cancellation);
   absl::StatusOr<std::string> HandleExecuteBash(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleEditTool(const nlohmann::json& args) const;
-  absl::StatusOr<std::string> HandlePatchTool(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleWriteFile(const nlohmann::json& args) const;
   absl::StatusOr<std::string> HandleReadScratchpad(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleWriteScratchpad(const nlohmann::json& args);

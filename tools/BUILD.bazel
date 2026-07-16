@@ -37,7 +37,6 @@ cc_library(
         "grep.cpp",
         "list_directory.cpp",
         "edit_tool.cpp",
-        "patch_tool.cpp",
         "query_db.cpp",
         "read_file.cpp",
         "scratchpad.cpp",
@@ -78,21 +77,6 @@ cc_library(
     deps = [
         ":dispatcher",
         ":runtime",
-    ],
-)
-
-cc_test(
-    name = "patch_tool_fuzz_test",
-    srcs = ["patch_tool_fuzz_test.cpp"],
-    copts = [
-        "-Wno-unused-parameter",
-        "-Wno-deprecated-declarations",
-    ],
-    deps = [
-        ":runtime",
-        "@fuzztest//fuzztest",
-        "@fuzztest//fuzztest:fuzztest_gtest_main",
-        "@googletest//:gtest",
     ],
 )
 
