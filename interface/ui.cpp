@@ -31,6 +31,7 @@ inline constexpr std::string_view kTool = "tool";
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -49,6 +50,18 @@ inline constexpr std::string_view kTool = "tool";
 namespace slop {
 namespace {
 ABSL_CONST_INIT absl::Mutex g_ui_mu(absl::kConstInit);
+
+std::string FormatCompactCount(int value) {
+  if (value < 1000) return absl::StrCat(value);
+  if (value < 1000000) return absl::StrFormat("%.1fk", static_cast<double>(value) / 1000.0);
+  return absl::StrFormat("%.1fM", static_cast<double>(value) / 1000000.0);
+}
+
+std::string FormatElapsed(absl::Duration elapsed) {
+  const int64_t seconds = absl::ToInt64Seconds(elapsed);
+  if (seconds < 60) return absl::StrFormat("%.1fs", absl::ToDoubleSeconds(elapsed));
+  return absl::StrFormat("%dm %02ds", seconds / 60, seconds % 60);
+}
 }  // namespace
 
 namespace {
@@ -415,15 +428,16 @@ std::string FormatTurnStatus(const TurnStatus& status) {
   if (status.received_tokens > 0) absl::StrAppend(&formatted, " · ", status.received_tokens, " tokens");
   if (status.usage.has_value()) {
     const ResponseUsage& usage = *status.usage;
-    absl::StrAppend(&formatted, " · Input ", usage.input_tokens);
+    absl::StrAppend(&formatted, " · In ", FormatCompactCount(usage.input_tokens));
     if (usage.cached_input_tokens.has_value() && usage.input_tokens > 0) {
       const int cached_percentage = *usage.cached_input_tokens * 100 / usage.input_tokens;
-      absl::StrAppend(&formatted, " · Cached ", *usage.cached_input_tokens, " (", cached_percentage, "%)");
+      absl::StrAppend(&formatted, " · Cached ", FormatCompactCount(*usage.cached_input_tokens), " (",
+                      cached_percentage, "%)");
     }
-    absl::StrAppend(&formatted, " · Output ", usage.output_tokens);
+    absl::StrAppend(&formatted, " · Out ", FormatCompactCount(usage.output_tokens));
   }
   if (status.elapsed > absl::ZeroDuration()) {
-    absl::StrAppend(&formatted, " · ", absl::FormatDuration(status.elapsed));
+    absl::StrAppend(&formatted, " · ", FormatElapsed(status.elapsed));
   }
   return formatted;
 }

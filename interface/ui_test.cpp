@@ -143,9 +143,17 @@ TEST(UiTest, FormatTurnStatusIncludesCacheTelemetry) {
 
   const std::string formatted = FormatTurnStatus(status);
   EXPECT_TRUE(absl::StrContains(formatted, "Done"));
-  EXPECT_TRUE(absl::StrContains(formatted, "Input 1000"));
+  EXPECT_TRUE(absl::StrContains(formatted, "In 1.0k"));
   EXPECT_TRUE(absl::StrContains(formatted, "Cached 750 (75%)"));
-  EXPECT_TRUE(absl::StrContains(formatted, "Output 200"));
+  EXPECT_TRUE(absl::StrContains(formatted, "Out 200"));
+  EXPECT_TRUE(absl::StrContains(formatted, "2.0s"));
+}
+
+TEST(UiTest, FormatTurnStatusCompactsLongElapsedTime) {
+  TurnStatus status;
+  status.elapsed = absl::Seconds(107);
+
+  EXPECT_TRUE(absl::StrContains(FormatTurnStatus(status), "1m 47s"));
 }
 
 TEST(UiTest, FormatTurnStatusRendersEveryPhase) {
