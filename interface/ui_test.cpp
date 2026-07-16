@@ -119,17 +119,19 @@ TEST(UiTest, PrintToolCallMessage) {
   EXPECT_TRUE(absl::StrContains(output, "query: \"test\""));
 }
 
-TEST(UiTest, PrintAssistantTextDeltaPrintsOnlyNewText) {
+TEST(UiTest, PrintAssistantTextDeltaDoesNotIndentLaterFragments) {
   std::stringstream buffer;
   std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
   PrintAssistantTextDelta("partial", "  ");
-  PrintAssistantTextDelta(" response", "  ");
+  PrintAssistantTextDelta(" response");
+  EndAssistantTextStream();
   std::cout.rdbuf(old);
 
   const std::string output = buffer.str();
   EXPECT_TRUE(absl::StrContains(output, "partial"));
   EXPECT_TRUE(absl::StrContains(output, " response"));
   EXPECT_EQ(output.find("partial"), output.rfind("partial"));
+  EXPECT_TRUE(absl::EndsWith(output, "\n"));
 }
 
 TEST(UiTest, FormatTurnStatusIncludesCacheTelemetry) {

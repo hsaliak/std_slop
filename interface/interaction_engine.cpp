@@ -272,6 +272,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
       bool http_cancellation_announced = false;
       bool receiving_announced = false;
+      bool stream_text_started = false;
       while (!http_done) {
         std::string stream_text;
         {
@@ -283,7 +284,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           slop::PrintTurnStatus({TurnPhase::kReceiving, "", 0, std::nullopt, absl::Now() - turn_started});
         }
         if (!stream_text.empty() && !config.silent) {
-          slop::PrintAssistantTextDelta(stream_text, "  ");
+          slop::PrintAssistantTextDelta(stream_text, stream_text_started ? "" : "  ");
+          stream_text_started = true;
         }
         if (maybe_handle_ask_user_prompt(
                 ask_state, [&]() { raw.reset(); },
@@ -292,6 +294,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         }
         if (!config.silent && !http_cancellation_announced && slop::IsInterruptPressed()) {
           http_cancellation_announced = true;
+          if (stream_text_started) slop::EndAssistantTextStream();
           slop::PrintTurnStatus({TurnPhase::kCancelled, "", 0, std::nullopt, absl::Now() - turn_started});
           http_cancellation->Cancel();
           std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
@@ -305,7 +308,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         final_stream_text.swap(pending_stream_text);
       }
       if (!final_stream_text.empty() && !config.silent) {
-        slop::PrintAssistantTextDelta(final_stream_text, "  ");
+        slop::PrintAssistantTextDelta(final_stream_text, stream_text_started ? "" : "  ");
+        stream_text_started = true;
+      }
+      if (stream_text_started && !config.silent) {
+        slop::EndAssistantTextStream();
       }
 
       // Cleanup handler

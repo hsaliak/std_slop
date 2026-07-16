@@ -57,6 +57,8 @@ std::string FlattenJsonArgs(const std::string& json_str);
 void PrintAssistantMessage(const std::string& content, const std::string& prefix = "", int tokens = 0);
 // Prints one incremental assistant-text fragment without re-rendering prior fragments.
 void PrintAssistantTextDelta(const std::string& text, const std::string& prefix = "");
+// Terminates an incremental assistant-text stream before another UI element is printed.
+void EndAssistantTextStream();
 std::string FormatTurnStatus(const TurnStatus& status);
 void PrintTurnStatus(const TurnStatus& status);
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix = "",
