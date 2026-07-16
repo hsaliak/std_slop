@@ -355,6 +355,7 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
                                                                  const std::string& response_json,
                                                                  const std::string& group_id) {
   last_response_usage_.reset();
+  last_output_items_.clear();
   auto j_opt = json_parse(response_json);
   if (!j_opt) {
     auto sse_normalized = TryNormalizeSseResponsesPayload(response_json);
@@ -389,6 +390,15 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
 
   std::string assistant_text;
   nlohmann::json tool_calls = nlohmann::json::array();
+
+  for (const auto& item : *output) {
+    ResponsesOutputItem output_item;
+    output_item.id = json_get_or(item, "id", std::string{});
+    output_item.type = json_get_or(item, "type", std::string{});
+    output_item.status = json_get_or(item, "status", std::string{});
+    output_item.raw = item;
+    last_output_items_.push_back(std::move(output_item));
+  }
 
   for (const auto& item : *output) {
     const std::string type = json_get_or(item, "type", std::string{});

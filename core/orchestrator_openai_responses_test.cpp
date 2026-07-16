@@ -331,6 +331,31 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSseTextDeltas) {
   EXPECT_EQ((*history_or)[0].content, "Hello world");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, PreservesCompletedOutputItemsInMemory) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://api.openai.com/v1");
+  const nlohmann::json response = {
+      {"output",
+       {{{"id", "reason_1"},
+         {"type", "reasoning"},
+         {"status", "completed"},
+         {"summary", {{{"type", "summary_text"}, {"text", "planned"}}}},
+         {"encrypted_content", "opaque"}},
+        {{"id", "msg_1"},
+         {"type", "message"},
+         {"status", "completed"},
+         {"role", "assistant"},
+         {"content", {{{"type", "output_text"}, {"text", "Done"}}}}}}}};
+
+  ASSERT_TRUE(orchestrator.ProcessResponse("s1", response.dump(), "g1").ok());
+  const auto& items = orchestrator.GetLastOutputItems();
+  ASSERT_EQ(items.size(), 2);
+  EXPECT_EQ(items[0].id, "reason_1");
+  EXPECT_EQ(items[0].type, "reasoning");
+  EXPECT_EQ(items[0].status, "completed");
+  EXPECT_EQ(json_get_or(items[0].raw, "encrypted_content", std::string{}), "opaque");
+  EXPECT_EQ(items[1].id, "msg_1");
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ClearsUsageWhenResponseOmitsUsage) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://api.openai.com/v1");
   const nlohmann::json with_usage = {

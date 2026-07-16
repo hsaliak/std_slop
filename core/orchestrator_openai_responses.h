@@ -24,6 +24,7 @@ class OpenAiResponsesOrchestrator {
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id);
   std::optional<ResponseUsage> GetLastResponseUsage() const { return last_response_usage_; }
+  const std::vector<ResponsesOutputItem>& GetLastOutputItems() const { return last_output_items_; }
 
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
 
@@ -33,6 +34,7 @@ class OpenAiResponsesOrchestrator {
 
  private:
   std::optional<ResponseUsage> last_response_usage_;
+  std::vector<ResponsesOutputItem> last_output_items_;
 
   Database* db_;
   HttpClient* http_client_;

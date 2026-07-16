@@ -57,6 +57,7 @@ class Orchestrator {
   absl::StatusOr<int> ProcessResponse(const std::string& session_id, const std::string& response_json,
                                       const std::string& group_id = "");
   std::optional<ResponseUsage> GetLastResponseUsage() const;
+  const std::vector<ResponsesOutputItem>& GetLastOutputItems() const;
   absl::Status ForceAccordionReset(const std::string& session_id);
   absl::StatusOr<std::vector<ToolCall>> ParseToolCalls(const Database::Message& msg);
   absl::StatusOr<std::vector<ModelInfo>> GetModels(const std::string& api_key, const std::string& account_id = "");

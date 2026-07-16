@@ -148,6 +148,10 @@ absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id,
 std::optional<ResponseUsage> Orchestrator::GetLastResponseUsage() const {
   return responses_->GetLastResponseUsage();
 }
+
+const std::vector<ResponsesOutputItem>& Orchestrator::GetLastOutputItems() const {
+  return responses_->GetLastOutputItems();
+}
 absl::StatusOr<std::string> Orchestrator::ExtractAssistantText(const std::string& response_body) {
   return responses_->ExtractAssistantText(response_body);
 }
