@@ -36,6 +36,11 @@ int EstimateContextTokens(const std::string& assembled_context) {
   return static_cast<int>((assembled_context.size() + 3) / 4);
 }
 
+std::string FormatContextTokenCount(int tokens) {
+  if (tokens < 1000) return absl::StrCat(tokens);
+  return absl::StrCat(tokens / 1000, ".", (tokens % 1000) / 100, "k");
+}
+
 bool HasReviewComments(const std::string& content) {
   std::vector<std::string> lines = absl::StrSplit(content, '\n');
   for (const auto& line : lines) {
@@ -267,29 +272,31 @@ CommandHandler::Result CommandHandler::HandleContext(CommandArgs& args) {
     const auto& settings = *settings_or;
     std::string latest_provider_input = "No completed provider request";
     auto latest_prompt_tokens_or = db_->GetLatestPromptTokens(args.session_id);
-    if (latest_prompt_tokens_or.ok() && latest_prompt_tokens_or->has_value()) {
-      latest_provider_input = absl::StrCat(**latest_prompt_tokens_or, " tokens");
-    } else if (!latest_prompt_tokens_or.ok()) {
-      latest_provider_input = "Unavailable";
-    }
+    if (!latest_prompt_tokens_or.ok()) latest_provider_input = "Unavailable";
 
     std::optional<std::string> assembled_context;
     if (orchestrator_) {
       auto prompt_or = orchestrator_->AssemblePrompt(args.session_id, args.active_skills);
       if (prompt_or.ok()) assembled_context = prompt_or->dump();
     }
+    if (latest_prompt_tokens_or.ok() && latest_prompt_tokens_or->has_value()) {
+      latest_provider_input = absl::StrCat(FormatContextTokenCount(**latest_prompt_tokens_or), " tokens");
+    }
     std::cout << "## Accordion Context Status\n"
               << "Session: " << args.session_id << "\n"
               << "Retain Groups: " << settings.retain_groups << "\n"
-              << "High Watermark: " << settings.watermark_tokens << " tokens\n"
+              << "High Watermark: " << FormatContextTokenCount(settings.watermark_tokens) << " tokens\n"
               << "Latest Provider Input Tokens: " << latest_provider_input << "\n"
               << "Assembled Context Estimate: "
-              << (assembled_context.has_value() ? absl::StrCat("~", EstimateContextTokens(*assembled_context))
-                                                : "Unavailable (orchestrator not configured)")
+              << (assembled_context.has_value()
+                      ? absl::StrCat("~", FormatContextTokenCount(EstimateContextTokens(*assembled_context)))
+                      : "Unavailable (orchestrator not configured)")
               << "\n"
               << "Epoch Start Group: "
               << (settings.epoch_start_group_id.empty() ? "Not initialized" : settings.epoch_start_group_id)
-              << "\n";
+              << "\n"
+              << "Selected Groups: "
+              << (args.selected_groups.empty() ? "Unavailable" : absl::StrJoin(args.selected_groups, ", ")) << "\n";
     if (assembled_context.has_value()) DisplayAssembledContext(*assembled_context);
     return Result::HANDLED;
   }

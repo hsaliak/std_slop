@@ -252,8 +252,9 @@ TEST_F(CommandHandlerTest, ContextShowIncludesEstimatedAssembledContextTokens) {
   const std::string output = testing::internal::GetCapturedStdout();
 
   EXPECT_EQ(res, CommandHandler::Result::HANDLED);
-  EXPECT_TRUE(absl::StrContains(output, "Latest Provider Input Tokens: 12345 tokens"));
+  EXPECT_TRUE(absl::StrContains(output, "Latest Provider Input Tokens: 12.3k tokens"));
   EXPECT_TRUE(absl::StrContains(output, "Assembled Context Estimate: ~"));
+  EXPECT_TRUE(absl::StrContains(output, "Selected Groups: Unavailable"));
 }
 TEST_F(CommandHandlerTest, WindowAliasIsRemoved) {
   auto handler_or = CommandHandler::Create(&db);
