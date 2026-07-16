@@ -119,6 +119,19 @@ TEST(UiTest, PrintToolCallMessage) {
   EXPECT_TRUE(absl::StrContains(output, "query: \"test\""));
 }
 
+TEST(UiTest, PrintAssistantTextDeltaPrintsOnlyNewText) {
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintAssistantTextDelta("partial", "  ");
+  PrintAssistantTextDelta(" response", "  ");
+  std::cout.rdbuf(old);
+
+  const std::string output = buffer.str();
+  EXPECT_TRUE(absl::StrContains(output, "partial"));
+  EXPECT_TRUE(absl::StrContains(output, " response"));
+  EXPECT_EQ(output.find("partial"), output.rfind("partial"));
+}
+
 TEST(UiTest, PrintToolCallMessageWithTokens) {
   std::string name = "test_tool";
   std::string args = R"({"query": "test"})";

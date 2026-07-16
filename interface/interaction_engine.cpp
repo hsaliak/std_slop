@@ -206,6 +206,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     http_cancellation->RegisterCallback([&]() { http_client_.Abort(); });
 
     std::atomic<bool> http_done{false};
+    std::atomic<bool> received_stream_text{false};
+    absl::Mutex stream_text_mu;
+    std::string pending_stream_text;
     absl::StatusOr<std::string> resp_or;
     ResponsesEventDecoder responses_decoder;
 
@@ -217,17 +220,30 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     AskState ask_state;
     install_ask_user_handler(ask_state);
 
+    auto collect_stream_text = [&](const std::vector<ResponsesEvent>& events) {
+      for (const ResponsesEvent& event : events) {
+        if (event.type == ResponsesEventType::kTextDelta && !event.text.empty()) {
+          absl::MutexLock lock(stream_text_mu);
+          pending_stream_text.append(event.text);
+          received_stream_text = true;
+        }
+      }
+    };
+
     std::thread http_t([&]() {
       resp_or = http_client_.PostStream(post_url, post_body, post_headers, [&](absl::string_view chunk) {
         if (!is_streaming_response) return absl::OkStatus();
         auto events_or = responses_decoder.Feed(chunk);
-        return events_or.ok() ? absl::OkStatus() : events_or.status();
+        if (!events_or.ok()) return events_or.status();
+        collect_stream_text(*events_or);
+        return absl::OkStatus();
       });
       if (resp_or.ok() && is_streaming_response) {
         auto final_events_or = responses_decoder.Finish();
         if (!final_events_or.ok()) {
           resp_or = final_events_or.status();
         } else {
+          collect_stream_text(*final_events_or);
           auto normalized = ResponsesEventDecoder::NormalizeSsePayload(*resp_or);
           if (!normalized.has_value()) {
             resp_or = absl::InvalidArgumentError("Failed to normalize Responses SSE payload");
@@ -249,6 +265,15 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       if (!config.silent) animator.Start();
 
       while (!http_done) {
+        std::string stream_text;
+        {
+          absl::MutexLock lock(stream_text_mu);
+          stream_text.swap(pending_stream_text);
+        }
+        if (!stream_text.empty() && !config.silent) {
+          animator.Stop();
+          slop::PrintAssistantTextDelta(stream_text, "  ");
+        }
         if (maybe_handle_ask_user_prompt(
                 ask_state,
                 [&]() {
@@ -271,6 +296,16 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      }
+
+      std::string final_stream_text;
+      {
+        absl::MutexLock lock(stream_text_mu);
+        final_stream_text.swap(pending_stream_text);
+      }
+      if (!final_stream_text.empty() && !config.silent) {
+        animator.Stop();
+        slop::PrintAssistantTextDelta(final_stream_text, "  ");
       }
 
       // Cleanup handler
@@ -344,7 +379,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     }
     for (size_t i = start_idx; i < history_after_or->size(); ++i) {
       const auto& msg = (*history_after_or)[i];
-      if (!config.silent) {
+      if (!config.silent &&
+          !(received_stream_text && msg.role == "assistant" && msg.status != "tool_call")) {
         slop::PrintMessage(msg);
       }
       if (msg.role == "assistant") {

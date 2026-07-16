@@ -365,6 +365,12 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
     std::cout << prefix << "    " << ansi::Metadata << "· " << tokens << " tokens" << ansi::Reset << std::endl;
   }
 }
+
+void PrintAssistantTextDelta(const std::string& text, const std::string& prefix) {
+  if (text.empty()) return;
+  absl::MutexLock lock(g_ui_mu);
+  std::cout << prefix << Colorize(text, "", ansi::Assistant) << std::flush;
+}
 std::string FlattenJsonArgs(const std::string& json_str) {
   auto j_opt = json_parse(json_str);
   if (!j_opt) return json_str;

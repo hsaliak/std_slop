@@ -54,6 +54,8 @@ std::string FlattenJsonArgs(const std::string& json_str);
  * @brief High-level methods for centralized UI message formatting.
  */
 void PrintAssistantMessage(const std::string& content, const std::string& prefix = "", int tokens = 0);
+// Prints one incremental assistant-text fragment without re-rendering prior fragments.
+void PrintAssistantTextDelta(const std::string& text, const std::string& prefix = "");
 void PrintToolCallMessage(const std::string& name, const std::string& args, const std::string& prefix = "",
                           int tokens = 0);
 void PrintToolResultMessage(const std::string& name, const std::string& result, const std::string& status = "completed",
