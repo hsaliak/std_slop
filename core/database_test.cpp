@@ -46,13 +46,16 @@ TEST(DatabaseTest, InitDropsLegacySessionStateTable) {
   }
   EXPECT_EQ(std::remove(path.c_str()), 0);
 }
-TEST(DatabaseTest, InitRemovesRetiredPatchTool) {
+TEST(DatabaseTest, InitRemovesRetiredControlPlaneArtifacts) {
   const std::string path =
-      absl::StrCat(::testing::TempDir(), "/std_slop_retired_patch_tool_", absl::ToUnixNanos(absl::Now()), ".db");
+      absl::StrCat(::testing::TempDir(), "/std_slop_retired_control_plane_", absl::ToUnixNanos(absl::Now()), ".db");
   {
     slop::Database db;
     ASSERT_TRUE(db.Init(path).ok());
     ASSERT_TRUE(db.RegisterTool({"patch_tool", "legacy", "{}", true, 0, true}).ok());
+    ASSERT_TRUE(db.RegisterTool({"persist_function", "legacy", "{}", true, 0, true}).ok());
+    ASSERT_TRUE(db.RegisterTool({"run_js", "legacy", "{}", true, 0, true}).ok());
+    ASSERT_TRUE(db.Execute("CREATE TABLE js_functions (name TEXT PRIMARY KEY)").ok());
   }
 
   {
@@ -60,9 +63,16 @@ TEST(DatabaseTest, InitRemovesRetiredPatchTool) {
     ASSERT_TRUE(db.Init(path).ok());
     auto tools_or = db.GetEnabledTools();
     ASSERT_TRUE(tools_or.ok());
-    EXPECT_EQ(std::find_if(tools_or->begin(), tools_or->end(),
-                           [](const auto& tool) { return tool.name == "patch_tool"; }),
-              tools_or->end());
+    for (const std::string& retired : {"patch_tool", "persist_function", "run_js"}) {
+      EXPECT_EQ(std::find_if(tools_or->begin(), tools_or->end(),
+                             [&retired](const auto& tool) { return tool.name == retired; }),
+                tools_or->end());
+    }
+    auto tables_or = db.Query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'js_functions'");
+    ASSERT_TRUE(tables_or.ok());
+    auto tables = slop::json_parse(*tables_or);
+    ASSERT_TRUE(tables.has_value());
+    EXPECT_TRUE(tables->empty());
   }
   EXPECT_EQ(std::remove(path.c_str()), 0);
 }

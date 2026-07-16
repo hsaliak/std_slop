@@ -278,6 +278,8 @@ absl::Status Database::Init(const std::string& db_path) {
                      nullptr, nullptr);
   // Session state is carried by assistant messages in conversation history.
   (void)sqlite3_exec(raw_db, "DROP TABLE IF EXISTS session_state;", nullptr, nullptr, nullptr);
+  // The JavaScript control plane has been retired.
+  (void)sqlite3_exec(raw_db, "DROP TABLE IF EXISTS js_functions;", nullptr, nullptr, nullptr);
   // Patch Approval and Settings Tables
   (void)sqlite3_exec(raw_db, R"(
         CREATE TABLE IF NOT EXISTS patch_approvals (
@@ -311,7 +313,7 @@ absl::Status Database::Init(const std::string& db_path) {
   return absl::OkStatus();
 }
 absl::Status Database::RegisterDefaultTools() {
-  RETURN_IF_ERROR(Execute("DELETE FROM tools WHERE name = 'patch_tool'"));
+  RETURN_IF_ERROR(Execute("DELETE FROM tools WHERE name IN ('patch_tool', 'persist_function', 'run_js')"));
   std::vector<Tool> default_tools = {
       {"query_db", "Execute a SQL query against the internal SQLite database.",
        R"({"type":"object","properties":{"sql":{"type":"string"},"params":{"type":"array","items":{}}},"required":["sql"]})",
