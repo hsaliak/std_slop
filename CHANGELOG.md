@@ -1,4 +1,4 @@
-## Unreleased
+## v0.24 - 2026-07-16
 - **JavaScript control-plane retirement**: Removed the retired `run_js` runtime, persisted helper state, and QuickJS dependency; direct tools are now the sole model workflow interface.
 - **Workflow simplification**: Removed the obsolete `dynamic_workflow_harness` skill and redundant `patch_tool`; use `edit_tool` and `write_file` for file mutations.
 - **Context state**: Assistant-emitted `### STATE` summaries now remain solely in conversation history. Removed duplicate session-state storage and system-prompt injection to preserve stable prompt prefixes within an accordion epoch.
