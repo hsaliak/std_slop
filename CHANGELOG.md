@@ -3,6 +3,7 @@
 - **Workflow simplification**: Removed the obsolete `dynamic_workflow_harness` skill and redundant `patch_tool`; use `edit_tool` and `write_file` for file mutations.
 - **Context state**: Assistant-emitted `### STATE` summaries now remain solely in conversation history. Removed duplicate session-state storage and system-prompt injection to preserve stable prompt prefixes within an accordion epoch.
 - **Accordion context**: Replaced rolling context windows with `/context <retain_groups> [watermark_tokens]`. History now accumulates by complete interaction group until the latest actual prompt usage reaches the watermark, then resets to the retained suffix. Tool results preserve full fidelity up to `full_fidelity_limit`, and provider context overflow gets one reset/retry fallback.
+- **Responses transport**: Consolidated provider orchestration on the OpenAI Responses API, removed legacy Chat Completions and Gemini paths, and added streamed SSE decoding with prompt-cache routing and status visibility.
 
 ## v0.23 - 2026-06-27
 - **Built-in skill files**: Externalized built-in skills into generated Markdown-backed skill data so core skills can be reviewed, registered, and tested as normal repository files.
