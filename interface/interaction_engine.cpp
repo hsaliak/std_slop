@@ -48,9 +48,14 @@ std::string TakeRenderableMarkdown(std::string* buffered_text, bool flush) {
     return rendered;
   }
 
-  const size_t boundary = buffered_text->rfind("\n\n");
+  size_t boundary = buffered_text->rfind("\n\n");
+  size_t delimiter_size = 2;
+  if (boundary == std::string::npos) {
+    boundary = buffered_text->rfind('\n');
+    delimiter_size = 1;
+  }
   if (boundary == std::string::npos) return "";
-  const size_t rendered_size = boundary + 2;
+  const size_t rendered_size = boundary + delimiter_size;
   const std::string candidate = buffered_text->substr(0, rendered_size);
   if (HasUnclosedCodeFence(candidate)) return "";
   buffered_text->erase(0, rendered_size);
@@ -426,7 +431,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         slop::PrintMessage(msg);
       }
       if (msg.role == "assistant") {
-        auto calls_or = orchestrator_.ParseToolCalls(msg);
+        auto calls_or = orchestrator_.ParseLastOutputToolCalls();
         if (calls_or.ok() && !calls_or->empty()) {
           std::vector<slop::ToolDispatcher::Call> dispatcher_calls;
           std::vector<slop::ToolDispatcher::Result> results;
