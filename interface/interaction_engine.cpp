@@ -30,6 +30,33 @@
 namespace slop {
 namespace {
 
+bool HasUnclosedCodeFence(const std::string& text) {
+  size_t fence_count = 0;
+  size_t position = 0;
+  while ((position = text.find("```", position)) != std::string::npos) {
+    ++fence_count;
+    position += 3;
+  }
+  return fence_count % 2 != 0;
+}
+
+std::string TakeRenderableMarkdown(std::string* buffered_text, bool flush) {
+  if (buffered_text == nullptr || buffered_text->empty()) return "";
+  if (flush) {
+    std::string rendered = std::move(*buffered_text);
+    buffered_text->clear();
+    return rendered;
+  }
+
+  const size_t boundary = buffered_text->rfind("\n\n");
+  if (boundary == std::string::npos) return "";
+  const size_t rendered_size = boundary + 2;
+  const std::string candidate = buffered_text->substr(0, rendered_size);
+  if (HasUnclosedCodeFence(candidate)) return "";
+  buffered_text->erase(0, rendered_size);
+  return candidate;
+}
+
 }  // namespace
 
 InteractionEngine::InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler,
@@ -272,7 +299,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
       bool http_cancellation_announced = false;
       bool receiving_announced = false;
-      bool stream_text_started = false;
+      std::string streamed_markdown;
       while (!http_done) {
         std::string stream_text;
         {
@@ -284,8 +311,9 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           slop::PrintTurnStatus({TurnPhase::kReceiving, "", 0, std::nullopt, absl::Now() - turn_started});
         }
         if (!stream_text.empty() && !config.silent) {
-          slop::PrintAssistantTextDelta(stream_text, stream_text_started ? "" : "  ");
-          stream_text_started = true;
+          streamed_markdown.append(stream_text);
+          const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, false);
+          if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
         }
         if (maybe_handle_ask_user_prompt(
                 ask_state, [&]() { raw.reset(); },
@@ -294,7 +322,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         }
         if (!config.silent && !http_cancellation_announced && slop::IsInterruptPressed()) {
           http_cancellation_announced = true;
-          if (stream_text_started) slop::EndAssistantTextStream();
+          const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, true);
+          if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
           slop::PrintTurnStatus({TurnPhase::kCancelled, "", 0, std::nullopt, absl::Now() - turn_started});
           http_cancellation->Cancel();
           std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
@@ -308,11 +337,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         final_stream_text.swap(pending_stream_text);
       }
       if (!final_stream_text.empty() && !config.silent) {
-        slop::PrintAssistantTextDelta(final_stream_text, stream_text_started ? "" : "  ");
-        stream_text_started = true;
+        streamed_markdown.append(final_stream_text);
       }
-      if (stream_text_started && !config.silent) {
-        slop::EndAssistantTextStream();
+      if (!config.silent) {
+        const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, true);
+        if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
       }
 
       // Cleanup handler
