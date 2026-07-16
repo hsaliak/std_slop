@@ -7,5 +7,4 @@ exports_files([
     "self_improvement_learner.md",
     "delegator.md",
     "subagent_creator.md",
-    "dynamic_workflow_harness.md",
 ])
