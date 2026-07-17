@@ -47,9 +47,15 @@ class HttpClient {
 
   // Callbacks and internal parsing (public for testing)
   static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
-  static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata);
   static int ProgressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal,
                               curl_off_t ulnow);
+
+  // Parses an HTTP status line (e.g. "HTTP/1.1 200 OK") and writes the numeric
+  // status code. Returns false for non-status-line or malformed input.
+  static bool ParseHttpStatusLine(absl::string_view header, long* response_code);
+  // Captures a single "Key: Value" header line into the lowercase-keyed map.
+  static void CaptureHeaderField(absl::string_view header,
+                                 absl::flat_hash_map<std::string, std::string>* headers);
 
   int64_t ParseRetryAfter(const absl::flat_hash_map<std::string, std::string>& headers);
   int64_t ParseXRateLimitReset(const absl::flat_hash_map<std::string, std::string>& headers);

@@ -200,7 +200,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyStableAcrossSkill
   ASSERT_TRUE(with_first->contains("prompt_cache_key"));
   std::string key_with_first = json_get_or(*with_first, "prompt_cache_key", std::string{});
   EXPECT_TRUE(absl::StartsWith(key_with_first, "slop:"));
-  EXPECT_EQ(key_with_first.size(), 69);  // "slop:" (5) + 64 hex chars
+  EXPECT_EQ(key_with_first.size(), 64);  // Provider limit: "slop:" (5) + 59 hex chars.
 
   auto with_second = BuildRequest(orchestrator, db, "s1", "System prompt", *history_or, {"second"});
   ASSERT_TRUE(with_second.ok());

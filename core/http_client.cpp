@@ -1,9 +1,11 @@
 #include "core/http_client.h"
 
 #include <chrono>
+#include <cctype>
 #include <iostream>
 #include <sstream>
 #include <thread>
+#include <vector>
 
 #include "absl/base/call_once.h"
 #include "absl/cleanup/cleanup.h"
@@ -11,7 +13,9 @@
 #include "absl/random/random.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -35,8 +39,15 @@ constexpr long kHttpLowSpeedTimeSeconds = 360L;
 struct ResponseBuffer {
   std::string body;
   size_t bytes_received = 0;
+  size_t bytes_delivered = 0;
+  long response_code = 0;
   HttpClient::ChunkCallback on_chunk;
   absl::Status callback_status;
+};
+
+struct HeaderCapture {
+  absl::flat_hash_map<std::string, std::string>* headers;
+  ResponseBuffer* response;
 };
 
 std::string HttpFailureDetails(CURLcode result, long response_code, size_t bytes_received,
@@ -56,12 +67,53 @@ void EnsureCurlGlobalInit() {
     }
   });
 }
+
+size_t HeaderAndStatusCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
+  const size_t total_size = size * nitems;
+  const absl::string_view header(buffer, total_size);
+  auto* capture = static_cast<HeaderCapture*>(userdata);
+
+  long response_code = 0;
+  if (HttpClient::ParseHttpStatusLine(header, &response_code)) {
+    capture->response->response_code = response_code;
+    capture->headers->clear();
+  } else {
+    HttpClient::CaptureHeaderField(header, capture->headers);
+  }
+
+  return total_size;
+}
 }  // namespace
 
 // Helper to check SLOP_DEBUG_HTTP environment variable
 inline bool IsDebugHttpEnabled() {
   static bool enabled = (getenv("SLOP_DEBUG_HTTP") != nullptr);
   return enabled;
+}
+
+std::string FormatResponseHeaders(const absl::flat_hash_map<std::string, std::string>& headers) {
+  if (headers.empty()) return "<none>";
+  std::vector<std::string> parts;
+  parts.reserve(headers.size());
+  for (const auto& [key, value] : headers) {
+    parts.push_back(absl::StrCat(key, "=", value));
+  }
+  return absl::StrJoin(parts, " ");
+}
+
+void LogStreamingHttpFailure(const std::string& method, const std::string& url, CURLcode res, long response_code,
+                             size_t bytes_received, absl::Duration elapsed, const ResponseBuffer& response,
+                             const absl::flat_hash_map<std::string, std::string>& response_headers) {
+  if (!IsDebugHttpEnabled()) return;
+  LOG(WARNING) << "Streaming HTTP request failed for " << method << " " << url << ": "
+               << HttpFailureDetails(res, response_code, bytes_received, elapsed);
+  if (response.body.size() < 1000) {
+    LOG(WARNING) << "Partial response body (" << response.body.size() << " bytes): " << response.body;
+  } else {
+    LOG(WARNING) << "Partial response body (" << response.body.size() << " bytes): " << response.body.substr(0, 1000)
+                 << "... [truncated]";
+  }
+  LOG(WARNING) << "Response headers: " << FormatResponseHeaders(response_headers);
 }
 
 HttpClient::HttpClient() : max_retries_(5), initial_backoff_ms_(5000) { EnsureCurlGlobalInit(); }
@@ -76,30 +128,45 @@ HttpClient::~HttpClient() = default;
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   const size_t total_size = size * nmemb;
   auto* response = static_cast<ResponseBuffer*>(userp);
-  if (response->on_chunk) {
-    response->callback_status = response->on_chunk(absl::string_view(static_cast<char*>(contents), total_size));
-    if (!response->callback_status.ok()) return 0;
-  }
   response->body.append(static_cast<char*>(contents), total_size);
   response->bytes_received += total_size;
+
+  const bool should_deliver_chunk =
+      response->on_chunk && (response->response_code == 0 || (response->response_code >= 200 && response->response_code < 300));
+  if (should_deliver_chunk) {
+    response->callback_status = response->on_chunk(absl::string_view(static_cast<char*>(contents), total_size));
+    if (!response->callback_status.ok()) return 0;
+    response->bytes_delivered += total_size;
+  }
   return total_size;
 }
 
-size_t HttpClient::HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
-  size_t total_size = size * nitems;
-  std::string header(buffer, total_size);
-  auto* headers = static_cast<absl::flat_hash_map<std::string, std::string>*>(userdata);
+bool HttpClient::ParseHttpStatusLine(absl::string_view header, long* response_code) {
+  header = absl::StripAsciiWhitespace(header);
+  if (!absl::StartsWith(header, "HTTP/")) return false;
 
-  size_t colon_pos = header.find(':');
-  if (colon_pos != std::string::npos) {
-    std::string key = std::string(absl::StripAsciiWhitespace(header.substr(0, colon_pos)));
-    std::string value = std::string(absl::StripAsciiWhitespace(header.substr(colon_pos + 1)));
+  const size_t first_space = header.find(' ');
+  if (first_space == absl::string_view::npos) return false;
+  header.remove_prefix(first_space + 1);
+  const size_t second_space = header.find(' ');
+  const absl::string_view code_text = header.substr(0, second_space);
 
-    for (char& c : key) c = std::tolower(c);
-    (*headers)[key] = value;
-  }
+  int parsed_code = 0;
+  if (!absl::SimpleAtoi(code_text, &parsed_code)) return false;
+  *response_code = parsed_code;
+  return true;
+}
 
-  return total_size;
+void HttpClient::CaptureHeaderField(absl::string_view header,
+                                    absl::flat_hash_map<std::string, std::string>* headers) {
+  const size_t colon_pos = header.find(':');
+  if (colon_pos == absl::string_view::npos) return;
+
+  std::string key = std::string(absl::StripAsciiWhitespace(header.substr(0, colon_pos)));
+  std::string value = std::string(absl::StripAsciiWhitespace(header.substr(colon_pos + 1)));
+
+  for (char& c : key) c = std::tolower(static_cast<unsigned char>(c));
+  (*headers)[key] = value;
 }
 
 int HttpClient::ProgressCallback(void* clientp, curl_off_t /*dltotal*/, curl_off_t /*dlnow*/, curl_off_t /*ultotal*/,
@@ -148,6 +215,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     ResponseBuffer response;
     response.on_chunk = on_chunk;
     absl::flat_hash_map<std::string, std::string> response_headers;
+    HeaderCapture header_capture{&response_headers, &response};
     struct curl_slist* chunk = nullptr;
     absl::Cleanup chunk_cleaner = [&chunk] { curl_slist_free_all(chunk); };
 
@@ -171,8 +239,8 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_headers);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderAndStatusCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &header_capture);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, ProgressCallback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
@@ -195,7 +263,9 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
     if (!response.callback_status.ok()) return response.callback_status;
     // Retrying after delivering any chunk would duplicate stream data for the caller.
-    if (on_chunk && response.bytes_received > 0 && (res != CURLE_OK || response_code < 200 || response_code >= 300)) {
+    if (on_chunk && response.bytes_delivered > 0 && (res != CURLE_OK || response_code < 200 || response_code >= 300)) {
+      LogStreamingHttpFailure(method, url, res, response_code, response.bytes_received, elapsed, response,
+                              response_headers);
       return absl::UnavailableError(absl::StrCat("Streaming HTTP request failed after receiving response data. ",
                                                  HttpFailureDetails(res, response_code, response.bytes_received, elapsed)));
     }
@@ -207,6 +277,7 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
       } else {
         LOG(INFO) << "HTTP response: " << response_code << " for " << url
                   << " bytes_received=" << response.bytes_received << " elapsed=" << absl::FormatDuration(elapsed);
+        LOG(INFO) << "Response headers: " << FormatResponseHeaders(response_headers);
         if (response.body.size() < 1000) {
           LOG(INFO) << "Response body: " << response.body;
         } else {

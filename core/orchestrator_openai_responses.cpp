@@ -14,6 +14,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 
 #include "core/message_parser.h"
 #include "core/openai_utils.h"
@@ -52,6 +53,9 @@ absl::StatusOr<ModelSelection> ParseResponsesModelSelection(const std::string& s
 }
 
 bool IsDebugToolsEnabled() { return std::getenv("SLOP_DEBUG_TOOLS") != nullptr; }
+
+constexpr absl::string_view kPromptCacheKeyPrefix = "slop:";
+constexpr size_t kPromptCacheKeyMaxLength = 64;
 
 std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string& payload) {
   if (!absl::StrContains(payload, "event:") || !absl::StrContains(payload, "data:")) {
@@ -333,10 +337,10 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
     }
     auto digest_or = Sha256Digest(cache_input);
     if (digest_or.ok()) {
-      payload["prompt_cache_key"] =
-          absl::StrCat("slop:", absl::BytesToHexString(
-              absl::string_view(reinterpret_cast<const char*>(digest_or->data()),
-                                digest_or->size())));
+      std::string digest_hex = absl::BytesToHexString(absl::string_view(
+          reinterpret_cast<const char*>(digest_or->data()), digest_or->size()));
+      digest_hex.resize(kPromptCacheKeyMaxLength - kPromptCacheKeyPrefix.size());
+      payload["prompt_cache_key"] = absl::StrCat(kPromptCacheKeyPrefix, digest_hex);
     } else {
       LOG(WARNING) << "Failed to compute prompt_cache_key: " << digest_or.status();
     }

@@ -414,6 +414,21 @@ cc_test(
  ],
 )
 
+cc_test(
+ name = "http_client_fuzz_test",
+ srcs = ["http_client_fuzz_test.cpp"],
+ copts = [
+ "-Wno-unused-parameter",
+ "-Wno-deprecated-declarations",
+ ],
+ deps = [
+ ":transport",
+ "@fuzztest//fuzztest",
+ "@fuzztest//fuzztest:fuzztest_gtest_main",
+ "@googletest//:gtest",
+ ],
+)
+
 format_test(
  name = "format_test",
  cc = "//:clang_format_hermetic", # Point back to your root tool

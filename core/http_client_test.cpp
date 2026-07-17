@@ -1,13 +1,97 @@
 #include "core/http_client.h"
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
+
+#include <atomic>
 #include <cstdlib>
+#include <string>
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 namespace slop {
+
+namespace {
+
+void CloseFd(int fd) {
+  if (fd >= 0) close(fd);
+}
+
+void DrainHttpRequest(int fd) {
+  std::string request;
+  char buffer[1024];
+  while (request.find("\r\n\r\n") == std::string::npos) {
+    const ssize_t received = recv(fd, buffer, sizeof(buffer), 0);
+    if (received <= 0) return;
+    request.append(buffer, static_cast<size_t>(received));
+  }
+}
+
+void SendAll(int fd, absl::string_view data) {
+  while (!data.empty()) {
+    const ssize_t sent = send(fd, data.data(), data.size(), MSG_NOSIGNAL);
+    if (sent <= 0) return;
+    data.remove_prefix(static_cast<size_t>(sent));
+  }
+}
+
+int BindLoopbackServer() {
+  const int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (listen_fd < 0) return -1;
+
+  int opt = 1;
+  setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+  timeval accept_timeout = {};
+  accept_timeout.tv_sec = 2;
+  setsockopt(listen_fd, SOL_SOCKET, SO_RCVTIMEO, &accept_timeout, sizeof(accept_timeout));
+
+  sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = htons(0);
+  if (bind(listen_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+    CloseFd(listen_fd);
+    return -1;
+  }
+  if (listen(listen_fd, 2) != 0) {
+    CloseFd(listen_fd);
+    return -1;
+  }
+  return listen_fd;
+}
+
+int BoundPort(int listen_fd) {
+  sockaddr_in addr = {};
+  socklen_t addr_len = sizeof(addr);
+  if (getsockname(listen_fd, reinterpret_cast<sockaddr*>(&addr), &addr_len) != 0) return -1;
+  return ntohs(addr.sin_port);
+}
+
+void ServeTwoResponses(int listen_fd, std::atomic<int>* request_count) {
+  const std::string responses[] = {
+      "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 28\r\nRetry-After: 0\r\nConnection: close\r\n\r\nToo many requests per minute",
+      "HTTP/1.1 200 OK\r\nContent-Length: 9\r\nConnection: close\r\n\r\nstream-ok",
+  };
+  for (const std::string& response : responses) {
+    const int client_fd = accept(listen_fd, nullptr, nullptr);
+    if (client_fd < 0) break;
+    DrainHttpRequest(client_fd);
+    SendAll(client_fd, response);
+    CloseFd(client_fd);
+    request_count->fetch_add(1);
+  }
+  CloseFd(listen_fd);
+}
+
+}  // namespace
 
 TEST(HttpClientTest, PostInit) {
   HttpClient client(0, 0);
@@ -96,16 +180,75 @@ TEST(HttpClientTest, ParseRetryAfterMissing) {
   EXPECT_EQ(client.ParseRetryAfter(headers), -1);
 }
 
-TEST(HttpClientTest, HeaderCallback) {
+TEST(HttpClientTest, CaptureHeaderFieldParsesKeyAndValue) {
   absl::flat_hash_map<std::string, std::string> headers;
-  std::string h1 = "Content-Type: application/json\r\n";
-  HttpClient::HeaderCallback(const_cast<char*>(h1.data()), 1, h1.size(), &headers);
-
-  std::string h2 = "Retry-After: 120\r\n";
-  HttpClient::HeaderCallback(const_cast<char*>(h2.data()), 1, h2.size(), &headers);
+  HttpClient::CaptureHeaderField("Content-Type: application/json\r\n", &headers);
+  HttpClient::CaptureHeaderField("Retry-After: 120\r\n", &headers);
 
   EXPECT_EQ(headers["content-type"], "application/json");
   EXPECT_EQ(headers["retry-after"], "120");
+}
+
+TEST(HttpClientTest, CaptureHeaderFieldIgnoresLinesWithoutColon) {
+  absl::flat_hash_map<std::string, std::string> headers;
+  HttpClient::CaptureHeaderField("HTTP/1.1 200 OK\r\n", &headers);
+  HttpClient::CaptureHeaderField("\r\n", &headers);
+  EXPECT_TRUE(headers.empty());
+}
+
+TEST(HttpClientTest, CaptureHeaderFieldStripsWhitespace) {
+  absl::flat_hash_map<std::string, std::string> headers;
+  HttpClient::CaptureHeaderField("  X-Custom :  spaced value  \r\n", &headers);
+  ASSERT_EQ(headers.size(), 1);
+  EXPECT_EQ(headers.begin()->first, "x-custom");
+  EXPECT_EQ(headers.begin()->second, "spaced value");
+}
+
+TEST(HttpClientTest, ParseHttpStatusLineValid) {
+  long code = 0;
+  EXPECT_TRUE(HttpClient::ParseHttpStatusLine("HTTP/1.1 200 OK\r\n", &code));
+  EXPECT_EQ(code, 200);
+
+  EXPECT_TRUE(HttpClient::ParseHttpStatusLine("HTTP/2 418 I'm a teapot", &code));
+  EXPECT_EQ(code, 418);
+
+  EXPECT_TRUE(HttpClient::ParseHttpStatusLine("  HTTP/1.0 503 Service Unavailable\n", &code));
+  EXPECT_EQ(code, 503);
+}
+
+TEST(HttpClientTest, ParseHttpStatusLineRejectsMalformed) {
+  long code = 42;
+  EXPECT_FALSE(HttpClient::ParseHttpStatusLine("not a status line", &code));
+  EXPECT_EQ(code, 42) << "out-param must be untouched on failure";
+
+  EXPECT_FALSE(HttpClient::ParseHttpStatusLine("HTTP/1.1\r\n", &code));
+  EXPECT_FALSE(HttpClient::ParseHttpStatusLine("HTTP/1.1 abc Bad\r\n", &code));
+  EXPECT_FALSE(HttpClient::ParseHttpStatusLine("", &code));
+}
+
+TEST(HttpClientTest, PostStreamRetriesTransientErrorBodyBeforeDeliveringChunks) {
+  const int listen_fd = BindLoopbackServer();
+  ASSERT_GE(listen_fd, 0);
+  const int port = BoundPort(listen_fd);
+  ASSERT_GT(port, 0);
+
+  std::atomic<int> request_count{0};
+  std::thread server([listen_fd, &request_count] { ServeTwoResponses(listen_fd, &request_count); });
+
+  HttpClient client(1, 0);
+  std::string delivered;
+  auto result = client.PostStream(absl::StrCat("http://127.0.0.1:", port), "{}", {"Content-Type: application/json"},
+                                  [&](absl::string_view chunk) {
+                                    delivered.append(chunk.data(), chunk.size());
+                                    return absl::OkStatus();
+                                  });
+
+  server.join();
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(request_count.load(), 2);
+  EXPECT_EQ(*result, "stream-ok");
+  EXPECT_EQ(delivered, "stream-ok");
 }
 
 TEST(HttpClientTest, ParseXRateLimitResetTimestamp) {
