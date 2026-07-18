@@ -53,6 +53,21 @@ void ArrayGetterRequiresHomogeneousTypes(const std::vector<int>& values, const s
   EXPECT_FALSE(bad.has_value());
 }
 
+void StructuredSchemaValidationNeverCrashes(const std::string& raw_schema, const std::string& raw_value) {
+  const auto schema = json_parse(raw_schema);
+  const auto value = json_parse(raw_value);
+  if (!schema.has_value()) return;
+
+  const absl::Status first_schema_status = ValidateStructuredOutputSchema(*schema);
+  const absl::Status second_schema_status = ValidateStructuredOutputSchema(*schema);
+  EXPECT_EQ(first_schema_status, second_schema_status);
+  if (!first_schema_status.ok() || !value.has_value()) return;
+
+  const absl::Status first_value_status = ValidateJsonAgainstSchema(*value, *schema);
+  const absl::Status second_value_status = ValidateJsonAgainstSchema(*value, *schema);
+  EXPECT_EQ(first_value_status, second_value_status);
+}
+
 FUZZ_TEST(JsonUtilsFuzzTest, ParseAndDumpNeverCrashes);
 
 FUZZ_TEST(JsonUtilsFuzzTest, GetOrIsDeterministicForTypeMismatch)
@@ -60,6 +75,9 @@ FUZZ_TEST(JsonUtilsFuzzTest, GetOrIsDeterministicForTypeMismatch)
 
 FUZZ_TEST(JsonUtilsFuzzTest, ArrayGetterRequiresHomogeneousTypes)
     .WithDomains(fuzztest::VectorOf(fuzztest::Arbitrary<int>()), fuzztest::Arbitrary<std::string>());
+
+FUZZ_TEST(JsonUtilsFuzzTest, StructuredSchemaValidationNeverCrashes)
+    .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
 
 }  // namespace
 }  // namespace slop

@@ -63,4 +63,36 @@ TEST(JsonUtilsTest, GetOr) {
   EXPECT_EQ(json_get_or<int>(j, "key", 42), 42);  // wrong type
 }
 
+TEST(JsonUtilsTest, ValidatesStructuredOutputSchemaAndValue) {
+  auto schema = json_parse(R"({"type":"object","properties":{"name":{"type":"string"},"tags":{"type":"array","items":{"type":"integer"}}},"required":["name"],"additionalProperties":false})");
+  ASSERT_TRUE(schema.has_value());
+  EXPECT_TRUE(ValidateStructuredOutputSchema(*schema).ok());
+
+  auto value = json_parse(R"({"name":"slop","tags":[1,2]})");
+  ASSERT_TRUE(value.has_value());
+  EXPECT_TRUE(ValidateJsonAgainstSchema(*value, *schema).ok());
+}
+
+TEST(JsonUtilsTest, RejectsInvalidStructuredOutputSchema) {
+  auto unsupported = json_parse(R"({"type":"object","oneOf":[]})");
+  ASSERT_TRUE(unsupported.has_value());
+  EXPECT_FALSE(ValidateStructuredOutputSchema(*unsupported).ok());
+
+  auto non_object_root = json_parse(R"({"type":"array","items":{"type":"string"}})");
+  ASSERT_TRUE(non_object_root.has_value());
+  EXPECT_FALSE(ValidateStructuredOutputSchema(*non_object_root).ok());
+}
+
+TEST(JsonUtilsTest, RejectsValueThatViolatesStructuredOutputSchema) {
+  auto schema = json_parse(R"({"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false})");
+  ASSERT_TRUE(schema.has_value());
+  auto missing_name = json_parse(R"({})");
+  ASSERT_TRUE(missing_name.has_value());
+  EXPECT_FALSE(ValidateJsonAgainstSchema(*missing_name, *schema).ok());
+
+  auto unexpected_property = json_parse(R"({"name":"slop","extra":true})");
+  ASSERT_TRUE(unexpected_property.has_value());
+  EXPECT_FALSE(ValidateJsonAgainstSchema(*unexpected_property, *schema).ok());
+}
+
 }  // namespace slop

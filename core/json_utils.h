@@ -1,11 +1,14 @@
 #ifndef SLOP_CORE_JSON_UTILS_H_
 #define SLOP_CORE_JSON_UTILS_H_
 
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "nlohmann/json.hpp"
 
 namespace slop {
@@ -135,6 +138,176 @@ inline T json_get_or(const nlohmann::json& j, const std::string& key, T default_
 // Safely dump a JSON object to a string without exceptions.
 inline std::string json_dump(const nlohmann::json& j, int indent = -1) {
   return j.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
+}
+
+namespace json_utils_internal {
+
+inline constexpr int kMaxSchemaDepth = 64;
+
+inline constexpr char kSchemaType[] = "type";
+inline constexpr char kSchemaProperties[] = "properties";
+inline constexpr char kSchemaRequired[] = "required";
+inline constexpr char kSchemaAdditionalProperties[] = "additionalProperties";
+inline constexpr char kSchemaItems[] = "items";
+inline constexpr char kSchemaEnum[] = "enum";
+inline constexpr std::array<const char*, 6> kAllowedSchemaKeywords = {
+    kSchemaType, kSchemaProperties, kSchemaRequired, kSchemaAdditionalProperties, kSchemaItems, kSchemaEnum};
+
+inline constexpr char kSchemaObject[] = "object";
+inline constexpr char kSchemaArray[] = "array";
+inline constexpr char kSchemaString[] = "string";
+inline constexpr char kSchemaNumber[] = "number";
+inline constexpr char kSchemaInteger[] = "integer";
+inline constexpr char kSchemaBoolean[] = "boolean";
+inline constexpr char kSchemaNull[] = "null";
+inline constexpr std::array<const char*, 7> kSupportedSchemaTypes = {
+    kSchemaObject, kSchemaArray, kSchemaString, kSchemaNumber, kSchemaInteger, kSchemaBoolean, kSchemaNull};
+
+inline bool IsSupportedSchemaType(const std::string& type) {
+  for (const char* supported_type : kSupportedSchemaTypes) {
+    if (type == supported_type) return true;
+  }
+  return false;
+}
+
+inline bool MatchesSchemaType(const nlohmann::json& value, const std::string& type) {
+  if (type == kSchemaObject) return value.is_object();
+  if (type == kSchemaArray) return value.is_array();
+  if (type == kSchemaString) return value.is_string();
+  if (type == kSchemaNumber) return value.is_number();
+  if (type == kSchemaInteger) return value.is_number_integer() || value.is_number_unsigned();
+  if (type == kSchemaBoolean) return value.is_boolean();
+  return value.is_null();
+}
+
+inline std::optional<std::string> JsonStringValue(const nlohmann::json& value) {
+  return json_getter<std::string>::get(value);
+}
+
+inline absl::Status ValidateSchemaNode(const nlohmann::json& schema, const std::string& path, int depth) {
+  if (depth > kMaxSchemaDepth) return absl::InvalidArgumentError("JSON Schema nesting exceeds 64 levels");
+  if (!schema.is_object()) return absl::InvalidArgumentError(absl::StrCat(path, " must be an object"));
+
+  for (const auto& item : schema.items()) {
+    bool allowed = false;
+    for (const char* keyword : kAllowedSchemaKeywords) {
+      if (item.key() == keyword) {
+        allowed = true;
+        break;
+      }
+    }
+    if (!allowed) return absl::InvalidArgumentError(absl::StrCat(path, " contains unsupported keyword '", item.key(), "'"));
+  }
+
+  const auto type = json_get<std::string>(schema, kSchemaType);
+  if (!type || !IsSupportedSchemaType(*type)) {
+    return absl::InvalidArgumentError(absl::StrCat(path, " must declare a supported string type"));
+  }
+  if (const auto* enum_values = json_at(schema, kSchemaEnum); enum_values != nullptr) {
+    if (!enum_values->is_array() || enum_values->empty()) {
+      return absl::InvalidArgumentError(absl::StrCat(path, ".enum must be a non-empty array"));
+    }
+    for (const auto& value : *enum_values) {
+      if (!MatchesSchemaType(value, *type)) {
+        return absl::InvalidArgumentError(absl::StrCat(path, ".enum contains a value that does not match its type"));
+      }
+    }
+  }
+
+  if (*type == kSchemaObject) {
+    if (const auto* properties = json_at(schema, kSchemaProperties); properties != nullptr) {
+      if (!properties->is_object()) return absl::InvalidArgumentError(absl::StrCat(path, ".properties must be an object"));
+      for (const auto& property : properties->items()) {
+        const absl::Status status = ValidateSchemaNode(property.value(), absl::StrCat(path, ".properties.", property.key()), depth + 1);
+        if (!status.ok()) return status;
+      }
+    }
+    if (const auto* required = json_at(schema, kSchemaRequired); required != nullptr) {
+      const auto* properties = json_at(schema, kSchemaProperties);
+      if (!required->is_array()) return absl::InvalidArgumentError(absl::StrCat(path, ".required must be an array"));
+      for (const auto& name : *required) {
+        const auto property_name = JsonStringValue(name);
+        if (!property_name) return absl::InvalidArgumentError(absl::StrCat(path, ".required must contain strings"));
+        if (properties == nullptr || json_at(*properties, *property_name) == nullptr) {
+          return absl::InvalidArgumentError(absl::StrCat(path, ".required references unknown property '", *property_name, "'"));
+        }
+      }
+    }
+    if (const auto* additional = json_at(schema, kSchemaAdditionalProperties);
+        additional != nullptr && !additional->is_boolean()) {
+      return absl::InvalidArgumentError(absl::StrCat(path, ".additionalProperties must be boolean"));
+    }
+  } else if (*type == kSchemaArray) {
+    const auto* items = json_at(schema, kSchemaItems);
+    if (items == nullptr) return absl::InvalidArgumentError(absl::StrCat(path, ".items is required for arrays"));
+    const absl::Status status = ValidateSchemaNode(*items, absl::StrCat(path, ".items"), depth + 1);
+    if (!status.ok()) return status;
+  } else if (json_at(schema, kSchemaProperties) != nullptr || json_at(schema, kSchemaRequired) != nullptr ||
+             json_at(schema, kSchemaAdditionalProperties) != nullptr || json_at(schema, kSchemaItems) != nullptr) {
+    return absl::InvalidArgumentError(absl::StrCat(path, " contains keywords incompatible with type '", *type, "'"));
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status ValidateValue(const nlohmann::json& value, const nlohmann::json& schema, const std::string& path,
+                                  int depth) {
+  if (depth > kMaxSchemaDepth) return absl::InvalidArgumentError("JSON value nesting exceeds 64 levels");
+  const std::string type = json_get_or(schema, kSchemaType, std::string{});
+  if (!MatchesSchemaType(value, type)) return absl::InvalidArgumentError(absl::StrCat(path, " must be ", type));
+  if (const auto* enum_values = json_at(schema, kSchemaEnum); enum_values != nullptr) {
+    bool matches = false;
+    for (const auto& candidate : *enum_values) matches = matches || candidate == value;
+    if (!matches) return absl::InvalidArgumentError(absl::StrCat(path, " must match an enum value"));
+  }
+  if (type == kSchemaObject) {
+    const auto* properties = json_at(schema, kSchemaProperties);
+    if (const auto* required = json_at(schema, kSchemaRequired); required != nullptr) {
+      for (const auto& name : *required) {
+        const auto key = json_utils_internal::JsonStringValue(name);
+        if (!key) return absl::InvalidArgumentError("Schema required property must be a string");
+        if (!value.contains(*key)) {
+          return absl::InvalidArgumentError(absl::StrCat(path, " is missing required property '", *key, "'"));
+        }
+      }
+    }
+    const bool additional_properties = json_get_or(schema, kSchemaAdditionalProperties, true);
+    for (const auto& property : value.items()) {
+      const nlohmann::json* property_schema = properties == nullptr ? nullptr : json_at(*properties, property.key());
+      if (property_schema == nullptr) {
+        if (!additional_properties) return absl::InvalidArgumentError(absl::StrCat(path, " contains unexpected property '", property.key(), "'"));
+        continue;
+      }
+      const absl::Status status = ValidateValue(property.value(), *property_schema, absl::StrCat(path, ".", property.key()), depth + 1);
+      if (!status.ok()) return status;
+    }
+  } else if (type == kSchemaArray) {
+    const auto* items = json_at(schema, kSchemaItems);
+    for (size_t index = 0; index < value.size(); ++index) {
+      const absl::Status status = ValidateValue(value[index], *items, absl::StrCat(path, "[", index, "]"), depth + 1);
+      if (!status.ok()) return status;
+    }
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace json_utils_internal
+
+// Validates the supported JSON Schema subset used by batch structured output.
+inline absl::Status ValidateStructuredOutputSchema(const nlohmann::json& schema) {
+  const absl::Status status = json_utils_internal::ValidateSchemaNode(schema, "$", 0);
+  if (!status.ok()) return status;
+  if (json_get_or(schema, json_utils_internal::kSchemaType, std::string{}) !=
+      json_utils_internal::kSchemaObject) {
+    return absl::InvalidArgumentError("Structured output schema root type must be object");
+  }
+  return absl::OkStatus();
+}
+
+// Validates a structured output value against an already validated schema.
+inline absl::Status ValidateJsonAgainstSchema(const nlohmann::json& value, const nlohmann::json& schema) {
+  const absl::Status schema_status = ValidateStructuredOutputSchema(schema);
+  if (!schema_status.ok()) return schema_status;
+  return json_utils_internal::ValidateValue(value, schema, "$", 0);
 }
 
 }  // namespace slop
