@@ -81,6 +81,16 @@ class InteractionEngineTest : public ::testing::Test {
     res["output"] = nlohmann::json::array({item});
     return res;
   }
+
+  std::string ResponsesSsePayload(const nlohmann::json& response) {
+    std::string payload;
+    for (const auto& item : response["output"]) {
+      payload += "data: " + nlohmann::json({{"type", "response.output_item.done"}, {"item", item}}).dump() +
+                 "\n\n";
+    }
+    payload += "data: " + nlohmann::json({{"type", "response.completed"}, {"response", response}}).dump() + "\n\n";
+    return payload;
+  }
 };
 
 TEST_F(InteractionEngineTest, QueryIsolationTest) {
@@ -91,7 +101,7 @@ TEST_F(InteractionEngineTest, QueryIsolationTest) {
   config.silent = true;
 
   EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(ResponsesResponse("The answer is 42").dump()));
+      .WillOnce(testing::Return(ResponsesSsePayload(ResponsesResponse("The answer is 42"))));
 
   auto result = engine.Query("What is the answer?", config);
   ASSERT_TRUE(result.ok());
@@ -110,8 +120,8 @@ TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
   config.silent = true;
 
   EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(ResponsesToolCall("query_db", {{"sql", "SELECT 1"}}).dump()))
-      .WillOnce(testing::Return(ResponsesResponse("The result is 1").dump()));
+      .WillOnce(testing::Return(ResponsesSsePayload(ResponsesToolCall("query_db", {{"sql", "SELECT 1"}}))))
+      .WillOnce(testing::Return(ResponsesSsePayload(ResponsesResponse("The result is 1"))));
 
   auto result = engine.Query("Query something", config);
   ASSERT_TRUE(result.ok());
@@ -156,7 +166,7 @@ TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
             }
             EXPECT_TRUE(found_skill_in_input);
           }),
-          testing::Return(ResponsesResponse("specialized").dump())));
+          testing::Return(ResponsesSsePayload(ResponsesResponse("specialized")))));
 
   auto result = engine.Query("Review this patch", config, {}, options);
   ASSERT_TRUE(result.ok());
@@ -197,7 +207,7 @@ TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   config.silent = true;
 
   EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(ResponsesResponse("legacy").dump()));
+      .WillOnce(testing::Return(ResponsesSsePayload(ResponsesResponse("legacy"))));
 
   auto result = engine.Query("Legacy query", config);
   ASSERT_TRUE(result.ok());
