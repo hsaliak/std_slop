@@ -79,6 +79,10 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   EXPECT_EQ(json_get_or(payload, "model", std::string{}), "gpt-4o");
   EXPECT_EQ(json_get_or(payload, "instructions", std::string{}), "System prompt");
   EXPECT_EQ(json_get_or(payload, "store", true), false);
+  EXPECT_EQ(json_get_or(payload, "stream", false), true);
+  ASSERT_TRUE(payload.contains("reasoning"));
+  EXPECT_EQ(json_get_or(payload["reasoning"], "effort", std::string{}), "medium");
+  EXPECT_EQ(json_get_or(payload["reasoning"], "summary", std::string{}), "auto");
   ASSERT_TRUE(payload.contains("input"));
   ASSERT_TRUE(payload["input"].is_array());
   ASSERT_TRUE(payload.contains("tools"));

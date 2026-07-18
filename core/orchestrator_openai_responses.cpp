@@ -318,10 +318,9 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
   if (!system_instruction.empty()) {
     payload["instructions"] = system_instruction;
   }
-  if (absl::StrContains(base_url_, "/backend-api/codex")) {
-    payload["reasoning"] = {{"effort", model_selection.reasoning_effort}, {"summary", "auto"}};
-    payload["stream"] = true;
-  }
+  // These are standard Responses API options for every compatible endpoint.
+  payload["stream"] = true;
+  payload["reasoning"] = {{"effort", model_selection.reasoning_effort}, {"summary", "auto"}};
   const nlohmann::json tools = BuildOpenAiResponsesTools(request.enabled_tools);
   if (!tools.empty()) {
     payload["tools"] = tools;
