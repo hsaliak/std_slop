@@ -1,6 +1,5 @@
 # Context Management in std::slop
-This document outlines the context management strategy in `std::slop`. We use an **append-only accordion history** with assistant-managed state tracking and on-demand historical retrieval.
-The system groups messages into "conversation groups" (identified by `group_id`) to maintain logical coherence (e.g., a user prompt and its resulting tool calls and assistant response form a group).
+`std::slop` uses append-only accordion history. Messages are grouped by `group_id`, so a user request, its tool calls, and its final assistant response remain together.
 ## 1. Assistant History State
 The system prompt asks the assistant to include a `### STATE` summary in its responses. That summary remains in the corresponding assistant message in conversation history and is the only state supplied to later model requests. std::slop does not extract, validate, or duplicate the summary into a separate system-prompt anchor; if the assistant omits it, the history simply has no such summary for that turn.
 
@@ -94,7 +93,7 @@ The current strategy prioritizes **coherence** (sequential history) and **author
 ## Token Accounting
 Token counts in `std::slop` (displayed as `· NNN tokens`) do not represent the isolated cost of a single message, but rather a **snapshot of the session's total weight** in the LLM's memory at that specific moment.
 ### The Snapshot Principle
-Every interaction with the LLM is stateless. To provide context, the orchestrator sends the entire relevant conversation history back to the model with every new request. The reported token count is the sum of:
+Every interaction is stateless. The orchestrator sends the selected accordion history with each request. The reported token count is the sum of:
 1.  **Prompt Tokens**: The "Input" (System Instructions + Conversation History + New User Message).
 2.  **Completion Tokens**: The "Output" (The LLM's new reasoning text and/or tool calls).
 ### Behavioral Characteristics
@@ -110,10 +109,3 @@ Every interaction with the LLM is stateless. To provide context, the orchestrato
 - `/message show <GID>`: View the full content of a specific interaction group.
 - `/message remove <GID>`: Permanently **deletes** a specific message group from the database.
 - `/messages`: Alias for the `/message` command.
-## Evolutionary Notes
-### 2026-01-23: Historical Truncation vs. Retrieval
-**Change**: Reduced historical truncation limit from 500 to 300 characters and implemented `query_db` hints.
-**Rationale**: Deepening the isolation and efficiency of the context window. By providing a programmatic retrieval hint, the model can safely operate with much smaller historical fragments, as it knows exactly how to get the full data if it becomes relevant again. This significantly extends the effective session length for complex engineering tasks.
-### 2026-01-27: Intra-Turn Degradation
-**Change**: Implemented a 3-tier truncation strategy: Full-fidelity (5000 chars) for the last 5 tool calls in the active group, Degraded (1000 chars) for older calls in the active group, and Inactive (300 chars) for previous turns.
-**Rationale**: Complex tasks often involve many tool calls within a single "turn" (e.g., recursive file searches or broad refactors). Preserving 5000 characters for *every* call in a 20-call sequence would instantly exhaust the context window. By degrading older calls within the same turn to 1000 characters, we balance technical fidelity for the current task with the need to preserve conversation history and assistant-provided state summaries.

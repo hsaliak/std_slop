@@ -44,9 +44,8 @@ For first-time setup, start with [WALKTHROUGH.md](WALKTHROUGH.md). This document
 
 ## Runtime Selection Rules
 
-- OpenAI API key mode uses Chat Completions by default.
-- OpenAI API key mode uses the Responses API by default..
-- OpenAI OAuth mode forces the ChatGPT/Codex-backed Responses path.
+- API-key and OAuth modes use the OpenAI Responses API.
+- OAuth uses the ChatGPT/Codex-backed Responses path; `openai_base_url` is ignored.
 
 ## Token Refresh Behavior
 

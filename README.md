@@ -11,16 +11,16 @@
 
 Direct tools keep ordinary operations explicit and individually reviewable. Mail workflow tools enforce staging, review, approval, and finalization protections server-side.
 
-## ✨ Key Features
+## Key Features
 
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: SQL-backed, per-session accordion history preserves an append-only prompt prefix between resets, so sessions can grow independently while retaining cache-friendly context.
 - **🪗 Accordion context**: Use `/context <retain_groups> [watermark_tokens]` to grow a cache-friendly prompt prefix, then reset to complete recent groups after the latest actual prompt usage reaches the watermark (defaults: `2`, `350000`). Tool results remain full fidelity up to their configured per-result limit.
-- **📬 Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for the manual patch-based workflow or [docs/mail-loop/README.md](docs/mail-loop/README.md) for the automated mail-loop orchestrator.
-- **🤖 Multi-Model**: Supports OpenAI-compatible APIs (OpenRouter, etc.) and OpenAI Responses API (with chatgpt plus/pro oauth).
-- **📣 Hotwords**: Quick, single-turn skill activation using `hey <skill> <query>` syntax. Eg: "hey code_reviewer review these patches".
+- **Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for patch-based delivery.
+- **Models**: Supports OpenAI-compatible Responses endpoints and ChatGPT Plus/Pro OAuth.
+- **Hotwords**: Activate a skill for one turn with `hey <skill> <query>`.
 
 ## 🚀 Quick Start
 
@@ -55,69 +55,30 @@ std_slop --prompt "Refactor main.cpp to remove all unused includes"
 ```
 Batch mode accepts exactly one instruction source, and optional piped stdin is prepended as context:
 ```bash
-std_slop --prompt-file task.md
+std_slop --prompt_file task.md
 ls *.cc | std_slop --prompt "sort these files in alphabetical order"
-cat errors.log | std_slop --prompt-file diagnose.md
 ```
-Use exactly one instruction source: `--prompt` or `--prompt-file`. Empty instructions are rejected. Empty or whitespace-only piped stdin is ignored.
+Use exactly one instruction source: `--prompt` or `--prompt_file`. Piped stdin is optional context. Batch mode uses an in-memory database unless `--prompt_db` is set.
 
-For scripts, batch mode can emit one run-metadata JSON object to stdout:
+For scripts, `--output=json` writes run metadata:
 ```bash
-std_slop --prompt-file task.md --output json | jq -r .assistant_message
+std_slop --prompt_file task.md --output=json | jq -r .assistant_message
 ```
 The JSON object contains `ok`, `session`, `model`, `active_skills`, `assistant_message`, `structured_output`, `error`, and `duration_ms`.
 
-You can combine prompt mode with piped context, an explicit model, a throwaway session, and a persistent prompt database when a one-off task needs tool calls or auditability:
-```bash
-cat errors.log | std_slop \
-  --prompt-file diagnose.md \
-  --model gpt-5.4-mini:high \
-  --session ci-diagnose \
-  --prompt-db /tmp/slop-ci-diagnose.db
-```
-
-Batch mode can also require the model's final answer to match a validated JSON Schema object. Use `--format` for an inline schema or `--format_file` for a schema file; exactly one is allowed, and it cannot be combined with `--output json` because stdout is the raw structured result:
+Use `--format` or `--format_file` to require a JSON Schema-constrained final value. The raw validated value is the only stdout payload, so structured output cannot be combined with `--output=json`:
 ```bash
 std_slop --prompt "Extract the name" \
   --format '{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false}'
-```
 
-For larger schemas, store the schema in a file and pass it with `--format_file`:
-```bash
-cat > /tmp/person.schema.json <<'JSON'
-{
-  "type": "object",
-  "properties": {
-    "name": { "type": "string" },
-    "age": { "type": "integer" },
-    "skills": {
-      "type": "array",
-      "items": { "type": "string" }
-    }
-  },
-  "required": ["name", "age"],
-  "additionalProperties": false
-}
-JSON
-
-std_slop \
-  --prompt "Extract the person's name, age, and skills from: Ada is 37 and knows C++ and SQL." \
-  --format_file /tmp/person.schema.json
-```
-
-All pieces can be used together: stdin becomes context, `--prompt-file` supplies the instruction, `--format_file` enforces the final JSON shape, and the raw validated JSON object is the only stdout payload:
-```bash
 cat incident.log | std_slop \
-  --prompt-file summarize_incident.md \
+  --prompt_file summarize_incident.md \
   --format_file incident_summary.schema.json \
   --model gpt-5.4-mini:high \
   --session incident-2026-07-19 \
-  --prompt-db /tmp/slop-incident.db
+  --prompt_db /tmp/slop-incident.db
 ```
-Structured output supports this bounded schema subset: root `type: "object"`, nested object/array/string/number/integer/boolean/null types, `properties`, `required`, boolean `additionalProperties`, array `items`, and non-empty `enum` arrays.
-
-Batch mode also takes in `--model` which is useful to specify the model to use and `--session` which is useful to indicate the session the prompt should be executed under. Batch mode works off an in memory sqlite db. If you want the db persisted you can point it to a DB with the `--prompt-db` argument.
-`/commands` are also supported. 
+The supported schema subset is a root object plus nested object, array, string, number, integer, boolean, and null types; `properties`, `required`, boolean `additionalProperties`, `items`, and non-empty `enum` arrays.
 
 
 Read the [Walkthrough](docs/WALKTHROUGH.md) first for the recommended getting-started flow, authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use [docs/README.md](docs/README.md) as the docs index for deeper reference material.

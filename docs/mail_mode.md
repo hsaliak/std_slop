@@ -3,9 +3,9 @@
 This document describes the manual Mail Mode workflow for `std::slop`.
 
 **Audience:** users who want explicit control over staging branches, patch commits, review, and finalize.
-**Related docs:** [mail-loop/README.md](mail-loop/README.md), [README.md](README.md), [../README.md](../README.md)
+**Related docs:** [README.md](README.md), [../README.md](../README.md)
 
-If you want the automated version of this workflow, see [mail-loop/README.md](mail-loop/README.md).
+The `automated-mail-mode` skill can execute this workflow with minimal interruption. Finalization still requires explicit human approval.
 
 ## 1. Core Philosophy
 
@@ -59,23 +59,7 @@ Mail Mode treats the agent as a remote contributor. Instead of making ad hoc cha
 - `git_verify_series(base_branch, command)`
 - `git_finalize_series(target_branch)`
 
-## 7. Manual Mail Mode vs Mail Loop
-
-### Manual Mail Mode
-
-Choose this when you want to drive each step yourself:
-- create the staging branch,
-- decide patch boundaries,
-- request and apply rerolls,
-- approve and finalize manually.
-
-### Mail Loop
-
-Choose this when you want the agent to orchestrate the sequence end-to-end, including review iterations, approval bookkeeping, and finalization according to the `mail-loop` skill contract.
-
-See [mail-loop/README.md](mail-loop/README.md) for that workflow.
-
-## 8. Practical Tips
+## 7. Practical Tips
 
 - Start with a clean working tree.
 - Keep `slop.db` and related SQLite artifacts outside the repository or in `.gitignore`.

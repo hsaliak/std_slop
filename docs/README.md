@@ -10,9 +10,7 @@ Use this index to find the right `std::slop` doc for your task.
 
 ## Advanced Workflows
 
-- [mail_mode.md](mail_mode.md) — manual patch-based workflow using staging branches, patch commits, review, rerolls, and finalize.
-- [mail-loop/README.md](mail-loop/README.md) — human-oriented overview of the automated mail-loop persona.
-- [mail-loop/SKILL.md](mail-loop/SKILL.md) — the precise operational contract for the `mail-loop` skill.
+- [mail_mode.md](mail_mode.md) — patch-based workflow using staging branches, review, rerolls, and finalization.
 
 ## Core Concepts and Reference
 
@@ -28,18 +26,13 @@ Use this index to find the right `std::slop` doc for your task.
 - [example_config.ini](example_config.ini) — baseline configuration template.
 - [example_subqueries.ini](example_subqueries.ini) — example INI sections for specialized `llm_query` tools.
 
-## Implementation Notes and Design History
+## Implementation Reference
 
-These files live under [`docs/impl/`](impl/) and are useful when you want design rationale, implementation notes, or historical planning context rather than end-user guidance.
-
-- [impl/config_impl.md](impl/config_impl.md)
-- [impl/subqueries.md](impl/subqueries.md)
-- [impl/mail_model_impl.md](impl/mail_model_impl.md)
-- [impl/tree-sitter-plans.md](impl/tree-sitter-plans.md)
+- [impl/subqueries.md](impl/subqueries.md) — INI-defined `llm_query` tool contract.
 
 ## Reading Order
 
 1. Start with [WALKTHROUGH.md](WALKTHROUGH.md).
 2. Use [OAUTH.md](OAUTH.md) if you need OpenAI OAuth specifics.
-3. Use [mail_mode.md](mail_mode.md) or [mail-loop/README.md](mail-loop/README.md) for patch-based workflows.
-4. Use the reference and implementation docs only when you need deeper project internals.
+3. Use [mail_mode.md](mail_mode.md) for patch-based workflows.
+4. Use the reference documents as needed.

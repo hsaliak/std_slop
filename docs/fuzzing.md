@@ -23,7 +23,7 @@ This complements unit tests (exact behavior/regression coverage) with adversaria
 - `//core:openai_utils_fuzz_test`
   - Exercises OpenAI utility parsing/normalization paths.
 - `//core:json_utils_fuzz_test`
-  - Stresses `json_parse`, `json_get`, `json_get_or`, and dump/parse stability properties.
+  - Stresses JSON parsing/access, dump stability, and structured-output schema/value validation.
 - `//core:tool_dispatcher_validation_fuzz_test`
   - Verifies tool-call validation behavior with arbitrary IDs/names/args and asserts invalid calls are not executed.
 - `//core:orchestrator_normalization_fuzz_test`

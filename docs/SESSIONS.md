@@ -5,10 +5,8 @@ Sessions provide isolation of history.
 - **Mechanism**: The `messages` table includes a `session_id` for every entry.
 - **Prompt Construction**: The `Orchestrator` queries only messages associated with the active `session_id` where status is not 'dropped'.
 - **Result**: The LLM has no visibility into other sessions.
-## Cross-Model Persistence
-Sessions are designed to be stable across model switches. However, because different providers (like Google and OpenAI) use incompatible tool-calling schemas, `std::slop` implements **tool call isolation**.
-- **Conversational Text**: Regular user and assistant messages are preserved and automatically re-parsed when you switch models.
-- **Tool Isolation**: Tool calls are scoped to the orchestrator that created them.
+## Model Changes
+Session history is retained when the configured model changes. Provider response normalization is handled by the Responses orchestrator.
 ## Shared & Preserved State
 While history is isolated, certain configurations are global or preserved in memory when switching.
 ### Persistence Comparison
@@ -44,9 +42,9 @@ The `/session clear` command deletes all data (history and token usage stats) fo
 ### Persistence
 The ledger is stored in `slop.db` and persists across restarts. Resume a session by providing its name at startup or via `/session`.
 ### Sessions in Batch Mode
-When running in Batch Mode (`--prompt` or `--prompt-file`), `std::slop` will use the provided `--session` (or `default_session` if none specified) to retrieve context and store the new interaction. Piped stdin is optional context prepended before the instruction, so commands such as `ls *.cc | std_slop --prompt "sort these files"` work naturally. This allows for automated "updates" to a persistent project context. Batch mode uses an in-memory database unless `--prompt-db` is set; with the default in-memory database, session history lasts only for that process.
+Batch mode accepts `--prompt` or `--prompt_file` and uses `--session` or `default_session`. It uses an in-memory database unless `--prompt_db` is set.
 
-Batch mode can emit structured output for scripts with `--output json`. The JSON object includes the session id used for the run, the model, active skills, final assistant message, error details when unsuccessful, and duration in milliseconds.
+`--output=json` writes run metadata. `--format` or `--format_file` requests schema-constrained output and writes the validated JSON value to stdout; it cannot be combined with `--output=json`. See the root [README](../README.md#batch-mode) for examples and the supported schema subset.
 ## Summary
 | Feature | Isolated per Session? |
 | :--- | :--- |

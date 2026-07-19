@@ -1,5 +1,5 @@
 ## v0.25 - 2026-07-19
--**Structured Output**: Prompt mode supports structured output now.  This should make it scriptable and embeddable in a more deterministic manner
+- **Structured output**: Batch prompt mode can validate final model output against a bounded JSON Schema subset and emit the validated JSON value to stdout.
 
 ## v0.24 - 2026-07-16
 - **JavaScript control-plane retirement**: Removed the retired `run_js` runtime, persisted helper state, and QuickJS dependency; direct tools are now the sole model workflow interface.
