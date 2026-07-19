@@ -29,6 +29,8 @@
 #include "interface/ui.h"
 namespace slop {
 namespace {
+constexpr char kStructuredOutputToolName[] = "structured_output";
+
 
 bool HasUnclosedCodeFence(const std::string& text) {
   size_t fence_count = 0;
@@ -60,6 +62,26 @@ std::string TakeRenderableMarkdown(std::string* buffered_text, bool flush) {
   if (HasUnclosedCodeFence(candidate)) return "";
   buffered_text->erase(0, rendered_size);
   return candidate;
+}
+
+absl::StatusOr<nlohmann::json> ExtractStructuredOutputResult(const std::vector<ToolCall>& calls,
+                                                              const nlohmann::json& schema) {
+  int structured_count = 0;
+  nlohmann::json structured_args;
+  for (const ToolCall& call : calls) {
+    if (call.name == kStructuredOutputToolName) {
+      ++structured_count;
+      structured_args = call.args;
+    }
+  }
+  if (structured_count == 0) return absl::NotFoundError("structured_output tool was not called");
+  if (structured_count > 1) return absl::InvalidArgumentError("structured_output tool was called more than once");
+  if (calls.size() != 1) {
+    return absl::InvalidArgumentError("structured_output cannot be mixed with other tool calls in the same response");
+  }
+  const absl::Status validation = ValidateJsonAgainstSchema(structured_args, schema);
+  if (!validation.ok()) return validation;
+  return structured_args;
 }
 
 }  // namespace
@@ -205,9 +227,13 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
   bool context_overflow_retried = false;
   const absl::Time turn_started = absl::Now();
-  if (!config.silent) {
+  const bool structured_output_mode = config.structured_output_schema.has_value();
+  orchestrator_.SetStructuredOutputSchema(config.structured_output_schema);
+  if (!config.silent && !structured_output_mode) {
     slop::PrintTurnStatus({TurnPhase::kPreparing, "", 0, std::nullopt, absl::ZeroDuration()});
   }
+  bool structured_output_completed = false;
+  absl::Status structured_output_error = absl::OkStatus();
   while (true) {
     auto prompt_or = orchestrator_.AssemblePrompt(session_id, active_skills);
     if (!prompt_or.ok()) {
@@ -311,11 +337,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           absl::MutexLock lock(stream_text_mu);
           stream_text.swap(pending_stream_text);
         }
-        if (received_stream_text && !receiving_announced && !config.silent) {
+        if (received_stream_text && !receiving_announced && !config.silent && !structured_output_mode) {
           receiving_announced = true;
           slop::PrintTurnStatus({TurnPhase::kReceiving, "", 0, std::nullopt, absl::Now() - turn_started});
         }
-        if (!stream_text.empty() && !config.silent) {
+        if (!stream_text.empty() && !config.silent && !structured_output_mode) {
           streamed_markdown.append(stream_text);
           const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, false);
           if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
@@ -344,7 +370,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       if (!final_stream_text.empty() && !config.silent) {
         streamed_markdown.append(final_stream_text);
       }
-      if (!config.silent) {
+      if (!config.silent && !structured_output_mode) {
         const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, true);
         if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
       }
@@ -426,7 +452,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
     }
     for (size_t i = start_idx; i < history_after_or->size(); ++i) {
       const auto& msg = (*history_after_or)[i];
-      if (!config.silent &&
+      if (!config.silent && !structured_output_mode &&
           !(received_stream_text && msg.role == "assistant" && msg.status != "tool_call")) {
         slop::PrintMessage(msg);
       }
@@ -435,6 +461,17 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         if (calls_or.ok() && !calls_or->empty()) {
           std::vector<slop::ToolDispatcher::Call> dispatcher_calls;
           std::vector<slop::ToolDispatcher::Result> results;
+          if (structured_output_mode) {
+            auto structured_or = ExtractStructuredOutputResult(*calls_or, *config.structured_output_schema);
+            if (!structured_or.ok()) {
+              structured_output_error = structured_or.status();
+              break;
+            }
+            structured_output_completed = true;
+            last_structured_output_ = *structured_or;
+            has_tool_calls = false;
+            break;
+          }
           for (const auto& call : *calls_or) {
             std::string combined_id = call.id;
             if (call.id != call.name && !absl::StrContains(call.id, '|')) {
@@ -512,6 +549,21 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         }
       }
     }
+    if (!structured_output_error.ok()) {
+      if (!config.silent) {
+        slop::PrintTurnStatus({TurnPhase::kFailed, std::string(structured_output_error.message()), 0, std::nullopt,
+                               absl::Now() - turn_started});
+      }
+      slop::HandleStatus(structured_output_error, "Structured Output Error");
+      break;
+    }
+    if (structured_output_completed) {
+      if (!config.silent && !structured_output_mode) {
+        slop::PrintTurnStatus({TurnPhase::kCompleted, "", 0, orchestrator_.GetLastResponseUsage(),
+                               absl::Now() - turn_started});
+      }
+      break;
+    }
     if (has_tool_calls) {
       if (!config.silent) {
         slop::PrintTurnStatus({TurnPhase::kWaitingForFollowUp, "", 0, orchestrator_.GetLastResponseUsage(),
@@ -521,6 +573,15 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         std::this_thread::sleep_for(std::chrono::seconds(orchestrator_.GetThrottle()));
       }
       continue;  // Loop for next LLM turn
+    }
+    if (structured_output_mode) {
+      structured_output_error = absl::InvalidArgumentError("structured_output tool was not called");
+      if (!config.silent) {
+        slop::PrintTurnStatus({TurnPhase::kFailed, std::string(structured_output_error.message()), 0, std::nullopt,
+                               absl::Now() - turn_started});
+      }
+      slop::HandleStatus(structured_output_error, "Structured Output Error");
+      break;
     }
     if (!config.silent) {
       slop::PrintTurnStatus({TurnPhase::kCompleted, "", 0, orchestrator_.GetLastResponseUsage(),
@@ -538,6 +599,7 @@ InteractionEngine::PromptRunResult InteractionEngine::ProcessPrompt(std::string 
   const absl::Time start = absl::Now();
   config.is_batch_mode = true;
   PromptRunResult result;
+  last_structured_output_.reset();
   result.session_id = session_id;
   result.model = orchestrator_.GetModel();
   result.active_skills = active_skills;
@@ -553,6 +615,17 @@ InteractionEngine::PromptRunResult InteractionEngine::ProcessPrompt(std::string 
     return result;
   }
 
+  if (config.structured_output_schema.has_value()) {
+    if (last_structured_output_.has_value()) {
+      result.ok = true;
+      result.structured_output = last_structured_output_;
+      return result;
+    }
+    result.ok = false;
+    result.error_code = "invalid_argument";
+    result.error_message = "structured_output tool was not called";
+    return result;
+  }
   auto history_or = db_.GetConversationHistory(session_id, false, 1);
   if (!history_or.ok()) {
     result.ok = false;

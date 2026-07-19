@@ -76,6 +76,7 @@ class Orchestrator {
   absl::Status ReloadSkills(const std::string& directory = "./skills");
   absl::StatusOr<std::string> ListSkills() const;
   void InjectSkillsSummary(std::string* system_instruction);
+  void SetStructuredOutputSchema(std::optional<nlohmann::json> schema);
 
  private:
   friend class Builder;
@@ -84,6 +85,7 @@ class Orchestrator {
   Config config_;
   std::string active_agent_md_path_ = "./AGENTS.md";
   std::vector<std::string> last_selected_groups_;
+  std::optional<nlohmann::json> structured_output_schema_;
   std::unique_ptr<OpenAiResponsesOrchestrator> responses_;
   std::string BuildSystemInstructions(const std::string& session_id);
 };

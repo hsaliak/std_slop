@@ -24,6 +24,7 @@ class InteractionEngine {
     std::string openai_base_url;
     bool openai_oauth = false;
     bool silent = false;
+    std::optional<nlohmann::json> structured_output_schema;
   };
 
   InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler, ToolDispatcher& dispatcher,
@@ -40,6 +41,7 @@ class InteractionEngine {
     std::string model;
     std::vector<std::string> active_skills;
     std::string assistant_message;
+    std::optional<nlohmann::json> structured_output;
     std::string error_code;
     std::string error_message;
     int64_t duration_ms = 0;
@@ -84,6 +86,7 @@ class InteractionEngine {
   ToolExecutor& tool_executor_;
   HttpClient& http_client_;
   std::shared_ptr<OAuthHandler> oauth_handler_;
+  std::optional<nlohmann::json> last_structured_output_;
 };
 
 }  // namespace slop

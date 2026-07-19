@@ -252,6 +252,56 @@ TEST_F(InteractionEngineTest, QueryUsesStreamingResponsesTransport) {
   EXPECT_EQ(*result, "streamed");
 }
 
+TEST_F(InteractionEngineTest, ProcessPromptReturnsStructuredOutputAndStops) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+  config.structured_output_schema = json_parse(
+      R"({"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false})");
+  ASSERT_TRUE(config.structured_output_schema.has_value());
+
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(ResponsesSsePayload(ResponsesToolCall("structured_output", {{"answer", "42"}}))));
+
+  auto result = engine.ProcessPrompt("Return structured data", "structured", {}, config);
+  ASSERT_TRUE(result.ok) << result.error_message;
+  ASSERT_TRUE(result.structured_output.has_value());
+  EXPECT_EQ(json_get_or(*result.structured_output, "answer", std::string{}), "42");
+}
+
+TEST_F(InteractionEngineTest, ProcessPromptFailsWhenStructuredOutputMissing) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+  config.structured_output_schema = json_parse(R"({"type":"object","properties":{"answer":{"type":"string"}}})");
+  ASSERT_TRUE(config.structured_output_schema.has_value());
+
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(ResponsesSsePayload(ResponsesResponse("prose is not enough"))));
+
+  auto result = engine.ProcessPrompt("Return structured data", "structured_missing", {}, config);
+  EXPECT_FALSE(result.ok);
+  EXPECT_TRUE(absl::StrContains(result.error_message, "structured_output"));
+}
+
+TEST_F(InteractionEngineTest, ProcessPromptFailsOnInvalidStructuredOutput) {
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+                           nullptr);
+  InteractionEngine::Config config;
+  config.silent = true;
+  config.structured_output_schema = json_parse(
+      R"({"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false})");
+  ASSERT_TRUE(config.structured_output_schema.has_value());
+
+  EXPECT_CALL(mock_http, PostStream(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(ResponsesSsePayload(ResponsesToolCall("structured_output", {{"answer", 42}}))));
+
+  auto result = engine.ProcessPrompt("Return structured data", "structured_invalid", {}, config);
+  EXPECT_FALSE(result.ok);
+}
+
 TEST_F(InteractionEngineTest, ErrorHandlingTest) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
                            nullptr);
