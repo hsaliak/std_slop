@@ -13,9 +13,7 @@ Direct tools keep ordinary operations explicit and individually reviewable. Mail
 
 ## ✨ Key Features
 
-- **🧰 Direct coding tools**: Inspect, edit, patch, validate, and query through independent schema-validated calls.
 - **🎭 Personas & Skills**: Define global agent instructions via `AGENTS.md` and extend capabilities using modular, on-demand `SKILL.md` files.
-- **🧭 Workflow guidance**: Skills help agents perform bounded repository surveys, focused reviews, and validation with direct tools.
 - **📖 Ledger-Driven**: All interactions and tool calls are stored in SQLite for persistence and auditability. 
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: SQL-backed, per-session accordion history preserves an append-only prompt prefix between resets, so sessions can grow independently while retaining cache-friendly context.
