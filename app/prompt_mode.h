@@ -5,6 +5,7 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "nlohmann/json.hpp"
 #include "absl/status/statusor.h"
 #include "interface/interaction_engine.h"
 
@@ -15,7 +16,20 @@ struct PromptInputFlags {
   std::string prompt_file;
 };
 
+struct StructuredFormatFlags {
+  std::string format;
+  std::string format_file;
+};
+
 bool HasPromptInputSource(const PromptInputFlags& flags);
+
+bool HasStructuredFormatSource(const StructuredFormatFlags& flags);
+
+absl::StatusOr<nlohmann::json> ResolveStructuredOutputSchema(const StructuredFormatFlags& flags);
+
+absl::Status ValidatePromptModePreflight(const PromptInputFlags& prompt_flags,
+                                         const StructuredFormatFlags& format_flags,
+                                         const std::string& output_mode);
 
 absl::Status ValidatePromptOutputMode(const std::string& output_mode);
 

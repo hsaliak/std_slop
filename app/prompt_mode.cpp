@@ -16,11 +16,32 @@ bool HasPromptInputSource(const PromptInputFlags& flags) {
   return !flags.prompt.empty() || !flags.prompt_file.empty();
 }
 
+bool HasStructuredFormatSource(const StructuredFormatFlags& flags) {
+  return !flags.format.empty() || !flags.format_file.empty();
+}
+
 absl::Status ValidatePromptOutputMode(const std::string& output_mode) {
   if (output_mode == "text" || output_mode == "json") {
     return absl::OkStatus();
   }
   return absl::InvalidArgumentError(absl::StrCat("Invalid --output value: ", output_mode, ". Expected text or json."));
+}
+
+absl::Status ValidatePromptModePreflight(const PromptInputFlags& prompt_flags,
+                                         const StructuredFormatFlags& format_flags,
+                                         const std::string& output_mode) {
+  if (auto status = ValidatePromptOutputMode(output_mode); !status.ok()) return status;
+  if (!HasStructuredFormatSource(format_flags)) return absl::OkStatus();
+  if (!HasPromptInputSource(prompt_flags)) {
+    return absl::InvalidArgumentError("--format and --format-file require prompt mode.");
+  }
+  if (!format_flags.format.empty() && !format_flags.format_file.empty()) {
+    return absl::InvalidArgumentError("Specify at most one structured output source: --format or --format-file.");
+  }
+  if (output_mode == "json") {
+    return absl::InvalidArgumentError("--output=json cannot be combined with --format or --format-file.");
+  }
+  return absl::OkStatus();
 }
 
 namespace {
@@ -38,6 +59,42 @@ absl::StatusOr<std::string> ReadAll(std::istream* input) {
 }
 
 }  // namespace
+
+absl::StatusOr<nlohmann::json> ResolveStructuredOutputSchema(const StructuredFormatFlags& flags) {
+  int source_count = 0;
+  if (!flags.format.empty()) ++source_count;
+  if (!flags.format_file.empty()) ++source_count;
+  if (source_count == 0) {
+    return absl::InvalidArgumentError("No structured output format supplied.");
+  }
+  if (source_count != 1) {
+    return absl::InvalidArgumentError("Specify at most one structured output source: --format or --format-file.");
+  }
+
+  std::string schema_text;
+  if (!flags.format_file.empty()) {
+    std::ifstream file(flags.format_file);
+    if (!file.is_open()) {
+      return absl::NotFoundError(absl::StrCat("Failed to open format file: ", flags.format_file));
+    }
+    auto schema_or = ReadAll(&file);
+    if (!schema_or.ok()) return schema_or.status();
+    schema_text = *schema_or;
+  } else {
+    schema_text = flags.format;
+  }
+  if (absl::StripAsciiWhitespace(schema_text).empty()) {
+    return absl::InvalidArgumentError("Structured output format must not be empty.");
+  }
+
+  auto schema = json_parse(schema_text);
+  if (!schema.has_value()) {
+    return absl::InvalidArgumentError("Structured output format must be valid JSON.");
+  }
+  const absl::Status status = ValidateStructuredOutputSchema(*schema);
+  if (!status.ok()) return status;
+  return *schema;
+}
 
 absl::StatusOr<std::string> ResolvePromptInput(const PromptInputFlags& flags, std::istream* context_stream) {
   int source_count = 0;

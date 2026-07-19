@@ -72,6 +72,8 @@ ABSL_FLAG(std::string, prompt_file, "", "Read a single batch-mode instruction fr
 ABSL_FLAG(std::string, prompt_db, "",
           "Database to use for batch mode. Defaults to in-memory (':memory:'). Mutually exclusive with --db.");
 ABSL_FLAG(std::string, output, "text", "Prompt-mode output format: text or json");
+ABSL_FLAG(std::string, format, "", "JSON Schema for batch structured output; requires --prompt or --prompt-file");
+ABSL_FLAG(std::string, format_file, "", "Path to JSON Schema for batch structured output; requires --prompt or --prompt-file");
 
 // Help text is now in interface/ui.h
 
@@ -201,13 +203,22 @@ int main(int argc, char* argv[]) {
   }
 
   slop::PromptInputFlags prompt_flags{absl::GetFlag(FLAGS_prompt), absl::GetFlag(FLAGS_prompt_file)};
+  slop::StructuredFormatFlags format_flags{absl::GetFlag(FLAGS_format), absl::GetFlag(FLAGS_format_file)};
   const bool has_prompt_input = slop::HasPromptInputSource(prompt_flags);
+  const bool has_structured_format = slop::HasStructuredFormatSource(format_flags);
   std::string output_mode = absl::GetFlag(FLAGS_output);
-  if (auto status = slop::ValidatePromptOutputMode(output_mode); !status.ok()) {
-    return ReturnPromptPreflightError(status, "text");
+  if (auto status = slop::ValidatePromptModePreflight(prompt_flags, format_flags, output_mode); !status.ok()) {
+    return ReturnPromptPreflightError(status, output_mode == "json" ? output_mode : "text");
   }
   if (output_mode == "json" && !has_prompt_input) {
     return ReturnPromptPreflightError(absl::InvalidArgumentError("--output=json requires prompt mode."), output_mode);
+  }
+  absl::StatusOr<nlohmann::json> structured_schema_or;
+  if (has_structured_format) {
+    structured_schema_or = slop::ResolveStructuredOutputSchema(format_flags);
+    if (!structured_schema_or.ok()) {
+      return ReturnPromptPreflightError(structured_schema_or.status(), output_mode);
+    }
   }
   absl::StatusOr<std::string> prompt_or;
   if (has_prompt_input) {

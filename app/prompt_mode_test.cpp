@@ -105,6 +105,65 @@ TEST(PromptModeTest, ResolvePromptInputRejectsEmptyFileInstruction) {
   EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(PromptModeTest, HasStructuredFormatSourceDetectsAnySource) {
+  EXPECT_FALSE(HasStructuredFormatSource({}));
+  EXPECT_TRUE(HasStructuredFormatSource({.format = R"({"type":"object"})"}));
+  EXPECT_TRUE(HasStructuredFormatSource({.format_file = "schema.json"}));
+}
+
+TEST(PromptModeTest, ResolveStructuredOutputSchemaAcceptsInlineSchema) {
+  auto schema = ResolveStructuredOutputSchema(
+      {.format = R"({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]})"});
+  ASSERT_TRUE(schema.ok()) << schema.status();
+  EXPECT_EQ(json_get_or<std::string>(*schema, "type", ""), "object");
+}
+
+TEST(PromptModeTest, ResolveStructuredOutputSchemaAcceptsFileSchema) {
+  const std::string path = ::testing::TempDir() + "/structured_schema.json";
+  {
+    std::ofstream file(path);
+    file << R"({"type":"object","properties":{"ok":{"type":"boolean"}}})";
+  }
+
+  auto schema = ResolveStructuredOutputSchema({.format_file = path});
+  ASSERT_TRUE(schema.ok()) << schema.status();
+  EXPECT_EQ(json_get_or<std::string>(*schema, "type", ""), "object");
+}
+
+TEST(PromptModeTest, ResolveStructuredOutputSchemaRejectsConflicts) {
+  auto schema = ResolveStructuredOutputSchema({.format = R"({"type":"object"})", .format_file = "schema.json"});
+  ASSERT_FALSE(schema.ok());
+  EXPECT_EQ(schema.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(PromptModeTest, ResolveStructuredOutputSchemaRejectsMalformedJson) {
+  auto schema = ResolveStructuredOutputSchema({.format = R"({"type":"object")"});
+  ASSERT_FALSE(schema.ok());
+  EXPECT_EQ(schema.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(PromptModeTest, ResolveStructuredOutputSchemaRejectsUnsupportedSchema) {
+  auto schema = ResolveStructuredOutputSchema({.format = R"({"type":"object","oneOf":[]})"});
+  ASSERT_FALSE(schema.ok());
+  EXPECT_EQ(schema.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(PromptModeTest, ValidatePromptModePreflightRejectsFormatWithoutPrompt) {
+  absl::Status status = ValidatePromptModePreflight({}, {.format = R"({"type":"object"})"}, "text");
+  EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(status.message(), "require prompt mode"));
+}
+
+TEST(PromptModeTest, ValidatePromptModePreflightRejectsFormatWithJsonOutput) {
+  absl::Status status = ValidatePromptModePreflight({.prompt = "hello"}, {.format = R"({"type":"object"})"}, "json");
+  EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(absl::StrContains(status.message(), "--output=json"));
+}
+
+TEST(PromptModeTest, ValidatePromptModePreflightAllowsFormatWithTextPromptOutput) {
+  EXPECT_TRUE(ValidatePromptModePreflight({.prompt = "hello"}, {.format = R"({"type":"object"})"}, "text").ok());
+}
+
 TEST(PromptModeTest, ValidatePromptOutputModeAcceptsTextAndJson) {
   EXPECT_TRUE(ValidatePromptOutputMode("text").ok());
   EXPECT_TRUE(ValidatePromptOutputMode("json").ok());
