@@ -190,10 +190,26 @@ TEST(PromptModeTest, PromptRunResultToJsonSerializesSuccessShape) {
   EXPECT_EQ(json_get_or<std::string>(*parsed, "session", ""), "session");
   EXPECT_EQ(json_get_or<std::string>(*parsed, "model", ""), "model");
   EXPECT_EQ(json_get_or<std::string>(*parsed, "assistant_message", ""), "answer");
+  const nlohmann::json* structured_output = json_at(*parsed, "structured_output");
+  ASSERT_NE(structured_output, nullptr);
+  EXPECT_TRUE(structured_output->is_null());
   EXPECT_EQ(json_get_or<int>(*parsed, "duration_ms", 0), 123);
   const nlohmann::json* error = json_at(*parsed, "error");
   ASSERT_NE(error, nullptr);
   EXPECT_TRUE(error->is_null());
+}
+
+TEST(PromptModeTest, PromptRunResultToJsonSerializesStructuredOutput) {
+  InteractionEngine::PromptRunResult result;
+  result.ok = true;
+  result.structured_output = nlohmann::json{{"answer", "42"}};
+
+  auto parsed = json_parse(PromptRunResultToJson(result));
+  ASSERT_TRUE(parsed.has_value());
+  const nlohmann::json* structured_output = json_at(*parsed, "structured_output");
+  ASSERT_NE(structured_output, nullptr);
+  ASSERT_TRUE(structured_output->is_object());
+  EXPECT_EQ(json_get_or<std::string>(*structured_output, "answer", ""), "42");
 }
 
 TEST(PromptModeTest, PromptRunResultToJsonSerializesFailureShape) {

@@ -53,7 +53,7 @@ std_slop
 
 For quick one-off tasks, you can use **Batch Mode**:
 ```bash
-std_slop --prompt "Refactor main.cpp to remove all unused includes" 
+std_slop --prompt "Refactor main.cpp to remove all unused includes"
 ```
 Batch mode accepts exactly one instruction source, and optional piped stdin is prepended as context:
 ```bash
@@ -63,11 +63,60 @@ cat errors.log | std_slop --prompt-file diagnose.md
 ```
 Use exactly one instruction source: `--prompt` or `--prompt-file`. Empty instructions are rejected. Empty or whitespace-only piped stdin is ignored.
 
-For scripts, batch mode can emit one structured JSON object to stdout:
+For scripts, batch mode can emit one run-metadata JSON object to stdout:
 ```bash
 std_slop --prompt-file task.md --output json | jq -r .assistant_message
 ```
-The JSON object contains `ok`, `session`, `model`, `active_skills`, `assistant_message`, `error`, and `duration_ms`.
+The JSON object contains `ok`, `session`, `model`, `active_skills`, `assistant_message`, `structured_output`, `error`, and `duration_ms`.
+
+You can combine prompt mode with piped context, an explicit model, a throwaway session, and a persistent prompt database when a one-off task needs tool calls or auditability:
+```bash
+cat errors.log | std_slop \
+  --prompt-file diagnose.md \
+  --model gpt-5.4-mini:high \
+  --session ci-diagnose \
+  --prompt-db /tmp/slop-ci-diagnose.db
+```
+
+Batch mode can also require the model's final answer to match a validated JSON Schema object. Use `--format` for an inline schema or `--format_file` for a schema file; exactly one is allowed, and it cannot be combined with `--output json` because stdout is the raw structured result:
+```bash
+std_slop --prompt "Extract the name" \
+  --format '{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false}'
+```
+
+For larger schemas, store the schema in a file and pass it with `--format_file`:
+```bash
+cat > /tmp/person.schema.json <<'JSON'
+{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "age": { "type": "integer" },
+    "skills": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["name", "age"],
+  "additionalProperties": false
+}
+JSON
+
+std_slop \
+  --prompt "Extract the person's name, age, and skills from: Ada is 37 and knows C++ and SQL." \
+  --format_file /tmp/person.schema.json
+```
+
+All pieces can be used together: stdin becomes context, `--prompt-file` supplies the instruction, `--format_file` enforces the final JSON shape, and the raw validated JSON object is the only stdout payload:
+```bash
+cat incident.log | std_slop \
+  --prompt-file summarize_incident.md \
+  --format_file incident_summary.schema.json \
+  --model gpt-5.4-mini:high \
+  --session incident-2026-07-19 \
+  --prompt-db /tmp/slop-incident.db
+```
+Structured output supports this bounded schema subset: root `type: "object"`, nested object/array/string/number/integer/boolean/null types, `properties`, `required`, boolean `additionalProperties`, array `items`, and non-empty `enum` arrays.
 
 Batch mode also takes in `--model` which is useful to specify the model to use and `--session` which is useful to indicate the session the prompt should be executed under. Batch mode works off an in memory sqlite db. If you want the db persisted you can point it to a DB with the `--prompt-db` argument.
 `/commands` are also supported. 

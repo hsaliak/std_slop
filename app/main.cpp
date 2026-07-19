@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 #include <unistd.h>
@@ -219,6 +220,10 @@ int main(int argc, char* argv[]) {
     if (!structured_schema_or.ok()) {
       return ReturnPromptPreflightError(structured_schema_or.status(), output_mode);
     }
+  }
+  std::optional<nlohmann::json> structured_schema;
+  if (structured_schema_or.ok()) {
+    structured_schema = *structured_schema_or;
   }
   absl::StatusOr<std::string> prompt_or;
   if (has_prompt_input) {
@@ -459,11 +464,15 @@ int main(int argc, char* argv[]) {
 
   if (has_prompt_input) {
     engine_config.is_batch_mode = true;
-    if (output_mode == "json") {
+    engine_config.structured_output_schema = structured_schema;
+    if (output_mode == "json" || has_structured_format) {
       engine_config.silent = true;
     }
     slop::InteractionEngine::PromptRunResult result =
         engine.ProcessPrompt(*prompt_or, session_id, active_skills, engine_config);
+    if (has_structured_format && result.ok && result.structured_output.has_value()) {
+      std::cout << slop::json_dump(*result.structured_output) << std::endl;
+    }
     if (output_mode == "json") {
       std::cout << slop::PromptRunResultToJson(result) << std::endl;
     }

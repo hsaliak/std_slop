@@ -144,6 +144,11 @@ std::string PromptRunResultToJson(const InteractionEngine::PromptRunResult& resu
   output["model"] = result.model;
   output["active_skills"] = result.active_skills;
   output["assistant_message"] = result.assistant_message;
+  if (result.structured_output.has_value()) {
+    output["structured_output"] = *result.structured_output;
+  } else {
+    output["structured_output"] = nullptr;
+  }
   if (result.ok) {
     output["error"] = nullptr;
   } else {
