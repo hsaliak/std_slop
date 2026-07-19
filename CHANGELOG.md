@@ -1,3 +1,6 @@
+## v0.25 - 2026-07-19
+-**Structured Output**: Prompt mode supports structured output now.  This should make it scriptable and embeddable in a more deterministic manner
+
 ## v0.24 - 2026-07-16
 - **JavaScript control-plane retirement**: Removed the retired `run_js` runtime, persisted helper state, and QuickJS dependency; direct tools are now the sole model workflow interface.
 - **Workflow simplification**: Removed the obsolete `dynamic_workflow_harness` skill and redundant `patch_tool`; use `edit_tool` and `write_file` for file mutations.
