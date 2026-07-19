@@ -19,6 +19,8 @@ absl::flat_hash_set<std::string> GetEnabledToolNames(const std::vector<Database:
 
 nlohmann::json BuildOpenAiResponsesTools(const std::vector<Database::Tool>& tools);
 
+nlohmann::json BuildStructuredOutputTool(const nlohmann::json& schema);
+
 std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& response);
 std::optional<std::string> FormatCachedInputTokens(const ResponseUsage& usage);
 

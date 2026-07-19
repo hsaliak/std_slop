@@ -36,7 +36,7 @@ absl::StatusOr<nlohmann::json> BuildRequest(OpenAiResponsesOrchestrator& orchest
     }
   }
   return orchestrator.BuildRequest(
-      {system_instruction, history, std::move(*tools_or), std::move(active_skill_content)});
+      {system_instruction, history, std::move(*tools_or), std::move(active_skill_content), std::nullopt});
 }
 
 class OpenAiResponsesOrchestratorTest : public ::testing::Test {
@@ -52,7 +52,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, BuildRequestDoesNotReadDatabase) {
   Database::Message user{0, "s1", "user", "Hello", "", "completed", "", "g1", "", 0};
   Database::Tool tool{"read_file", "Read a file", R"({"type":"object"})", true};
 
-  auto payload_or = orchestrator.BuildRequest({"System prompt", {user}, {tool}, "Skill patch"});
+  auto payload_or = orchestrator.BuildRequest({"System prompt", {user}, {tool}, "Skill patch", std::nullopt});
 
   ASSERT_TRUE(payload_or.ok());
   EXPECT_EQ(json_get_or(*payload_or, "instructions", std::string{}), "System prompt");
@@ -94,6 +94,25 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   EXPECT_TRUE(tool_names.find("query_db") != tool_names.end());
   EXPECT_TRUE(tool_names.find("llm_query") != tool_names.end());
   EXPECT_TRUE(tool_names.find("ask_user") != tool_names.end());
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, BuildRequestAddsStructuredOutputToolWhenSchemaProvided) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  Database::Message user{0, "s1", "user", "Hello", "", "completed", "", "g1", "", 0};
+  auto schema = json_parse(R"({"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]})");
+  ASSERT_TRUE(schema.has_value());
+
+  auto payload_or = orchestrator.BuildRequest({"System prompt", {user}, {}, "", schema});
+  ASSERT_TRUE(payload_or.ok()) << payload_or.status();
+  const auto& payload = *payload_or;
+  EXPECT_TRUE(absl::StrContains(json_get_or(payload, "instructions", std::string{}), "structured_output"));
+  ASSERT_TRUE(payload.contains("tools"));
+  ASSERT_EQ(payload["tools"].size(), 1);
+  const auto& tool = payload["tools"][0];
+  EXPECT_EQ(json_get_or(tool, "name", std::string{}), "structured_output");
+  EXPECT_EQ(json_get_or(tool, "strict", false), true);
+  ASSERT_TRUE(tool.contains("parameters"));
+  EXPECT_EQ(tool["parameters"], *schema);
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadUsesCodexInstructionsAndReasoning) {

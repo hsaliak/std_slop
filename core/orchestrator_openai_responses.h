@@ -3,6 +3,8 @@
 
 #include "core/database.h"
 #include "core/http_client.h"
+#include <optional>
+
 #include "core/responses_types.h"
 
 namespace slop {
@@ -12,6 +14,7 @@ struct ResponsesRequestInput {
   std::vector<Database::Message> history;
   std::vector<Database::Tool> enabled_tools;
   std::string active_skill_content;
+  std::optional<nlohmann::json> structured_output_schema;
 };
 
 class OpenAiResponsesOrchestrator {

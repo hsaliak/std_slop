@@ -321,7 +321,14 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
   // These are standard Responses API options for every compatible endpoint.
   payload["stream"] = true;
   payload["reasoning"] = {{"effort", model_selection.reasoning_effort}, {"summary", "auto"}};
-  const nlohmann::json tools = BuildOpenAiResponsesTools(request.enabled_tools);
+  nlohmann::json tools = BuildOpenAiResponsesTools(request.enabled_tools);
+  if (request.structured_output_schema.has_value()) {
+    payload["instructions"] = absl::StrCat(
+        json_get_or(payload, "instructions", std::string{}),
+        "\n\n## Structured output\nUse normal tools if needed, then call structured_output exactly once with the "
+        "final JSON result. Do not emit assistant text in structured-output mode.");
+    tools.push_back(BuildStructuredOutputTool(*request.structured_output_schema));
+  }
   if (!tools.empty()) {
     payload["tools"] = tools;
   }

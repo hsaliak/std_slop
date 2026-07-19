@@ -109,7 +109,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
     }
   }
   ResponsesRequestInput request{system_instruction, std::move(history), std::move(enabled_tools),
-                                std::move(active_skill_content)};
+                                std::move(active_skill_content), std::nullopt};
   auto payload_or = responses_->BuildRequest(request);
   if (payload_or.ok() && std::getenv("SLOP_TOOL_DEBUG")) {
     LOG(INFO) << "--- ASSEMBLED PROMPT ---\n" << payload_or->dump(2) << "\n--- END PROMPT ---";
@@ -139,7 +139,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePayload(const std::string& 
     }
   }
   return responses_->BuildRequest(
-      {system_instruction, history, std::move(enabled_tools), std::move(active_skill_content)});
+      {system_instruction, history, std::move(enabled_tools), std::move(active_skill_content), std::nullopt});
 }
 absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                   const std::string& group_id) {

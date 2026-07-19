@@ -72,6 +72,15 @@ nlohmann::json BuildOpenAiResponsesTools(const std::vector<Database::Tool>& enab
   return tools;
 }
 
+nlohmann::json BuildStructuredOutputTool(const nlohmann::json& schema) {
+  return {{"type", "function"},
+          {"name", "structured_output"},
+          {"description",
+           "Return the final answer as arguments matching this schema. Call exactly once after any required tool work. Do not emit assistant text."},
+          {"parameters", NormalizeToolSchemaForProvider(schema)},
+          {"strict", true}};
+}
+
 
 std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& response) {
   const auto* usage = json_at(response, "usage");
