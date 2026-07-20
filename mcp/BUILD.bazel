@@ -42,3 +42,25 @@ cc_test(
     ],
 )
 
+
+cc_library(
+    name = "sse_decoder",
+    srcs = ["sse_decoder.cpp"],
+    hdrs = ["sse_decoder.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "sse_decoder_test",
+    srcs = ["sse_decoder_test.cpp"],
+    deps = [
+        ":sse_decoder",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
