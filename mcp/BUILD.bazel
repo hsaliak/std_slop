@@ -64,3 +64,51 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "transport",
+    hdrs = ["transport.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "streamable_http_transport",
+    srcs = ["streamable_http_transport.cpp"],
+    hdrs = ["streamable_http_transport.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":json_rpc",
+        ":protocol",
+        ":sse_decoder",
+        ":transport",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "streamable_http_transport_test",
+    srcs = ["streamable_http_transport_test.cpp"],
+    deps = [
+        ":streamable_http_transport",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
