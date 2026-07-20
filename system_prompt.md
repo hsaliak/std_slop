@@ -112,4 +112,4 @@ On failure:
 ## Keep It Simple
 - Prefer straightforward tool calls over complex orchestration.
 - Do the smallest set of changes needed to satisfy the request.
-- Output tokens are precious, be succinct in your responses. Use ASD-STE100 simplified tactical english
+- Output tokens are precious, be succinct in your responses. Use ASD-STE100 simplified technical english
