@@ -179,24 +179,42 @@ int HttpClient::ProgressCallback(void* clientp, curl_off_t /*dltotal*/, curl_off
 }
 
 absl::StatusOr<std::string> HttpClient::Get(const std::string& url, const std::vector<std::string>& headers) {
-  return ExecuteWithRetry(url, "GET", "", headers);
+  auto response_or = ExecuteWithRetryResponse(url, "GET", "", headers);
+  if (!response_or.ok()) return response_or.status();
+  return response_or->body;
 }
 
 absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::string& body,
                                              const std::vector<std::string>& headers) {
-  return ExecuteWithRetry(url, "POST", body, headers);
+  auto response_or = ExecuteWithRetryResponse(url, "POST", body, headers);
+  if (!response_or.ok()) return response_or.status();
+  return response_or->body;
+}
+
+absl::StatusOr<HttpResponse> HttpClient::PostWithResponse(const std::string& url, const std::string& body,
+                                                          const std::vector<std::string>& headers) {
+  return ExecuteWithRetryResponse(url, "POST", body, headers, nullptr, true);
 }
 
 absl::StatusOr<std::string> HttpClient::PostStream(const std::string& url, const std::string& body,
                                                    const std::vector<std::string>& headers,
                                                    ChunkCallback on_chunk) {
-  return ExecuteWithRetry(url, "POST", body, headers, std::move(on_chunk));
+  auto response_or = ExecuteWithRetryResponse(url, "POST", body, headers, std::move(on_chunk));
+  if (!response_or.ok()) return response_or.status();
+  return response_or->body;
 }
 
-absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url, const std::string& method,
-                                                         const std::string& body,
-                                                         const std::vector<std::string>& headers,
-                                                         ChunkCallback on_chunk) {
+absl::StatusOr<HttpResponse> HttpClient::PostStreamWithResponse(const std::string& url, const std::string& body,
+                                                                const std::vector<std::string>& headers,
+                                                                ChunkCallback on_chunk) {
+  return ExecuteWithRetryResponse(url, "POST", body, headers, std::move(on_chunk), true);
+}
+
+absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::string& url, const std::string& method,
+                                                                  const std::string& body,
+                                                                  const std::vector<std::string>& headers,
+                                                                  ChunkCallback on_chunk,
+                                                                  bool return_auth_error_response) {
   // Preserve an abort issued before the worker starts instead of accepting it
   // as the request's initial generation. Reset after this request so the next
   // independent request is not poisoned by an earlier cancellation.
@@ -288,7 +306,11 @@ absl::StatusOr<std::string> HttpClient::ExecuteWithRetry(const std::string& url,
 
     if (res == CURLE_OK) {
       if (response_code >= 200 && response_code < 300) {
-        return response.body;
+        return HttpResponse{response_code, response.body, response_headers};
+      }
+
+      if (return_auth_error_response && (response_code == 401 || response_code == 403)) {
+        return HttpResponse{response_code, response.body, response_headers};
       }
 
       if (IsTerminalError(response_code, response.body)) {

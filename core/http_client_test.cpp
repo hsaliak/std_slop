@@ -91,6 +91,17 @@ void ServeTwoResponses(int listen_fd, std::atomic<int>* request_count) {
   CloseFd(listen_fd);
 }
 
+void ServeOneResponse(int listen_fd, absl::string_view response, std::atomic<int>* request_count) {
+  const int client_fd = accept(listen_fd, nullptr, nullptr);
+  if (client_fd >= 0) {
+    DrainHttpRequest(client_fd);
+    SendAll(client_fd, response);
+    CloseFd(client_fd);
+    request_count->fetch_add(1);
+  }
+  CloseFd(listen_fd);
+}
+
 }  // namespace
 
 TEST(HttpClientTest, PostInit) {
@@ -249,6 +260,136 @@ TEST(HttpClientTest, PostStreamRetriesTransientErrorBodyBeforeDeliveringChunks) 
   EXPECT_EQ(request_count.load(), 2);
   EXPECT_EQ(*result, "stream-ok");
   EXPECT_EQ(delivered, "stream-ok");
+}
+
+TEST(HttpClientTest, PostWithResponseCapturesStatusHeadersAndBody) {
+  const int listen_fd = BindLoopbackServer();
+  ASSERT_GE(listen_fd, 0);
+  const int port = BoundPort(listen_fd);
+  ASSERT_GT(port, 0);
+
+  std::atomic<int> request_count{0};
+  std::thread server([listen_fd, &request_count] {
+    ServeOneResponse(listen_fd,
+                     "HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nX-Test: ok\r\nContent-Length: 11\r\n"
+                     "Connection: close\r\n\r\n{\"ok\":true}",
+                     &request_count);
+  });
+
+  HttpClient client(0, 0);
+  auto response = client.PostWithResponse(absl::StrCat("http://127.0.0.1:", port), "{}", {"Content-Type: application/json"});
+
+  server.join();
+
+  ASSERT_TRUE(response.ok()) << response.status();
+  EXPECT_EQ(request_count.load(), 1);
+  EXPECT_EQ(response->status_code, 201);
+  EXPECT_EQ(response->body, "{\"ok\":true}");
+  EXPECT_EQ(response->headers["content-type"], "application/json");
+  EXPECT_EQ(response->headers["x-test"], "ok");
+}
+
+TEST(HttpClientTest, PostStreamWithResponseCapturesHeadersAndDeliversChunks) {
+  const int listen_fd = BindLoopbackServer();
+  ASSERT_GE(listen_fd, 0);
+  const int port = BoundPort(listen_fd);
+  ASSERT_GT(port, 0);
+
+  std::atomic<int> request_count{0};
+  std::thread server([listen_fd, &request_count] {
+    ServeOneResponse(listen_fd,
+                     "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nMcp-Session-Id: abc123\r\n"
+                     "Content-Length: 20\r\nConnection: close\r\n\r\ndata: one\n\ndata: two",
+                     &request_count);
+  });
+
+  HttpClient client(0, 0);
+  std::string delivered;
+  auto response = client.PostStreamWithResponse(absl::StrCat("http://127.0.0.1:", port), "{}", {},
+                                                [&](absl::string_view chunk) {
+                                                  delivered.append(chunk.data(), chunk.size());
+                                                  return absl::OkStatus();
+                                                });
+
+  server.join();
+
+  ASSERT_TRUE(response.ok()) << response.status();
+  EXPECT_EQ(request_count.load(), 1);
+  EXPECT_EQ(response->status_code, 200);
+  EXPECT_EQ(response->body, "data: one\n\ndata: two");
+  EXPECT_EQ(delivered, response->body);
+  EXPECT_EQ(response->headers["content-type"], "text/event-stream");
+  EXPECT_EQ(response->headers["mcp-session-id"], "abc123");
+}
+
+TEST(HttpClientTest, PostWithResponsePreservesRetryBehavior) {
+  const int listen_fd = BindLoopbackServer();
+  ASSERT_GE(listen_fd, 0);
+  const int port = BoundPort(listen_fd);
+  ASSERT_GT(port, 0);
+
+  std::atomic<int> request_count{0};
+  std::thread server([listen_fd, &request_count] { ServeTwoResponses(listen_fd, &request_count); });
+
+  HttpClient client(1, 0);
+  auto response = client.PostWithResponse(absl::StrCat("http://127.0.0.1:", port), "{}", {"Content-Type: application/json"});
+
+  server.join();
+
+  ASSERT_TRUE(response.ok()) << response.status();
+  EXPECT_EQ(request_count.load(), 2);
+  EXPECT_EQ(response->status_code, 200);
+  EXPECT_EQ(response->body, "stream-ok");
+}
+
+TEST(HttpClientTest, PostWithResponseReturnsAuthErrorMetadata) {
+  const int listen_fd = BindLoopbackServer();
+  ASSERT_GE(listen_fd, 0);
+  const int port = BoundPort(listen_fd);
+  ASSERT_GT(port, 0);
+
+  std::atomic<int> request_count{0};
+  std::thread server([listen_fd, &request_count] {
+    ServeOneResponse(listen_fd,
+                     "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer resource_metadata=\"https://auth.example/metadata\"\r\n"
+                     "Content-Length: 13\r\nConnection: close\r\n\r\nauth required",
+                     &request_count);
+  });
+
+  HttpClient client(0, 0);
+  auto response = client.PostWithResponse(absl::StrCat("http://127.0.0.1:", port), "{}", {});
+
+  server.join();
+
+  ASSERT_TRUE(response.ok()) << response.status();
+  EXPECT_EQ(request_count.load(), 1);
+  EXPECT_EQ(response->status_code, 401);
+  EXPECT_EQ(response->body, "auth required");
+  EXPECT_EQ(response->headers["www-authenticate"], "Bearer resource_metadata=\"https://auth.example/metadata\"");
+}
+
+TEST(HttpClientTest, BodyOnlyPostPreservesTerminalAuthErrorBehavior) {
+  const int listen_fd = BindLoopbackServer();
+  ASSERT_GE(listen_fd, 0);
+  const int port = BoundPort(listen_fd);
+  ASSERT_GT(port, 0);
+
+  std::atomic<int> request_count{0};
+  std::thread server([listen_fd, &request_count] {
+    ServeOneResponse(listen_fd,
+                     "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer\r\nContent-Length: 13\r\n"
+                     "Connection: close\r\n\r\nauth required",
+                     &request_count);
+  });
+
+  HttpClient client(0, 0);
+  auto response = client.Post(absl::StrCat("http://127.0.0.1:", port), "{}", {});
+
+  server.join();
+
+  ASSERT_FALSE(response.ok());
+  EXPECT_TRUE(absl::IsUnavailable(response.status()));
+  EXPECT_EQ(request_count.load(), 1);
 }
 
 TEST(HttpClientTest, ParseXRateLimitResetTimestamp) {

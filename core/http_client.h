@@ -17,6 +17,12 @@
 
 namespace slop {
 
+struct HttpResponse {
+  long status_code = 0;
+  std::string body;
+  absl::flat_hash_map<std::string, std::string> headers;
+};
+
 class HttpClient {
  public:
   using ChunkCallback = std::function<absl::Status(absl::string_view)>;
@@ -32,10 +38,17 @@ class HttpClient {
   virtual absl::StatusOr<std::string> Post(const std::string& url, const std::string& body,
                                            const std::vector<std::string>& headers);
 
+  virtual absl::StatusOr<HttpResponse> PostWithResponse(const std::string& url, const std::string& body,
+                                                         const std::vector<std::string>& headers);
+
   // Delivers response body chunks in transport order and returns the complete body.
   virtual absl::StatusOr<std::string> PostStream(const std::string& url, const std::string& body,
                                                  const std::vector<std::string>& headers,
                                                  ChunkCallback on_chunk);
+
+  virtual absl::StatusOr<HttpResponse> PostStreamWithResponse(const std::string& url, const std::string& body,
+                                                               const std::vector<std::string>& headers,
+                                                               ChunkCallback on_chunk);
 
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
   static bool IsTerminalError(long response_code, const std::string& response_body);
@@ -64,9 +77,11 @@ class HttpClient {
  private:
   void CancellableSleep(int64_t wait_ms);
 
-  absl::StatusOr<std::string> ExecuteWithRetry(const std::string& url, const std::string& method,
-                                               const std::string& body, const std::vector<std::string>& headers,
-                                               ChunkCallback on_chunk = nullptr);
+  absl::StatusOr<HttpResponse> ExecuteWithRetryResponse(const std::string& url, const std::string& method,
+                                                         const std::string& body,
+                                                         const std::vector<std::string>& headers,
+                                                         ChunkCallback on_chunk = nullptr,
+                                                         bool return_auth_error_response = false);
 
   std::atomic<uint64_t> abort_generation_{0};
   std::atomic<uint64_t> active_generation_{0};
