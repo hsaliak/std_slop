@@ -51,7 +51,7 @@ TEST(StreamableHttpTransportTest, SendsRequiredHeadersAndParsesJsonResponse) {
   config.bearer_token = "token";
   config.extra_headers["X-Extra"] = "value";
   StreamableHttpTransport transport(config, &http);
-  transport.set_protocol_version("2025-11-25");
+  transport.SetProtocolVersion("2025-11-25");
 
   ASSERT_TRUE(transport.Start().ok());
   ASSERT_TRUE(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).ok());

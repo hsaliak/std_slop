@@ -3,6 +3,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "nlohmann/json.hpp"
 
@@ -15,6 +16,7 @@ class Transport {
   virtual absl::Status Start() = 0;
   virtual absl::Status Send(const nlohmann::json& message) = 0;
   virtual absl::StatusOr<nlohmann::json> Receive(absl::Duration timeout) = 0;
+  virtual void SetProtocolVersion(absl::string_view) {}
   virtual absl::Status Close() = 0;
 };
 

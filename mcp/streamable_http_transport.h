@@ -24,7 +24,7 @@ class StreamableHttpTransport : public Transport {
   absl::Status Close() override;
 
   const std::string& session_id() const { return session_id_; }
-  void set_protocol_version(std::string protocol_version) { protocol_version_ = std::move(protocol_version); }
+  void SetProtocolVersion(absl::string_view protocol_version) override { protocol_version_ = std::string(protocol_version); }
 
  private:
   std::vector<std::string> BuildHeaders() const;

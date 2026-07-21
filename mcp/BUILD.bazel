@@ -66,6 +66,39 @@ cc_test(
 )
 
 cc_library(
+    name = "session",
+    srcs = ["session.cpp"],
+    hdrs = ["session.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":json_rpc",
+        ":protocol",
+        ":transport",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "session_test",
+    srcs = ["session_test.cpp"],
+    deps = [
+        ":json_rpc",
+        ":session",
+        ":transport",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "transport",
     hdrs = ["transport.h"],
     visibility = ["//visibility:public"],
