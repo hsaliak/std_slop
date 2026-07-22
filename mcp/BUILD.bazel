@@ -66,6 +66,34 @@ cc_test(
 )
 
 cc_library(
+    name = "client",
+    srcs = ["client.cpp"],
+    hdrs = ["client.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":session",
+        ":streamable_http_transport",
+        ":protocol",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "client_test",
+    srcs = ["client_test.cpp"],
+    deps = [
+        ":client",
+        ":protocol",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "session",
     srcs = ["session.cpp"],
     hdrs = ["session.h"],
