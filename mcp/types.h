@@ -67,6 +67,30 @@ struct ToolCallResult {
   nlohmann::json structured_content = nlohmann::json::object();
 };
 
+struct Resource {
+  std::string uri;
+  std::string name;
+  std::optional<std::string> title;
+  std::optional<std::string> description;
+  std::optional<std::string> mime_type;
+};
+
+struct ResourceReadResult {
+  std::vector<nlohmann::json> contents;
+};
+
+struct Prompt {
+  std::string name;
+  std::optional<std::string> title;
+  std::optional<std::string> description;
+  nlohmann::json arguments = nlohmann::json::array();
+};
+
+struct PromptGetResult {
+  std::optional<std::string> description;
+  std::vector<nlohmann::json> messages;
+};
+
 struct StreamableHttpConfig {
   std::string endpoint_url;
   absl::flat_hash_map<std::string, std::string> extra_headers;

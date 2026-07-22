@@ -267,5 +267,171 @@ TEST(SessionTest, CallToolRejectsNonObjectArguments) {
   EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(SessionTest, ListResourcesParsesResourcesAndPagination) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  fake->responses.push_back(InitializeResult({{"resources", nlohmann::json::object()}}));
+  const nlohmann::json first_resource = {{"uri", "file:///one"},
+                                         {"name", "one"},
+                                         {"title", "One"},
+                                         {"description", "First resource"},
+                                         {"mimeType", "text/plain"}};
+  const nlohmann::json second_resource = {{"uri", "file:///two"}, {"name", "two"}};
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result", {{"resources", nlohmann::json::array({first_resource})}, {"nextCursor", "next"}}}});
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 3},
+                             {"result", {{"resources", nlohmann::json::array({second_resource})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto resources = session.ListResources();
+
+  ASSERT_TRUE(resources.ok()) << resources.status();
+  ASSERT_EQ(resources->size(), 2);
+  EXPECT_EQ((*resources)[0].uri, "file:///one");
+  EXPECT_EQ((*resources)[0].name, "one");
+  ASSERT_TRUE((*resources)[0].title.has_value());
+  EXPECT_EQ(*(*resources)[0].title, "One");
+  ASSERT_TRUE((*resources)[0].description.has_value());
+  EXPECT_EQ(*(*resources)[0].description, "First resource");
+  ASSERT_TRUE((*resources)[0].mime_type.has_value());
+  EXPECT_EQ(*(*resources)[0].mime_type, "text/plain");
+  EXPECT_EQ((*resources)[1].uri, "file:///two");
+  ASSERT_EQ(raw->sent.size(), 4);
+  EXPECT_EQ(json_get_or(raw->sent[2], "method", std::string{}), "resources/list");
+  EXPECT_EQ(json_get_or(raw->sent[3]["params"], "cursor", std::string{}), "next");
+}
+
+TEST(SessionTest, ListResourcesRejectsMalformedResource) {
+  auto fake = std::make_unique<FakeTransport>();
+  fake->responses.push_back(InitializeResult({{"resources", nlohmann::json::object()}}));
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result", {{"resources", nlohmann::json::array({{{"name", "missing-uri"}}})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto resources = session.ListResources();
+
+  ASSERT_FALSE(resources.ok());
+  EXPECT_EQ(resources.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(SessionTest, ReadResourceParsesContents) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  fake->responses.push_back(InitializeResult({{"resources", nlohmann::json::object()}}));
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result",
+                              {{"contents", nlohmann::json::array({{{"uri", "file:///one"}, {"text", "hello"}}})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto result = session.ReadResource("file:///one");
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  ASSERT_EQ(result->contents.size(), 1);
+  EXPECT_EQ(json_get_or(result->contents[0], "text", std::string{}), "hello");
+  ASSERT_EQ(raw->sent.size(), 3);
+  EXPECT_EQ(json_get_or(raw->sent[2], "method", std::string{}), "resources/read");
+  EXPECT_EQ(json_get_or(raw->sent[2]["params"], "uri", std::string{}), "file:///one");
+}
+
+TEST(SessionTest, ReadResourceBeforeInitializeRejected) {
+  Session session(std::make_unique<FakeTransport>());
+
+  auto result = session.ReadResource("file:///one");
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
+}
+
+TEST(SessionTest, ListPromptsParsesPromptsAndPagination) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  fake->responses.push_back(InitializeResult({{"prompts", nlohmann::json::object()}}));
+  const nlohmann::json first_prompt = {{"name", "summarize"},
+                                      {"title", "Summarize"},
+                                      {"description", "Summarize text"},
+                                      {"arguments", nlohmann::json::array({{{"name", "topic"}}})}};
+  const nlohmann::json second_prompt = {{"name", "explain"}};
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result", {{"prompts", nlohmann::json::array({first_prompt})}, {"nextCursor", "next"}}}});
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 3},
+                             {"result", {{"prompts", nlohmann::json::array({second_prompt})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto prompts = session.ListPrompts();
+
+  ASSERT_TRUE(prompts.ok()) << prompts.status();
+  ASSERT_EQ(prompts->size(), 2);
+  EXPECT_EQ((*prompts)[0].name, "summarize");
+  ASSERT_TRUE((*prompts)[0].title.has_value());
+  EXPECT_EQ(*(*prompts)[0].title, "Summarize");
+  ASSERT_TRUE((*prompts)[0].description.has_value());
+  EXPECT_EQ(*(*prompts)[0].description, "Summarize text");
+  ASSERT_TRUE((*prompts)[0].arguments.is_array());
+  EXPECT_EQ((*prompts)[1].name, "explain");
+  ASSERT_EQ(raw->sent.size(), 4);
+  EXPECT_EQ(json_get_or(raw->sent[3]["params"], "cursor", std::string{}), "next");
+}
+
+TEST(SessionTest, ListPromptsRejectsMalformedPrompt) {
+  auto fake = std::make_unique<FakeTransport>();
+  fake->responses.push_back(InitializeResult({{"prompts", nlohmann::json::object()}}));
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result", {{"prompts", nlohmann::json::array({{{"arguments", nlohmann::json::array()}}})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto prompts = session.ListPrompts();
+
+  ASSERT_FALSE(prompts.ok());
+  EXPECT_EQ(prompts.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(SessionTest, GetPromptParsesMessages) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  fake->responses.push_back(InitializeResult({{"prompts", nlohmann::json::object()}}));
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result",
+                              {{"description", "Prompt description"},
+                               {"messages", nlohmann::json::array({{{"role", "user"}, {"content", "hello"}}})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto result = session.GetPrompt("summarize", {{"topic", "mcp"}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  ASSERT_TRUE(result->description.has_value());
+  EXPECT_EQ(*result->description, "Prompt description");
+  ASSERT_EQ(result->messages.size(), 1);
+  EXPECT_EQ(json_get_or(result->messages[0], "role", std::string{}), "user");
+  ASSERT_EQ(raw->sent.size(), 3);
+  EXPECT_EQ(json_get_or(raw->sent[2], "method", std::string{}), "prompts/get");
+  EXPECT_EQ(json_get_or(raw->sent[2]["params"], "name", std::string{}), "summarize");
+}
+
+TEST(SessionTest, GetPromptRejectsNonObjectArguments) {
+  auto fake = std::make_unique<FakeTransport>();
+  fake->responses.push_back(InitializeResult({{"prompts", nlohmann::json::object()}}));
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto result = session.GetPrompt("summarize", nlohmann::json::array());
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 }  // namespace
 }  // namespace slop::mcp

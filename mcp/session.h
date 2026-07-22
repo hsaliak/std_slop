@@ -31,6 +31,10 @@ class Session {
   absl::Status Ping();
   absl::StatusOr<std::vector<Tool>> ListTools();
   absl::StatusOr<ToolCallResult> CallTool(absl::string_view name, const nlohmann::json& arguments);
+  absl::StatusOr<std::vector<Resource>> ListResources();
+  absl::StatusOr<ResourceReadResult> ReadResource(absl::string_view uri);
+  absl::StatusOr<std::vector<Prompt>> ListPrompts();
+  absl::StatusOr<PromptGetResult> GetPrompt(absl::string_view name, const nlohmann::json& arguments);
 
   const ServerCapabilities& server_capabilities() const { return server_capabilities_; }
   absl::string_view protocol_version() const { return protocol_version_; }
@@ -49,6 +53,10 @@ class Session {
   absl::Status ParseInitializeResult(const nlohmann::json& result);
   static absl::StatusOr<Tool> ParseTool(const nlohmann::json& tool);
   static absl::StatusOr<ToolCallResult> ParseToolCallResult(const nlohmann::json& result);
+  static absl::StatusOr<Resource> ParseResource(const nlohmann::json& resource);
+  static absl::StatusOr<ResourceReadResult> ParseResourceReadResult(const nlohmann::json& result);
+  static absl::StatusOr<Prompt> ParsePrompt(const nlohmann::json& prompt);
+  static absl::StatusOr<PromptGetResult> ParsePromptGetResult(const nlohmann::json& result);
 
   std::unique_ptr<Transport> transport_;
   State state_ = State::kCreated;

@@ -101,6 +101,68 @@ absl::StatusOr<ToolCallResult> Session::CallTool(absl::string_view name, const n
   return ParseToolCallResult(*result_or);
 }
 
+absl::StatusOr<std::vector<Resource>> Session::ListResources() {
+  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
+  std::vector<Resource> resources;
+  std::string cursor;
+  do {
+    nlohmann::json params = nlohmann::json::object();
+    if (!cursor.empty()) params["cursor"] = cursor;
+    auto result_or = SendRequest("resources/list", params, options_.request_timeout);
+    if (!result_or.ok()) return result_or.status();
+    if (!result_or->is_object()) return absl::InvalidArgumentError("resources/list result must be an object");
+    const auto resource_items = json_get<nlohmann::json::array_t>(*result_or, "resources");
+    if (!resource_items) return absl::InvalidArgumentError("resources/list result missing resources array");
+    for (const auto& item : *resource_items) {
+      auto resource_or = ParseResource(item);
+      if (!resource_or.ok()) return resource_or.status();
+      resources.push_back(std::move(*resource_or));
+    }
+    cursor = json_get_or(*result_or, "nextCursor", std::string{});
+  } while (!cursor.empty());
+  return resources;
+}
+
+absl::StatusOr<ResourceReadResult> Session::ReadResource(absl::string_view uri) {
+  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
+  if (uri.empty()) return absl::InvalidArgumentError("resource uri must not be empty");
+  auto result_or = SendRequest("resources/read", {{"uri", std::string(uri)}}, options_.request_timeout);
+  if (!result_or.ok()) return result_or.status();
+  return ParseResourceReadResult(*result_or);
+}
+
+absl::StatusOr<std::vector<Prompt>> Session::ListPrompts() {
+  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
+  std::vector<Prompt> prompts;
+  std::string cursor;
+  do {
+    nlohmann::json params = nlohmann::json::object();
+    if (!cursor.empty()) params["cursor"] = cursor;
+    auto result_or = SendRequest("prompts/list", params, options_.request_timeout);
+    if (!result_or.ok()) return result_or.status();
+    if (!result_or->is_object()) return absl::InvalidArgumentError("prompts/list result must be an object");
+    const auto prompt_items = json_get<nlohmann::json::array_t>(*result_or, "prompts");
+    if (!prompt_items) return absl::InvalidArgumentError("prompts/list result missing prompts array");
+    for (const auto& item : *prompt_items) {
+      auto prompt_or = ParsePrompt(item);
+      if (!prompt_or.ok()) return prompt_or.status();
+      prompts.push_back(std::move(*prompt_or));
+    }
+    cursor = json_get_or(*result_or, "nextCursor", std::string{});
+  } while (!cursor.empty());
+  return prompts;
+}
+
+absl::StatusOr<PromptGetResult> Session::GetPrompt(absl::string_view name, const nlohmann::json& arguments) {
+  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
+  if (name.empty()) return absl::InvalidArgumentError("prompt name must not be empty");
+  if (!arguments.is_object()) return absl::InvalidArgumentError("prompt arguments must be an object");
+  auto result_or = SendRequest("prompts/get", {{"name", std::string(name)}, {"arguments", arguments}},
+                               options_.request_timeout);
+  if (!result_or.ok()) return result_or.status();
+  return ParsePromptGetResult(*result_or);
+}
+
 absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, const nlohmann::json& params,
                                                     absl::Duration timeout) {
   const JsonRpcId id = NextRequestId();
@@ -183,6 +245,52 @@ absl::StatusOr<ToolCallResult> Session::ParseToolCallResult(const nlohmann::json
   if (const auto* structured = json_at(result, "structuredContent")) {
     parsed.structured_content = *structured;
   }
+  return parsed;
+}
+
+absl::StatusOr<Resource> Session::ParseResource(const nlohmann::json& resource) {
+  if (!resource.is_object()) return absl::InvalidArgumentError("resource entry must be an object");
+  Resource parsed;
+  parsed.uri = json_get_or(resource, "uri", std::string{});
+  if (parsed.uri.empty()) return absl::InvalidArgumentError("resource entry missing uri");
+  parsed.name = json_get_or(resource, "name", std::string{});
+  if (parsed.name.empty()) return absl::InvalidArgumentError("resource entry missing name");
+  parsed.title = json_get<std::string>(resource, "title");
+  parsed.description = json_get<std::string>(resource, "description");
+  parsed.mime_type = json_get<std::string>(resource, "mimeType");
+  return parsed;
+}
+
+absl::StatusOr<ResourceReadResult> Session::ParseResourceReadResult(const nlohmann::json& result) {
+  if (!result.is_object()) return absl::InvalidArgumentError("resources/read result must be an object");
+  const auto contents = json_get<nlohmann::json::array_t>(result, "contents");
+  if (!contents) return absl::InvalidArgumentError("resources/read result missing contents array");
+  ResourceReadResult parsed;
+  parsed.contents.assign(contents->begin(), contents->end());
+  return parsed;
+}
+
+absl::StatusOr<Prompt> Session::ParsePrompt(const nlohmann::json& prompt) {
+  if (!prompt.is_object()) return absl::InvalidArgumentError("prompt entry must be an object");
+  Prompt parsed;
+  parsed.name = json_get_or(prompt, "name", std::string{});
+  if (parsed.name.empty()) return absl::InvalidArgumentError("prompt entry missing name");
+  parsed.title = json_get<std::string>(prompt, "title");
+  parsed.description = json_get<std::string>(prompt, "description");
+  if (const auto* arguments = json_at(prompt, "arguments")) {
+    if (!arguments->is_array()) return absl::InvalidArgumentError("prompt arguments must be an array");
+    parsed.arguments = *arguments;
+  }
+  return parsed;
+}
+
+absl::StatusOr<PromptGetResult> Session::ParsePromptGetResult(const nlohmann::json& result) {
+  if (!result.is_object()) return absl::InvalidArgumentError("prompts/get result must be an object");
+  const auto messages = json_get<nlohmann::json::array_t>(result, "messages");
+  if (!messages) return absl::InvalidArgumentError("prompts/get result missing messages array");
+  PromptGetResult parsed;
+  parsed.description = json_get<std::string>(result, "description");
+  parsed.messages.assign(messages->begin(), messages->end());
   return parsed;
 }
 
