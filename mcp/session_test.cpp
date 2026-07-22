@@ -142,5 +142,130 @@ TEST(SessionTest, CloseClosesTransport) {
   EXPECT_TRUE(raw->closed);
 }
 
+TEST(SessionTest, ListToolsParsesTools) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
+  const nlohmann::json tool = {{"name", "search"},
+                               {"title", "Search"},
+                               {"description", "Search things"},
+                               {"inputSchema", {{"type", "object"}}},
+                               {"outputSchema", {{"type", "object"}}},
+                               {"annotations", {{"readOnlyHint", true}}}};
+  raw->responses.push_back({{"jsonrpc", "2.0"},
+                            {"id", 2},
+                            {"result", {{"tools", nlohmann::json::array({tool})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto tools = session.ListTools();
+
+  ASSERT_TRUE(tools.ok()) << tools.status();
+  ASSERT_EQ(tools->size(), 1);
+  EXPECT_EQ((*tools)[0].name, "search");
+  ASSERT_TRUE((*tools)[0].title.has_value());
+  EXPECT_EQ(*(*tools)[0].title, "Search");
+  ASSERT_TRUE((*tools)[0].description.has_value());
+  EXPECT_EQ(*(*tools)[0].description, "Search things");
+  EXPECT_EQ(json_get_or((*tools)[0].input_schema, "type", std::string{}), "object");
+  EXPECT_EQ(json_get_or((*tools)[0].output_schema, "type", std::string{}), "object");
+  EXPECT_TRUE(json_get_or((*tools)[0].annotations, "readOnlyHint", false));
+  ASSERT_EQ(raw->sent.size(), 3);
+  EXPECT_EQ(json_get_or(raw->sent[2], "method", std::string{}), "tools/list");
+}
+
+TEST(SessionTest, ListToolsFollowsPagination) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
+  const nlohmann::json first_tool = {{"name", "first"}, {"inputSchema", {{"type", "object"}}}};
+  const nlohmann::json second_tool = {{"name", "second"}, {"inputSchema", {{"type", "object"}}}};
+  raw->responses.push_back({{"jsonrpc", "2.0"},
+                            {"id", 2},
+                            {"result", {{"tools", nlohmann::json::array({first_tool})}, {"nextCursor", "next"}}}});
+  raw->responses.push_back({{"jsonrpc", "2.0"},
+                            {"id", 3},
+                            {"result", {{"tools", nlohmann::json::array({second_tool})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto tools = session.ListTools();
+
+  ASSERT_TRUE(tools.ok()) << tools.status();
+  ASSERT_EQ(tools->size(), 2);
+  EXPECT_EQ((*tools)[0].name, "first");
+  EXPECT_EQ((*tools)[1].name, "second");
+  ASSERT_EQ(raw->sent.size(), 4);
+  ASSERT_TRUE(raw->sent[3].contains("params"));
+  EXPECT_EQ(json_get_or(raw->sent[3]["params"], "cursor", std::string{}), "next");
+}
+
+TEST(SessionTest, ListToolsRejectsMalformedTool) {
+  auto fake = std::make_unique<FakeTransport>();
+  fake->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result", {{"tools", nlohmann::json::array({{{"name", "bad"}}})}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto tools = session.ListTools();
+
+  ASSERT_FALSE(tools.ok());
+  EXPECT_EQ(tools.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(SessionTest, CallToolParsesSuccessResult) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
+  raw->responses.push_back({{"jsonrpc", "2.0"},
+                            {"id", 2},
+                            {"result",
+                             {{"content", nlohmann::json::array({{{"type", "text"}, {"text", "ok"}}})},
+                              {"structuredContent", {{"answer", 42}}}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto result = session.CallTool("search", {{"query", "mcp"}});
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_FALSE(result->is_error);
+  ASSERT_EQ(result->content.size(), 1);
+  EXPECT_EQ(json_get_or(result->content[0], "text", std::string{}), "ok");
+  EXPECT_EQ(json_get_or(result->structured_content, "answer", 0), 42);
+  ASSERT_EQ(raw->sent.size(), 3);
+  EXPECT_EQ(json_get_or(raw->sent[2], "method", std::string{}), "tools/call");
+  ASSERT_TRUE(raw->sent[2].contains("params"));
+  EXPECT_EQ(json_get_or(raw->sent[2]["params"], "name", std::string{}), "search");
+}
+
+TEST(SessionTest, CallToolPreservesIsError) {
+  auto fake = std::make_unique<FakeTransport>();
+  fake->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
+  fake->responses.push_back({{"jsonrpc", "2.0"},
+                             {"id", 2},
+                             {"result", {{"content", nlohmann::json::array()}, {"isError", true}}}});
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto result = session.CallTool("search", nlohmann::json::object());
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_TRUE(result->is_error);
+}
+
+TEST(SessionTest, CallToolRejectsNonObjectArguments) {
+  auto fake = std::make_unique<FakeTransport>();
+  fake->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
+  Session session(std::move(fake));
+
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  auto result = session.CallTool("search", nlohmann::json::array());
+
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 }  // namespace
 }  // namespace slop::mcp

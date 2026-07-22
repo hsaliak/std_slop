@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -28,6 +29,8 @@ class Session {
   absl::Status Initialize(const InitializeOptions& options);
   absl::Status Close();
   absl::Status Ping();
+  absl::StatusOr<std::vector<Tool>> ListTools();
+  absl::StatusOr<ToolCallResult> CallTool(absl::string_view name, const nlohmann::json& arguments);
 
   const ServerCapabilities& server_capabilities() const { return server_capabilities_; }
   absl::string_view protocol_version() const { return protocol_version_; }
@@ -44,6 +47,8 @@ class Session {
   static nlohmann::json BuildClientCapabilities(const ClientCapabilities& capabilities);
   static absl::StatusOr<ServerCapabilities> ParseServerCapabilities(const nlohmann::json& capabilities);
   absl::Status ParseInitializeResult(const nlohmann::json& result);
+  static absl::StatusOr<Tool> ParseTool(const nlohmann::json& tool);
+  static absl::StatusOr<ToolCallResult> ParseToolCallResult(const nlohmann::json& result);
 
   std::unique_ptr<Transport> transport_;
   State state_ = State::kCreated;
