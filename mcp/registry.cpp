@@ -25,6 +25,13 @@ bool IsValidServerName(absl::string_view name) {
   return true;
 }
 
+bool HasIniControlCharacter(absl::string_view value) {
+  for (const char c : value) {
+    if (c == '\n' || c == '\r' || c == '[' || c == ']' || c == ';' || c == '#') return true;
+  }
+  return false;
+}
+
 absl::StatusOr<bool> ParseBool(absl::string_view value) {
   if (value == "true") return true;
   if (value == "false") return false;
@@ -54,11 +61,23 @@ absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
   if (entry.auth == "bearer" && entry.token_path.empty()) {
     return absl::InvalidArgumentError("MCP bearer server requires token_path");
   }
+  if (HasIniControlCharacter(entry.url) || HasIniControlCharacter(entry.token_path)) {
+    return absl::InvalidArgumentError("MCP server fields contain unsafe INI control characters");
+  }
+  for (const std::string& scope : entry.scopes) {
+    if (scope.empty() || HasIniControlCharacter(scope) || absl::StrContains(scope, " ")) {
+      return absl::InvalidArgumentError("MCP scopes must be non-empty single INI-safe tokens");
+    }
+  }
   return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::string& path) {
-  if (!std::filesystem::exists(path)) return std::vector<ServerRegistryEntry>{};
+  std::error_code error;
+  if (!std::filesystem::exists(path, error)) {
+    if (error) return absl::UnavailableError(absl::StrCat("Failed to access MCP registry: ", error.message()));
+    return std::vector<ServerRegistryEntry>{};
+  }
   std::ifstream file(path);
   if (!file.is_open()) return absl::UnavailableError(absl::StrCat("Failed to open MCP registry: ", path));
   const std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -93,8 +112,13 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
     if (!status.ok()) return status;
   }
   const std::filesystem::path registry_path(path);
-  if (!registry_path.parent_path().empty()) std::filesystem::create_directories(registry_path.parent_path());
-  std::ofstream file(path, std::ios::trunc);
+  std::error_code error;
+  if (!registry_path.parent_path().empty()) {
+    std::filesystem::create_directories(registry_path.parent_path(), error);
+    if (error) return absl::UnavailableError(absl::StrCat("Failed to create MCP registry directory: ", error.message()));
+  }
+  const std::filesystem::path temporary_path = registry_path.string() + ".tmp";
+  std::ofstream file(temporary_path, std::ios::trunc);
   if (!file.is_open()) return absl::UnavailableError(absl::StrCat("Failed to write MCP registry: ", path));
   for (const ServerRegistryEntry& entry : entries) {
     file << "[server." << entry.name << "]\n";
@@ -105,7 +129,14 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
     if (!entry.token_path.empty()) file << "token_path = " << entry.token_path << "\n";
     file << "\n";
   }
-  return file.good() ? absl::OkStatus() : absl::UnavailableError(absl::StrCat("Failed to write MCP registry: ", path));
+  file.close();
+  if (!file.good()) return absl::UnavailableError(absl::StrCat("Failed to write MCP registry: ", path));
+  std::filesystem::rename(temporary_path, registry_path, error);
+  if (error) {
+    std::filesystem::remove(temporary_path, error);
+    return absl::UnavailableError(absl::StrCat("Failed to replace MCP registry: ", error.message()));
+  }
+  return absl::OkStatus();
 }
 
 absl::Status UpsertServerRegistryEntry(const std::string& path, const ServerRegistryEntry& entry) {

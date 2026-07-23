@@ -39,5 +39,10 @@ TEST(RegistryTest, RejectsInvalidServerEntry) {
   EXPECT_FALSE(ValidateServerRegistryEntry(missing_bearer_path).ok());
 }
 
+TEST(RegistryTest, RejectsIniInjection) {
+  ServerRegistryEntry entry{"server", "https://example.com/mcp\n[server.injected]", "none", true, {}, ""};
+  EXPECT_FALSE(ValidateServerRegistryEntry(entry).ok());
+}
+
 }  // namespace
 }  // namespace slop::mcp
