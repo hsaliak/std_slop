@@ -44,7 +44,7 @@ absl::Status ValidateFlags(const std::vector<std::string>& args, const std::vect
     if (is_single && std::count(args.begin(), args.end(), args[i]) > 1) {
       return absl::InvalidArgumentError(absl::StrCat("Duplicate MCP flag: ", args[i]));
     }
-    ++i;
+    i += 2;
   }
   return absl::OkStatus();
 }
