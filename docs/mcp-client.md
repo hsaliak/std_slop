@@ -759,8 +759,9 @@ In progress:
 
 Deferred:
 
-- Bundle 7 top-level `std_slop mcp` commands and Bundle 8 runtime tool integration require a separate host integration round.
-- Generic MCP OAuth authorization-code/device flows require a client registration and callback policy before implementation.
+- Bundle 7 top-level `std_slop mcp` commands now support registry and OAuth token lifecycle management with explicit per-server `client_id`.
+- Dynamic Client Registration and OAuth device flow are not supported. Configure a server-provided OAuth `client_id` and use browser-paste authorization-code + PKCE login.
+- Bundle 8 runtime tool integration requires a separate host integration round.
 - In-flight request cancellation requires an asynchronous transport/cancellation design and is deferred until that design is available.
 
 ## Roadmap
