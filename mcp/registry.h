@@ -17,9 +17,15 @@ struct ServerRegistryEntry {
   std::vector<std::string> scopes;
   std::string token_path;
   std::string client_id;
+  std::string resource_metadata_url;
+  std::string authorization_server_url;
+  std::string authorization_endpoint;
+  std::string token_endpoint;
 };
 
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry);
+std::string DefaultRegistryPath();
+std::string DefaultTokenPath(const std::string& server_name);
 absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::string& path);
 absl::Status SaveServerRegistry(const std::string& path, const std::vector<ServerRegistryEntry>& entries);
 absl::Status UpsertServerRegistryEntry(const std::string& path, const ServerRegistryEntry& entry);

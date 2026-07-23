@@ -14,6 +14,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "core/shell_util.h"
 #include "ini/ini_parser.h"
 
 namespace slop::mcp {
@@ -52,6 +53,17 @@ std::vector<std::string> ParseScopes(absl::string_view value) {
 
 }  // namespace
 
+std::string DefaultRegistryPath() {
+  const std::string home = slop::GetHomeDir();
+  return home.empty() ? std::string("mcp.ini") : absl::StrCat(home, "/.config/slop/mcp.ini");
+}
+
+std::string DefaultTokenPath(const std::string& server_name) {
+  const std::string home = slop::GetHomeDir();
+  const std::string base = home.empty() ? std::string(".slop/mcp/tokens") : absl::StrCat(home, "/.config/slop/mcp/tokens");
+  return absl::StrCat(base, "/", server_name, ".json");
+}
+
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
   if (!IsValidServerName(entry.name)) {
     return absl::InvalidArgumentError("MCP server name must contain only letters, digits, hyphens, or underscores");
@@ -69,7 +81,9 @@ absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
     return absl::InvalidArgumentError("MCP OAuth server requires client_id");
   }
   if (HasIniControlCharacter(entry.url) || HasIniControlCharacter(entry.token_path) ||
-      HasIniControlCharacter(entry.client_id)) {
+      HasIniControlCharacter(entry.client_id) || HasIniControlCharacter(entry.resource_metadata_url) ||
+      HasIniControlCharacter(entry.authorization_server_url) || HasIniControlCharacter(entry.authorization_endpoint) ||
+      HasIniControlCharacter(entry.token_endpoint)) {
     return absl::InvalidArgumentError("MCP server fields contain unsafe INI control characters");
   }
   for (const std::string& scope : entry.scopes) {
@@ -107,6 +121,11 @@ absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::s
     if (const auto scopes = section.find("scopes"); scopes != section.end()) entry.scopes = ParseScopes(scopes->second);
     if (const auto token_path = section.find("token_path"); token_path != section.end()) entry.token_path = token_path->second;
     if (const auto client_id = section.find("client_id"); client_id != section.end()) entry.client_id = client_id->second;
+    if (const auto value = section.find("resource_metadata_url"); value != section.end()) entry.resource_metadata_url = value->second;
+    if (const auto value = section.find("authorization_server_url"); value != section.end()) entry.authorization_server_url = value->second;
+    if (const auto value = section.find("authorization_endpoint"); value != section.end()) entry.authorization_endpoint = value->second;
+    if (const auto value = section.find("token_endpoint"); value != section.end()) entry.token_endpoint = value->second;
+    if (entry.token_path.empty()) entry.token_path = DefaultTokenPath(entry.name);
     const absl::Status status = ValidateServerRegistryEntry(entry);
     if (!status.ok()) return status;
     entries.push_back(std::move(entry));
@@ -138,6 +157,10 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
     if (!entry.scopes.empty()) absl::StrAppend(&content, "scopes = ", absl::StrJoin(entry.scopes, " "), "\n");
     if (!entry.token_path.empty()) absl::StrAppend(&content, "token_path = ", entry.token_path, "\n");
     if (!entry.client_id.empty()) absl::StrAppend(&content, "client_id = ", entry.client_id, "\n");
+    if (!entry.resource_metadata_url.empty()) absl::StrAppend(&content, "resource_metadata_url = ", entry.resource_metadata_url, "\n");
+    if (!entry.authorization_server_url.empty()) absl::StrAppend(&content, "authorization_server_url = ", entry.authorization_server_url, "\n");
+    if (!entry.authorization_endpoint.empty()) absl::StrAppend(&content, "authorization_endpoint = ", entry.authorization_endpoint, "\n");
+    if (!entry.token_endpoint.empty()) absl::StrAppend(&content, "token_endpoint = ", entry.token_endpoint, "\n");
     content.push_back('\n');
   }
   std::string template_path = absl::StrCat(registry_path.string(), ".tmp.XXXXXX");
