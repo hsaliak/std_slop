@@ -138,13 +138,14 @@ TEST(UiTest, FormatTurnStatusIncludesCacheTelemetry) {
   TurnStatus status;
   status.phase = TurnPhase::kCompleted;
   status.detail = "final response";
-  status.usage = ResponseUsage{1000, 200, 750};
+  status.usage = ResponseUsage{1000, 200, 750, 125};
   status.elapsed = absl::Seconds(2);
 
   const std::string formatted = FormatTurnStatus(status);
   EXPECT_TRUE(absl::StrContains(formatted, "Done"));
   EXPECT_TRUE(absl::StrContains(formatted, "In 1.0k"));
   EXPECT_TRUE(absl::StrContains(formatted, "Cached 750 (75%)"));
+  EXPECT_TRUE(absl::StrContains(formatted, "Cache write 125"));
   EXPECT_TRUE(absl::StrContains(formatted, "Out 200"));
   EXPECT_TRUE(absl::StrContains(formatted, "2.0s"));
 }

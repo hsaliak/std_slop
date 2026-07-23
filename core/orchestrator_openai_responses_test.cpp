@@ -1,5 +1,6 @@
 #include "core/orchestrator_openai_responses.h"
 
+#include <algorithm>
 #include <set>
 
 #include "absl/status/status.h"
@@ -18,7 +19,6 @@ absl::StatusOr<nlohmann::json> BuildRequest(OpenAiResponsesOrchestrator& orchest
                                              const std::string& session_id, const std::string& system_instruction,
                                              const std::vector<Database::Message>& history,
                                              const std::vector<std::string>& active_skills) {
-  (void)session_id;
   auto tools_or = db.GetTopLevelTools();
   if (!tools_or.ok()) return tools_or.status();
   std::string active_skill_content;
@@ -26,7 +26,9 @@ absl::StatusOr<nlohmann::json> BuildRequest(OpenAiResponsesOrchestrator& orchest
     auto skills_or = db.GetSkills();
     if (!skills_or.ok()) return skills_or.status();
     active_skill_content = "## Active Personas & Skills\n";
-    for (const auto& active_name : active_skills) {
+    std::vector<std::string> sorted_active_skills = active_skills;
+    std::sort(sorted_active_skills.begin(), sorted_active_skills.end());
+    for (const auto& active_name : sorted_active_skills) {
       for (const auto& skill : *skills_or) {
         if (skill.name == active_name) {
           absl::StrAppend(&active_skill_content, "### Skill: ", skill.name, "\n", skill.system_prompt_patch, "\n");
@@ -36,7 +38,7 @@ absl::StatusOr<nlohmann::json> BuildRequest(OpenAiResponsesOrchestrator& orchest
     }
   }
   return orchestrator.BuildRequest(
-      {system_instruction, history, std::move(*tools_or), std::move(active_skill_content), std::nullopt});
+      {system_instruction, history, std::move(*tools_or), std::move(active_skill_content), std::nullopt, session_id});
 }
 
 class OpenAiResponsesOrchestratorTest : public ::testing::Test {
@@ -47,6 +49,10 @@ class OpenAiResponsesOrchestratorTest : public ::testing::Test {
   void SetUp() override { ASSERT_TRUE(db.Init(":memory:").ok()); }
 };
 
+std::string UserContentAt(const nlohmann::json& payload, size_t index) {
+  return json_get_or(payload["input"][index], "content", std::string{});
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, BuildRequestDoesNotReadDatabase) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   Database::Message user{0, "s1", "user", "Hello", "", "completed", "", "g1", "", 0};
@@ -55,10 +61,9 @@ TEST_F(OpenAiResponsesOrchestratorTest, BuildRequestDoesNotReadDatabase) {
   auto payload_or = orchestrator.BuildRequest({"System prompt", {user}, {tool}, "Skill patch", std::nullopt});
 
   ASSERT_TRUE(payload_or.ok());
-  EXPECT_EQ(json_get_or(*payload_or, "instructions", std::string{}), "System prompt");
-  ASSERT_EQ((*payload_or)["input"].size(), 2);
-  EXPECT_EQ(json_get_or((*payload_or)["input"][0], "role", std::string{}), "system");
-  EXPECT_EQ(json_get_or((*payload_or)["input"][1], "role", std::string{}), "user");
+  EXPECT_EQ(json_get_or(*payload_or, "instructions", std::string{}), "System prompt\n\nSkill patch");
+  ASSERT_EQ((*payload_or)["input"].size(), 1);
+  EXPECT_EQ(json_get_or((*payload_or)["input"][0], "role", std::string{}), "user");
   ASSERT_EQ((*payload_or)["tools"].size(), 1);
   EXPECT_EQ(json_get_or((*payload_or)["tools"][0], "name", std::string{}), "read_file");
 }
@@ -83,6 +88,10 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   ASSERT_TRUE(payload.contains("reasoning"));
   EXPECT_EQ(json_get_or(payload["reasoning"], "effort", std::string{}), "medium");
   EXPECT_EQ(json_get_or(payload["reasoning"], "summary", std::string{}), "auto");
+  EXPECT_FALSE(payload.contains("prompt_cache_options"));
+  EXPECT_FALSE(payload.contains("prompt_cache_breakpoint"));
+  EXPECT_FALSE(payload.contains("cache_control"));
+  EXPECT_FALSE(payload.contains("session_id"));
   ASSERT_TRUE(payload.contains("input"));
   ASSERT_TRUE(payload["input"].is_array());
   ASSERT_TRUE(payload.contains("tools"));
@@ -94,6 +103,65 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsInputAndTools) {
   EXPECT_TRUE(tool_names.find("query_db") != tool_names.end());
   EXPECT_TRUE(tool_names.find("llm_query") != tool_names.end());
   EXPECT_TRUE(tool_names.find("ask_user") != tool_names.end());
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, PriorInputIsExactPrefixDuringToolFollowUp) {
+  Database::Message previous{1, "s1", "user", "Old context", "", "completed", "", "g1", "", 0};
+  Database::Message current{2, "s1", "user", "Please do a long task", "", "completed", "", "g1", "", 0};
+  Database::Message tool_call{3,
+                              "s1",
+                              "assistant",
+                              R"({"tool_calls":[{"id":"call_1","function":{"name":"read_file","arguments":"{}"}}]})",
+                              "",
+                              "tool_call",
+                              "",
+                              "g1",
+                              "",
+                              0};
+  Database::Message tool_output{4, "s1", "tool", "file contents", "call_1|read_file", "completed", "", "g1", "", 0};
+  Database::Tool tool{"read_file", "Read a file", R"({"type":"object"})", true};
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto initial = orchestrator.BuildRequest({"System prompt", {previous, current}, {tool}, "", std::nullopt});
+  ASSERT_TRUE(initial.ok()) << initial.status();
+  auto follow_up = orchestrator.BuildRequest({"System prompt", {previous, current, tool_call, tool_output}, {tool}, "",
+                                              std::nullopt});
+  ASSERT_TRUE(follow_up.ok()) << follow_up.status();
+
+  ASSERT_EQ((*initial)["input"].size(), 2);
+  ASSERT_EQ((*follow_up)["input"].size(), 4);
+  EXPECT_EQ((*initial)["input"][0], (*follow_up)["input"][0]);
+  EXPECT_EQ((*initial)["input"][1], (*follow_up)["input"][1]);
+  EXPECT_EQ(UserContentAt(*follow_up, 1), "Please do a long task");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ActiveSkillsArePartOfFixedInstructions) {
+  Database::Message previous{1, "s1", "user", "Old context", "", "completed", "", "g1", "", 0};
+  Database::Message current{2, "s1", "user", "Please do a long task", "", "completed", "", "g1", "", 0};
+  Database::Message tool_call{3,
+                              "s1",
+                              "assistant",
+                              R"({"tool_calls":[{"id":"call_1","function":{"name":"read_file","arguments":"{}"}}]})",
+                              "",
+                              "tool_call",
+                              "",
+                              "g1",
+                              "",
+                              0};
+  Database::Message tool_output{4, "s1", "tool", "file contents", "call_1|read_file", "completed", "", "g1", "", 0};
+  Database::Tool tool{"read_file", "Read a file", R"({"type":"object"})", true};
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto follow_up = orchestrator.BuildRequest(
+      {"System prompt", {previous, current, tool_call, tool_output}, {tool}, "Skill patch", std::nullopt});
+  ASSERT_TRUE(follow_up.ok()) << follow_up.status();
+
+  EXPECT_EQ(json_get_or(*follow_up, "instructions", std::string{}), "System prompt\n\nSkill patch");
+  const nlohmann::json& input = (*follow_up)["input"];
+  ASSERT_EQ(input.size(), 4);
+  for (const auto& item : input) {
+    EXPECT_NE(json_get_or(item, "role", std::string{}), "system");
+  }
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, BuildRequestAddsStructuredOutputToolWhenSchemaProvided) {
@@ -159,7 +227,7 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadRejectsInvalidReasoningSu
   EXPECT_EQ(payload_or.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
-TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadAppendsActiveSkillsToInputTail) {
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadAppendsSortedActiveSkillsToInstructions) {
   Database::Skill first = {0, "first", "desc1", "FIRST_PATCH"};
   Database::Skill second = {0, "second", "desc2", "SECOND_PATCH"};
   ASSERT_TRUE(db.RegisterSkill(first).ok());
@@ -174,18 +242,13 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadAppendsActiveSkillsToInpu
 
   const auto& payload = *payload_or;
   std::string instructions = json_get_or(payload, "instructions", std::string{});
-  EXPECT_FALSE(absl::StrContains(instructions, std::string("SECOND_PATCH")));
-  EXPECT_FALSE(absl::StrContains(instructions, std::string("FIRST_PATCH")));
+  EXPECT_TRUE(absl::StrContains(instructions, std::string("SECOND_PATCH")));
+  EXPECT_TRUE(absl::StrContains(instructions, std::string("FIRST_PATCH")));
+  EXPECT_LT(instructions.find("FIRST_PATCH"), instructions.find("SECOND_PATCH"));
 
   ASSERT_TRUE(payload.contains("input"));
   ASSERT_TRUE(payload["input"].is_array());
-  ASSERT_GE(payload["input"].size(), 2);
-
-  // The skill system message should be the second-to-last item (before the user message).
-  const auto& skill_item = payload["input"][payload["input"].size() - 2];
-  EXPECT_EQ(json_get_or(skill_item, "role", std::string{}), "system");
-  std::string skill_content = json_get_or(skill_item, "content", std::string{});
-  EXPECT_LT(skill_content.find("SECOND_PATCH"), skill_content.find("FIRST_PATCH"));
+  ASSERT_EQ(payload["input"].size(), 1);
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsSkillSectionWhenNoActiveSkills) {
@@ -229,11 +292,10 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyStableAcrossSkill
   ASSERT_TRUE(with_second.ok());
   std::string key_with_second = json_get_or(*with_second, "prompt_cache_key", std::string{});
 
-  // Same static instructions -> same cache key, even though active skills differ.
   EXPECT_EQ(key_with_first, key_with_second);
 }
 
-TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyChangesWithDifferentInstructions) {
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyStableAcrossInstructionChanges) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
 
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
@@ -249,18 +311,45 @@ TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyChangesWithDiffer
   ASSERT_TRUE(payload_b.ok());
   std::string key_b = json_get_or(*payload_b, "prompt_cache_key", std::string{});
 
-  EXPECT_NE(key_a, key_b);
+  EXPECT_EQ(key_a, key_b);
 }
 
-TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsCacheKeyForEmptyInstructions) {
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyDiffersAcrossSessions) {
+  Database::Message user{0, "s1", "user", "Hello", "", "completed", "", "g1", "", 0};
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+
+  auto first = orchestrator.BuildRequest({"System", {user}, {}, "", std::nullopt, "s1"});
+  auto second = orchestrator.BuildRequest({"System", {user}, {}, "", std::nullopt, "s2"});
+
+  ASSERT_TRUE(first.ok());
+  ASSERT_TRUE(second.ok());
+  EXPECT_NE(json_get_or(*first, "prompt_cache_key", std::string{}),
+            json_get_or(*second, "prompt_cache_key", std::string{}));
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadOmitsCacheKeyForEmptyCacheablePrefix) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
 
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   auto history_or = db.GetConversationHistory("s1");
   ASSERT_TRUE(history_or.ok());
-  auto payload_or = BuildRequest(orchestrator, db, "s1", "", *history_or, {});
+  auto payload_or = orchestrator.BuildRequest({"", *history_or, {}, "", std::nullopt});
   ASSERT_TRUE(payload_or.ok());
   EXPECT_FALSE(payload_or->contains("prompt_cache_key"));
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadBuildsCacheKeyFromSessionWithoutInstructions) {
+  Database::Message user{0, "s1", "user", "Hello", "", "completed", "", "g1", "", 0};
+  Database::Tool tool{"read_file", "Read a file", R"({"type":"object"})", true};
+
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  auto payload_or = orchestrator.BuildRequest({"", {user}, {tool}, "", std::nullopt, "s1"});
+  ASSERT_TRUE(payload_or.ok()) << payload_or.status();
+
+  ASSERT_TRUE(payload_or->contains("prompt_cache_key"));
+  const std::string key = json_get_or(*payload_or, "prompt_cache_key", std::string{});
+  EXPECT_TRUE(absl::StartsWith(key, "slop:"));
+  EXPECT_EQ(key.size(), 64);
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, AssemblePayloadCacheKeyIdempotentAfterDbRoundTrip) {
@@ -544,6 +633,53 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseDedupesSseFunctionCallIte
   EXPECT_EQ(json_get_or((*calls_or)[0].args, "sql", std::string{}), "SELECT 7");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseCoalescesAddedAndDoneReasoningItems) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex", "https://api.openai.com/v1");
+  const std::string sse_payload =
+      "event: response.output_item.added\n"
+      "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"reasoning\",\"id\":\"rs_1\","
+      "\"summary\":[]}}\n\n"
+      "event: response.output_item.done\n"
+      "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"reasoning\",\"id\":\"rs_1\","
+      "\"summary\":[],\"encrypted_content\":\"opaque\"}}\n\n"
+      "event: response.output_item.added\n"
+      "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"message\",\"id\":\"msg_1\","
+      "\"role\":\"assistant\",\"content\":[]}}\n\n"
+      "event: response.output_item.done\n"
+      "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"id\":\"msg_1\","
+      "\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\","
+      "\"text\":\"Done\"}]}}\n\n"
+      "event: response.completed\n"
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\"}}\n\n";
+
+  ASSERT_TRUE(orchestrator.ProcessResponse("s1", sse_payload, "g1").ok());
+  const auto& output_items = orchestrator.GetLastOutputItems();
+  ASSERT_EQ(output_items.size(), 2);
+  EXPECT_EQ(output_items[0].type, "reasoning");
+  EXPECT_EQ(json_get_or(output_items[0].raw, "encrypted_content", std::string{}), "opaque");
+  EXPECT_EQ(output_items[1].type, "message");
+
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 2);
+  EXPECT_EQ((*history_or)[0].status, "reasoning");
+  EXPECT_EQ((*history_or)[1].status, "completed");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, RejectsMalformedProviderFunctionCallBeforePersistence) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const nlohmann::json response = {
+      {"output", nlohmann::json::array({{{"type", "function_call"}, {"call_id", "call_1"}, {"name", "query_db"}}})}};
+
+  auto status_or = orchestrator.ProcessResponse("s1", response.dump(), "g1");
+
+  ASSERT_FALSE(status_or.ok());
+  EXPECT_EQ(status_or.status().code(), absl::StatusCode::kInvalidArgument);
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  EXPECT_TRUE(history_or->empty());
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseStoresAssistantText) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   const std::string response = R"({
@@ -596,6 +732,44 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseStoresFunctionCalls) {
   ASSERT_EQ(calls_or->size(), 1);
   EXPECT_EQ((*calls_or)[0].id, "call_1");
   EXPECT_EQ((*calls_or)[0].name, "run_test");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ReplaysCanonicalReasoningAndToolItemsVerbatim) {
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Inspect the database", "", "completed", "g1").ok());
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const nlohmann::json reasoning = {{"id", "rs_1"},
+                                    {"type", "reasoning"},
+                                    {"encrypted_content", "opaque-provider-state"},
+                                    {"summary", nlohmann::json::array()}};
+  const nlohmann::json function_call = {{"type", "function_call"},
+                                        {"call_id", "call_1"},
+                                        {"name", "query_db"},
+                                        {"arguments", "{\"sql\":\"SELECT 1\"}"}};
+  const nlohmann::json response = {{"output", nlohmann::json::array({reasoning, function_call})}};
+  ASSERT_TRUE(orchestrator.ProcessResponse("s1", response.dump(), "g1").ok());
+  ASSERT_TRUE(
+      db.AppendMessage("s1", "tool", "[{\"1\":1}]", "call_1|query_db", "completed", "g1", "openai").ok());
+
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "System", *history_or, {});
+  ASSERT_TRUE(payload_or.ok()) << payload_or.status();
+  const auto& input = (*payload_or)["input"];
+  ASSERT_EQ(input.size(), 4);
+  EXPECT_EQ(input[1], reasoning);
+  EXPECT_EQ(input[2], function_call);
+  EXPECT_EQ(json_get_or(input[3], "type", std::string{}), "function_call_output");
+  EXPECT_EQ(json_get_or(input[3], "call_id", std::string{}), "call_1");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, RejectsMalformedStoredCanonicalItem) {
+  Database::Message message{0, "s1", "assistant", "", "", "reasoning", "", "g1", "openai", 0, "not-json"};
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+
+  auto payload_or = orchestrator.BuildRequest({"System", {message}, {}, "", std::nullopt, "s1"});
+
+  ASSERT_FALSE(payload_or.ok());
+  EXPECT_EQ(payload_or.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSupportsObjectFunctionArguments) {

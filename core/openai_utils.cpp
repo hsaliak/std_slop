@@ -89,19 +89,32 @@ std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& res
   }
 
   ResponseUsage parsed;
-  const auto input_tokens = json_get<int>(*usage, "input_tokens");
+  auto input_tokens = json_get<int>(*usage, "input_tokens");
+  if (!input_tokens.has_value()) {
+    input_tokens = json_get<int>(*usage, "prompt_tokens");
+  }
   if (input_tokens.has_value() && *input_tokens >= 0) {
     parsed.input_tokens = *input_tokens;
   }
-  const auto output_tokens = json_get<int>(*usage, "output_tokens");
+  auto output_tokens = json_get<int>(*usage, "output_tokens");
+  if (!output_tokens.has_value()) {
+    output_tokens = json_get<int>(*usage, "completion_tokens");
+  }
   if (output_tokens.has_value() && *output_tokens >= 0) {
     parsed.output_tokens = *output_tokens;
   }
   const auto* input_details = json_at(*usage, "input_tokens_details");
+  if (input_details == nullptr || !input_details->is_object()) {
+    input_details = json_at(*usage, "prompt_tokens_details");
+  }
   if (input_details != nullptr && input_details->is_object()) {
     const auto cached_tokens = json_get<int>(*input_details, "cached_tokens");
     if (cached_tokens.has_value() && *cached_tokens >= 0) {
       parsed.cached_input_tokens = *cached_tokens;
+    }
+    const auto cache_write_tokens = json_get<int>(*input_details, "cache_write_tokens");
+    if (cache_write_tokens.has_value() && *cache_write_tokens >= 0) {
+      parsed.cache_write_input_tokens = *cache_write_tokens;
     }
   }
   return parsed;
@@ -122,7 +135,8 @@ int RecordOpenAiResponsesUsage(Database* db, const std::string& session_id, cons
   if (!usage.has_value()) {
     return 0;
   }
-  (void)db->RecordUsage(session_id, model, usage->input_tokens, usage->output_tokens);
+  (void)db->RecordUsage(session_id, model, usage->input_tokens, usage->output_tokens,
+                         usage->cached_input_tokens.value_or(0), usage->cache_write_input_tokens.value_or(0));
   return usage->input_tokens + usage->output_tokens;
 }
 

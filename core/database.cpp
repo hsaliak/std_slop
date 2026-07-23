@@ -48,7 +48,8 @@ absl::Status SessionDoesNotExist(Database* db, const std::string& session_id) {
 absl::StatusOr<Database::Message> LastMessageForGroup(Database* db, const std::string& session_id,
                                                       const std::string& group_id) {
   auto stmt_or = db->Prepare(
-      "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+      "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens, "
+      "api_item_json "
       "FROM messages WHERE session_id = ? AND group_id = ? ORDER BY created_at DESC, id DESC LIMIT 1");
   if (!stmt_or.ok()) return stmt_or.status();
   RETURN_IF_ERROR((*stmt_or)->BindText(1, session_id));
@@ -67,6 +68,7 @@ absl::StatusOr<Database::Message> LastMessageForGroup(Database* db, const std::s
   message.group_id = (*stmt_or)->ColumnText(7);
   message.parsing_strategy = (*stmt_or)->ColumnText(8);
   message.tokens = (*stmt_or)->ColumnInt(9);
+  message.api_item_json = (*stmt_or)->ColumnText(10);
   return message;
 }
 }  // namespace
@@ -187,7 +189,8 @@ absl::Status Database::Init(const std::string& db_path) {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         group_id TEXT,
         parsing_strategy TEXT,
-        tokens INTEGER DEFAULT 0
+        tokens INTEGER DEFAULT 0,
+        api_item_json TEXT
     );
     CREATE TABLE IF NOT EXISTS tools (
         name TEXT PRIMARY KEY,
@@ -218,6 +221,8 @@ absl::Status Database::Init(const std::string& db_path) {
         prompt_tokens INTEGER,
         completion_tokens INTEGER,
         total_tokens INTEGER,
+        cached_prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_prompt_tokens INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS scratchpads (
@@ -240,6 +245,7 @@ absl::Status Database::Init(const std::string& db_path) {
   (void)sqlite3_exec(raw_db, "PRAGMA busy_timeout = 5000;", nullptr, nullptr, nullptr);
   // Migration: Add tokens column to messages table if it doesn't exist
   (void)sqlite3_exec(raw_db, "ALTER TABLE messages ADD COLUMN tokens INTEGER DEFAULT 0;", nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db, "ALTER TABLE messages ADD COLUMN api_item_json TEXT;", nullptr, nullptr, nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE skills ADD COLUMN activation_count INTEGER DEFAULT 0;", nullptr, nullptr,
                      nullptr);
   (void)sqlite3_exec(raw_db, "ALTER TABLE sessions ADD COLUMN active_skills TEXT;", nullptr, nullptr, nullptr);
@@ -265,6 +271,12 @@ absl::Status Database::Init(const std::string& db_path) {
                      "CREATE INDEX IF NOT EXISTS idx_messages_session_group_created_id_desc_not_dropped ON "
                      "messages(session_id, group_id, created_at DESC, id DESC) "
                      "WHERE group_id IS NOT NULL AND status != 'dropped';",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "ALTER TABLE usage ADD COLUMN cached_prompt_tokens INTEGER NOT NULL DEFAULT 0;",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "ALTER TABLE usage ADD COLUMN cache_write_prompt_tokens INTEGER NOT NULL DEFAULT 0;",
                      nullptr, nullptr, nullptr);
   // Migrate existing session databases to accordion context settings. The
   // deprecated context_size column is intentionally ignored after migration.
@@ -399,12 +411,13 @@ absl::Status Database::Execute(const std::string& sql, const std::vector<std::st
 }
 absl::Status Database::AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
                                      const std::string& tool_call_id, const std::string& status,
-                                     const std::string& group_id, const std::string& parsing_strategy, int tokens) {
+                                     const std::string& group_id, const std::string& parsing_strategy, int tokens,
+                                     const std::string& api_item_json) {
   // Ensure session exists
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
   std::string sql =
-      "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy, tokens) "
-      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+      "INSERT INTO messages (session_id, role, content, tool_call_id, status, group_id, parsing_strategy, tokens, "
+      "api_item_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
   RETURN_IF_ERROR(stmt->BindText(2, role));
@@ -426,6 +439,18 @@ absl::Status Database::AppendMessage(const std::string& session_id, const std::s
     RETURN_IF_ERROR(stmt->BindText(7, parsing_strategy));
   }
   RETURN_IF_ERROR(stmt->BindInt(8, tokens));
+  std::string canonical_item = api_item_json;
+  if (canonical_item.empty() && role == "user") {
+    canonical_item = json_dump({{"role", "user"}, {"content", content}});
+  } else if (canonical_item.empty() && role == "tool") {
+    const std::string call_id = tool_call_id.substr(0, tool_call_id.find('|'));
+    canonical_item = json_dump({{"type", "function_call_output"}, {"call_id", call_id}, {"output", content}});
+  }
+  if (canonical_item.empty()) {
+    RETURN_IF_ERROR(stmt->BindNull(9));
+  } else {
+    RETURN_IF_ERROR(stmt->BindText(9, canonical_item));
+  }
   return stmt->Run();
 }
 absl::Status Database::UpdateMessageStatus(int id, const std::string& status) {
@@ -452,7 +477,8 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
     // Each 'group_id' represents a full turn (user prompt + multiple tool calls/responses).
     // This ensures that we don't truncate a conversation in the middle of a tool-calling sequence.
     sql = absl::Substitute(
-        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens, "
+        "api_item_json "
         "FROM messages WHERE session_id = ? $0 "
         "AND (group_id IS NULL OR group_id IN (SELECT DISTINCT group_id FROM messages WHERE session_id = ? AND "
         "group_id IS NOT NULL $0 ORDER BY created_at DESC, id DESC LIMIT ?)) "
@@ -460,7 +486,8 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
         drop_filter);
   } else {
     sql = absl::Substitute(
-        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+        "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens, "
+        "api_item_json "
         "FROM messages WHERE session_id = ? $0 "
         "ORDER BY created_at ASC, id ASC",
         drop_filter);
@@ -487,6 +514,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetConversationHistory(
     m.group_id = stmt->ColumnText(7);
     m.parsing_strategy = stmt->ColumnText(8);
     m.tokens = stmt->ColumnInt(9);
+    m.api_item_json = stmt->ColumnText(10);
     history.push_back(m);
   }
   return history;
@@ -499,7 +527,8 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(
     placeholders += (i == 0 ? "?" : ", ?");
   }
   std::string sql =
-      "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+      "SELECT id, session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens, "
+      "api_item_json "
       "FROM messages WHERE group_id IN (" +
       placeholders + ") ORDER BY created_at ASC, id ASC";
   ASSIGN_OR_RETURN(auto stmt, Prepare(sql));
@@ -522,6 +551,7 @@ absl::StatusOr<std::vector<Database::Message>> Database::GetMessagesByGroups(
     m.group_id = stmt->ColumnText(7);
     m.parsing_strategy = stmt->ColumnText(8);
     m.tokens = stmt->ColumnInt(9);
+    m.api_item_json = stmt->ColumnText(10);
     messages.push_back(m);
   }
   return messages;
@@ -540,12 +570,14 @@ absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_
   return absl::NotFoundError("No group found");
 }
 absl::Status Database::RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
-                                   int completion_tokens) {
+                                   int completion_tokens, int cached_prompt_tokens, int cache_write_prompt_tokens) {
   // Ensure session exists
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
   return Execute(
-      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?);",
-      session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens);
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens) VALUES (?, ?, ?, ?, ?, ?, ?);",
+      session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens, cached_prompt_tokens,
+      cache_write_prompt_tokens);
 }
 absl::StatusOr<std::optional<int>> Database::GetLatestPromptTokens(const std::string& session_id) {
   ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT prompt_tokens FROM usage WHERE session_id = ? "
@@ -556,7 +588,9 @@ absl::StatusOr<std::optional<int>> Database::GetLatestPromptTokens(const std::st
   return std::optional<int>(stmt->ColumnInt(0));
 }
 absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& session_id) {
-  std::string sql = "SELECT SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens) FROM usage";
+  std::string sql =
+      "SELECT SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), SUM(cached_prompt_tokens), "
+      "SUM(cache_write_prompt_tokens) FROM usage";
   if (!session_id.empty()) {
     sql += " WHERE session_id = ?";
   }
@@ -566,11 +600,13 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
   }
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-  TotalUsage usage = {0, 0, 0};
+  TotalUsage usage = {0, 0, 0, 0, 0};
   if (*row_or) {
     usage.prompt_tokens = stmt->ColumnInt(0);
     usage.completion_tokens = stmt->ColumnInt(1);
     usage.total_tokens = stmt->ColumnInt(2);
+    usage.cached_prompt_tokens = stmt->ColumnInt(3);
+    usage.cache_write_prompt_tokens = stmt->ColumnInt(4);
   }
   return usage;
 }
@@ -793,7 +829,7 @@ absl::StatusOr<std::string> Database::GetScratchpad(const std::string& session_i
 absl::StatusOr<std::string> Database::GetLastAssistantMessage(const std::string& session_id) {
   ASSIGN_OR_RETURN(auto stmt,
                    Prepare("SELECT content FROM messages WHERE session_id = ? AND role = 'assistant' "
-                           "ORDER BY id DESC LIMIT 1"));
+                           "AND status = 'completed' ORDER BY id DESC LIMIT 1"));
   RETURN_IF_ERROR(stmt->BindText(1, session_id));
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
@@ -849,16 +885,16 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
       "INSERT INTO messages (session_id, role, content, tool_call_id, status, "
-      "created_at, group_id, parsing_strategy, tokens) "
+      "created_at, group_id, parsing_strategy, tokens, api_item_json) "
       "SELECT ?, role, content, tool_call_id, status, created_at, group_id, "
-      "parsing_strategy, tokens FROM messages WHERE session_id = ?;",
+      "parsing_strategy, tokens, api_item_json FROM messages WHERE session_id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
-      "INSERT INTO usage (session_id, model, prompt_tokens, "
-      "completion_tokens, total_tokens, created_at) "
-      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, "
-      "created_at FROM usage WHERE session_id = ?;",
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at) "
+      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at FROM usage WHERE session_id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
@@ -885,16 +921,18 @@ absl::Status Database::CloneSessionThroughGroup(const std::string& source_id, co
       {target_id, source_id});
   if (!status.ok()) return RollbackTransaction(this, status);
   status = Execute(
-      "INSERT INTO messages (session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens) "
-      "SELECT ?, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens "
+      "INSERT INTO messages (session_id, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, "
+      "tokens, api_item_json) "
+      "SELECT ?, role, content, tool_call_id, status, created_at, group_id, parsing_strategy, tokens, api_item_json "
       "FROM messages WHERE session_id = ? AND status != 'dropped' AND (created_at < ? OR (created_at = ? AND id <= ?)) "
       "ORDER BY created_at ASC, id ASC;",
       {target_id, source_id, cutoff.created_at, cutoff.created_at, std::to_string(cutoff.id)});
   if (!status.ok()) return RollbackTransaction(this, status);
   status = Execute(
-      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, created_at) "
-      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, created_at FROM usage "
-      "WHERE session_id = ? AND created_at <= ?;",
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at) "
+      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at FROM usage WHERE session_id = ? AND created_at <= ?;",
       {target_id, source_id, cutoff.created_at});
   if (!status.ok()) return RollbackTransaction(this, status);
   status = Execute(

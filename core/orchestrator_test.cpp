@@ -37,7 +37,7 @@ TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
   ASSERT_TRUE(result.ok());
   nlohmann::json prompt = *result;
   ASSERT_TRUE(prompt.contains("instructions"));
-  EXPECT_FALSE(absl::StrContains(prompt["instructions"].get<std::string>(), "SYSTEM_PATCH"));
+  EXPECT_TRUE(absl::StrContains(prompt["instructions"].get<std::string>(), "SYSTEM_PATCH"));
   ASSERT_TRUE(prompt.contains("input"));
   ASSERT_TRUE(prompt["input"].is_array());
   bool found_skill_in_input = false;
@@ -48,9 +48,9 @@ TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
       break;
     }
   }
-  EXPECT_TRUE(found_skill_in_input);
+  EXPECT_FALSE(found_skill_in_input);
 }
-TEST_F(OrchestratorTest, AssemblePromptPreservesActiveSkillOrder) {
+TEST_F(OrchestratorTest, AssemblePromptSortsActiveSkills) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());
   auto orchestrator = std::move(*orchestrator_or);
@@ -62,10 +62,8 @@ TEST_F(OrchestratorTest, AssemblePromptPreservesActiveSkillOrder) {
 
   auto result = orchestrator->AssemblePrompt("s1", {"second", "first"});
   ASSERT_TRUE(result.ok());
-  std::string input_str = (*result)["input"].dump();
-  EXPECT_FALSE(absl::StrContains((*result)["instructions"].get<std::string>(), "SECOND_PATCH"));
-  EXPECT_FALSE(absl::StrContains((*result)["instructions"].get<std::string>(), "FIRST_PATCH"));
-  EXPECT_LT(input_str.find("SECOND_PATCH"), input_str.find("FIRST_PATCH"));
+  const std::string instructions = (*result)["instructions"].get<std::string>();
+  EXPECT_LT(instructions.find("FIRST_PATCH"), instructions.find("SECOND_PATCH"));
 }
 TEST_F(OrchestratorTest, AccordionPreservesHistoricalToolResults) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
@@ -494,13 +492,17 @@ TEST_F(OrchestratorTest, ResponsesMultiToolCallProcessing) {
   ASSERT_TRUE(orchestrator->ProcessResponse("s1", mock_response, "g1").ok());
   auto history = db.GetConversationHistory("s1");
   ASSERT_TRUE(history.ok());
-  ASSERT_EQ(history->size(), 1);
+  ASSERT_EQ(history->size(), 2);
   EXPECT_EQ((*history)[0].status, "tool_call");
-  auto calls_or = orchestrator->ParseToolCalls((*history)[0]);
-  ASSERT_TRUE(calls_or.ok());
-  ASSERT_EQ(calls_or->size(), 2);
-  EXPECT_EQ((*calls_or)[0].name, "tool1");
-  EXPECT_EQ((*calls_or)[1].name, "tool2");
+  EXPECT_EQ((*history)[1].status, "tool_call");
+  auto first_calls_or = orchestrator->ParseToolCalls((*history)[0]);
+  auto second_calls_or = orchestrator->ParseToolCalls((*history)[1]);
+  ASSERT_TRUE(first_calls_or.ok());
+  ASSERT_TRUE(second_calls_or.ok());
+  ASSERT_EQ(first_calls_or->size(), 1);
+  ASSERT_EQ(second_calls_or->size(), 1);
+  EXPECT_EQ((*first_calls_or)[0].name, "tool1");
+  EXPECT_EQ((*second_calls_or)[0].name, "tool2");
 }
 TEST_F(OrchestratorTest, ResponsesMultiToolResponseAssembly) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();

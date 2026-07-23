@@ -97,6 +97,7 @@ class Database {
     std::string group_id;
     std::string parsing_strategy;
     int tokens;
+    std::string api_item_json{};
   };
   /**
    * @brief Appends a new message to the conversation history.
@@ -114,7 +115,7 @@ class Database {
   absl::Status AppendMessage(const std::string& session_id, const std::string& role, const std::string& content,
                              const std::string& tool_call_id = "", const std::string& status = "completed",
                              const std::string& group_id = "", const std::string& parsing_strategy = "",
-                             int tokens = 0);
+                             int tokens = 0, const std::string& api_item_json = "");
   absl::Status UpdateMessageStatus(int id, const std::string& status);
   absl::StatusOr<std::vector<Message>> GetConversationHistory(const std::string& session_id,
                                                               bool include_dropped = false, int window_size = 0);
@@ -129,11 +130,14 @@ class Database {
     std::string created_at;
   };
   absl::Status RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
-                           int completion_tokens);
+                           int completion_tokens, int cached_prompt_tokens = 0,
+                           int cache_write_prompt_tokens = 0);
   struct TotalUsage {
     int prompt_tokens;
     int completion_tokens;
     int total_tokens;
+    int cached_prompt_tokens;
+    int cache_write_prompt_tokens;
   };
   absl::StatusOr<TotalUsage> GetTotalUsage(const std::string& session_id = "");
   absl::StatusOr<std::optional<int>> GetLatestPromptTokens(const std::string& session_id);
