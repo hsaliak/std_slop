@@ -66,6 +66,34 @@ cc_test(
 )
 
 cc_library(
+    name = "oauth_client",
+    srcs = ["oauth_client.cpp"],
+    hdrs = ["oauth_client.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":authorization",
+        ":token_store",
+        "//core:json_utils",
+        "//core:sha256",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "oauth_client_test",
+    srcs = ["oauth_client_test.cpp"],
+    deps = [
+        ":oauth_client",
+        "//core:transport",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "token_store",
     srcs = ["token_store.cpp"],
     hdrs = ["token_store.h"],
