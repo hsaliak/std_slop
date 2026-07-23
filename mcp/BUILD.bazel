@@ -66,6 +66,29 @@ cc_test(
 )
 
 cc_library(
+    name = "token_store",
+    srcs = ["token_store.cpp"],
+    hdrs = ["token_store.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "token_store_test",
+    srcs = ["token_store_test.cpp"],
+    deps = [
+        ":token_store",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "registry",
     srcs = ["registry.cpp"],
     hdrs = ["registry.h"],
