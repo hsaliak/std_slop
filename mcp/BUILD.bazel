@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
     name = "protocol",
@@ -131,6 +131,30 @@ cc_test(
         "//core:transport",
         "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_binary(
+    name = "list_tools_example",
+    srcs = ["list_tools_example.cpp"],
+    deps = [
+        ":client",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_binary(
+    name = "call_tool_example",
+    srcs = ["call_tool_example.cpp"],
+    deps = [
+        ":client",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
         "@nlohmann_json//:json",
     ],
 )

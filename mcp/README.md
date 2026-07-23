@@ -1,0 +1,59 @@
+# MCP client
+
+This package provides a small Model Context Protocol (MCP) client for Streamable HTTP servers.
+
+## Connect to a Streamable HTTP server
+
+Use `ConnectStreamableHttp` with an endpoint URL and initialization options:
+
+```c++
+slop::mcp::StreamableHttpConfig config;
+config.endpoint_url = "https://example.com/mcp";
+
+slop::mcp::InitializeOptions options;
+options.client_info.name = "my-client";
+options.client_info.version = "1.0";
+
+slop::HttpClient http_client;
+auto session = slop::mcp::ConnectStreamableHttp(config, options, &http_client);
+```
+
+After initialization, the `Session` supports:
+
+- `Ping()`
+- `ListTools()` and `CallTool()`
+- `ListResources()` and `ReadResource()`
+- `ListPrompts()` and `GetPrompt()`
+
+## Authorization helpers
+
+`authorization.h` contains helpers for OAuth discovery used by MCP protected resources:
+
+- `ParseWwwAuthenticateResourceMetadata()` extracts the `resource_metadata` URL from a Bearer `WWW-Authenticate` header.
+- `ParseProtectedResourceMetadata()` validates protected resource metadata JSON.
+- `ParseAuthorizationServerMetadata()` validates authorization server metadata JSON.
+- `TokenProvider` is a narrow interface for callers that manage access tokens outside the MCP session.
+
+The helpers parse metadata only. They do not perform OAuth flows or store credentials.
+
+## Examples
+
+Build the examples without contacting a live server:
+
+```sh
+bazel build //mcp:list_tools_example //mcp:call_tool_example
+```
+
+List tools from a server:
+
+```sh
+bazel run //mcp:list_tools_example -- https://example.com/mcp
+```
+
+Call a tool with JSON object arguments:
+
+```sh
+bazel run //mcp:call_tool_example -- https://example.com/mcp search '{"query":"mcp"}'
+```
+
+The examples create a real `HttpClient`, connect, initialize a session, and then run the requested MCP method. They require a live MCP Streamable HTTP endpoint at runtime.
