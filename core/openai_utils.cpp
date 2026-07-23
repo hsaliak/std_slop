@@ -126,7 +126,8 @@ int RecordOpenAiResponsesUsage(Database* db, const std::string& session_id, cons
   if (!usage.has_value()) {
     return 0;
   }
-  (void)db->RecordUsage(session_id, model, usage->input_tokens, usage->output_tokens);
+  (void)db->RecordUsage(session_id, model, usage->input_tokens, usage->output_tokens,
+                         usage->cached_input_tokens.value_or(0), usage->cache_write_input_tokens.value_or(0));
   return usage->input_tokens + usage->output_tokens;
 }
 

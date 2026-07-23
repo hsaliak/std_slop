@@ -95,6 +95,25 @@ TEST(OpenAiUtilsTest, FormatsLargeCachedInputTokenCounts) {
   EXPECT_EQ(FormatCachedInputTokens(usage), "2147483647/2147483647 (100%)");
 }
 
+TEST(OpenAiUtilsTest, RecordsResponsesCacheTelemetry) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  const nlohmann::json response = {{"usage",
+                                    {{"input_tokens", 100},
+                                     {"output_tokens", 25},
+                                     {"input_tokens_details", {{"cached_tokens", 80}, {"cache_write_tokens", 10}}}}}};
+
+  EXPECT_EQ(RecordOpenAiResponsesUsage(&db, "s1", "gpt-test", response), 125);
+
+  auto usage = db.GetTotalUsage("s1");
+  ASSERT_TRUE(usage.ok());
+  EXPECT_EQ(usage->prompt_tokens, 100);
+  EXPECT_EQ(usage->completion_tokens, 25);
+  EXPECT_EQ(usage->total_tokens, 125);
+  EXPECT_EQ(usage->cached_prompt_tokens, 80);
+  EXPECT_EQ(usage->cache_write_prompt_tokens, 10);
+}
+
 TEST(OpenAiUtilsTest, GetOpenAiModelsParsesApiDataShape) {
   MockHttpClient mock_http;
   EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models", _)).WillOnce(Return(R"({"data":[{"id":"gpt-4o"}]})"));

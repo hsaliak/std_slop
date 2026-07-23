@@ -129,11 +129,14 @@ class Database {
     std::string created_at;
   };
   absl::Status RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
-                           int completion_tokens);
+                           int completion_tokens, int cached_prompt_tokens = 0,
+                           int cache_write_prompt_tokens = 0);
   struct TotalUsage {
     int prompt_tokens;
     int completion_tokens;
     int total_tokens;
+    int cached_prompt_tokens;
+    int cache_write_prompt_tokens;
   };
   absl::StatusOr<TotalUsage> GetTotalUsage(const std::string& session_id = "");
   absl::StatusOr<std::optional<int>> GetLatestPromptTokens(const std::string& session_id);

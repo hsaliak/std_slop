@@ -218,6 +218,8 @@ absl::Status Database::Init(const std::string& db_path) {
         prompt_tokens INTEGER,
         completion_tokens INTEGER,
         total_tokens INTEGER,
+        cached_prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_prompt_tokens INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS scratchpads (
@@ -265,6 +267,12 @@ absl::Status Database::Init(const std::string& db_path) {
                      "CREATE INDEX IF NOT EXISTS idx_messages_session_group_created_id_desc_not_dropped ON "
                      "messages(session_id, group_id, created_at DESC, id DESC) "
                      "WHERE group_id IS NOT NULL AND status != 'dropped';",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "ALTER TABLE usage ADD COLUMN cached_prompt_tokens INTEGER NOT NULL DEFAULT 0;",
+                     nullptr, nullptr, nullptr);
+  (void)sqlite3_exec(raw_db,
+                     "ALTER TABLE usage ADD COLUMN cache_write_prompt_tokens INTEGER NOT NULL DEFAULT 0;",
                      nullptr, nullptr, nullptr);
   // Migrate existing session databases to accordion context settings. The
   // deprecated context_size column is intentionally ignored after migration.
@@ -540,12 +548,14 @@ absl::StatusOr<std::string> Database::GetLastGroupId(const std::string& session_
   return absl::NotFoundError("No group found");
 }
 absl::Status Database::RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
-                                   int completion_tokens) {
+                                   int completion_tokens, int cached_prompt_tokens, int cache_write_prompt_tokens) {
   // Ensure session exists
   RETURN_IF_ERROR(Execute("INSERT OR IGNORE INTO sessions (id) VALUES (?)", session_id));
   return Execute(
-      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?);",
-      session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens);
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens) VALUES (?, ?, ?, ?, ?, ?, ?);",
+      session_id, model, prompt_tokens, completion_tokens, prompt_tokens + completion_tokens, cached_prompt_tokens,
+      cache_write_prompt_tokens);
 }
 absl::StatusOr<std::optional<int>> Database::GetLatestPromptTokens(const std::string& session_id) {
   ASSIGN_OR_RETURN(auto stmt, Prepare("SELECT prompt_tokens FROM usage WHERE session_id = ? "
@@ -556,7 +566,9 @@ absl::StatusOr<std::optional<int>> Database::GetLatestPromptTokens(const std::st
   return std::optional<int>(stmt->ColumnInt(0));
 }
 absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& session_id) {
-  std::string sql = "SELECT SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens) FROM usage";
+  std::string sql =
+      "SELECT SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), SUM(cached_prompt_tokens), "
+      "SUM(cache_write_prompt_tokens) FROM usage";
   if (!session_id.empty()) {
     sql += " WHERE session_id = ?";
   }
@@ -566,11 +578,13 @@ absl::StatusOr<Database::TotalUsage> Database::GetTotalUsage(const std::string& 
   }
   auto row_or = stmt->Step();
   if (!row_or.ok()) return row_or.status();
-  TotalUsage usage = {0, 0, 0};
+  TotalUsage usage = {0, 0, 0, 0, 0};
   if (*row_or) {
     usage.prompt_tokens = stmt->ColumnInt(0);
     usage.completion_tokens = stmt->ColumnInt(1);
     usage.total_tokens = stmt->ColumnInt(2);
+    usage.cached_prompt_tokens = stmt->ColumnInt(3);
+    usage.cache_write_prompt_tokens = stmt->ColumnInt(4);
   }
   return usage;
 }
@@ -855,10 +869,10 @@ absl::Status Database::CloneSession(const std::string& source_id, const std::str
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
-      "INSERT INTO usage (session_id, model, prompt_tokens, "
-      "completion_tokens, total_tokens, created_at) "
-      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, "
-      "created_at FROM usage WHERE session_id = ?;",
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at) "
+      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at FROM usage WHERE session_id = ?;",
       {target_id, source_id});
   if (!status.ok()) return rollback_on_failure(status);
   status = Execute(
@@ -892,9 +906,10 @@ absl::Status Database::CloneSessionThroughGroup(const std::string& source_id, co
       {target_id, source_id, cutoff.created_at, cutoff.created_at, std::to_string(cutoff.id)});
   if (!status.ok()) return RollbackTransaction(this, status);
   status = Execute(
-      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, created_at) "
-      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, created_at FROM usage "
-      "WHERE session_id = ? AND created_at <= ?;",
+      "INSERT INTO usage (session_id, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at) "
+      "SELECT ?, model, prompt_tokens, completion_tokens, total_tokens, cached_prompt_tokens, "
+      "cache_write_prompt_tokens, created_at FROM usage WHERE session_id = ? AND created_at <= ?;",
       {target_id, source_id, cutoff.created_at});
   if (!status.ok()) return RollbackTransaction(this, status);
   status = Execute(

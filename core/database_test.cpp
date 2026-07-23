@@ -177,7 +177,7 @@ TEST(DatabaseTest, CloneSession) {
   // Set up source session
   ASSERT_TRUE(db.AppendMessage("source", "user", "Hello").ok());
   ASSERT_TRUE(db.AppendMessage("source", "assistant", "Hi").ok());
-  ASSERT_TRUE(db.RecordUsage("source", "gpt-4", 10, 20).ok());
+  ASSERT_TRUE(db.RecordUsage("source", "gpt-4", 10, 20, 7, 3).ok());
   // Clone it
   auto status = db.CloneSession("source", "target");
   EXPECT_TRUE(status.ok()) << status.message();
@@ -191,6 +191,8 @@ TEST(DatabaseTest, CloneSession) {
   auto usage = db.GetTotalUsage("target");
   ASSERT_TRUE(usage.ok());
   EXPECT_EQ(usage->total_tokens, 30);
+  EXPECT_EQ(usage->cached_prompt_tokens, 7);
+  EXPECT_EQ(usage->cache_write_prompt_tokens, 3);
   // Verify uniqueness check
   status = db.CloneSession("source", "target");
   EXPECT_EQ(status.code(), absl::StatusCode::kAlreadyExists);
@@ -321,6 +323,11 @@ TEST(DatabaseTest, CloneSessionThroughGroupCopiesPrefixOnly) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "u3", "", "completed", "g3").ok());
   ASSERT_TRUE(db.UpdateMessageStatus(3, "dropped").ok());
   ASSERT_TRUE(db.SetScratchpad("s1", "scratch").ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 10, 1, 8, 2).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 20, 2, 12, 4).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 30, 3, 16, 6).ok());
+  ASSERT_TRUE(db.Execute("UPDATE usage SET created_at = '2000-01-01 00:00:00' WHERE prompt_tokens IN (10, 20);").ok());
+  ASSERT_TRUE(db.Execute("UPDATE usage SET created_at = '2999-01-01 00:00:00' WHERE prompt_tokens = 30;").ok());
 
   ASSERT_TRUE(db.CloneSessionThroughGroup("s1", "s2", "g2").ok());
 
@@ -333,6 +340,13 @@ TEST(DatabaseTest, CloneSessionThroughGroupCopiesPrefixOnly) {
   auto scratchpad = db.GetScratchpad("s2");
   ASSERT_TRUE(scratchpad.ok());
   EXPECT_EQ(*scratchpad, "scratch");
+  auto usage = db.GetTotalUsage("s2");
+  ASSERT_TRUE(usage.ok());
+  EXPECT_EQ(usage->prompt_tokens, 30);
+  EXPECT_EQ(usage->completion_tokens, 3);
+  EXPECT_EQ(usage->total_tokens, 33);
+  EXPECT_EQ(usage->cached_prompt_tokens, 20);
+  EXPECT_EQ(usage->cache_write_prompt_tokens, 6);
 }
 
 TEST(DatabaseTest, CloneSessionThroughGroupRejectsMissingGroupAndExistingTarget) {
@@ -456,19 +470,23 @@ TEST(DatabaseTest, GenericQuery) {
 TEST(DatabaseTest, UsageTracking) {
   slop::Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
-  ASSERT_TRUE(db.RecordUsage("s1", "model-a", 10, 20).ok());
-  ASSERT_TRUE(db.RecordUsage("s1", "model-a", 5, 5).ok());
-  ASSERT_TRUE(db.RecordUsage("s2", "model-b", 100, 200).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model-a", 10, 20, 4, 1).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model-a", 5, 5, 2, 0).ok());
+  ASSERT_TRUE(db.RecordUsage("s2", "model-b", 100, 200, 50, 10).ok());
   auto s1_usage = db.GetTotalUsage("s1");
   ASSERT_TRUE(s1_usage.ok());
   EXPECT_EQ(s1_usage->prompt_tokens, 15);
   EXPECT_EQ(s1_usage->completion_tokens, 25);
   EXPECT_EQ(s1_usage->total_tokens, 40);
+  EXPECT_EQ(s1_usage->cached_prompt_tokens, 6);
+  EXPECT_EQ(s1_usage->cache_write_prompt_tokens, 1);
   auto global_usage = db.GetTotalUsage();
   ASSERT_TRUE(global_usage.ok());
   EXPECT_EQ(global_usage->prompt_tokens, 115);
   EXPECT_EQ(global_usage->completion_tokens, 225);
   EXPECT_EQ(global_usage->total_tokens, 340);
+  EXPECT_EQ(global_usage->cached_prompt_tokens, 56);
+  EXPECT_EQ(global_usage->cache_write_prompt_tokens, 11);
 }
 TEST(DatabaseTest, SkillTracking) {
   slop::Database db;
