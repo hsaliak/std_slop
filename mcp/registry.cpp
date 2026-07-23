@@ -80,6 +80,10 @@ absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
   if (entry.auth == "oauth" && entry.client_id.empty()) {
     return absl::InvalidArgumentError("MCP OAuth server requires client_id");
   }
+  if (entry.auth == "oauth" &&
+      !(absl::StartsWith(entry.authorization_endpoint, "https://") && absl::StartsWith(entry.token_endpoint, "https://"))) {
+    return absl::InvalidArgumentError("MCP OAuth server requires https authorization_endpoint and token_endpoint");
+  }
   if (HasIniControlCharacter(entry.url) || HasIniControlCharacter(entry.token_path) ||
       HasIniControlCharacter(entry.client_id) || HasIniControlCharacter(entry.resource_metadata_url) ||
       HasIniControlCharacter(entry.authorization_server_url) || HasIniControlCharacter(entry.authorization_endpoint) ||

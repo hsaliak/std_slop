@@ -31,6 +31,24 @@ std::vector<std::string> ValuesAfter(const std::vector<std::string>& args, const
   return values;
 }
 
+absl::Status ValidateFlags(const std::vector<std::string>& args, const std::vector<std::string>& allowed_repeat,
+                           const std::vector<std::string>& allowed_single) {
+  for (size_t i = 3; i < args.size();) {
+    if (args[i].rfind("--", 0) != 0) return absl::InvalidArgumentError("Unexpected MCP command argument");
+    const bool is_repeat = std::find(allowed_repeat.begin(), allowed_repeat.end(), args[i]) != allowed_repeat.end();
+    const bool is_single = std::find(allowed_single.begin(), allowed_single.end(), args[i]) != allowed_single.end();
+    if (!is_repeat && !is_single) return absl::InvalidArgumentError(absl::StrCat("Unknown MCP flag: ", args[i]));
+    if (i + 1 >= args.size() || args[i + 1].rfind("--", 0) == 0) {
+      return absl::InvalidArgumentError(absl::StrCat("MCP flag missing value: ", args[i]));
+    }
+    if (is_single && std::count(args.begin(), args.end(), args[i]) > 1) {
+      return absl::InvalidArgumentError(absl::StrCat("Duplicate MCP flag: ", args[i]));
+    }
+    ++i;
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<mcp::ServerRegistryEntry> FindEntry(const std::string& name) {
   auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
   if (!entries.ok()) return entries.status();
@@ -57,6 +75,9 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
   const std::string& command = args[1];
   if (command == "add") {
     if (args.size() < 3) return Usage();
+    const absl::Status flag_status = ValidateFlags(
+        args, {"--scope"}, {"--url", "--auth", "--client-id", "--token-path", "--authorization-endpoint", "--token-endpoint"});
+    if (!flag_status.ok()) return flag_status;
     mcp::ServerRegistryEntry entry;
     entry.name = args[2];
     entry.url = ValueAfter(args, "--url");
@@ -126,6 +147,7 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     if (!existing.ok()) return existing.status();
     auto tokens = mcp::RefreshOAuthToken(http_client, ConfigFromEntry(*entry), existing->refresh_token);
     if (!tokens.ok()) return tokens.status();
+    if (tokens->refresh_token.empty()) tokens->refresh_token = existing->refresh_token;
     const absl::Status status = mcp::SaveOAuthTokens(entry->token_path, *tokens);
     if (!status.ok()) return status;
     *out << "MCP token refreshed: " << entry->name << "\n";

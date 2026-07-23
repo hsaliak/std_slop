@@ -32,6 +32,30 @@ std::string UrlEncode(const std::string& value) {
   return encoded;
 }
 
+int HexValue(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+std::string UrlDecode(absl::string_view value) {
+  std::string decoded;
+  for (size_t i = 0; i < value.size(); ++i) {
+    if (value[i] == '%' && i + 2 < value.size()) {
+      const int hi = HexValue(value[i + 1]);
+      const int lo = HexValue(value[i + 2]);
+      if (hi >= 0 && lo >= 0) {
+        decoded.push_back(static_cast<char>((hi << 4) | lo));
+        i += 2;
+        continue;
+      }
+    }
+    decoded.push_back(value[i] == '+' ? ' ' : value[i]);
+  }
+  return decoded;
+}
+
 std::string RandomToken() {
   std::array<unsigned char, 32> bytes{};
   std::ifstream urandom("/dev/urandom", std::ios::binary);
@@ -96,8 +120,8 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
   for (const absl::string_view part : absl::StrSplit(callback_url.substr(query + 1), '&', absl::SkipEmpty())) {
     std::vector<std::string> kv = absl::StrSplit(part, '=');
     if (kv.size() != 2) continue;
-    if (kv[0] == "code") code = kv[1];
-    if (kv[0] == "state") state = kv[1];
+    if (kv[0] == "code") code = UrlDecode(kv[1]);
+    if (kv[0] == "state") state = UrlDecode(kv[1]);
   }
   if (state != expected_state) return absl::PermissionDeniedError("OAuth callback state mismatch");
   if (code.empty()) return absl::InvalidArgumentError("OAuth callback missing code");

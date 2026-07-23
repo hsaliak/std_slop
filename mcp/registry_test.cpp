@@ -27,6 +27,8 @@ TEST(RegistryTest, UpsertsLoadsAndRemovesServer) {
   ServerRegistryEntry entry = Entry("github", "https://example.com/mcp", "oauth");
   entry.scopes = {"repo"};
   entry.client_id = "client-id";
+  entry.authorization_endpoint = "https://auth.example/authorize";
+  entry.token_endpoint = "https://auth.example/token";
   ASSERT_TRUE(UpsertServerRegistryEntry(path, entry).ok());
 
   auto entries = LoadServerRegistry(path);
