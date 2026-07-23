@@ -180,6 +180,21 @@ int main(int argc, char* argv[]) {
   absl::InitializeSymbolizer(argv[0]);
   absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions{});
 
+  if (argc > 1 && std::string(argv[1]) == "mcp") {
+    absl::InitializeLog();
+    std::vector<std::string> mcp_args;
+    for (int i = 1; i < argc; ++i) {
+      mcp_args.emplace_back(argv[i]);
+    }
+    slop::HttpClient http_client;
+    const absl::Status status = slop::RunMcpCommand(mcp_args, &http_client, &std::cin, &std::cout, &std::cerr);
+    if (!status.ok()) {
+      std::cerr << "Error: " << status.message() << std::endl;
+      return 1;
+    }
+    return 0;
+  }
+
   absl::SetProgramUsageMessage(slop::GetCliHelpText());
   std::vector<char*> positional_args = absl::ParseCommandLine(argc, argv);
 
@@ -195,20 +210,6 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   absl::InitializeLog();
-
-  if (positional_args.size() > 1 && std::string(positional_args[1]) == "mcp") {
-    std::vector<std::string> mcp_args;
-    for (size_t i = 1; i < positional_args.size(); ++i) {
-      mcp_args.emplace_back(positional_args[i]);
-    }
-    slop::HttpClient http_client;
-    const absl::Status status = slop::RunMcpCommand(mcp_args, &http_client, &std::cin, &std::cout, &std::cerr);
-    if (!status.ok()) {
-      std::cerr << "Error: " << status.message() << std::endl;
-      return 1;
-    }
-    return 0;
-  }
 
   const std::vector<slop::LlmToolSpecializationConfig> llm_specializations = *llm_specializations_or;
   std::string log_path = absl::GetFlag(FLAGS_log);

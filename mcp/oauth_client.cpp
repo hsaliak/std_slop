@@ -1,7 +1,10 @@
 #include "mcp/oauth_client.h"
 
+#include <array>
+#include <cctype>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
@@ -14,14 +17,29 @@
 namespace slop::mcp {
 namespace {
 
-std::string UrlEncode(const std::string& value) { return value; }
+std::string UrlEncode(const std::string& value) {
+  std::string encoded;
+  static constexpr char kHex[] = "0123456789ABCDEF";
+  for (const unsigned char c : value) {
+    if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+      encoded.push_back(static_cast<char>(c));
+    } else {
+      encoded.push_back('%');
+      encoded.push_back(kHex[c >> 4]);
+      encoded.push_back(kHex[c & 0x0F]);
+    }
+  }
+  return encoded;
+}
 
 std::string RandomToken() {
-  std::string raw = absl::StrCat(std::time(nullptr), ":", std::rand(), ":", std::rand());
-  auto digest = Sha256Digest(raw);
-  if (!digest.ok()) return raw;
-  return absl::BytesToHexString(absl::string_view(reinterpret_cast<const char*>(digest->data()), digest->size()));
+  std::array<unsigned char, 32> bytes{};
+  std::ifstream urandom("/dev/urandom", std::ios::binary);
+  if (!urandom.read(reinterpret_cast<char*>(bytes.data()), bytes.size())) return std::string{};
+  return absl::BytesToHexString(absl::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
 }
+
+bool IsHttpsUrl(const std::string& url) { return absl::StartsWith(url, "https://"); }
 
 absl::StatusOr<OAuthTokenSet> ParseTokenResponse(const std::string& body) {
   auto parsed = json_parse(body);
@@ -47,9 +65,15 @@ absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClien
   if (config.client_id.empty()) return absl::InvalidArgumentError("OAuth client_id must not be empty");
   if (config.authorization_endpoint.empty()) return absl::InvalidArgumentError("OAuth authorization endpoint missing");
   if (config.token_endpoint.empty()) return absl::InvalidArgumentError("OAuth token endpoint missing");
+  if (!IsHttpsUrl(config.authorization_endpoint) || !IsHttpsUrl(config.token_endpoint)) {
+    return absl::InvalidArgumentError("OAuth endpoints must use https");
+  }
   PkceAuthorizationSession session;
   session.state = RandomToken();
   session.code_verifier = RandomToken();
+  if (session.state.empty() || session.code_verifier.empty()) {
+    return absl::InternalError("Failed to generate OAuth random state");
+  }
   session.redirect_uri = config.redirect_uri;
   auto challenge = Sha256Digest(session.code_verifier);
   if (!challenge.ok()) return challenge.status();
@@ -84,6 +108,7 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                         const std::string& code,
                                                         const std::string& code_verifier) {
   if (http_client == nullptr) return absl::InvalidArgumentError("http_client must not be null");
+  if (!IsHttpsUrl(config.token_endpoint)) return absl::InvalidArgumentError("OAuth token endpoint must use https");
   auto response = http_client->PostWithResponse(config.token_endpoint,
                                                 FormBody({{"grant_type", "authorization_code"},
                                                           {"code", code},
@@ -99,6 +124,7 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
 absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const OAuthClientConfig& config,
                                                 const std::string& refresh_token) {
   if (http_client == nullptr) return absl::InvalidArgumentError("http_client must not be null");
+  if (!IsHttpsUrl(config.token_endpoint)) return absl::InvalidArgumentError("OAuth token endpoint must use https");
   if (refresh_token.empty()) return absl::InvalidArgumentError("OAuth refresh token must not be empty");
   auto response = http_client->PostWithResponse(config.token_endpoint,
                                                 FormBody({{"grant_type", "refresh_token"},
