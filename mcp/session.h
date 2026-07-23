@@ -29,6 +29,8 @@ class Session {
   absl::Status Initialize(const InitializeOptions& options);
   absl::Status Close();
   absl::Status Ping();
+  absl::Status Cancel(const JsonRpcId& request_id, absl::string_view reason);
+  std::vector<ServerNotification> DrainNotifications();
   absl::StatusOr<std::vector<Tool>> ListTools();
   absl::StatusOr<ToolCallResult> CallTool(absl::string_view name, const nlohmann::json& arguments);
   absl::StatusOr<std::vector<Resource>> ListResources();
@@ -57,6 +59,7 @@ class Session {
   static absl::StatusOr<ResourceReadResult> ParseResourceReadResult(const nlohmann::json& result);
   static absl::StatusOr<Prompt> ParsePrompt(const nlohmann::json& prompt);
   static absl::StatusOr<PromptGetResult> ParsePromptGetResult(const nlohmann::json& result);
+  absl::Status HandleNotification(const nlohmann::json& message);
 
   std::unique_ptr<Transport> transport_;
   State state_ = State::kCreated;
@@ -64,6 +67,7 @@ class Session {
   std::string protocol_version_;
   ServerCapabilities server_capabilities_;
   InitializeOptions options_;
+  std::vector<ServerNotification> notifications_;
 };
 
 }  // namespace slop::mcp

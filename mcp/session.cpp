@@ -69,6 +69,24 @@ absl::Status Session::Ping() {
   return absl::OkStatus();
 }
 
+absl::Status Session::Cancel(const JsonRpcId& request_id, absl::string_view reason) {
+  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
+  if (std::holds_alternative<std::monostate>(request_id)) {
+    return absl::InvalidArgumentError("MCP cancellation request id must not be null");
+  }
+  nlohmann::json params = {{"requestId", std::holds_alternative<int64_t>(request_id)
+                                             ? nlohmann::json(std::get<int64_t>(request_id))
+                                             : nlohmann::json(std::get<std::string>(request_id))}};
+  if (!reason.empty()) params["reason"] = std::string(reason);
+  return SendNotification("notifications/cancelled", params);
+}
+
+std::vector<ServerNotification> Session::DrainNotifications() {
+  std::vector<ServerNotification> notifications = std::move(notifications_);
+  notifications_.clear();
+  return notifications;
+}
+
 absl::StatusOr<std::vector<Tool>> Session::ListTools() {
   if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
   std::vector<Tool> tools;
@@ -171,8 +189,14 @@ absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, co
   while (true) {
     auto message_or = transport_->Receive(timeout);
     if (!message_or.ok()) return message_or.status();
+    const auto method = json_get<std::string>(*message_or, "method");
+    if (method.has_value()) {
+      const absl::Status notification_status = HandleNotification(*message_or);
+      if (!notification_status.ok()) return notification_status;
+      continue;
+    }
     auto response_or = ParseJsonRpcResponse(*message_or);
-    if (!response_or.ok()) continue;
+    if (!response_or.ok()) return response_or.status();
     if (JsonRpcIdToString(response_or->id) != JsonRpcIdToString(id)) continue;
     if (response_or->error.has_value()) {
       return absl::UnknownError(absl::StrCat("MCP JSON-RPC error ", response_or->error->code, ": ",
@@ -184,6 +208,30 @@ absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, co
 
 absl::Status Session::SendNotification(absl::string_view method, const nlohmann::json& params) {
   return transport_->Send(BuildJsonRpcNotification(method, params));
+}
+
+absl::Status Session::HandleNotification(const nlohmann::json& message) {
+  const std::string method = json_get_or(message, "method", std::string{});
+  const auto* params = json_at(message, "params");
+  const nlohmann::json notification_params = params == nullptr ? nlohmann::json::object() : *params;
+  if (!notification_params.is_object()) return absl::InvalidArgumentError("MCP notification params must be an object");
+
+  ServerNotificationKind kind;
+  if (method == "notifications/progress") {
+    kind = ServerNotificationKind::kProgress;
+  } else if (method == "notifications/message") {
+    kind = ServerNotificationKind::kLogging;
+  } else if (method == "notifications/tools/list_changed") {
+    kind = ServerNotificationKind::kToolsListChanged;
+  } else if (method == "notifications/resources/list_changed") {
+    kind = ServerNotificationKind::kResourcesListChanged;
+  } else if (method == "notifications/prompts/list_changed") {
+    kind = ServerNotificationKind::kPromptsListChanged;
+  } else {
+    return absl::OkStatus();
+  }
+  notifications_.push_back({kind, notification_params});
+  return absl::OkStatus();
 }
 
 int64_t Session::NextRequestId() { return next_request_id_++; }

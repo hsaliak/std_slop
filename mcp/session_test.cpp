@@ -84,6 +84,38 @@ TEST(SessionTest, InitializeStartsTransportAndSendsInitializedNotification) {
   EXPECT_TRUE(session.server_capabilities().tools_list_changed);
 }
 
+TEST(SessionTest, CancelSendsCancellationNotification) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult());
+  Session session(std::move(fake));
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+
+  ASSERT_TRUE(session.Cancel(int64_t{42}, "no longer needed").ok());
+
+  ASSERT_EQ(raw->sent.size(), 3);
+  const nlohmann::json& message = raw->sent[2];
+  EXPECT_EQ(json_get_or(message, "method", std::string{}), "notifications/cancelled");
+  EXPECT_EQ(json_get_or(message["params"], "requestId", 0), 42);
+  EXPECT_EQ(json_get_or(message["params"], "reason", std::string{}), "no longer needed");
+}
+
+TEST(SessionTest, CollectsNotificationsWhileWaitingForResponse) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult());
+  Session session(std::move(fake));
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"method", "notifications/progress"}, {"params", {{"progress", 1}}}});
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", 2}, {"result", nlohmann::json::object()}});
+
+  ASSERT_TRUE(session.Ping().ok());
+  const std::vector<ServerNotification> notifications = session.DrainNotifications();
+  ASSERT_EQ(notifications.size(), 1);
+  EXPECT_EQ(notifications[0].kind, ServerNotificationKind::kProgress);
+  EXPECT_EQ(json_get_or(notifications[0].params, "progress", 0), 1);
+}
+
 TEST(SessionTest, InitializeRejectsUnsupportedVersion) {
   auto fake = std::make_unique<FakeTransport>();
   fake->responses.push_back({{"jsonrpc", "2.0"},

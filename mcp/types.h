@@ -91,6 +91,19 @@ struct PromptGetResult {
   std::vector<nlohmann::json> messages;
 };
 
+enum class ServerNotificationKind {
+  kProgress,
+  kLogging,
+  kToolsListChanged,
+  kResourcesListChanged,
+  kPromptsListChanged,
+};
+
+struct ServerNotification {
+  ServerNotificationKind kind;
+  nlohmann::json params = nlohmann::json::object();
+};
+
 struct StreamableHttpConfig {
   std::string endpoint_url;
   absl::flat_hash_map<std::string, std::string> extra_headers;
