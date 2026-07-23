@@ -94,6 +94,33 @@ cc_test(
 )
 
 cc_library(
+    name = "oauth_discovery",
+    srcs = ["oauth_discovery.cpp"],
+    hdrs = ["oauth_discovery.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":authorization",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "oauth_discovery_test",
+    srcs = ["oauth_discovery_test.cpp"],
+    deps = [
+        ":oauth_discovery",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "token_store",
     srcs = ["token_store.cpp"],
     hdrs = ["token_store.h"],

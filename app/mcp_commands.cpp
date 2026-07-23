@@ -8,6 +8,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "mcp/oauth_client.h"
+#include "mcp/oauth_discovery.h"
 #include "mcp/registry.h"
 #include "mcp/token_store.h"
 
@@ -89,6 +90,22 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     entry.authorization_endpoint = ValueAfter(args, "--authorization-endpoint");
     entry.token_endpoint = ValueAfter(args, "--token-endpoint");
     entry.scopes = ValuesAfter(args, "--scope");
+    if (entry.auth == "oauth" && entry.client_id.empty()) {
+      return absl::InvalidArgumentError("MCP OAuth server requires client_id");
+    }
+    if (entry.auth == "oauth" && (entry.authorization_endpoint.empty() || entry.token_endpoint.empty())) {
+      if (!entry.authorization_endpoint.empty() || !entry.token_endpoint.empty()) {
+        return absl::InvalidArgumentError(
+            "MCP OAuth discovery requires both authorization_endpoint and token_endpoint to be omitted");
+      }
+      if (http_client == nullptr) return absl::InvalidArgumentError("MCP OAuth discovery requires an HTTP client");
+      auto discovery = mcp::DiscoverOAuthEndpoints(http_client, entry.url);
+      if (!discovery.ok()) return discovery.status();
+      entry.authorization_endpoint = discovery->authorization_endpoint;
+      entry.token_endpoint = discovery->token_endpoint;
+      entry.resource_metadata_url = discovery->resource_metadata_url;
+      entry.authorization_server_url = discovery->authorization_server_url;
+    }
     const absl::Status status = mcp::UpsertServerRegistryEntry(mcp::DefaultRegistryPath(), entry);
     if (!status.ok()) return status;
     *out << "MCP server saved: " << entry.name << "\n";

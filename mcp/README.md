@@ -34,7 +34,36 @@ After initialization, the `Session` supports:
 - `ParseAuthorizationServerMetadata()` validates authorization server metadata JSON.
 - `TokenProvider` is a narrow interface for callers that manage access tokens outside the MCP session.
 
-The helpers parse metadata only. They do not perform OAuth flows or store credentials.
+The helpers parse metadata used by OAuth discovery. The `std_slop mcp add --auth oauth` command can use this metadata to discover authorization and token endpoints, while `std_slop mcp login` performs the PKCE browser-paste flow and stores credentials in the per-server token file.
+
+## Register MCP servers with std_slop
+
+Unauthenticated server:
+
+```sh
+bazel run //app:std_slop -- mcp add local --url https://example.com/mcp --auth none
+```
+
+OAuth server with endpoint discovery:
+
+```sh
+bazel run //app:std_slop -- mcp add github \
+  --url https://example.com/mcp \
+  --auth oauth \
+  --client-id CLIENT_ID
+bazel run //app:std_slop -- mcp login github
+```
+
+If the server does not publish OAuth metadata, pass endpoints manually:
+
+```sh
+bazel run //app:std_slop -- mcp add github \
+  --url https://example.com/mcp \
+  --auth oauth \
+  --client-id CLIENT_ID \
+  --authorization-endpoint https://auth.example.com/authorize \
+  --token-endpoint https://auth.example.com/token
+```
 
 ## Examples
 

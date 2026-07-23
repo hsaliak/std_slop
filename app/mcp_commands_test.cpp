@@ -16,6 +16,40 @@
 namespace slop {
 namespace {
 
+class FakeHttpClient : public HttpClient {
+ public:
+  absl::StatusOr<HttpResponse> PostWithResponse(const std::string& url, const std::string& body,
+                                                const std::vector<std::string>& headers) override {
+    post_url = url;
+    post_body = body;
+    post_headers = headers;
+    return post_response;
+  }
+
+  absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers) override {
+    get_urls.push_back(url);
+    get_headers = headers;
+    if (url == "https://api.example/.well-known/oauth-protected-resource") {
+      return resource_metadata_body;
+    }
+    if (url == "https://auth.example/.well-known/oauth-authorization-server") {
+      return authorization_metadata_body;
+    }
+    return absl::NotFoundError("unexpected URL");
+  }
+
+  HttpResponse post_response = {401, "", {{"www-authenticate", R"(Bearer resource_metadata="https://api.example/.well-known/oauth-protected-resource")"}}};
+  std::string resource_metadata_body =
+      R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example"]})";
+  std::string authorization_metadata_body =
+      R"({"issuer":"https://auth.example","authorization_endpoint":"https://auth.example/authorize","token_endpoint":"https://auth.example/token","scopes_supported":["repo"]})";
+  std::string post_url;
+  std::string post_body;
+  std::vector<std::string> post_headers;
+  std::vector<std::string> get_urls;
+  std::vector<std::string> get_headers;
+};
+
 class ScopedHome {
  public:
   ScopedHome() {
@@ -84,6 +118,97 @@ TEST(McpCommandsTest, AddRejectsDuplicateFlag) {
                                       &http_client, &input, &output, &error);
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsInvalidArgument(status));
+}
+
+TEST(McpCommandsTest, OAuthAddDiscoversMissingEndpoints) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
+                                       "--client-id", "client", "--scope", "repo"},
+                                      &http_client, &input, &output, &error);
+  ASSERT_TRUE(status.ok()) << status;
+  EXPECT_EQ(http_client.post_url, "https://api.example/mcp");
+  ASSERT_EQ(http_client.get_urls.size(), 2);
+
+  auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+  ASSERT_TRUE(entries.ok()) << entries.status();
+  ASSERT_EQ(entries->size(), 1);
+  EXPECT_EQ((*entries)[0].authorization_endpoint, "https://auth.example/authorize");
+  EXPECT_EQ((*entries)[0].token_endpoint, "https://auth.example/token");
+  EXPECT_EQ((*entries)[0].resource_metadata_url, "https://api.example/.well-known/oauth-protected-resource");
+  EXPECT_EQ((*entries)[0].authorization_server_url, "https://auth.example");
+  ASSERT_EQ((*entries)[0].scopes.size(), 1);
+  EXPECT_EQ((*entries)[0].scopes[0], "repo");
+}
+
+TEST(McpCommandsTest, OAuthAddManualEndpointsSkipsDiscovery) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
+                                       "--client-id", "client", "--authorization-endpoint",
+                                       "https://manual.example/authorize", "--token-endpoint",
+                                       "https://manual.example/token"},
+                                      &http_client, &input, &output, &error);
+  ASSERT_TRUE(status.ok()) << status;
+  EXPECT_TRUE(http_client.post_url.empty());
+
+  auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+  ASSERT_TRUE(entries.ok()) << entries.status();
+  ASSERT_EQ(entries->size(), 1);
+  EXPECT_EQ((*entries)[0].authorization_endpoint, "https://manual.example/authorize");
+  EXPECT_EQ((*entries)[0].token_endpoint, "https://manual.example/token");
+}
+
+TEST(McpCommandsTest, OAuthAddRejectsPartialManualEndpoint) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
+                                       "--client-id", "client", "--authorization-endpoint",
+                                       "https://manual.example/authorize"},
+                                      &http_client, &input, &output, &error);
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_TRUE(http_client.post_url.empty());
+}
+
+TEST(McpCommandsTest, OAuthAddStillRequiresClientId) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth"},
+                                      &http_client, &input, &output, &error);
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+}
+
+TEST(McpCommandsTest, OAuthAddReportsDiscoveryFailure) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  http_client.post_response.headers.clear();
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
+                                       "--client-id", "client"},
+                                      &http_client, &input, &output, &error);
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsUnauthenticated(status));
 }
 
 }  // namespace

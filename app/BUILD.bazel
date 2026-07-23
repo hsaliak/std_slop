@@ -46,6 +46,7 @@ cc_library(
     deps = [
         "//core:transport",
         "//mcp:oauth_client",
+        "//mcp:oauth_discovery",
         "//mcp:registry",
         "//mcp:token_store",
         "@abseil-cpp//absl/status",

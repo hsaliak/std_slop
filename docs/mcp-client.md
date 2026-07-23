@@ -486,7 +486,7 @@ Add a host-level MCP registry and auth command surface. The command shape should
 Recommended CLI form:
 
 ```bash
-std_slop mcp add <name> --url <mcp_endpoint> [--auth oauth|bearer|none] [--scope <scope>...]
+std_slop mcp add <name> --url <mcp_endpoint> [--auth oauth|bearer|none] [--client-id <id>] [--scope <scope>...]
 std_slop mcp remove <name>
 std_slop mcp list
 std_slop mcp refresh <name>
@@ -499,7 +499,7 @@ Command meanings:
 - `mcp add`: Add or update an MCP server registry entry. It can probe the endpoint with unauthenticated initialize. If the server returns `401`, parse `WWW-Authenticate` and store discovered auth metadata.
 - `mcp remove`: Remove server config and associated token references.
 - `mcp list`: Show configured servers, auth state, last refresh time, and last connection status.
-- `mcp login`: Start interactive OAuth for one server. Use browser+paste or device flow depending on server metadata.
+- `mcp login`: Start interactive OAuth authorization code + PKCE for one server with browser+paste callback.
 - `mcp refresh`: Refresh stored tokens for one server without changing server config.
 - `mcp logout`: Delete stored tokens for one server while keeping server config.
 
@@ -590,25 +590,26 @@ CREATE TABLE mcp_tool_cache (
 1. User runs:
 
    ```bash
-   std_slop mcp add github --url https://example.com/mcp --auth oauth
+   std_slop mcp add github --url https://example.com/mcp --auth oauth --client-id CLIENT_ID
    ```
 
-2. CLI creates or updates the server entry in `~/.config/slop/mcp.ini`.
-3. CLI attempts MCP initialize.
-4. Server returns `401 Unauthorized` with `WWW-Authenticate` metadata.
-5. CLI fetches protected resource metadata and authorization server metadata.
-6. User runs:
+2. CLI attempts unauthenticated MCP initialize.
+3. Server returns `401 Unauthorized` with `WWW-Authenticate` metadata.
+4. CLI fetches protected resource metadata and authorization server metadata.
+5. CLI stores discovered `authorization_endpoint` and `token_endpoint` in `~/.config/slop/mcp.ini`.
+6. If discovery is unavailable, the user can pass `--authorization-endpoint` and `--token-endpoint` manually.
+7. User runs:
 
    ```bash
    std_slop mcp login github
    ```
 
-7. CLI starts OAuth authorization code + PKCE or device flow.
-8. CLI stores MCP token under the server name.
-9. Later, normal `std::slop` startup loads enabled MCP servers.
-10. For each server, `McpTokenProvider` supplies a bearer token.
-11. MCP client initializes and lists tools.
-12. Orchestrator receives MCP tools as normal callable tools.
+8. CLI starts OAuth authorization code + PKCE.
+9. CLI stores MCP token under the server name.
+10. Later, normal `std::slop` startup loads enabled MCP servers.
+11. For each server, `McpTokenProvider` supplies a bearer token.
+12. MCP client initializes and lists tools.
+13. Orchestrator receives MCP tools as normal callable tools.
 
 ### Refresh behavior
 
@@ -748,7 +749,7 @@ Implemented on the `mcp-client` branch:
 - Bundle 4: Session initialization, capability negotiation, initialized notification, ping, and typed progress/logging/list-change notification collection.
 - Bundle 5: Tools, resources, prompts, and list pagination. Server notifications are collected during requests; hosts can drain them after the request.
 - Bundle 6: Authorization metadata parsing and token-provider interface.
-- Bundle 7: Registry persistence, secure token storage, OAuth PKCE browser-paste login, refresh/logout, and `std_slop mcp add/remove/list/login/logout/refresh` commands with explicit per-server `client_id`.
+- Bundle 7: Registry persistence, secure token storage, OAuth endpoint discovery, OAuth PKCE browser-paste login, refresh/logout, and `std_slop mcp add/remove/list/login/logout/refresh` commands with explicit per-server `client_id`.
 - Bundle 8: Runtime tool integration. Enabled registry entries are started during app initialization, tools are discovered and projected as `mcp_<server>_<tool>` top-level tools, calls route through the dispatcher to the correct session, results are normalized, and unavailable servers do not expose stale tools.
 - Bundle 9: README plus list-tools and call-tool examples.
 
