@@ -44,5 +44,14 @@ TEST(RegistryTest, RejectsIniInjection) {
   EXPECT_FALSE(ValidateServerRegistryEntry(entry).ok());
 }
 
+TEST(RegistryTest, RejectsDuplicateNamesWhenSaving) {
+  const std::string path = TestRegistryPath();
+  std::filesystem::remove(path);
+  const ServerRegistryEntry first{"server", "https://one.example/mcp", "none", true, {}, ""};
+  const ServerRegistryEntry second{"server", "https://two.example/mcp", "none", true, {}, ""};
+  EXPECT_FALSE(SaveServerRegistry(path, {first, second}).ok());
+  std::filesystem::remove(path);
+}
+
 }  // namespace
 }  // namespace slop::mcp

@@ -111,9 +111,14 @@ absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::s
 }
 
 absl::Status SaveServerRegistry(const std::string& path, const std::vector<ServerRegistryEntry>& entries) {
-  for (const ServerRegistryEntry& entry : entries) {
-    const absl::Status status = ValidateServerRegistryEntry(entry);
+  for (size_t i = 0; i < entries.size(); ++i) {
+    const absl::Status status = ValidateServerRegistryEntry(entries[i]);
     if (!status.ok()) return status;
+    for (size_t j = i + 1; j < entries.size(); ++j) {
+      if (entries[i].name == entries[j].name) {
+        return absl::InvalidArgumentError(absl::StrCat("Duplicate MCP server name: ", entries[i].name));
+      }
+    }
   }
   const std::filesystem::path registry_path(path);
   std::error_code error;
