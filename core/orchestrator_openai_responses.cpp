@@ -1,8 +1,6 @@
 #include "core/orchestrator_openai_responses.h"
 
 #include <cstdlib>
-#include <map>
-#include <optional>
 #include <unordered_map>
 
 #include "absl/strings/escaping.h"
@@ -57,24 +55,6 @@ bool IsDebugToolsEnabled() { return std::getenv("SLOP_DEBUG_TOOLS") != nullptr; 
 constexpr absl::string_view kPromptCacheKeyPrefix = "slop:";
 constexpr size_t kPromptCacheKeyMaxLength = 64;
 
-std::optional<size_t> FindCurrentRequestIndex(const std::vector<Database::Message>& history) {
-  for (size_t offset = 0; offset < history.size(); ++offset) {
-    const size_t i = history.size() - 1 - offset;
-    const Database::Message& msg = history[i];
-    if (msg.role == "user") {
-      return i;
-    }
-  }
-  return std::nullopt;
-}
-
-void AppendPromptCacheKeySection(std::string* cache_input, absl::string_view name, absl::string_view content) {
-  if (content.empty()) {
-    return;
-  }
-  absl::StrAppend(cache_input, "\n--", name, "--\n", content);
-}
-
 std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string& payload) {
   if (!absl::StrContains(payload, "event:") || !absl::StrContains(payload, "data:")) {
     return std::nullopt;
@@ -103,53 +83,49 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
         }
       }
     }
-    if (type != "function_call") {
-      const std::string text_key = json_dump(item);
-      if (type == "message" && seen_message_texts.contains(text_key)) {
-        return;
-      }
-      if (type == "message") {
-        seen_message_texts.insert(text_key);
-      }
-      output.push_back(item);
-      return;
-    }
-    std::string call_id = json_get_or(item, "call_id", std::string{});
-    if (call_id.empty()) {
-      call_id = json_get_or(item, "id", std::string{});
-    }
-    if (call_id.empty()) {
-      output.push_back(item);
-      return;
-    }
-
-    const std::string key = "function_call:" + call_id;
+    std::string stable_id =
+        type == "function_call" ? json_get_or(item, "call_id", std::string{}) : std::string{};
+    if (stable_id.empty()) stable_id = json_get_or(item, "id", std::string{});
+    const std::string key = stable_id.empty() ? std::string{} : absl::StrCat(type, ":", stable_id);
     const auto it = output_index_by_key.find(key);
-    if (it == output_index_by_key.end()) {
+    if (!key.empty() && it == output_index_by_key.end()) {
       output_index_by_key.emplace(key, output.size());
       output.push_back(item);
       return;
     }
-
-    const auto* incoming_args = json_at(item, "arguments");
-    const auto* existing_args = json_at(output[it->second], "arguments");
-    bool prefer_incoming = false;
-    if (existing_args == nullptr && incoming_args != nullptr) {
-      prefer_incoming = true;
-    } else if (existing_args != nullptr && incoming_args != nullptr) {
-      if (existing_args->is_string() && incoming_args->is_string()) {
-        const std::string existing_str = json_getter<std::string>::get(*existing_args).value_or(std::string{});
-        const std::string incoming_str = json_getter<std::string>::get(*incoming_args).value_or(std::string{});
-        prefer_incoming = incoming_str.size() > existing_str.size();
-      } else if ((existing_args->is_object() || existing_args->is_array()) && incoming_args->is_string()) {
-        prefer_incoming = false;
-      } else if (existing_args->is_string() && (incoming_args->is_object() || incoming_args->is_array())) {
-        prefer_incoming = true;
-      }
-    }
-    if (prefer_incoming) {
+    if (!key.empty() && type != "function_call") {
       output[it->second] = item;
+      return;
     }
+
+    if (!key.empty()) {
+      const auto* incoming_args = json_at(item, "arguments");
+      const auto* existing_args = json_at(output[it->second], "arguments");
+      bool prefer_incoming = false;
+      if (existing_args == nullptr && incoming_args != nullptr) {
+        prefer_incoming = true;
+      } else if (existing_args != nullptr && incoming_args != nullptr) {
+        if (existing_args->is_string() && incoming_args->is_string()) {
+          const std::string existing_str = json_getter<std::string>::get(*existing_args).value_or(std::string{});
+          const std::string incoming_str = json_getter<std::string>::get(*incoming_args).value_or(std::string{});
+          prefer_incoming = incoming_str.size() > existing_str.size();
+        } else if ((existing_args->is_object() || existing_args->is_array()) && incoming_args->is_string()) {
+          prefer_incoming = false;
+        } else if (existing_args->is_string() && (incoming_args->is_object() || incoming_args->is_array())) {
+          prefer_incoming = true;
+        }
+      }
+      if (prefer_incoming) {
+        output[it->second] = item;
+      }
+      return;
+    }
+
+    const std::string text_key = json_dump(item);
+    if (type == "message" && !seen_message_texts.insert(text_key).second) {
+      return;
+    }
+    output.push_back(item);
   };
 
   const auto merge_response_output = [&](const nlohmann::json& response) {
@@ -255,7 +231,13 @@ OpenAiResponsesOrchestrator::OpenAiResponsesOrchestrator(Database* db, HttpClien
     : db_(db), http_client_(http_client), model_(model), base_url_(base_url) {}
 
 absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const ResponsesRequestInput& request) {
-  const std::string& system_instruction = request.system_instruction;
+  std::string system_instruction = request.system_instruction;
+  if (!request.active_skill_content.empty()) {
+    if (!system_instruction.empty()) {
+      system_instruction.append("\n\n");
+    }
+    system_instruction.append(request.active_skill_content);
+  }
   const std::vector<Database::Message>& history = request.history;
   const auto model_selection_or = ParseResponsesModelSelection(model_);
   if (!model_selection_or.ok()) {
@@ -266,27 +248,46 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
   nlohmann::json input = nlohmann::json::array();
 
   const auto enabled_tool_names = GetEnabledToolNames(request.enabled_tools);
-  const std::optional<size_t> current_request_index = FindCurrentRequestIndex(history);
-  const bool has_active_skill_content = !request.active_skill_content.empty();
-  bool inserted_active_skill_content = false;
 
-  for (size_t i = 0; i < history.size(); ++i) {
-    const auto& msg = history[i];
+  for (const auto& msg : history) {
     if (msg.role == "system") {
       continue;
     }
 
-    std::string display_content = msg.content;
-    if (i == 0) {
-      display_content = "## Begin Conversation History\n" + display_content;
-    }
-    if (current_request_index.has_value() && i == *current_request_index && i > 0) {
-      display_content = "## End of History\n\n### CURRENT REQUEST\n" + display_content;
+    if (!msg.api_item_json.empty()) {
+      auto item = json_parse(msg.api_item_json);
+      if (!item || !item->is_object()) {
+        return absl::InvalidArgumentError("Stored Responses API item is not a valid JSON object");
+      }
+      const std::string type = json_get_or(*item, "type", std::string{});
+      if (type == "function_call") {
+        const std::string name = json_get_or(*item, "name", std::string{});
+        if (!enabled_tool_names.contains(name)) {
+          LOG(WARNING) << "Filtering invalid tool call from history: " << name;
+          continue;
+        }
+      } else if (type == "function_call_output") {
+        const std::string tool_name =
+            absl::StrContains(msg.tool_call_id, '|') ? msg.tool_call_id.substr(msg.tool_call_id.find('|') + 1) : "";
+        if (!tool_name.empty() && !enabled_tool_names.contains(tool_name)) {
+          LOG(WARNING) << "Filtering invalid tool response from history: " << tool_name;
+          continue;
+        }
+      }
+      input.push_back(std::move(*item));
+      continue;
     }
 
     if (msg.status == "tool_call") {
       auto j_opt = json_parse(msg.content);
       if (!j_opt) {
+        continue;
+      }
+      if (json_get_or(*j_opt, "type", std::string{}) == "function_call") {
+        const std::string name = json_get_or(*j_opt, "name", std::string{});
+        if (enabled_tool_names.contains(name)) {
+          input.push_back(std::move(*j_opt));
+        }
         continue;
       }
       auto tool_calls = json_get<nlohmann::json::array_t>(*j_opt, "tool_calls");
@@ -323,16 +324,7 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
       continue;
     }
 
-    if (has_active_skill_content && !inserted_active_skill_content && current_request_index.has_value() &&
-        i == *current_request_index) {
-      input.push_back({{"role", "system"}, {"content", request.active_skill_content}});
-      inserted_active_skill_content = true;
-    }
-    input.push_back({{"role", msg.role}, {"content", display_content}});
-  }
-
-  if (has_active_skill_content && !inserted_active_skill_content) {
-    input.push_back({{"role", "system"}, {"content", request.active_skill_content}});
+    input.push_back({{"role", msg.role}, {"content", msg.content}});
   }
 
   nlohmann::json payload = {{"model", model_selection.base_model}, {"input", input}, {"store", false}};
@@ -353,18 +345,10 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
   if (!tools.empty()) {
     payload["tools"] = tools;
   }
-  // Derive a stable prompt_cache_key from the cacheable prefix. The key is a
-  // routing hint for server-side prompt caching; it does not change model input.
-  // Keep active skills in the key because they are inserted before the current
-  // user turn and therefore are part of the cacheable prefix.
-  std::string cache_input;
-  AppendPromptCacheKeySection(&cache_input, "instructions", system_instruction);
-  if (!tools.empty()) {
-    AppendPromptCacheKeySection(&cache_input, "tools", json_dump(tools));
-  }
-  AppendPromptCacheKeySection(&cache_input, "active_skills", request.active_skill_content);
-  if (!cache_input.empty()) {
-    auto digest_or = Sha256Digest(cache_input);
+  // Both OpenAI and OpenRouter treat this as a routing hint. Session identity
+  // keeps a conversation on the same cache shard without provider extensions.
+  if (!request.session_id.empty()) {
+    auto digest_or = Sha256Digest(request.session_id);
     if (digest_or.ok()) {
       std::string digest_hex = absl::BytesToHexString(absl::string_view(
           reinterpret_cast<const char*>(digest_or->data()), digest_or->size()));
@@ -421,10 +405,10 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
               << " messages=" << message_count << " function_calls=" << function_count;
   }
 
-  std::string assistant_text;
-  nlohmann::json tool_calls = nlohmann::json::array();
-
   for (const auto& item : *output) {
+    if (!item.is_object()) {
+      return absl::InvalidArgumentError("OpenAI Responses output item must be an object");
+    }
     ResponsesOutputItem output_item;
     output_item.id = json_get_or(item, "id", std::string{});
     output_item.type = json_get_or(item, "type", std::string{});
@@ -433,6 +417,8 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
     last_output_items_.push_back(std::move(output_item));
   }
 
+  bool has_function_calls = false;
+  std::string assistant_text;
   for (const auto& item : *output) {
     const std::string type = json_get_or(item, "type", std::string{});
     if (type == "message") {
@@ -453,10 +439,43 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
         }
       }
     } else if (type == "function_call") {
-      std::string call_id = json_get_or(item, "call_id", std::string{});
-      if (call_id.empty()) {
-        call_id = json_get_or(item, "id", std::string{});
+      has_function_calls = true;
+    }
+  }
+
+  if (!has_function_calls && assistant_text.empty()) {
+    return absl::InternalError("OpenAI Responses output contained no tool calls or assistant text");
+  }
+  if (has_function_calls) {
+    auto calls_or = ParseLastOutputToolCalls();
+    if (!calls_or.ok()) return calls_or.status();
+  }
+
+  bool assigned_tokens = false;
+  for (const auto& item : *output) {
+    const std::string type = json_get_or(item, "type", std::string{});
+    std::string content;
+    std::string tool_call_id;
+    std::string status = "provider_item";
+
+    if (type == "reasoning") {
+      status = "reasoning";
+    } else if (type == "message") {
+      const auto parts = json_get<nlohmann::json::array_t>(item, "content");
+      if (parts) {
+        for (const auto& part : *parts) {
+          if (json_get_or(part, "type", std::string{}) != "output_text") continue;
+          const std::string text = json_get_or(part, "text", std::string{});
+          if (!text.empty()) {
+            if (!content.empty()) content.push_back('\n');
+            content.append(text);
+          }
+        }
       }
+      status = has_function_calls ? "intermediate" : "completed";
+    } else if (type == "function_call") {
+      std::string call_id = json_get_or(item, "call_id", std::string{});
+      if (call_id.empty()) call_id = json_get_or(item, "id", std::string{});
       const std::string name = json_get_or(item, "name", std::string{});
       std::string arguments = "{}";
       if (const auto* args_json = json_at(item, "arguments")) {
@@ -466,41 +485,28 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
           arguments = json_dump(*args_json);
         }
       }
-      tool_calls.push_back(
-          {{"id", call_id}, {"type", "function"}, {"function", {{"name", name}, {"arguments", arguments}}}});
+      const nlohmann::json projected_call = {
+          {"id", call_id}, {"type", "function"}, {"function", {{"name", name}, {"arguments", arguments}}}};
+      content = json_dump({{"role", "assistant"}, {"tool_calls", nlohmann::json::array({projected_call})}});
+      tool_call_id = call_id + "|" + name;
+      status = "tool_call";
       if (IsDebugToolsEnabled()) {
         LOG(INFO) << "[tool_debug] Responses tool_call name=" << name << " call_id=" << call_id
                   << " args_len=" << arguments.size();
       }
     }
-  }
 
-  if (!tool_calls.empty()) {
-    // When a turn contains tool calls, do not persist assistant prose from the same turn.
-    // The follow-up model turn after tool execution is the authoritative user-facing answer.
-    nlohmann::json msg = {{"role", "assistant"}, {"tool_calls", tool_calls}};
-    const auto& first_call = tool_calls[0];
-    const std::string first_id = json_get_or(first_call, "id", std::string{});
-    const auto* fn = json_at(first_call, "function");
-    const std::string first_name = fn == nullptr ? "" : json_get_or(*fn, "name", std::string{});
-    auto st = db_->AppendMessage(session_id, "assistant", json_dump(msg), first_id + "|" + first_name, "tool_call",
-                                 group_id, "openai", assistant_text.empty() ? total_tokens : 0);
+    const bool should_assign_tokens =
+        !assigned_tokens && (status == "tool_call" || (!has_function_calls && status == "completed"));
+    auto st = db_->AppendMessage(session_id, "assistant", content, tool_call_id, status, group_id, "openai",
+                                 should_assign_tokens ? total_tokens : 0, json_dump(item));
     if (!st.ok()) {
       return st;
     }
-    return total_tokens;
+    assigned_tokens = assigned_tokens || should_assign_tokens;
   }
 
-  if (!assistant_text.empty()) {
-    auto st =
-        db_->AppendMessage(session_id, "assistant", assistant_text, "", "completed", group_id, "openai", total_tokens);
-    if (!st.ok()) {
-      return st;
-    }
-    return total_tokens;
-  }
-
-  return absl::InternalError("OpenAI Responses output contained no tool calls or assistant text");
+  return total_tokens;
 }
 
 absl::StatusOr<std::vector<ToolCall>> OpenAiResponsesOrchestrator::ParseLastOutputToolCalls() const {

@@ -27,6 +27,19 @@ void OpenAiResponsesNormalizationNeverCrashes(const std::string& response_json) 
   EXPECT_GE(*result, 0);
 }
 
+void StoredResponsesItemNeverCrashes(const std::string& api_item_json) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  HttpClient http;
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  Database::Message message{0, "s1", "assistant", "", "", "provider_item", "", "g1", "openai", 0, api_item_json};
+
+  auto result = orchestrator.BuildRequest({"System", {message}, {}, "", std::nullopt, "s1"});
+  if (result.ok()) {
+    EXPECT_TRUE((*result)["input"].is_array());
+  }
+}
+
 
 
 FUZZ_TEST(OrchestratorNormalizationFuzzTest, OpenAiResponsesNormalizationNeverCrashes)
@@ -42,6 +55,10 @@ FUZZ_TEST(OrchestratorNormalizationFuzzTest, OpenAiResponsesNormalizationNeverCr
                                     "event: response.completed\n"
                                     "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp1\"}}\n\n")),
     });
+
+FUZZ_TEST(OrchestratorNormalizationFuzzTest, StoredResponsesItemNeverCrashes)
+    .WithSeeds({std::string(R"({"type":"reasoning","encrypted_content":"opaque"})"),
+                std::string(R"({"type":"message","role":"assistant","content":[]})"), std::string("not-json")});
 
 }  // namespace
 }  // namespace slop

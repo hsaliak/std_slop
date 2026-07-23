@@ -15,6 +15,7 @@ struct ResponsesRequestInput {
   std::vector<Database::Tool> enabled_tools;
   std::string active_skill_content;
   std::optional<nlohmann::json> structured_output_schema;
+  std::string session_id{};
 };
 
 class OpenAiResponsesOrchestrator {

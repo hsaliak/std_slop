@@ -456,7 +456,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           !(received_stream_text && msg.role == "assistant" && msg.status != "tool_call")) {
         slop::PrintMessage(msg);
       }
-      if (msg.role == "assistant") {
+      if (msg.role == "assistant" && msg.status == "tool_call" && !has_tool_calls) {
         auto calls_or = orchestrator_.ParseLastOutputToolCalls();
         if (calls_or.ok() && !calls_or->empty()) {
           std::vector<slop::ToolDispatcher::Call> dispatcher_calls;
@@ -565,6 +565,10 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
       break;
     }
     if (has_tool_calls) {
+      auto refreshed_skills_or = db_.GetActiveSkills(session_id);
+      if (refreshed_skills_or.ok()) {
+        active_skills = std::move(*refreshed_skills_or);
+      }
       if (!config.silent) {
         slop::PrintTurnStatus({TurnPhase::kWaitingForFollowUp, "", 0, orchestrator_.GetLastResponseUsage(),
                                absl::Now() - turn_started});

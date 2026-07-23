@@ -537,6 +537,9 @@ void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std:
   }
 }
 void PrintMessage(const Database::Message& msg, const std::string& prefix) {
+  if (msg.status == "reasoning" || msg.status == "provider_item" || msg.status == "intermediate") {
+    return;
+  }
   if (msg.role == std::string(role_constants::kUser)) {
     std::string label = absl::StrCat("User (GID: ", msg.group_id, ")> ");
     std::cout << "\n" << prefix << icons::Input << " " << Colorize(label, "", ansi::UserLabel) << std::endl;

@@ -44,6 +44,19 @@ TEST(OpenAiUtilsTest, ParsesCacheTelemetry) {
   EXPECT_EQ(FormatCachedInputTokens(*usage), "10240/12480 (82%)");
 }
 
+TEST(OpenAiUtilsTest, ParsesOpenRouterPromptTokenCacheTelemetry) {
+  const nlohmann::json response = {
+      {"usage",
+       {{"prompt_tokens", 120}, {"completion_tokens", 30}, {"prompt_tokens_details", {{"cached_tokens", 96}}}}}};
+
+  const auto usage = ParseOpenAiResponsesUsage(response);
+  ASSERT_TRUE(usage.has_value());
+  EXPECT_EQ(usage->input_tokens, 120);
+  EXPECT_EQ(usage->output_tokens, 30);
+  ASSERT_TRUE(usage->cached_input_tokens.has_value());
+  EXPECT_EQ(*usage->cached_input_tokens, 96);
+}
+
 TEST(OpenAiUtilsTest, OmitsUnavailableOrInvalidCachedInputTokens) {
   const auto missing = ParseOpenAiResponsesUsage({{"usage", {{"input_tokens", 5}, {"output_tokens", 2}}}});
   ASSERT_TRUE(missing.has_value());

@@ -89,15 +89,24 @@ std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& res
   }
 
   ResponseUsage parsed;
-  const auto input_tokens = json_get<int>(*usage, "input_tokens");
+  auto input_tokens = json_get<int>(*usage, "input_tokens");
+  if (!input_tokens.has_value()) {
+    input_tokens = json_get<int>(*usage, "prompt_tokens");
+  }
   if (input_tokens.has_value() && *input_tokens >= 0) {
     parsed.input_tokens = *input_tokens;
   }
-  const auto output_tokens = json_get<int>(*usage, "output_tokens");
+  auto output_tokens = json_get<int>(*usage, "output_tokens");
+  if (!output_tokens.has_value()) {
+    output_tokens = json_get<int>(*usage, "completion_tokens");
+  }
   if (output_tokens.has_value() && *output_tokens >= 0) {
     parsed.output_tokens = *output_tokens;
   }
   const auto* input_details = json_at(*usage, "input_tokens_details");
+  if (input_details == nullptr || !input_details->is_object()) {
+    input_details = json_at(*usage, "prompt_tokens_details");
+  }
   if (input_details != nullptr && input_details->is_object()) {
     const auto cached_tokens = json_get<int>(*input_details, "cached_tokens");
     if (cached_tokens.has_value() && *cached_tokens >= 0) {

@@ -265,12 +265,26 @@ TEST(DatabaseTest, CloneFullSession) {
   auto hist = db.GetConversationHistory("full_target");
   EXPECT_EQ(hist->size(), 1);
   EXPECT_EQ(hist->at(0).content, "msg");
+  ASSERT_TRUE(slop::json_parse(hist->at(0).api_item_json).has_value());
   auto usage = db.GetTotalUsage("full_target");
   EXPECT_EQ(usage->total_tokens, 2);
   auto skills = db.GetActiveSkills("full_target");
   EXPECT_EQ(skills->size(), 2);
   EXPECT_EQ(skills->at(0), "skill1");
   EXPECT_EQ(skills->at(1), "skill2");
+}
+
+TEST(DatabaseTest, PersistsCanonicalApiItemsAcrossClone) {
+  slop::Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  const std::string raw_item = R"({"type":"reasoning","encrypted_content":"opaque"})";
+  ASSERT_TRUE(db.AppendMessage("source", "assistant", "", "", "reasoning", "g1", "openai", 0, raw_item).ok());
+  ASSERT_TRUE(db.CloneSession("source", "target").ok());
+
+  auto history = db.GetConversationHistory("target");
+  ASSERT_TRUE(history.ok());
+  ASSERT_EQ(history->size(), 1);
+  EXPECT_EQ(history->front().api_item_json, raw_item);
 }
 TEST(DatabaseTest, AccordionContextSettingsAndLatestPromptTokens) {
   slop::Database db;

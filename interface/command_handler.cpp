@@ -1039,7 +1039,7 @@ CommandHandler::Result CommandHandler::HandleFeedback(CommandArgs& args) {
   const auto& history = *history_or;
   std::optional<Database::Message> last_assistant;
   for (auto it = history.rbegin(); it != history.rend(); ++it) {
-    if (it->role == "assistant") {
+    if (it->role == "assistant" && it->status == "completed") {
       last_assistant = *it;
       break;
     }

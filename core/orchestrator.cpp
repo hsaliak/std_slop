@@ -19,6 +19,7 @@
 #include "absl/time/clock.h"
 
 #include "core/constants.h"
+#include "core/json_utils.h"
 #include "core/status_macros.h"
 #include "core/system_prompt_data.h"
 #ifdef HAVE_SYSTEM_PROMPT_H
@@ -86,6 +87,13 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
   for (auto& message : history) {
     if (message.role == "tool") {
       message.content = SmarterTruncate(message.content, config_.truncation.full_fidelity_limit, message.id);
+      if (!message.api_item_json.empty()) {
+        auto item = json_parse(message.api_item_json);
+        if (item && json_get_or(*item, "type", std::string{}) == "function_call_output") {
+          (*item)["output"] = message.content;
+          message.api_item_json = json_dump(*item);
+        }
+      }
     }
   }
   std::string system_instruction = BuildSystemInstructions(session_id);
@@ -100,7 +108,9 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
       skills_by_name.emplace(skill.name, &skill);
     }
     active_skill_content = "## Active Personas & Skills\n";
-    for (const auto& active_name : active_skills) {
+    std::vector<std::string> sorted_active_skills = active_skills;
+    std::sort(sorted_active_skills.begin(), sorted_active_skills.end());
+    for (const auto& active_name : sorted_active_skills) {
       const auto skill_it = skills_by_name.find(active_name);
       if (skill_it != skills_by_name.end()) {
         absl::StrAppend(&active_skill_content, "### Skill: ", skill_it->second->name, "\n",
@@ -109,7 +119,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
     }
   }
   ResponsesRequestInput request{system_instruction, std::move(history), std::move(enabled_tools),
-                                std::move(active_skill_content), structured_output_schema_};
+                                std::move(active_skill_content), structured_output_schema_, session_id};
   auto payload_or = responses_->BuildRequest(request);
   if (payload_or.ok() && std::getenv("SLOP_TOOL_DEBUG")) {
     LOG(INFO) << "--- ASSEMBLED PROMPT ---\n" << payload_or->dump(2) << "\n--- END PROMPT ---";
@@ -120,7 +130,6 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePayload(const std::string& 
                                                             const std::string& system_instruction,
                                                             const std::vector<Database::Message>& history,
                                                             const std::vector<std::string>& active_skills) {
-  (void)session_id;
   ASSIGN_OR_RETURN(auto enabled_tools, db_->GetTopLevelTools());
   std::string active_skill_content;
   if (!active_skills.empty()) {
@@ -130,7 +139,9 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePayload(const std::string& 
       skills_by_name.emplace(skill.name, &skill);
     }
     active_skill_content = "## Active Personas & Skills\n";
-    for (const auto& active_name : active_skills) {
+    std::vector<std::string> sorted_active_skills = active_skills;
+    std::sort(sorted_active_skills.begin(), sorted_active_skills.end());
+    for (const auto& active_name : sorted_active_skills) {
       const auto skill_it = skills_by_name.find(active_name);
       if (skill_it != skills_by_name.end()) {
         absl::StrAppend(&active_skill_content, "### Skill: ", skill_it->second->name, "\n",
@@ -139,7 +150,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePayload(const std::string& 
     }
   }
   return responses_->BuildRequest({system_instruction, history, std::move(enabled_tools),
-                                   std::move(active_skill_content), structured_output_schema_});
+                                   std::move(active_skill_content), structured_output_schema_, session_id});
 }
 absl::StatusOr<int> Orchestrator::ProcessResponse(const std::string& session_id, const std::string& response_json,
                                                   const std::string& group_id) {
@@ -173,9 +184,8 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
  * @brief Constructs the system instruction string for the LLM.
  *
  * Combines the builtin system prompt, tool catalog, AGENTS.md context,
- * and conversation history guidelines. Active skill patches are emitted
- * separately by the strategy as input items to preserve prompt cache
- * stability.
+ * and conversation history guidelines. Active skill patches are appended to
+ * this fixed instruction prefix when they are enabled.
  *
  * @param session_id The active session ID.
  * @return std::string The complete system instruction string.

@@ -152,10 +152,8 @@ TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
             ASSERT_TRUE(body_json.contains("instructions"));
             ASSERT_TRUE(body_json.contains("input"));
             ASSERT_FALSE(body_json["input"].empty());
-            // Skill patches are now emitted as a system-role input item,
-            // not in the instructions field, to preserve prompt cache stability.
             const auto instructions = body_json["instructions"].get<std::string>();
-            EXPECT_FALSE(absl::StrContains(instructions, "### Skill: code_reviewer"));
+            EXPECT_TRUE(absl::StrContains(instructions, "### Skill: code_reviewer"));
             bool found_skill_in_input = false;
             for (const auto& item : body_json["input"]) {
               if (item.value("role", "") == "system" &&
@@ -164,7 +162,7 @@ TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
                 break;
               }
             }
-            EXPECT_TRUE(found_skill_in_input);
+            EXPECT_FALSE(found_skill_in_input);
           }),
           testing::Return(ResponsesSsePayload(ResponsesResponse("specialized")))));
 
