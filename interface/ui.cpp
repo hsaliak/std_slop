@@ -434,6 +434,9 @@ std::string FormatTurnStatus(const TurnStatus& status) {
       absl::StrAppend(&formatted, " · Cached ", FormatCompactCount(*usage.cached_input_tokens), " (",
                       cached_percentage, "%)");
     }
+    if (usage.cache_write_input_tokens.has_value()) {
+      absl::StrAppend(&formatted, " · Cache write ", FormatCompactCount(*usage.cache_write_input_tokens));
+    }
     absl::StrAppend(&formatted, " · Out ", FormatCompactCount(usage.output_tokens));
   }
   if (status.elapsed > absl::ZeroDuration()) {

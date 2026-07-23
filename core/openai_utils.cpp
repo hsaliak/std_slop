@@ -103,6 +103,10 @@ std::optional<ResponseUsage> ParseOpenAiResponsesUsage(const nlohmann::json& res
     if (cached_tokens.has_value() && *cached_tokens >= 0) {
       parsed.cached_input_tokens = *cached_tokens;
     }
+    const auto cache_write_tokens = json_get<int>(*input_details, "cache_write_tokens");
+    if (cache_write_tokens.has_value() && *cache_write_tokens >= 0) {
+      parsed.cache_write_input_tokens = *cache_write_tokens;
+    }
   }
   return parsed;
 }

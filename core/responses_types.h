@@ -32,6 +32,7 @@ struct ResponseUsage {
   int input_tokens = 0;
   int output_tokens = 0;
   std::optional<int> cached_input_tokens;
+  std::optional<int> cache_write_input_tokens;
 };
 
 

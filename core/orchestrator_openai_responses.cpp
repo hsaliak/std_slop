@@ -57,6 +57,24 @@ bool IsDebugToolsEnabled() { return std::getenv("SLOP_DEBUG_TOOLS") != nullptr; 
 constexpr absl::string_view kPromptCacheKeyPrefix = "slop:";
 constexpr size_t kPromptCacheKeyMaxLength = 64;
 
+std::optional<size_t> FindCurrentRequestIndex(const std::vector<Database::Message>& history) {
+  for (size_t offset = 0; offset < history.size(); ++offset) {
+    const size_t i = history.size() - 1 - offset;
+    const Database::Message& msg = history[i];
+    if (msg.role == "user") {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
+void AppendPromptCacheKeySection(std::string* cache_input, absl::string_view name, absl::string_view content) {
+  if (content.empty()) {
+    return;
+  }
+  absl::StrAppend(cache_input, "\n--", name, "--\n", content);
+}
+
 std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string& payload) {
   if (!absl::StrContains(payload, "event:") || !absl::StrContains(payload, "data:")) {
     return std::nullopt;
@@ -248,6 +266,9 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
   nlohmann::json input = nlohmann::json::array();
 
   const auto enabled_tool_names = GetEnabledToolNames(request.enabled_tools);
+  const std::optional<size_t> current_request_index = FindCurrentRequestIndex(history);
+  const bool has_active_skill_content = !request.active_skill_content.empty();
+  bool inserted_active_skill_content = false;
 
   for (size_t i = 0; i < history.size(); ++i) {
     const auto& msg = history[i];
@@ -259,7 +280,7 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
     if (i == 0) {
       display_content = "## Begin Conversation History\n" + display_content;
     }
-    if (i == history.size() - 1 && msg.role == "user" && i > 0) {
+    if (current_request_index.has_value() && i == *current_request_index && i > 0) {
       display_content = "## End of History\n\n### CURRENT REQUEST\n" + display_content;
     }
 
@@ -302,16 +323,16 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
       continue;
     }
 
+    if (has_active_skill_content && !inserted_active_skill_content && current_request_index.has_value() &&
+        i == *current_request_index) {
+      input.push_back({{"role", "system"}, {"content", request.active_skill_content}});
+      inserted_active_skill_content = true;
+    }
     input.push_back({{"role", msg.role}, {"content", display_content}});
   }
 
-  if (!request.active_skill_content.empty()) {
-    nlohmann::json skill_item = {{"role", "system"}, {"content", request.active_skill_content}};
-    if (!input.empty()) {
-      input.insert(input.end() - 1, skill_item);
-    } else {
-      input.push_back(skill_item);
-    }
+  if (has_active_skill_content && !inserted_active_skill_content) {
+    input.push_back({{"role", "system"}, {"content", request.active_skill_content}});
   }
 
   nlohmann::json payload = {{"model", model_selection.base_model}, {"input", input}, {"store", false}};
@@ -332,15 +353,17 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
   if (!tools.empty()) {
     payload["tools"] = tools;
   }
-  // Derive a stable prompt_cache_key from the static prefix (instructions + tools).
-  // The key is a routing hint for server-side prompt caching; it does not change
-  // model input. It must remain stable across turns and only change when the
-  // static prefix (system prompt, tools, AGENTS.md) changes.
-  if (!system_instruction.empty()) {
-    std::string cache_input = system_instruction;
-    if (!tools.empty()) {
-      absl::StrAppend(&cache_input, json_dump(tools));
-    }
+  // Derive a stable prompt_cache_key from the cacheable prefix. The key is a
+  // routing hint for server-side prompt caching; it does not change model input.
+  // Keep active skills in the key because they are inserted before the current
+  // user turn and therefore are part of the cacheable prefix.
+  std::string cache_input;
+  AppendPromptCacheKeySection(&cache_input, "instructions", system_instruction);
+  if (!tools.empty()) {
+    AppendPromptCacheKeySection(&cache_input, "tools", json_dump(tools));
+  }
+  AppendPromptCacheKeySection(&cache_input, "active_skills", request.active_skill_content);
+  if (!cache_input.empty()) {
     auto digest_or = Sha256Digest(cache_input);
     if (digest_or.ok()) {
       std::string digest_hex = absl::BytesToHexString(absl::string_view(
