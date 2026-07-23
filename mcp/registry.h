@@ -16,6 +16,7 @@ struct ServerRegistryEntry {
   bool enabled = true;
   std::vector<std::string> scopes;
   std::string token_path;
+  std::string client_id;
 };
 
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry);

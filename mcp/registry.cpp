@@ -65,7 +65,11 @@ absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
   if (entry.auth == "bearer" && entry.token_path.empty()) {
     return absl::InvalidArgumentError("MCP bearer server requires token_path");
   }
-  if (HasIniControlCharacter(entry.url) || HasIniControlCharacter(entry.token_path)) {
+  if (entry.auth == "oauth" && entry.client_id.empty()) {
+    return absl::InvalidArgumentError("MCP OAuth server requires client_id");
+  }
+  if (HasIniControlCharacter(entry.url) || HasIniControlCharacter(entry.token_path) ||
+      HasIniControlCharacter(entry.client_id)) {
     return absl::InvalidArgumentError("MCP server fields contain unsafe INI control characters");
   }
   for (const std::string& scope : entry.scopes) {
@@ -102,6 +106,7 @@ absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::s
     }
     if (const auto scopes = section.find("scopes"); scopes != section.end()) entry.scopes = ParseScopes(scopes->second);
     if (const auto token_path = section.find("token_path"); token_path != section.end()) entry.token_path = token_path->second;
+    if (const auto client_id = section.find("client_id"); client_id != section.end()) entry.client_id = client_id->second;
     const absl::Status status = ValidateServerRegistryEntry(entry);
     if (!status.ok()) return status;
     entries.push_back(std::move(entry));
@@ -132,6 +137,7 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
                     "\nenabled = ", entry.enabled ? "true" : "false", "\n");
     if (!entry.scopes.empty()) absl::StrAppend(&content, "scopes = ", absl::StrJoin(entry.scopes, " "), "\n");
     if (!entry.token_path.empty()) absl::StrAppend(&content, "token_path = ", entry.token_path, "\n");
+    if (!entry.client_id.empty()) absl::StrAppend(&content, "client_id = ", entry.client_id, "\n");
     content.push_back('\n');
   }
   std::string template_path = absl::StrCat(registry_path.string(), ".tmp.XXXXXX");
