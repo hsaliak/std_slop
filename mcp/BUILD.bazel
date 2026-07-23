@@ -66,6 +66,28 @@ cc_test(
 )
 
 cc_library(
+    name = "registry",
+    srcs = ["registry.cpp"],
+    hdrs = ["registry.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//ini:ini_parser",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "registry_test",
+    srcs = ["registry_test.cpp"],
+    deps = [
+        ":registry",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "authorization",
     srcs = ["authorization.cpp"],
     hdrs = ["authorization.h"],
