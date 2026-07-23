@@ -84,22 +84,6 @@ TEST(SessionTest, InitializeStartsTransportAndSendsInitializedNotification) {
   EXPECT_TRUE(session.server_capabilities().tools_list_changed);
 }
 
-TEST(SessionTest, CancelSendsCancellationNotification) {
-  auto fake = std::make_unique<FakeTransport>();
-  FakeTransport* raw = fake.get();
-  raw->responses.push_back(InitializeResult());
-  Session session(std::move(fake));
-  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
-
-  ASSERT_TRUE(session.Cancel(int64_t{42}, "no longer needed").ok());
-
-  ASSERT_EQ(raw->sent.size(), 3);
-  const nlohmann::json& message = raw->sent[2];
-  EXPECT_EQ(json_get_or(message, "method", std::string{}), "notifications/cancelled");
-  EXPECT_EQ(json_get_or(message["params"], "requestId", 0), 42);
-  EXPECT_EQ(json_get_or(message["params"], "reason", std::string{}), "no longer needed");
-}
-
 TEST(SessionTest, CollectsNotificationsWhileWaitingForResponse) {
   auto fake = std::make_unique<FakeTransport>();
   FakeTransport* raw = fake.get();

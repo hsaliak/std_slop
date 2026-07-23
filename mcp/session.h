@@ -29,7 +29,6 @@ class Session {
   absl::Status Initialize(const InitializeOptions& options);
   absl::Status Close();
   absl::Status Ping();
-  absl::Status Cancel(const JsonRpcId& request_id, absl::string_view reason);
   std::vector<ServerNotification> DrainNotifications();
   absl::StatusOr<std::vector<Tool>> ListTools();
   absl::StatusOr<ToolCallResult> CallTool(absl::string_view name, const nlohmann::json& arguments);

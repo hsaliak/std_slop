@@ -69,18 +69,6 @@ absl::Status Session::Ping() {
   return absl::OkStatus();
 }
 
-absl::Status Session::Cancel(const JsonRpcId& request_id, absl::string_view reason) {
-  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
-  if (std::holds_alternative<std::monostate>(request_id)) {
-    return absl::InvalidArgumentError("MCP cancellation request id must not be null");
-  }
-  nlohmann::json params = {{"requestId", std::holds_alternative<int64_t>(request_id)
-                                             ? nlohmann::json(std::get<int64_t>(request_id))
-                                             : nlohmann::json(std::get<std::string>(request_id))}};
-  if (!reason.empty()) params["reason"] = std::string(reason);
-  return SendNotification("notifications/cancelled", params);
-}
-
 std::vector<ServerNotification> Session::DrainNotifications() {
   std::vector<ServerNotification> notifications = std::move(notifications_);
   notifications_.clear();

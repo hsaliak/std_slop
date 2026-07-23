@@ -1,8 +1,12 @@
 #include "mcp/registry.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <unistd.h>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
@@ -117,20 +121,26 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
     std::filesystem::create_directories(registry_path.parent_path(), error);
     if (error) return absl::UnavailableError(absl::StrCat("Failed to create MCP registry directory: ", error.message()));
   }
-  const std::filesystem::path temporary_path = registry_path.string() + ".tmp";
-  std::ofstream file(temporary_path, std::ios::trunc);
-  if (!file.is_open()) return absl::UnavailableError(absl::StrCat("Failed to write MCP registry: ", path));
+  std::string content;
   for (const ServerRegistryEntry& entry : entries) {
-    file << "[server." << entry.name << "]\n";
-    file << "url = " << entry.url << "\n";
-    file << "auth = " << entry.auth << "\n";
-    file << "enabled = " << (entry.enabled ? "true" : "false") << "\n";
-    if (!entry.scopes.empty()) file << "scopes = " << absl::StrJoin(entry.scopes, " ") << "\n";
-    if (!entry.token_path.empty()) file << "token_path = " << entry.token_path << "\n";
-    file << "\n";
+    absl::StrAppend(&content, "[server.", entry.name, "]\nurl = ", entry.url, "\nauth = ", entry.auth,
+                    "\nenabled = ", entry.enabled ? "true" : "false", "\n");
+    if (!entry.scopes.empty()) absl::StrAppend(&content, "scopes = ", absl::StrJoin(entry.scopes, " "), "\n");
+    if (!entry.token_path.empty()) absl::StrAppend(&content, "token_path = ", entry.token_path, "\n");
+    content.push_back('\n');
   }
-  file.close();
-  if (!file.good()) return absl::UnavailableError(absl::StrCat("Failed to write MCP registry: ", path));
+  std::string template_path = absl::StrCat(registry_path.string(), ".tmp.XXXXXX");
+  std::vector<char> template_buffer(template_path.begin(), template_path.end());
+  template_buffer.push_back('\0');
+  const int temporary_fd = mkstemp(template_buffer.data());
+  if (temporary_fd < 0) return absl::UnavailableError(absl::StrCat("Failed to create MCP registry temporary file: ", path));
+  const std::filesystem::path temporary_path(template_buffer.data());
+  const ssize_t written = write(temporary_fd, content.data(), content.size());
+  const int close_result = close(temporary_fd);
+  if (written != static_cast<ssize_t>(content.size()) || close_result != 0) {
+    std::filesystem::remove(temporary_path, error);
+    return absl::UnavailableError(absl::StrCat("Failed to write MCP registry: ", path));
+  }
   std::filesystem::rename(temporary_path, registry_path, error);
   if (error) {
     std::filesystem::remove(temporary_path, error);

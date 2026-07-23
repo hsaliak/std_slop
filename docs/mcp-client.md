@@ -748,7 +748,7 @@ Implemented on the `mcp-client` branch:
 - Bundle 1: JSON-RPC model, protocol types, parser/builder, and validation tests.
 - Bundle 2: HTTP response status/header capture and streaming response metadata.
 - Bundle 3: Streamable HTTP transport with JSON and SSE POST responses, negotiated protocol/session headers, and bearer token injection.
-- Bundle 4: Session initialization, capability negotiation, initialized notification, ping, cancellation, and typed progress/logging/list-change notification collection.
+- Bundle 4: Session initialization, capability negotiation, initialized notification, ping, and typed progress/logging/list-change notification collection.
 - Bundle 5: Tools, resources, prompts, and list pagination. Server notifications are collected during requests; hosts can drain them after the request.
 - Bundle 6: Authorization metadata parsing and token-provider interface. Generic OAuth login/refresh is intentionally deferred.
 - Bundle 9: README plus list-tools and call-tool examples.
@@ -761,6 +761,7 @@ Deferred:
 
 - Bundle 7 top-level `std_slop mcp` commands and Bundle 8 runtime tool integration require a separate host integration round.
 - Generic MCP OAuth authorization-code/device flows require a client registration and callback policy before implementation.
+- In-flight request cancellation requires an asynchronous transport/cancellation design and is deferred until that design is available.
 
 ## Roadmap
 
