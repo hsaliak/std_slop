@@ -45,6 +45,7 @@
 #include "tools/tool_executor.h"
 #include "interface/color.h"
 #include "app/llm_tool_specializations.h"
+#include "app/mcp_commands.h"
 #include "interface/command_handler.h"
 #include "interface/completer.h"
 #include "interface/interaction_engine.h"
@@ -180,7 +181,7 @@ int main(int argc, char* argv[]) {
   absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions{});
 
   absl::SetProgramUsageMessage(slop::GetCliHelpText());
-  (void)absl::ParseCommandLine(argc, argv);
+  std::vector<char*> positional_args = absl::ParseCommandLine(argc, argv);
 
   // Check if --db was specified on the command line before applying config.
   // We use the fact that the default is now an empty string.
@@ -194,6 +195,20 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   absl::InitializeLog();
+
+  if (positional_args.size() > 1 && std::string(positional_args[1]) == "mcp") {
+    std::vector<std::string> mcp_args;
+    for (size_t i = 1; i < positional_args.size(); ++i) {
+      mcp_args.emplace_back(positional_args[i]);
+    }
+    slop::HttpClient http_client;
+    const absl::Status status = slop::RunMcpCommand(mcp_args, &http_client, &std::cin, &std::cout, &std::cerr);
+    if (!status.ok()) {
+      std::cerr << "Error: " << status.message() << std::endl;
+      return 1;
+    }
+    return 0;
+  }
 
   const std::vector<slop::LlmToolSpecializationConfig> llm_specializations = *llm_specializations_or;
   std::string log_path = absl::GetFlag(FLAGS_log);

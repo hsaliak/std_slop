@@ -38,6 +38,22 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "mcp_commands",
+    srcs = ["mcp_commands.cpp"],
+    hdrs = ["mcp_commands.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:transport",
+        "//mcp:oauth_client",
+        "//mcp:registry",
+        "//mcp:token_store",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
 cc_binary(
     name = "std_slop",
     srcs = ["main.cpp"],
@@ -45,6 +61,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":llm_tool_specializations",
+        ":mcp_commands",
         ":prompt_mode",
         "//core:api",
         "//core:cancellation",
