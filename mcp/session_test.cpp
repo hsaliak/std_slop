@@ -116,6 +116,21 @@ TEST(SessionTest, CollectsNotificationsWhileWaitingForResponse) {
   EXPECT_EQ(json_get_or(notifications[0].params, "progress", 0), 1);
 }
 
+TEST(SessionTest, RejectsServerRequestWhileWaitingForResponse) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult());
+  Session session(std::move(fake));
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", "server-1"}, {"method", "sampling/createMessage"}});
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", 2}, {"result", nlohmann::json::object()}});
+
+  ASSERT_TRUE(session.Ping().ok());
+  ASSERT_EQ(raw->sent.size(), 4);
+  EXPECT_EQ(json_get_or(raw->sent[3]["error"], "code", 0), -32601);
+  EXPECT_EQ(raw->sent[3]["id"], "server-1");
+}
+
 TEST(SessionTest, InitializeRejectsUnsupportedVersion) {
   auto fake = std::make_unique<FakeTransport>();
   fake->responses.push_back({{"jsonrpc", "2.0"},

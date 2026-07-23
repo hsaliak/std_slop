@@ -191,6 +191,18 @@ absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, co
     if (!message_or.ok()) return message_or.status();
     const auto method = json_get<std::string>(*message_or, "method");
     if (method.has_value()) {
+      const auto* request_id = json_at(*message_or, "id");
+      if (request_id != nullptr) {
+        if (!request_id->is_number_integer() && !request_id->is_string() && !request_id->is_null()) {
+          return absl::InvalidArgumentError("MCP server request id must be null, an integer, or a string");
+        }
+        const nlohmann::json error = {{"jsonrpc", "2.0"},
+                                      {"id", *request_id},
+                                      {"error", {{"code", -32601}, {"message", "MCP server requests are unsupported"}}}};
+        const absl::Status send_status = transport_->Send(error);
+        if (!send_status.ok()) return send_status;
+        continue;
+      }
       const absl::Status notification_status = HandleNotification(*message_or);
       if (!notification_status.ok()) return notification_status;
       continue;
