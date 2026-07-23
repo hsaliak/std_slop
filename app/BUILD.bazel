@@ -54,6 +54,20 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "mcp_commands_test",
+    srcs = ["mcp_commands_test.cpp"],
+    deps = [
+        ":mcp_commands",
+        "//core:transport",
+        "//mcp:registry",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_binary(
     name = "std_slop",
     srcs = ["main.cpp"],
@@ -68,6 +82,7 @@ cc_binary(
         "//core:shell_lib",
         "//interface:app_api",
         "//interface:color",
+        "//mcp:runtime",
         "//tools:api",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
         "@abseil-cpp//absl/debugging:symbolize",

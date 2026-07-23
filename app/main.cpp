@@ -47,6 +47,7 @@
 #include "app/llm_tool_specializations.h"
 #include "app/mcp_commands.h"
 #include "interface/command_handler.h"
+#include "mcp/runtime.h"
 #include "interface/completer.h"
 #include "interface/interaction_engine.h"
 #include "interface/terminal.h"
@@ -405,6 +406,13 @@ int main(int argc, char* argv[]) {
         return tool_executor->Execute(name, args, cancellation);
       });
   tool_executor->SetDispatcher(std::move(dispatcher));
+
+  auto mcp_runtime_or = slop::mcp::StartMcpRuntime(&db, tool_executor.get(), &http_client);
+  if (!mcp_runtime_or.ok()) {
+    std::cerr << "Failed to initialize MCP runtime: " << mcp_runtime_or.status().message() << std::endl;
+    return 1;
+  }
+  auto mcp_runtime = std::move(*mcp_runtime_or);
 
   auto cmd_handler_or =
       slop::CommandHandler::Create(&db, orchestrator.get(), oauth_handler.get(), openai_key);

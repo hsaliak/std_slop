@@ -656,10 +656,10 @@ Therefore MCP integration must update both surfaces:
 Naming recommendation for exposed tools:
 
 ```text
-mcp.<server_name>.<tool_name>
+mcp_<server_name>_<tool_name>
 ```
 
-This avoids collisions with local tools and makes audit logs clear.
+The `mcp_` prefix is reserved for runtime-projected MCP tools. Tool names are sanitized to provider-safe characters before projection. A sanitized-name collision or provider-unsafe length fails startup for that server instead of routing to an ambiguous remote tool.
 
 The reconciliation function should be similar to `ReconcileLlmSpecializationTools`:
 
@@ -673,19 +673,16 @@ absl::Status RegisterMcpToolHandlers(
     McpSessionRegistry* sessions);
 ```
 
-Recommended behavior:
+Implemented behavior:
 
-- On startup, delete stale rows where `name LIKE 'mcp.%'` and no matching enabled server/tool exists.
+- On startup, delete stale rows with the reserved `mcp_` prefix before discovery.
 - Upsert discovered MCP tools with `is_enabled = 1` and `is_top_level = 1` by default.
-- Preserve `call_count` when an MCP tool schema changes.
 - Convert MCP `inputSchema` into the row `json_schema` used by `BuildOpenAiResponsesTools`.
-- Include source metadata in the description, for example: `MCP tool from server github: Search repositories`.
+- Include source metadata in the description, for example: `MCP github: Search repositories`.
 - Keep the registry in `mcp.ini`; keep the tool rows as a runtime projection into the active DB.
-- If an MCP server is unavailable at startup, either:
-  - remove its projected tool rows for safety, or
-  - mark them `is_enabled = 0` and show the last error in `/tools` once the schema supports a source/status column.
+- If an MCP server is unavailable at startup, remove its projected tool rows for safety and log the startup or auth error.
 
-The high-bar default is to remove or disable tools that cannot be confirmed during startup. Do not expose stale remote tools to the model.
+The high-bar default is to remove tools that cannot be confirmed during startup. Do not expose stale remote tools to the model.
 
 ### `/tools` display
 
@@ -750,18 +747,14 @@ Implemented on the `mcp-client` branch:
 - Bundle 3: Streamable HTTP transport with JSON and SSE POST responses, negotiated protocol/session headers, and bearer token injection.
 - Bundle 4: Session initialization, capability negotiation, initialized notification, ping, and typed progress/logging/list-change notification collection.
 - Bundle 5: Tools, resources, prompts, and list pagination. Server notifications are collected during requests; hosts can drain them after the request.
-- Bundle 6: Authorization metadata parsing and token-provider interface. Generic OAuth login/refresh is intentionally deferred.
+- Bundle 6: Authorization metadata parsing and token-provider interface.
+- Bundle 7: Registry persistence, secure token storage, OAuth PKCE browser-paste login, refresh/logout, and `std_slop mcp add/remove/list/login/logout/refresh` commands with explicit per-server `client_id`.
+- Bundle 8: Runtime tool integration. Enabled registry entries are started during app initialization, tools are discovered and projected as `mcp_<server>_<tool>` top-level tools, calls route through the dispatcher to the correct session, results are normalized, and unavailable servers do not expose stale tools.
 - Bundle 9: README plus list-tools and call-tool examples.
-
-In progress:
-
-- Bundle 7 registry persistence: `mcp/registry.{h,cpp}` stores named Streamable HTTP server entries with URL, auth mode, enabled state, scopes, and token path.
 
 Deferred:
 
-- Bundle 7 top-level `std_slop mcp` commands now support registry and OAuth token lifecycle management with explicit per-server `client_id`.
 - Dynamic Client Registration and OAuth device flow are not supported. Configure a server-provided OAuth `client_id` and use browser-paste authorization-code + PKCE login.
-- Bundle 8 runtime tool integration requires a separate host integration round.
 - In-flight request cancellation requires an asynchronous transport/cancellation design and is deferred until that design is available.
 
 ## Roadmap

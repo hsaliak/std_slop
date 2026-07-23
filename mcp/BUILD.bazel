@@ -209,6 +209,45 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "runtime",
+    srcs = ["runtime.cpp"],
+    hdrs = ["runtime.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":client",
+        ":registry",
+        ":token_store",
+        "//core:data",
+        "//core:json_utils",
+        "//core:transport",
+        "//tools:runtime",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "runtime_test",
+    srcs = ["runtime_test.cpp"],
+    deps = [
+        ":runtime",
+        "//core:json_utils",
+        "//core:transport",
+        "//tools:runtime",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
 cc_binary(
     name = "list_tools_example",
     srcs = ["list_tools_example.cpp"],
