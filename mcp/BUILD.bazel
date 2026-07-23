@@ -66,6 +66,48 @@ cc_test(
 )
 
 cc_library(
+    name = "authorization",
+    srcs = ["authorization.cpp"],
+    hdrs = ["authorization.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "authorization_test",
+    srcs = ["authorization_test.cpp"],
+    deps = [
+        ":authorization",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "authorization_fuzz_test",
+    srcs = ["authorization_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":authorization",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "client",
     srcs = ["client.cpp"],
     hdrs = ["client.h"],
