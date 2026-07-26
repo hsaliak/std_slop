@@ -94,7 +94,7 @@ ServerRegistryEntry MakeEntry(const std::string& name) {
   ServerRegistryEntry entry;
   entry.name = name;
   entry.url = absl::StrCat("https://", name, ".example/mcp");
-  entry.auth = "none";
+  entry.auth = kAuthNone;
   entry.enabled = true;
   return entry;
 }
@@ -238,7 +238,7 @@ TEST(McpRuntimeTest, BearerTokenIsLoadedIntoTransportHeaders) {
   FakeHttpClient http_client;
 
   ServerRegistryEntry entry = MakeEntry("github");
-  entry.auth = "bearer";
+  entry.auth = kAuthBearer;
   entry.token_path = absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
   ASSERT_TRUE(SaveOAuthTokens(entry.token_path, {"secret-token", "", 0}).ok());
   const std::string registry_path = TempRegistryPath();
@@ -267,7 +267,7 @@ TEST(McpRuntimeTest, MissingBearerTokenDoesNotExposeStaleTool) {
   FakeHttpClient http_client;
 
   ServerRegistryEntry entry = MakeEntry("github");
-  entry.auth = "bearer";
+  entry.auth = kAuthBearer;
   entry.token_path = absl::StrCat(::testing::TempDir(), "/missing_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
   const std::string registry_path = TempRegistryPath();
   ASSERT_TRUE(SaveServerRegistry(registry_path, {entry}).ok());
@@ -295,7 +295,7 @@ TEST(McpRuntimeTest, InvalidBearerTokenDoesNotStartServer) {
   FakeHttpClient http_client;
 
   ServerRegistryEntry entry = MakeEntry("github");
-  entry.auth = "bearer";
+  entry.auth = kAuthBearer;
   entry.token_path = absl::StrCat(::testing::TempDir(), "/invalid_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
   {
     std::ofstream token_file(entry.token_path);
@@ -321,7 +321,7 @@ TEST(McpRuntimeTest, ToolCallAuthFailureIncludesBearerHint) {
   FakeHttpClient http_client;
 
   ServerRegistryEntry entry = MakeEntry("github");
-  entry.auth = "bearer";
+  entry.auth = kAuthBearer;
   entry.token_path = absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_tool_token_", absl::ToUnixNanos(absl::Now()), ".json");
   const std::string registry_path = TempRegistryPath();
   ASSERT_TRUE(SaveServerRegistry(registry_path, {entry}).ok());

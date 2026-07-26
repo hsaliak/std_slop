@@ -12,7 +12,7 @@ std::string TestRegistryPath() {
   return (std::filesystem::temp_directory_path() / "slop_mcp_registry_test.ini").string();
 }
 
-ServerRegistryEntry Entry(std::string name, std::string url, std::string auth = "none") {
+ServerRegistryEntry Entry(std::string name, std::string url, std::string auth = kAuthNone) {
   ServerRegistryEntry entry;
   entry.name = std::move(name);
   entry.url = std::move(url);
@@ -24,7 +24,7 @@ ServerRegistryEntry Entry(std::string name, std::string url, std::string auth = 
 TEST(RegistryTest, UpsertsLoadsAndRemovesServer) {
   const std::string path = TestRegistryPath();
   std::filesystem::remove(path);
-  ServerRegistryEntry entry = Entry("github", "https://example.com/mcp", "oauth");
+  ServerRegistryEntry entry = Entry("github", "https://example.com/mcp", kAuthOAuth);
   entry.scopes = {"repo"};
   entry.client_id = "client-id";
   entry.authorization_endpoint = "https://auth.example/authorize";
@@ -47,7 +47,7 @@ TEST(RegistryTest, UpsertsLoadsAndRemovesServer) {
 TEST(RegistryTest, RejectsInvalidServerEntry) {
   ServerRegistryEntry invalid_name = Entry("bad name", "https://example.com/mcp");
   ServerRegistryEntry invalid_url = Entry("server", "ftp://example.com/mcp");
-  ServerRegistryEntry missing_bearer_path = Entry("server", "https://example.com/mcp", "bearer");
+  ServerRegistryEntry missing_bearer_path = Entry("server", "https://example.com/mcp", kAuthBearer);
   EXPECT_FALSE(ValidateServerRegistryEntry(invalid_name).ok());
   EXPECT_FALSE(ValidateServerRegistryEntry(invalid_url).ok());
   EXPECT_FALSE(ValidateServerRegistryEntry(missing_bearer_path).ok());

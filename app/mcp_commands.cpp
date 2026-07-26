@@ -113,8 +113,8 @@ absl::Status WithMcpContext(const std::string& action, const std::string& server
 bool ShouldDeleteOldToken(const std::optional<mcp::ServerRegistryEntry>& old_entry,
                           const mcp::ServerRegistryEntry& new_entry) {
   if (!old_entry.has_value()) return false;
-  if (old_entry->auth != "bearer") return false;
-  return new_entry.auth != "bearer" || old_entry->token_path != new_entry.token_path;
+  if (old_entry->auth != mcp::kAuthBearer) return false;
+  return new_entry.auth != mcp::kAuthBearer || old_entry->token_path != new_entry.token_path;
 }
 
 }  // namespace
@@ -137,7 +137,7 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     entry.name = args[2];
     entry.url = ValueAfter(args, "--url");
     entry.auth = ValueAfter(args, "--auth");
-    if (entry.auth.empty()) entry.auth = "none";
+    if (entry.auth.empty()) entry.auth = mcp::kAuthNone;
     entry.client_id = ValueAfter(args, "--client-id");
     entry.token_path = ValueAfter(args, "--token-path");
     if (entry.token_path.empty()) entry.token_path = mcp::DefaultTokenPath(entry.name);
@@ -145,10 +145,10 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     entry.token_endpoint = ValueAfter(args, "--token-endpoint");
     entry.scopes = ValuesAfter(args, "--scope");
     const std::string bearer_token = std::string(absl::StripAsciiWhitespace(ValueAfter(args, "--token")));
-    if (entry.auth == "bearer" && bearer_token.empty()) {
+    if (entry.auth == mcp::kAuthBearer && bearer_token.empty()) {
       return absl::InvalidArgumentError("MCP bearer server requires --token");
     }
-    if (entry.auth != "bearer" && !bearer_token.empty()) {
+    if (entry.auth != mcp::kAuthBearer && !bearer_token.empty()) {
       return absl::InvalidArgumentError("MCP --token is only valid with --auth bearer");
     }
     if (entry.auth == "oauth" && entry.client_id.empty()) {
@@ -179,23 +179,23 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
       }
     }
     std::optional<mcp::OAuthTokenSet> old_tokens;
-    if (entry.auth == "bearer" && old_entry.has_value() && old_entry->token_path == entry.token_path) {
+    if (entry.auth == mcp::kAuthBearer && old_entry.has_value() && old_entry->token_path == entry.token_path) {
       auto loaded_old_tokens = mcp::LoadOAuthTokens(old_entry->token_path);
       if (loaded_old_tokens.ok()) old_tokens = *loaded_old_tokens;
     }
-    if (entry.auth == "bearer") {
+    if (entry.auth == mcp::kAuthBearer) {
       const absl::Status token_status = mcp::SaveOAuthTokens(entry.token_path, {bearer_token, "", 0});
       if (!token_status.ok()) return WithMcpContext("bearer token save", entry.name, token_status);
     }
     const absl::Status status = mcp::UpsertServerRegistryEntry(mcp::DefaultRegistryPath(), entry);
     if (!status.ok()) {
-      if (entry.auth == "bearer" && old_entry.has_value() && old_entry->token_path == entry.token_path) {
+      if (entry.auth == mcp::kAuthBearer && old_entry.has_value() && old_entry->token_path == entry.token_path) {
         if (old_tokens.has_value()) {
           (void)mcp::SaveOAuthTokens(entry.token_path, *old_tokens);
         } else {
           (void)mcp::DeleteOAuthTokens(entry.token_path);
         }
-      } else if (entry.auth == "bearer" && (!old_entry.has_value() || old_entry->token_path != entry.token_path)) {
+      } else if (entry.auth == mcp::kAuthBearer && (!old_entry.has_value() || old_entry->token_path != entry.token_path)) {
         (void)mcp::DeleteOAuthTokens(entry.token_path);
       }
       return status;

@@ -141,7 +141,7 @@ TEST(McpCommandsTest, AddBearerSavesTokenOutsideRegistry) {
   auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
   ASSERT_TRUE(entries.ok()) << entries.status();
   ASSERT_EQ(entries->size(), 1);
-  EXPECT_EQ((*entries)[0].auth, "bearer");
+  EXPECT_EQ((*entries)[0].auth, mcp::kAuthBearer);
   EXPECT_FALSE((*entries)[0].token_path.empty());
 
   auto tokens = mcp::LoadOAuthTokens((*entries)[0].token_path);

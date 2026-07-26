@@ -71,16 +71,16 @@ absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
   if (!(absl::StartsWith(entry.url, "https://") || absl::StartsWith(entry.url, "http://"))) {
     return absl::InvalidArgumentError("MCP server URL must use http or https");
   }
-  if (entry.auth != "none" && entry.auth != "bearer" && entry.auth != "oauth") {
+  if (entry.auth != kAuthNone && entry.auth != kAuthBearer && entry.auth != kAuthOAuth) {
     return absl::InvalidArgumentError("MCP server auth must be none, bearer, or oauth");
   }
-  if (entry.auth == "bearer" && entry.token_path.empty()) {
+  if (entry.auth == kAuthBearer && entry.token_path.empty()) {
     return absl::InvalidArgumentError("MCP bearer server requires token_path");
   }
-  if (entry.auth == "oauth" && entry.client_id.empty()) {
+  if (entry.auth == kAuthOAuth && entry.client_id.empty()) {
     return absl::InvalidArgumentError("MCP OAuth server requires client_id");
   }
-  if (entry.auth == "oauth" &&
+  if (entry.auth == kAuthOAuth &&
       !(absl::StartsWith(entry.authorization_endpoint, "https://") && absl::StartsWith(entry.token_endpoint, "https://"))) {
     return absl::InvalidArgumentError("MCP OAuth server requires https authorization_endpoint and token_endpoint");
   }

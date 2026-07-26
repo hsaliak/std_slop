@@ -43,11 +43,11 @@ std::string ToolDescription(const ServerRegistryEntry& entry, const Tool& tool) 
 }
 
 std::string AuthFailureHint(const ServerRegistryEntry& entry) {
-  if (entry.auth == "bearer") {
+  if (entry.auth == kAuthBearer) {
     return absl::StrCat("check the bearer token and re-run `std_slop mcp add ", entry.name, " --url ", entry.url,
                         " --auth bearer --token <token>`");
   }
-  if (entry.auth == "oauth") {
+  if (entry.auth == kAuthOAuth) {
     return absl::StrCat("run `std_slop mcp login ", entry.name, "` or `std_slop mcp refresh ", entry.name, "`");
   }
   return "check the server configuration";
@@ -60,7 +60,7 @@ absl::Status WithAuthContext(const ServerRegistryEntry& entry, const absl::Statu
         absl::StrCat("MCP request failed for server '", entry.name, "': authentication failed; ", AuthFailureHint(entry)));
   }
   if (absl::IsPermissionDenied(status)) {
-    const std::string hint = entry.auth == "bearer" ? "check bearer token permissions" : AuthFailureHint(entry);
+    const std::string hint = entry.auth == kAuthBearer ? "check bearer token permissions" : AuthFailureHint(entry);
     return absl::PermissionDeniedError(
         absl::StrCat("MCP request failed for server '", entry.name, "': permission denied; ", hint));
   }
@@ -70,10 +70,10 @@ absl::Status WithAuthContext(const ServerRegistryEntry& entry, const absl::Statu
 absl::StatusOr<StreamableHttpConfig> TransportConfigFromEntry(const ServerRegistryEntry& entry) {
   StreamableHttpConfig config;
   config.endpoint_url = entry.url;
-  if (entry.auth == "bearer" || entry.auth == "oauth") {
+  if (entry.auth == kAuthBearer || entry.auth == kAuthOAuth) {
     auto tokens = LoadOAuthTokens(entry.token_path);
     if (!tokens.ok()) {
-      if (entry.auth == "bearer") {
+      if (entry.auth == kAuthBearer) {
         return absl::UnauthenticatedError(absl::StrCat("MCP bearer token is missing or invalid for server '", entry.name,
                                                       "'; ", AuthFailureHint(entry)));
       }

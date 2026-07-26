@@ -9,10 +9,14 @@
 
 namespace slop::mcp {
 
+inline constexpr char kAuthNone[] = "none";
+inline constexpr char kAuthBearer[] = "bearer";
+inline constexpr char kAuthOAuth[] = "oauth";
+
 struct ServerRegistryEntry {
   std::string name;
   std::string url;
-  std::string auth = "none";
+  std::string auth = kAuthNone;
   bool enabled = true;
   std::vector<std::string> scopes;
   std::string token_path;
