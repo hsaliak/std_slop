@@ -11,6 +11,7 @@ Use this index to find the right `std::slop` doc for your task.
 ## Advanced Workflows
 
 - [mail_mode.md](mail_mode.md) — patch-based workflow using staging branches, review, rerolls, and finalization.
+- [mcp-slop-userguide.md](mcp-slop-userguide.md) — configure and use MCP servers from `std_slop`.
 
 ## Core Concepts and Reference
 
@@ -20,6 +21,7 @@ Use this index to find the right `std::slop` doc for your task.
 - [CONTEXT_MANAGEMENT.md](CONTEXT_MANAGEMENT.md) — history/windowing strategy.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — code style, formatting, and contribution guidance.
 - [fuzzing.md](fuzzing.md) — fuzz targets, invariants, and maintenance guidance.
+- [mcp-api.md](mcp-api.md) — reusable C++ MCP client library surface, Streamable HTTP behavior, bearer tokens, and OAuth helpers.
 
 ## Example Config Files
 

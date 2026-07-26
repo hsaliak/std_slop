@@ -155,6 +155,8 @@ Detailed behavior and policy constraints are documented in
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
 - **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
+- **[MCP API](docs/mcp-api.md)**: Reusable C++ MCP client library surface, bearer token support, and OAuth helper APIs.
+- **[MCP User Guide](docs/mcp-slop-userguide.md)**: How `std_slop` registers, authenticates, discovers, and exposes MCP tools.
 - **[Subquery Implementation Notes](docs/impl/subqueries.md)**: Design and policy notes for INI-configured `llm_query` specializations.
 - **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.
 - **[Contributing](docs/CONTRIBUTING.md)**: Code style, formatting, and linting guidelines.
