@@ -29,5 +29,9 @@ TEST(TokenStoreTest, RejectsMissingAccessToken) {
   EXPECT_FALSE(SaveOAuthTokens(TestTokenPath(), {"", "refresh", 0}).ok());
 }
 
+TEST(TokenStoreTest, RejectsAccessTokenHeaderControlCharacters) {
+  EXPECT_FALSE(SaveOAuthTokens(TestTokenPath(), {"access\nAuthorization: Bearer injected", "refresh", 0}).ok());
+}
+
 }  // namespace
 }  // namespace slop::mcp

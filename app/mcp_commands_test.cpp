@@ -1,6 +1,7 @@
 #include "app/mcp_commands.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -182,6 +183,108 @@ TEST(McpCommandsTest, AddRejectsTokenForNonBearerAuth) {
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsInvalidArgument(status));
   EXPECT_NE(std::string(status.message()).find("only valid with --auth bearer"), std::string::npos);
+}
+
+TEST(McpCommandsTest, AddBearerDeletesOldTokenWhenTokenPathChanges) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+  const std::string old_path = absl::StrCat(::testing::TempDir(), "/old_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+  const std::string new_path = absl::StrCat(::testing::TempDir(), "/new_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
+                             "--token", "old-token", "--token-path", old_path},
+                            &http_client, &input, &output, &error)
+                  .ok());
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
+                             "--token", "new-token", "--token-path", new_path},
+                            &http_client, &input, &output, &error)
+                  .ok());
+
+  EXPECT_FALSE(mcp::LoadOAuthTokens(old_path).ok());
+  auto tokens = mcp::LoadOAuthTokens(new_path);
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->access_token, "new-token");
+}
+
+TEST(McpCommandsTest, AddNonBearerDeletesOldBearerToken) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+  const std::string token_path = absl::StrCat(::testing::TempDir(), "/old_mcp_bearer_mode_", absl::ToUnixNanos(absl::Now()), ".json");
+
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
+                             "--token", "old-token", "--token-path", token_path},
+                            &http_client, &input, &output, &error)
+                  .ok());
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "none"},
+                            &http_client, &input, &output, &error)
+                  .ok());
+
+  EXPECT_FALSE(mcp::LoadOAuthTokens(token_path).ok());
+}
+
+TEST(McpCommandsTest, AddBearerRestoresOldTokenWhenRegistryUpdateFails) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+  const std::string token_path = absl::StrCat(::testing::TempDir(), "/restore_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
+                             "--token", "old-token", "--token-path", token_path},
+                            &http_client, &input, &output, &error)
+                  .ok());
+
+  const std::filesystem::path registry_dir = std::filesystem::path(mcp::DefaultRegistryPath()).parent_path();
+  std::filesystem::permissions(registry_dir, std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec,
+                               std::filesystem::perm_options::replace);
+  const absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://changed.example/mcp", "--auth",
+                                             "bearer", "--token", "new-token", "--token-path", token_path},
+                                            &http_client, &input, &output, &error);
+  std::filesystem::permissions(registry_dir,
+                               std::filesystem::perms::owner_all | std::filesystem::perms::group_read |
+                                   std::filesystem::perms::group_exec,
+                               std::filesystem::perm_options::replace);
+
+  ASSERT_FALSE(status.ok());
+  auto tokens = mcp::LoadOAuthTokens(token_path);
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->access_token, "old-token");
+}
+
+TEST(McpCommandsTest, AddBearerDeletesNewTokenWhenRegistryUpdateFailsWithoutOldToken) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+  const std::string token_path = absl::StrCat(::testing::TempDir(), "/delete_new_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
+                             "--token", "old-token", "--token-path", token_path},
+                            &http_client, &input, &output, &error)
+                  .ok());
+  ASSERT_TRUE(mcp::DeleteOAuthTokens(token_path).ok());
+
+  const std::filesystem::path registry_dir = std::filesystem::path(mcp::DefaultRegistryPath()).parent_path();
+  std::filesystem::permissions(registry_dir, std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec,
+                               std::filesystem::perm_options::replace);
+  const absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://changed.example/mcp", "--auth",
+                                             "bearer", "--token", "new-token", "--token-path", token_path},
+                                            &http_client, &input, &output, &error);
+  std::filesystem::permissions(registry_dir,
+                               std::filesystem::perms::owner_all | std::filesystem::perms::group_read |
+                                   std::filesystem::perms::group_exec,
+                               std::filesystem::perm_options::replace);
+
+  ASSERT_FALSE(status.ok());
+  EXPECT_FALSE(mcp::LoadOAuthTokens(token_path).ok());
 }
 
 TEST(McpCommandsTest, OAuthAddDiscoversMissingEndpoints) {

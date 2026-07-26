@@ -12,9 +12,30 @@
 #include "core/json_utils.h"
 
 namespace slop::mcp {
+namespace {
+
+bool ContainsHttpHeaderControlCharacter(const std::string& value) {
+  for (const char c : value) {
+    const unsigned char ch = static_cast<unsigned char>(c);
+    if (ch < 0x20 || ch == 0x7f) return true;
+  }
+  return false;
+}
+
+absl::Status ValidateAccessTokenForHeader(const std::string& access_token) {
+  if (access_token.empty()) return absl::InvalidArgumentError("OAuth access token must not be empty");
+  if (ContainsHttpHeaderControlCharacter(access_token)) {
+    return absl::InvalidArgumentError("OAuth access token must not contain HTTP header control characters");
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 
 absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& tokens) {
-  if (tokens.access_token.empty()) return absl::InvalidArgumentError("OAuth access token must not be empty");
+  const absl::Status token_status = ValidateAccessTokenForHeader(tokens.access_token);
+  if (!token_status.ok()) return token_status;
   const std::filesystem::path token_path(path);
   std::error_code error;
   if (!token_path.parent_path().empty()) {
@@ -54,7 +75,8 @@ absl::StatusOr<OAuthTokenSet> LoadOAuthTokens(const std::string& path) {
   tokens.access_token = json_get_or(*parsed, "access_token", std::string{});
   tokens.refresh_token = json_get_or(*parsed, "refresh_token", std::string{});
   tokens.expires_at_unix_seconds = json_get_or(*parsed, "expires_at", int64_t{0});
-  if (tokens.access_token.empty()) return absl::InvalidArgumentError("OAuth token file missing access token");
+  const absl::Status token_status = ValidateAccessTokenForHeader(tokens.access_token);
+  if (!token_status.ok()) return token_status;
   return tokens;
 }
 

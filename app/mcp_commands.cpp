@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -109,6 +110,13 @@ absl::Status WithMcpContext(const std::string& action, const std::string& server
   return absl::Status(status.code(), absl::StrCat("MCP ", action, " failed for server '", server_name, "': ", status.message()));
 }
 
+bool ShouldDeleteOldToken(const std::optional<mcp::ServerRegistryEntry>& old_entry,
+                          const mcp::ServerRegistryEntry& new_entry) {
+  if (!old_entry.has_value()) return false;
+  if (old_entry->auth != "bearer") return false;
+  return new_entry.auth != "bearer" || old_entry->token_path != new_entry.token_path;
+}
+
 }  // namespace
 
 absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* http_client, std::istream* in,
@@ -161,12 +169,41 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     }
     const absl::Status entry_status = mcp::ValidateServerRegistryEntry(entry);
     if (!entry_status.ok()) return entry_status;
+    std::optional<mcp::ServerRegistryEntry> old_entry;
+    auto existing_entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+    if (!existing_entries.ok()) return existing_entries.status();
+    for (const auto& existing_entry : *existing_entries) {
+      if (existing_entry.name == entry.name) {
+        old_entry = existing_entry;
+        break;
+      }
+    }
+    std::optional<mcp::OAuthTokenSet> old_tokens;
+    if (entry.auth == "bearer" && old_entry.has_value() && old_entry->token_path == entry.token_path) {
+      auto loaded_old_tokens = mcp::LoadOAuthTokens(old_entry->token_path);
+      if (loaded_old_tokens.ok()) old_tokens = *loaded_old_tokens;
+    }
     if (entry.auth == "bearer") {
       const absl::Status token_status = mcp::SaveOAuthTokens(entry.token_path, {bearer_token, "", 0});
       if (!token_status.ok()) return WithMcpContext("bearer token save", entry.name, token_status);
     }
     const absl::Status status = mcp::UpsertServerRegistryEntry(mcp::DefaultRegistryPath(), entry);
-    if (!status.ok()) return status;
+    if (!status.ok()) {
+      if (entry.auth == "bearer" && old_entry.has_value() && old_entry->token_path == entry.token_path) {
+        if (old_tokens.has_value()) {
+          (void)mcp::SaveOAuthTokens(entry.token_path, *old_tokens);
+        } else {
+          (void)mcp::DeleteOAuthTokens(entry.token_path);
+        }
+      } else if (entry.auth == "bearer" && (!old_entry.has_value() || old_entry->token_path != entry.token_path)) {
+        (void)mcp::DeleteOAuthTokens(entry.token_path);
+      }
+      return status;
+    }
+    if (ShouldDeleteOldToken(old_entry, entry)) {
+      const absl::Status delete_status = mcp::DeleteOAuthTokens(old_entry->token_path);
+      if (!delete_status.ok() && delete_status.code() != absl::StatusCode::kNotFound) return delete_status;
+    }
     *out << "MCP server saved: " << entry.name << "\n";
     return absl::OkStatus();
   }
