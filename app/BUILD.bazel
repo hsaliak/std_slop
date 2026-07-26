@@ -62,6 +62,7 @@ cc_test(
         ":mcp_commands",
         "//core:transport",
         "//mcp:registry",
+        "//mcp:token_store",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

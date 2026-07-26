@@ -7,6 +7,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "mcp/oauth_client.h"
 #include "mcp/oauth_discovery.h"
@@ -20,10 +21,11 @@ std::string McpUsageText() {
   return R"USAGE(usage: std_slop mcp <command> [arguments]
 
 Commands:
-  add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--client-id <id>] [--scope <scope>...]
-      Register or update a Streamable HTTP MCP server. For --auth oauth, --client-id must be a real
-      client ID from a registered OAuth/GitHub App. OAuth endpoints are discovered when both are omitted.
-      Use --authorization-endpoint and --token-endpoint together only for manual fallback.
+  add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--client-id <id>] [--scope <scope>...]
+      Register or update a Streamable HTTP MCP server. For --auth bearer, --token saves the bearer token
+      to the per-server token file and does not write it to mcp.ini. For --auth oauth, --client-id must be
+      a real client ID from a registered OAuth/GitHub App. OAuth endpoints are discovered when both are
+      omitted. Use --authorization-endpoint and --token-endpoint together only for manual fallback.
   list
       List configured MCP servers.
   login <name> [--client-secret <secret>]
@@ -118,8 +120,9 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
   }
   if (command == "add") {
     if (args.size() < 3) return Usage();
-    const absl::Status flag_status = ValidateFlags(
-        args, {"--scope"}, {"--url", "--auth", "--client-id", "--token-path", "--authorization-endpoint", "--token-endpoint"});
+    const absl::Status flag_status = ValidateFlags(args, {"--scope"}, {"--url", "--auth", "--token", "--client-id",
+                                                                          "--token-path", "--authorization-endpoint",
+                                                                          "--token-endpoint"});
     if (!flag_status.ok()) return flag_status;
     mcp::ServerRegistryEntry entry;
     entry.name = args[2];
@@ -132,6 +135,13 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     entry.authorization_endpoint = ValueAfter(args, "--authorization-endpoint");
     entry.token_endpoint = ValueAfter(args, "--token-endpoint");
     entry.scopes = ValuesAfter(args, "--scope");
+    const std::string bearer_token = std::string(absl::StripAsciiWhitespace(ValueAfter(args, "--token")));
+    if (entry.auth == "bearer" && bearer_token.empty()) {
+      return absl::InvalidArgumentError("MCP bearer server requires --token");
+    }
+    if (entry.auth != "bearer" && !bearer_token.empty()) {
+      return absl::InvalidArgumentError("MCP --token is only valid with --auth bearer");
+    }
     if (entry.auth == "oauth" && entry.client_id.empty()) {
       return absl::InvalidArgumentError("MCP OAuth server requires client_id");
     }
@@ -147,6 +157,12 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
       entry.token_endpoint = discovery->token_endpoint;
       entry.resource_metadata_url = discovery->resource_metadata_url;
       entry.authorization_server_url = discovery->authorization_server_url;
+    }
+    const absl::Status entry_status = mcp::ValidateServerRegistryEntry(entry);
+    if (!entry_status.ok()) return entry_status;
+    if (entry.auth == "bearer") {
+      const absl::Status token_status = mcp::SaveOAuthTokens(entry.token_path, {bearer_token, "", 0});
+      if (!token_status.ok()) return WithMcpContext("bearer token save", entry.name, token_status);
     }
     const absl::Status status = mcp::UpsertServerRegistryEntry(mcp::DefaultRegistryPath(), entry);
     if (!status.ok()) return status;

@@ -1,6 +1,7 @@
 #include "app/mcp_commands.h"
 
 #include <cstdlib>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -121,6 +122,68 @@ TEST(McpCommandsTest, AddRejectsDuplicateFlag) {
   EXPECT_TRUE(absl::IsInvalidArgument(status));
 }
 
+TEST(McpCommandsTest, AddBearerSavesTokenOutsideRegistry) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth",
+                                       "bearer", "--token", " secret-token "},
+                                      &http_client, &input, &output, &error);
+
+  ASSERT_TRUE(status.ok()) << status;
+  EXPECT_NE(output.str().find("MCP server saved: github"), std::string::npos);
+  EXPECT_EQ(output.str().find("secret-token"), std::string::npos);
+
+  auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+  ASSERT_TRUE(entries.ok()) << entries.status();
+  ASSERT_EQ(entries->size(), 1);
+  EXPECT_EQ((*entries)[0].auth, "bearer");
+  EXPECT_FALSE((*entries)[0].token_path.empty());
+
+  auto tokens = mcp::LoadOAuthTokens((*entries)[0].token_path);
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->access_token, "secret-token");
+
+  std::ifstream registry_file(mcp::DefaultRegistryPath());
+  const std::string registry_content((std::istreambuf_iterator<char>(registry_file)), std::istreambuf_iterator<char>());
+  EXPECT_EQ(registry_content.find("secret-token"), std::string::npos);
+}
+
+TEST(McpCommandsTest, AddBearerRequiresToken) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth",
+                                       "bearer"},
+                                      &http_client, &input, &output, &error);
+
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_NE(std::string(status.message()).find("requires --token"), std::string::npos);
+}
+
+TEST(McpCommandsTest, AddRejectsTokenForNonBearerAuth) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "none",
+                                       "--token", "secret-token"},
+                                      &http_client, &input, &output, &error);
+
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_NE(std::string(status.message()).find("only valid with --auth bearer"), std::string::npos);
+}
+
 TEST(McpCommandsTest, OAuthAddDiscoversMissingEndpoints) {
   ScopedHome home;
   FakeHttpClient http_client;
@@ -233,8 +296,7 @@ TEST(McpCommandsTest, WrongArgumentsReturnPrescriptiveUsage) {
   absl::Status status = RunMcpCommand({"mcp", "add"}, &http_client, &input, &output, &error);
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsInvalidArgument(status));
-  EXPECT_NE(std::string(status.message()).find("OAuth endpoints are discovered when both are omitted"),
-            std::string::npos);
+  EXPECT_NE(std::string(status.message()).find("OAuth endpoints are discovered"), std::string::npos);
 }
 
 TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
