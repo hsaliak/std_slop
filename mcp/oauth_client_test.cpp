@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "gtest/gtest.h"
 
 namespace slop::mcp {
@@ -52,6 +54,16 @@ TEST(OAuthClientTest, RejectsStateMismatch) {
   EXPECT_FALSE(code.ok());
 }
 
+TEST(OAuthClientTest, ReportsCallbackOAuthError) {
+  auto code = ExtractAuthorizationCodeFromCallback(
+      "http://127.0.0.1/callback?error=access_denied&error_description=User+denied&state=expected",
+      "expected");
+  ASSERT_FALSE(code.ok());
+  EXPECT_TRUE(absl::IsUnauthenticated(code.status()));
+  EXPECT_TRUE(absl::StrContains(code.status().message(), "access_denied"));
+  EXPECT_TRUE(absl::StrContains(code.status().message(), "User denied"));
+}
+
 TEST(OAuthClientTest, OmitsEmptyScopeParameter) {
   OAuthClientConfig config = Config();
   config.scopes.clear();
@@ -78,6 +90,59 @@ TEST(OAuthClientTest, ExchangesAndRefreshesTokens) {
   EXPECT_NE(http.last_body.find("grant_type=refresh_token"), std::string::npos);
   EXPECT_TRUE(HasHeader(http.last_headers, "Accept: application/json"));
   EXPECT_TRUE(HasHeader(http.last_headers, "Content-Type: application/x-www-form-urlencoded"));
+}
+
+TEST(OAuthClientTest, ReportsJsonOAuthErrorResponse) {
+  FakeHttpClient http;
+  http.response.body =
+      R"({"error":"incorrect_client_credentials","error_description":"The client_id and/or client_secret passed are incorrect.","error_uri":"https://docs.example/error"})";
+
+  auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
+
+  ASSERT_FALSE(exchanged.ok());
+  EXPECT_TRUE(absl::IsUnauthenticated(exchanged.status()));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "incorrect_client_credentials"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "client_secret"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "https://docs.example/error"));
+}
+
+TEST(OAuthClientTest, ReportsJsonOAuthErrorOnNonSuccessStatus) {
+  FakeHttpClient http;
+  http.response.status_code = 400;
+  http.response.body = R"({"error":"bad_verification_code","error_description":"code expired"})";
+
+  auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
+
+  ASSERT_FALSE(exchanged.ok());
+  EXPECT_TRUE(absl::IsUnauthenticated(exchanged.status()));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "bad_verification_code"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "code expired"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "HTTP 400"));
+}
+
+TEST(OAuthClientTest, ReportsHttpStatusForJsonNonOAuthErrorResponse) {
+  FakeHttpClient http;
+  http.response.status_code = 500;
+  http.response.body = R"({"message":"server failed"})";
+
+  auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
+
+  ASSERT_FALSE(exchanged.ok());
+  EXPECT_TRUE(absl::IsUnauthenticated(exchanged.status()));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "OAuth token exchange failed"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "HTTP 500"));
+}
+
+TEST(OAuthClientTest, MissingAccessTokenMentionsMissingErrorField) {
+  FakeHttpClient http;
+  http.response.body = R"({"token_type":"bearer"})";
+
+  auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
+
+  ASSERT_FALSE(exchanged.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(exchanged.status()));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "missing access_token"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "OAuth error field"));
 }
 
 }  // namespace

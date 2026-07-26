@@ -92,6 +92,11 @@ mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry) {
   return config;
 }
 
+absl::Status WithMcpContext(const std::string& action, const std::string& server_name, const absl::Status& status) {
+  if (status.ok()) return status;
+  return absl::Status(status.code(), absl::StrCat("MCP ", action, " failed for server '", server_name, "': ", status.message()));
+}
+
 }  // namespace
 
 absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* http_client, std::istream* in,
@@ -171,16 +176,16 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     auto entry = FindEntry(args[2]);
     if (!entry.ok()) return entry.status();
     auto session = mcp::StartPkceAuthorization(ConfigFromEntry(*entry));
-    if (!session.ok()) return session.status();
+    if (!session.ok()) return WithMcpContext("login", entry->name, session.status());
     *out << session->authorization_url << "\nPaste callback URL: ";
     std::string callback;
     std::getline(*in, callback);
     auto code = mcp::ExtractAuthorizationCodeFromCallback(callback, session->state);
-    if (!code.ok()) return code.status();
+    if (!code.ok()) return WithMcpContext("login callback", entry->name, code.status());
     auto tokens = mcp::ExchangeAuthorizationCode(http_client, ConfigFromEntry(*entry), *code, session->code_verifier);
-    if (!tokens.ok()) return tokens.status();
+    if (!tokens.ok()) return WithMcpContext("token exchange", entry->name, tokens.status());
     const absl::Status status = mcp::SaveOAuthTokens(entry->token_path, *tokens);
-    if (!status.ok()) return status;
+    if (!status.ok()) return WithMcpContext("token save", entry->name, status);
     *out << "MCP login complete: " << entry->name << "\n";
     return absl::OkStatus();
   }
@@ -189,12 +194,12 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     auto entry = FindEntry(args[2]);
     if (!entry.ok()) return entry.status();
     auto existing = mcp::LoadOAuthTokens(entry->token_path);
-    if (!existing.ok()) return existing.status();
+    if (!existing.ok()) return WithMcpContext("token refresh", entry->name, existing.status());
     auto tokens = mcp::RefreshOAuthToken(http_client, ConfigFromEntry(*entry), existing->refresh_token);
-    if (!tokens.ok()) return tokens.status();
+    if (!tokens.ok()) return WithMcpContext("token refresh", entry->name, tokens.status());
     if (tokens->refresh_token.empty()) tokens->refresh_token = existing->refresh_token;
     const absl::Status status = mcp::SaveOAuthTokens(entry->token_path, *tokens);
-    if (!status.ok()) return status;
+    if (!status.ok()) return WithMcpContext("token refresh save", entry->name, status);
     *out << "MCP token refreshed: " << entry->name << "\n";
     return absl::OkStatus();
   }

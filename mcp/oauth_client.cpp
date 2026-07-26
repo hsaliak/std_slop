@@ -65,15 +65,42 @@ std::string RandomToken() {
 
 bool IsHttpsUrl(const std::string& url) { return absl::StartsWith(url, "https://"); }
 
+std::string OAuthErrorMessage(const nlohmann::json& parsed, const std::string& fallback) {
+  const std::string error = json_get_or(parsed, "error", std::string{});
+  if (error.empty()) return fallback;
+  const std::string description = json_get_or(parsed, "error_description", std::string{});
+  const std::string uri = json_get_or(parsed, "error_uri", std::string{});
+  std::string message = absl::StrCat("OAuth token response error: ", error);
+  if (!description.empty()) absl::StrAppend(&message, ": ", description);
+  if (!uri.empty()) absl::StrAppend(&message, " (", uri, ")");
+  return message;
+}
+
+absl::Status TokenHttpError(const HttpResponse& response, const std::string& fallback) {
+  std::string message;
+  auto parsed = json_parse(response.body);
+  if (parsed.has_value() && parsed->is_object()) {
+    message = OAuthErrorMessage(*parsed, fallback);
+  } else {
+    message = fallback;
+  }
+  return absl::UnauthenticatedError(absl::StrCat(message, " (HTTP ", response.status_code, ")"));
+}
+
 absl::StatusOr<OAuthTokenSet> ParseTokenResponse(const std::string& body) {
   auto parsed = json_parse(body);
   if (!parsed || !parsed->is_object()) return absl::InvalidArgumentError("OAuth token response is invalid JSON");
+  const std::string oauth_error = json_get_or(*parsed, "error", std::string{});
+  if (!oauth_error.empty()) return absl::UnauthenticatedError(OAuthErrorMessage(*parsed, "OAuth token response error"));
   OAuthTokenSet tokens;
   tokens.access_token = json_get_or(*parsed, "access_token", std::string{});
   tokens.refresh_token = json_get_or(*parsed, "refresh_token", std::string{});
   const int expires_in = json_get_or(*parsed, "expires_in", 0);
   tokens.expires_at_unix_seconds = expires_in <= 0 ? 0 : static_cast<int64_t>(std::time(nullptr)) + expires_in;
-  if (tokens.access_token.empty()) return absl::InvalidArgumentError("OAuth token response missing access token");
+  if (tokens.access_token.empty()) {
+    return absl::InvalidArgumentError(
+        "OAuth token response missing access_token and did not include an OAuth error field");
+  }
   return tokens;
 }
 
@@ -119,13 +146,27 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
   if (query == std::string::npos) return absl::InvalidArgumentError("OAuth callback missing query");
   std::string code;
   std::string state;
+  std::string error;
+  std::string error_description;
+  std::string error_uri;
   for (const absl::string_view part : absl::StrSplit(callback_url.substr(query + 1), '&', absl::SkipEmpty())) {
-    std::vector<std::string> kv = absl::StrSplit(part, '=');
-    if (kv.size() != 2) continue;
-    if (kv[0] == "code") code = UrlDecode(kv[1]);
-    if (kv[0] == "state") state = UrlDecode(kv[1]);
+    const size_t equals = part.find('=');
+    if (equals == absl::string_view::npos) continue;
+    const std::string key(part.substr(0, equals));
+    const std::string value = UrlDecode(part.substr(equals + 1));
+    if (key == "code") code = value;
+    if (key == "state") state = value;
+    if (key == "error") error = value;
+    if (key == "error_description") error_description = value;
+    if (key == "error_uri") error_uri = value;
   }
   if (state != expected_state) return absl::PermissionDeniedError("OAuth callback state mismatch");
+  if (!error.empty()) {
+    std::string message = absl::StrCat("OAuth callback error: ", error);
+    if (!error_description.empty()) absl::StrAppend(&message, ": ", error_description);
+    if (!error_uri.empty()) absl::StrAppend(&message, " (", error_uri, ")");
+    return absl::UnauthenticatedError(message);
+  }
   if (code.empty()) return absl::InvalidArgumentError("OAuth callback missing code");
   return code;
 }
@@ -143,7 +184,9 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                           {"code_verifier", code_verifier}}),
                                                 {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
-  if (response->status_code < 200 || response->status_code >= 300) return absl::UnauthenticatedError("OAuth token exchange failed");
+  if (response->status_code < 200 || response->status_code >= 300) {
+    return TokenHttpError(*response, "OAuth token exchange failed");
+  }
   return ParseTokenResponse(response->body);
 }
 
@@ -158,7 +201,9 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
                                                           {"client_id", config.client_id}}),
                                                 {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
-  if (response->status_code < 200 || response->status_code >= 300) return absl::UnauthenticatedError("OAuth refresh failed");
+  if (response->status_code < 200 || response->status_code >= 300) {
+    return TokenHttpError(*response, "OAuth refresh failed");
+  }
   return ParseTokenResponse(response->body);
 }
 

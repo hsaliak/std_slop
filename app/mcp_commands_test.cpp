@@ -236,5 +236,24 @@ TEST(McpCommandsTest, WrongArgumentsReturnPrescriptiveUsage) {
             std::string::npos);
 }
 
+TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
+                                       "--client-id", "client", "--authorization-endpoint",
+                                       "https://manual.example/authorize", "--token-endpoint",
+                                       "https://manual.example/token"},
+                                      &http_client, &input, &output, &error);
+  ASSERT_TRUE(status.ok()) << status;
+
+  status = RunMcpCommand({"mcp", "refresh", "github"}, &http_client, &input, &output, &error);
+  EXPECT_FALSE(status.ok());
+  EXPECT_NE(std::string(status.message()).find("MCP token refresh failed for server 'github'"), std::string::npos);
+}
+
 }  // namespace
 }  // namespace slop
