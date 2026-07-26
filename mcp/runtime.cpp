@@ -42,14 +42,45 @@ std::string ToolDescription(const ServerRegistryEntry& entry, const Tool& tool) 
   return absl::StrCat("MCP ", entry.name, " tool ", tool.name);
 }
 
-StreamableHttpConfig TransportConfigFromEntry(const ServerRegistryEntry& entry) {
+std::string AuthFailureHint(const ServerRegistryEntry& entry) {
+  if (entry.auth == "bearer") {
+    return absl::StrCat("check the bearer token and re-run `std_slop mcp add ", entry.name, " --url ", entry.url,
+                        " --auth bearer --token <token>`");
+  }
+  if (entry.auth == "oauth") {
+    return absl::StrCat("run `std_slop mcp login ", entry.name, "` or `std_slop mcp refresh ", entry.name, "`");
+  }
+  return "check the server configuration";
+}
+
+absl::Status WithAuthContext(const ServerRegistryEntry& entry, const absl::Status& status) {
+  if (status.ok()) return status;
+  if (absl::IsUnauthenticated(status)) {
+    return absl::UnauthenticatedError(
+        absl::StrCat("MCP request failed for server '", entry.name, "': authentication failed; ", AuthFailureHint(entry)));
+  }
+  if (absl::IsPermissionDenied(status)) {
+    const std::string hint = entry.auth == "bearer" ? "check bearer token permissions" : AuthFailureHint(entry);
+    return absl::PermissionDeniedError(
+        absl::StrCat("MCP request failed for server '", entry.name, "': permission denied; ", hint));
+  }
+  return status;
+}
+
+absl::StatusOr<StreamableHttpConfig> TransportConfigFromEntry(const ServerRegistryEntry& entry) {
   StreamableHttpConfig config;
   config.endpoint_url = entry.url;
   if (entry.auth == "bearer" || entry.auth == "oauth") {
     auto tokens = LoadOAuthTokens(entry.token_path);
-    if (tokens.ok() && !tokens->access_token.empty()) {
-      config.bearer_token = tokens->access_token;
+    if (!tokens.ok()) {
+      if (entry.auth == "bearer") {
+        return absl::UnauthenticatedError(absl::StrCat("MCP bearer token is missing or invalid for server '", entry.name,
+                                                      "'; ", AuthFailureHint(entry)));
+      }
+      return absl::UnauthenticatedError(
+          absl::StrCat("MCP OAuth token is missing or invalid for server '", entry.name, "'; ", AuthFailureHint(entry)));
     }
+    config.bearer_token = tokens->access_token;
   }
   return config;
 }
@@ -78,8 +109,10 @@ class RealRuntimeSession : public RuntimeSession {
 absl::StatusOr<std::unique_ptr<RuntimeSession>> RealSessionFactory(const ServerRegistryEntry& entry,
                                                                    HttpClient* http_client,
                                                                    const RuntimeOptions& options) {
-  auto session = ConnectStreamableHttp(TransportConfigFromEntry(entry), InitializeOptionsForRuntime(options), http_client);
-  if (!session.ok()) return session.status();
+  auto config = TransportConfigFromEntry(entry);
+  if (!config.ok()) return config.status();
+  auto session = ConnectStreamableHttp(*config, InitializeOptionsForRuntime(options), http_client);
+  if (!session.ok()) return WithAuthContext(entry, session.status());
   return std::make_unique<RealRuntimeSession>(std::move(*session));
 }
 
@@ -138,7 +171,7 @@ absl::Status RuntimeManager::Start() {
     }
     auto tools = (*session)->ListTools();
     if (!tools.ok()) {
-      LOG(WARNING) << "MCP tool discovery failed for " << entry.name << ": " << tools.status();
+      LOG(WARNING) << "MCP tool discovery failed for " << entry.name << ": " << WithAuthContext(entry, tools.status());
       continue;
     }
     std::unique_ptr<RuntimeSession> owned_session = std::move(*session);
@@ -163,7 +196,7 @@ absl::Status RuntimeManager::RegisterServerTools(const ServerRegistryEntry& entr
     server_tool_names.insert(runtime_name);
     RETURN_IF_ERROR(db_->RegisterTool(Database::Tool{runtime_name, ToolDescription(entry, tool), json_dump(tool.input_schema),
                                                      true, 0, true}));
-    routes_[runtime_name] = ToolRoute{session, entry.name, tool.name};
+    routes_[runtime_name] = ToolRoute{session, entry.name, entry.url, entry.auth, tool.name};
     tool_executor_->RegisterTool(runtime_name, [this, runtime_name](const nlohmann::json& args, auto) {
       return ExecuteRuntimeTool(runtime_name, args);
     });
@@ -178,7 +211,13 @@ absl::StatusOr<std::string> RuntimeManager::ExecuteRuntimeTool(const std::string
   if (!args.is_object()) return absl::InvalidArgumentError("MCP tool arguments must be an object");
   LOG(INFO) << "Calling MCP tool " << runtime_name << " on server " << it->second.server_name;
   auto result = it->second.session->CallTool(it->second.remote_tool_name, args);
-  if (!result.ok()) return result.status();
+  if (!result.ok()) {
+    ServerRegistryEntry entry;
+    entry.name = it->second.server_name;
+    entry.url = it->second.server_url;
+    entry.auth = it->second.auth_mode;
+    return WithAuthContext(entry, result.status());
+  }
   return NormalizeToolCallResult(*result);
 }
 

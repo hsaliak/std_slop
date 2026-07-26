@@ -50,6 +50,8 @@ class RuntimeManager {
   struct ToolRoute {
     RuntimeSession* session = nullptr;
     std::string server_name;
+    std::string server_url;
+    std::string auth_mode;
     std::string remote_tool_name;
   };
 
