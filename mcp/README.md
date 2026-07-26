@@ -87,6 +87,47 @@ bazel run //app:std_slop -- mcp add github \
   --token-endpoint https://auth.example.com/token
 ```
 
+## Register MCP servers with std_slop
+
+Unauthenticated server:
+
+```sh
+bazel run //app:std_slop -- mcp add local --url https://example.com/mcp --auth none
+```
+
+Bearer-token server:
+
+```sh
+bazel run //app:std_slop -- mcp add private \
+  --url https://example.com/mcp \
+  --auth bearer \
+  --token YOUR_TOKEN
+```
+
+`--token` is valid only with `--auth bearer`. The command writes the token to the per-server token file and does not write it to `mcp.ini`. Re-run `mcp add` with the same name to replace the saved token. By default, tokens are stored under `~/.config/slop/mcp/tokens/<name>.json`; pass `--token-path <path>` to use a different file.
+
+The token file uses the shared token-store JSON shape:
+
+```json
+{
+  "access_token": "YOUR_TOKEN",
+  "refresh_token": "",
+  "expires_at": 0
+}
+```
+
+OAuth server:
+
+```sh
+bazel run //app:std_slop -- mcp add github \
+  --url https://example.com/mcp \
+  --auth oauth \
+  --client-id CLIENT_ID \
+  --authorization-endpoint https://auth.example.com/authorize \
+  --token-endpoint https://auth.example.com/token
+bazel run //app:std_slop -- mcp login github
+```
+
 ## Examples
 
 Build the examples without contacting a live server:

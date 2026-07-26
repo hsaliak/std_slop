@@ -297,6 +297,7 @@ TEST(McpCommandsTest, WrongArgumentsReturnPrescriptiveUsage) {
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsInvalidArgument(status));
   EXPECT_NE(std::string(status.message()).find("OAuth endpoints are discovered"), std::string::npos);
+  EXPECT_NE(std::string(status.message()).find("--auth bearer --token <token>"), std::string::npos);
 }
 
 TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {

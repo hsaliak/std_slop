@@ -21,7 +21,7 @@ std::string McpUsageText() {
   return R"USAGE(usage: std_slop mcp <command> [arguments]
 
 Commands:
-  add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--client-id <id>] [--scope <scope>...]
+  add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--token-path <path>] [--client-id <id>] [--scope <scope>...]
       Register or update a Streamable HTTP MCP server. For --auth bearer, --token saves the bearer token
       to the per-server token file and does not write it to mcp.ini. For --auth oauth, --client-id must be
       a real client ID from a registered OAuth/GitHub App. OAuth endpoints are discovered when both are
@@ -39,6 +39,7 @@ Commands:
       Remove a server and its token file.
 
 Examples:
+  std_slop mcp add private --url https://example.com/mcp --auth bearer --token <token>
   std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id <real_client_id>
   std_slop mcp login githubcopilot --client-secret <secret>)USAGE";
 }

@@ -1,13 +1,13 @@
-# MCP Client Library Plan
+# MCP Client Library
 
-This document describes a forward-only plan for a reusable C++ MCP client library in this repo.
+This document describes the reusable C++ MCP client library in this repo and keeps the forward-only implementation plan for remaining work.
 
 The library will support Streamable HTTP MCP servers only. It will not support MCP stdio/stdout transport, and it will not support the deprecated HTTP+SSE transport unless a future requirement asks for it.
 
 ## Goals
 
 1. Provide an MCP client library that other projects can depend on from this repo.
-2. Let `std::slop` use the same library later for MCP tool support.
+2. Let `std::slop` use the same library for MCP tool support.
 3. Reuse existing core infrastructure where appropriate:
    - `core/http_client.h`
    - `core/json_utils.h`
@@ -718,6 +718,24 @@ Example display:
 
 This keeps one canonical tool catalog while still making MCP origin clear.
 
+## Bearer token setup
+
+`std_slop mcp add` supports static bearer-token servers without a separate token command:
+
+```sh
+std_slop mcp add private --url https://example.com/mcp --auth bearer --token YOUR_TOKEN
+```
+
+Rules:
+
+- `--token` is valid only with `--auth bearer`.
+- `--auth bearer` requires `--token`.
+- The token is saved to the per-server token file, not to `mcp.ini`.
+- Re-run `mcp add` with the same server name to replace the saved token.
+- The default token path is `~/.config/slop/mcp/tokens/<name>.json`; `--token-path <path>` overrides it.
+
+At runtime, bearer servers must have a readable token file with a non-empty `access_token`. Missing or invalid bearer tokens prevent that server from starting, keep stale MCP tools hidden, and log a repair hint that points back to `mcp add --auth bearer --token <token>`.
+
 ## Error model
 
 Use `absl::Status` and `absl::StatusOr`.
@@ -762,6 +780,7 @@ Implemented on the `mcp-client` branch:
 - Bundle 7: Registry persistence, secure token storage, OAuth endpoint discovery, OAuth PKCE browser-paste login, refresh/logout, and `std_slop mcp add/remove/list/login/logout/refresh` commands with explicit per-server `client_id`.
 - Bundle 8: Runtime tool integration. Enabled registry entries are started during app initialization, tools are discovered and projected as `mcp_<server>_<tool>` top-level tools, calls route through the dispatcher to the correct session, results are normalized, and unavailable servers do not expose stale tools.
 - Bundle 9: README plus list-tools and call-tool examples.
+- Bundle 10: Bearer-token setup through `std_slop mcp add --auth bearer --token <token>`, runtime bearer token enforcement, and auth-specific repair hints.
 
 Deferred:
 
