@@ -15,7 +15,31 @@
 namespace slop {
 namespace {
 
-absl::Status Usage() { return absl::InvalidArgumentError("usage: std_slop mcp add|remove|list|login|refresh|logout ..."); }
+std::string McpUsageText() {
+  return R"USAGE(usage: std_slop mcp <command> [arguments]
+
+Commands:
+  add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--client-id <id>] [--scope <scope>...]
+      Register or update a Streamable HTTP MCP server. For --auth oauth, --client-id must be a real
+      client ID from a registered OAuth/GitHub App. OAuth endpoints are discovered when both are omitted.
+      Use --authorization-endpoint and --token-endpoint together only for manual fallback.
+  list
+      List configured MCP servers.
+  login <name>
+      Start OAuth authorization-code + PKCE browser login and paste the callback URL.
+  refresh <name>
+      Refresh a stored OAuth token.
+  logout <name>
+      Delete a stored OAuth token.
+  remove <name>
+      Remove a server and its token file.
+
+Examples:
+  std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id <real_client_id>
+  std_slop mcp login githubcopilot)USAGE";
+}
+
+absl::Status Usage() { return absl::InvalidArgumentError(McpUsageText()); }
 
 std::string ValueAfter(const std::vector<std::string>& args, const std::string& flag) {
   for (size_t i = 0; i + 1 < args.size(); ++i) {
@@ -74,6 +98,10 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
                            std::ostream* out, std::ostream* err) {
   if (args.size() < 2 || args[0] != "mcp") return Usage();
   const std::string& command = args[1];
+  if (command == "help" || command == "--help" || command == "-h") {
+    if (out != nullptr) *out << McpUsageText() << "\n";
+    return absl::OkStatus();
+  }
   if (command == "add") {
     if (args.size() < 3) return Usage();
     const absl::Status flag_status = ValidateFlags(

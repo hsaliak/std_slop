@@ -211,5 +211,30 @@ TEST(McpCommandsTest, OAuthAddReportsDiscoveryFailure) {
   EXPECT_TRUE(absl::IsUnauthenticated(status));
 }
 
+TEST(McpCommandsTest, HelpCommandPrintsPrescriptiveUsage) {
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "help"}, &http_client, &input, &output, &error);
+  ASSERT_TRUE(status.ok()) << status;
+  EXPECT_NE(output.str().find("std_slop mcp add githubcopilot"), std::string::npos);
+  EXPECT_NE(output.str().find("registered OAuth/GitHub App"), std::string::npos);
+}
+
+TEST(McpCommandsTest, WrongArgumentsReturnPrescriptiveUsage) {
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add"}, &http_client, &input, &output, &error);
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_NE(std::string(status.message()).find("OAuth endpoints are discovered when both are omitted"),
+            std::string::npos);
+}
+
 }  // namespace
 }  // namespace slop

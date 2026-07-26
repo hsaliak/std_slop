@@ -104,10 +104,12 @@ absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClien
   const std::string code_challenge = absl::WebSafeBase64Escape(
       absl::string_view(reinterpret_cast<const char*>(challenge->data()), challenge->size()));
   session.authorization_url = absl::StrCat(config.authorization_endpoint, "?response_type=code&client_id=",
-                                           UrlEncode(config.client_id), "&redirect_uri=", UrlEncode(session.redirect_uri),
-                                           "&scope=", UrlEncode(absl::StrJoin(config.scopes, " ")), "&state=",
-                                           UrlEncode(session.state), "&code_challenge=", code_challenge,
-                                           "&code_challenge_method=S256");
+                                           UrlEncode(config.client_id), "&redirect_uri=", UrlEncode(session.redirect_uri));
+  if (!config.scopes.empty()) {
+    absl::StrAppend(&session.authorization_url, "&scope=", UrlEncode(absl::StrJoin(config.scopes, " ")));
+  }
+  absl::StrAppend(&session.authorization_url, "&state=", UrlEncode(session.state), "&code_challenge=", code_challenge,
+                  "&code_challenge_method=S256");
   return session;
 }
 

@@ -593,6 +593,15 @@ CREATE TABLE mcp_tool_cache (
    std_slop mcp add github --url https://example.com/mcp --auth oauth --client-id CLIENT_ID
    ```
 
+   `CLIENT_ID` must be a real client ID from a registered OAuth app or GitHub App. Endpoint discovery does not create or infer a client ID.
+
+   GitHub Copilot MCP example:
+
+   ```bash
+   std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id YOUR_REGISTERED_GITHUB_APP_CLIENT_ID --scope read:user
+   std_slop mcp login githubcopilot
+   ```
+
 2. CLI attempts unauthenticated MCP initialize.
 3. Server returns `401 Unauthorized` with `WWW-Authenticate` metadata.
 4. CLI fetches protected resource metadata and authorization server metadata.

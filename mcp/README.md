@@ -54,6 +54,19 @@ bazel run //app:std_slop -- mcp add github \
 bazel run //app:std_slop -- mcp login github
 ```
 
+`CLIENT_ID` must be a real client ID from a registered OAuth app or GitHub App. Discovery finds the authorization and token endpoints only; it cannot create or infer a client ID.
+
+GitHub Copilot MCP example:
+
+```sh
+bazel run //app:std_slop -- mcp add githubcopilot \
+  --url https://api.githubcopilot.com/mcp \
+  --auth oauth \
+  --client-id YOUR_REGISTERED_GITHUB_APP_CLIENT_ID \
+  --scope read:user
+bazel run //app:std_slop -- mcp login githubcopilot
+```
+
 If the server does not publish OAuth metadata, pass endpoints manually:
 
 ```sh

@@ -38,6 +38,7 @@ TEST(OAuthClientTest, BuildsPkceAuthorizationUrlAndParsesCallback) {
   ASSERT_TRUE(session.ok()) << session.status();
   EXPECT_NE(session->authorization_url.find("client_id=client"), std::string::npos);
   EXPECT_NE(session->authorization_url.find("code_challenge_method=S256"), std::string::npos);
+  EXPECT_NE(session->authorization_url.find("scope=repo"), std::string::npos);
 
   auto code = ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=abc&state=" + session->state,
                                                    session->state);
@@ -48,6 +49,14 @@ TEST(OAuthClientTest, BuildsPkceAuthorizationUrlAndParsesCallback) {
 TEST(OAuthClientTest, RejectsStateMismatch) {
   auto code = ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=abc&state=bad", "expected");
   EXPECT_FALSE(code.ok());
+}
+
+TEST(OAuthClientTest, OmitsEmptyScopeParameter) {
+  OAuthClientConfig config = Config();
+  config.scopes.clear();
+  auto session = StartPkceAuthorization(config);
+  ASSERT_TRUE(session.ok()) << session.status();
+  EXPECT_EQ(session->authorization_url.find("scope="), std::string::npos);
 }
 
 TEST(OAuthClientTest, ExchangesAndRefreshesTokens) {
