@@ -357,6 +357,7 @@ TEST(UiTest, GetCliHelpTextDocumentsMcpCommands) {
   EXPECT_TRUE(absl::StrContains(help, "std_slop mcp <add|remove|list|login|refresh|logout|help>"));
   EXPECT_TRUE(absl::StrContains(help, "std_slop mcp add <name>"));
   EXPECT_TRUE(absl::StrContains(help, "registered OAuth/GitHub App"));
+  EXPECT_TRUE(absl::StrContains(help, "--client-secret <secret>"));
 }
 
 TEST(UiTest, GetInAppHelpTextShowsSlashCommands) {

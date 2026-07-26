@@ -99,6 +99,13 @@ std::string MissingAuthenticationMessage() {
                       kWalkthroughUrl);
 }
 
+void ScrubMcpClientSecretArgv(const std::vector<char*>& args) {
+  for (size_t i = 1; i + 1 < args.size(); ++i) {
+    if (std::string(args[i]) != "--client-secret" || args[i + 1] == nullptr) continue;
+    std::fill(args[i + 1], args[i + 1] + std::string(args[i + 1]).size(), 'x');
+  }
+}
+
 class FileLogSink : public absl::LogSink {
  public:
   explicit FileLogSink(const std::string& path) : file_(path, std::ios::app) {}
@@ -187,6 +194,10 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
       mcp_args.emplace_back(argv[i]);
     }
+    std::vector<char*> raw_args;
+    raw_args.reserve(argc);
+    for (int i = 0; i < argc; ++i) raw_args.push_back(argv[i]);
+    ScrubMcpClientSecretArgv(raw_args);
     slop::HttpClient http_client;
     const absl::Status status = slop::RunMcpCommand(mcp_args, &http_client, &std::cin, &std::cout, &std::cerr);
     if (!status.ok()) {

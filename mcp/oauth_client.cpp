@@ -104,7 +104,7 @@ absl::StatusOr<OAuthTokenSet> ParseTokenResponse(const std::string& body) {
   return tokens;
 }
 
-std::string FormBody(std::initializer_list<std::pair<std::string, std::string>> fields) {
+std::string FormBody(const std::vector<std::pair<std::string, std::string>>& fields) {
   std::vector<std::string> parts;
   for (const auto& [key, value] : fields) parts.push_back(absl::StrCat(key, "=", UrlEncode(value)));
   return absl::StrJoin(parts, "&");
@@ -176,13 +176,14 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                         const std::string& code_verifier) {
   if (http_client == nullptr) return absl::InvalidArgumentError("http_client must not be null");
   if (!IsHttpsUrl(config.token_endpoint)) return absl::InvalidArgumentError("OAuth token endpoint must use https");
-  auto response = http_client->PostWithResponse(config.token_endpoint,
-                                                FormBody({{"grant_type", "authorization_code"},
-                                                          {"code", code},
-                                                          {"client_id", config.client_id},
-                                                          {"redirect_uri", config.redirect_uri},
-                                                          {"code_verifier", code_verifier}}),
-                                                {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+  std::vector<std::pair<std::string, std::string>> fields = {{"grant_type", "authorization_code"},
+                                                              {"code", code},
+                                                              {"client_id", config.client_id},
+                                                              {"redirect_uri", config.redirect_uri},
+                                                              {"code_verifier", code_verifier}};
+  if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
+  auto response = http_client->PostWithResponse(
+      config.token_endpoint, FormBody(fields), {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth token exchange failed");
@@ -195,11 +196,12 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
   if (http_client == nullptr) return absl::InvalidArgumentError("http_client must not be null");
   if (!IsHttpsUrl(config.token_endpoint)) return absl::InvalidArgumentError("OAuth token endpoint must use https");
   if (refresh_token.empty()) return absl::InvalidArgumentError("OAuth refresh token must not be empty");
-  auto response = http_client->PostWithResponse(config.token_endpoint,
-                                                FormBody({{"grant_type", "refresh_token"},
-                                                          {"refresh_token", refresh_token},
-                                                          {"client_id", config.client_id}}),
-                                                {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+  std::vector<std::pair<std::string, std::string>> fields = {{"grant_type", "refresh_token"},
+                                                              {"refresh_token", refresh_token},
+                                                              {"client_id", config.client_id}};
+  if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
+  auto response = http_client->PostWithResponse(
+      config.token_endpoint, FormBody(fields), {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth refresh failed");

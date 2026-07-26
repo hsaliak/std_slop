@@ -20,6 +20,7 @@ struct PkceAuthorizationSession {
 
 struct OAuthClientConfig {
   std::string client_id;
+  std::string client_secret;
   std::string authorization_endpoint;
   std::string token_endpoint;
   std::vector<std::string> scopes;

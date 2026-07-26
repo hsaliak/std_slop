@@ -610,7 +610,7 @@ std::string GetCliHelpText() {
       "```\n\n"
       "## MCP server management\n"
       "- `std_slop mcp add <name> --url <mcp_endpoint> --auth oauth --client-id <id>`: Register an OAuth MCP server and discover OAuth endpoints. The client ID must be from a registered OAuth/GitHub App.\n"
-      "- `std_slop mcp login <name>`: Start browser+paste OAuth login for a registered MCP server.\n"
+      "- `std_slop mcp login <name> [--client-secret <secret>]`: Start browser+paste OAuth login for a registered MCP server. The secret is used once and is not stored.\n"
       "- `std_slop mcp help`: Show detailed MCP command usage.\n\n"
       "## Options\n"
       "- `--prompt \"...\"`: Run a single instruction in batch mode and exit.\n"

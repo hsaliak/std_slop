@@ -92,6 +92,32 @@ TEST(OAuthClientTest, ExchangesAndRefreshesTokens) {
   EXPECT_TRUE(HasHeader(http.last_headers, "Content-Type: application/x-www-form-urlencoded"));
 }
 
+TEST(OAuthClientTest, SendsClientSecretWhenConfigured) {
+  FakeHttpClient http;
+  OAuthClientConfig config = Config();
+  config.client_secret = "secret value";
+
+  auto exchanged = ExchangeAuthorizationCode(&http, config, "code", "verifier");
+  ASSERT_TRUE(exchanged.ok()) << exchanged.status();
+  EXPECT_NE(http.last_body.find("client_secret=secret%20value"), std::string::npos);
+
+  auto refreshed = RefreshOAuthToken(&http, config, "refresh");
+  ASSERT_TRUE(refreshed.ok()) << refreshed.status();
+  EXPECT_NE(http.last_body.find("client_secret=secret%20value"), std::string::npos);
+}
+
+TEST(OAuthClientTest, OmitsClientSecretWhenNotConfigured) {
+  FakeHttpClient http;
+
+  auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
+  ASSERT_TRUE(exchanged.ok()) << exchanged.status();
+  EXPECT_EQ(http.last_body.find("client_secret="), std::string::npos);
+
+  auto refreshed = RefreshOAuthToken(&http, Config(), "refresh");
+  ASSERT_TRUE(refreshed.ok()) << refreshed.status();
+  EXPECT_EQ(http.last_body.find("client_secret="), std::string::npos);
+}
+
 TEST(OAuthClientTest, ReportsJsonOAuthErrorResponse) {
   FakeHttpClient http;
   http.response.body =

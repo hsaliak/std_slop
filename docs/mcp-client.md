@@ -489,8 +489,8 @@ Recommended CLI form:
 std_slop mcp add <name> --url <mcp_endpoint> [--auth oauth|bearer|none] [--client-id <id>] [--scope <scope>...]
 std_slop mcp remove <name>
 std_slop mcp list
-std_slop mcp refresh <name>
-std_slop mcp login <name>
+std_slop mcp refresh <name> [--client-secret <secret>]
+std_slop mcp login <name> [--client-secret <secret>]
 std_slop mcp logout <name>
 ```
 
@@ -499,8 +499,8 @@ Command meanings:
 - `mcp add`: Add or update an MCP server registry entry. It can probe the endpoint with unauthenticated initialize. If the server returns `401`, parse `WWW-Authenticate` and store discovered auth metadata.
 - `mcp remove`: Remove server config and associated token references.
 - `mcp list`: Show configured servers, auth state, last refresh time, and last connection status.
-- `mcp login`: Start interactive OAuth authorization code + PKCE for one server with browser+paste callback.
-- `mcp refresh`: Refresh stored tokens for one server without changing server config.
+- `mcp login`: Start interactive OAuth authorization code + PKCE for one server with browser+paste callback. Pass `--client-secret` only when the OAuth client requires it; the secret is not stored.
+- `mcp refresh`: Refresh stored tokens for one server without changing server config. Pass `--client-secret` again for confidential OAuth clients.
 - `mcp logout`: Delete stored tokens for one server while keeping server config.
 
 Optional later shortcuts:
@@ -594,12 +594,13 @@ CREATE TABLE mcp_tool_cache (
    ```
 
    `CLIENT_ID` must be a real client ID from a registered OAuth app or GitHub App. Endpoint discovery does not create or infer a client ID.
+ If the registered app requires a client secret, pass it to `mcp login` and `mcp refresh` with `--client-secret`; it is used for that request only and is not persisted.
 
    GitHub Copilot MCP example:
 
    ```bash
    std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id YOUR_REGISTERED_GITHUB_APP_CLIENT_ID --scope read:user
-   std_slop mcp login githubcopilot
+   std_slop mcp login githubcopilot --client-secret YOUR_REGISTERED_GITHUB_APP_CLIENT_SECRET
    ```
 
 2. CLI attempts unauthenticated MCP initialize.

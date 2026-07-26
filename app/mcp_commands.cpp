@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "mcp/oauth_client.h"
 #include "mcp/oauth_discovery.h"
@@ -25,10 +26,11 @@ Commands:
       Use --authorization-endpoint and --token-endpoint together only for manual fallback.
   list
       List configured MCP servers.
-  login <name>
-      Start OAuth authorization-code + PKCE browser login and paste the callback URL.
-  refresh <name>
-      Refresh a stored OAuth token.
+  login <name> [--client-secret <secret>]
+      Start OAuth authorization-code + PKCE browser login and paste the callback URL. Pass --client-secret
+      only for OAuth clients that require it; the secret is used once and is not stored.
+  refresh <name> [--client-secret <secret>]
+      Refresh a stored OAuth token. Pass --client-secret again if the OAuth server requires it.
   logout <name>
       Delete a stored OAuth token.
   remove <name>
@@ -36,7 +38,7 @@ Commands:
 
 Examples:
   std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id <real_client_id>
-  std_slop mcp login githubcopilot)USAGE";
+  std_slop mcp login githubcopilot --client-secret <secret>)USAGE";
 }
 
 absl::Status Usage() { return absl::InvalidArgumentError(McpUsageText()); }
@@ -83,13 +85,20 @@ absl::StatusOr<mcp::ServerRegistryEntry> FindEntry(const std::string& name) {
   return absl::NotFoundError(absl::StrCat("MCP server not found: ", name));
 }
 
-mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry) {
+mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, const std::string& client_secret = "") {
   mcp::OAuthClientConfig config;
   config.client_id = entry.client_id;
+  config.client_secret = client_secret;
   config.authorization_endpoint = entry.authorization_endpoint;
   config.token_endpoint = entry.token_endpoint;
   config.scopes = entry.scopes;
   return config;
+}
+
+absl::StatusOr<std::string> ClientSecretFromArgs(const std::vector<std::string>& args) {
+  if (args.size() == 3) return std::string{};
+  if (args.size() == 5 && args[3] == "--client-secret" && !args[4].empty()) return args[4];
+  return absl::InvalidArgumentError("usage: std_slop mcp login|refresh <name> [--client-secret <secret>]");
 }
 
 absl::Status WithMcpContext(const std::string& action, const std::string& server_name, const absl::Status& status) {
@@ -172,17 +181,20 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     return absl::OkStatus();
   }
   if (command == "login") {
-    if (args.size() != 3 || http_client == nullptr || in == nullptr) return Usage();
+    if ((args.size() != 3 && args.size() != 5) || http_client == nullptr || in == nullptr) return Usage();
+    auto client_secret = ClientSecretFromArgs(args);
+    if (!client_secret.ok()) return client_secret.status();
     auto entry = FindEntry(args[2]);
     if (!entry.ok()) return entry.status();
-    auto session = mcp::StartPkceAuthorization(ConfigFromEntry(*entry));
+    auto session = mcp::StartPkceAuthorization(ConfigFromEntry(*entry, *client_secret));
     if (!session.ok()) return WithMcpContext("login", entry->name, session.status());
     *out << session->authorization_url << "\nPaste callback URL: ";
     std::string callback;
     std::getline(*in, callback);
     auto code = mcp::ExtractAuthorizationCodeFromCallback(callback, session->state);
     if (!code.ok()) return WithMcpContext("login callback", entry->name, code.status());
-    auto tokens = mcp::ExchangeAuthorizationCode(http_client, ConfigFromEntry(*entry), *code, session->code_verifier);
+    auto tokens = mcp::ExchangeAuthorizationCode(http_client, ConfigFromEntry(*entry, *client_secret), *code,
+                                                 session->code_verifier);
     if (!tokens.ok()) return WithMcpContext("token exchange", entry->name, tokens.status());
     const absl::Status status = mcp::SaveOAuthTokens(entry->token_path, *tokens);
     if (!status.ok()) return WithMcpContext("token save", entry->name, status);
@@ -190,12 +202,14 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     return absl::OkStatus();
   }
   if (command == "refresh") {
-    if (args.size() != 3 || http_client == nullptr) return Usage();
+    if ((args.size() != 3 && args.size() != 5) || http_client == nullptr) return Usage();
+    auto client_secret = ClientSecretFromArgs(args);
+    if (!client_secret.ok()) return client_secret.status();
     auto entry = FindEntry(args[2]);
     if (!entry.ok()) return entry.status();
     auto existing = mcp::LoadOAuthTokens(entry->token_path);
     if (!existing.ok()) return WithMcpContext("token refresh", entry->name, existing.status());
-    auto tokens = mcp::RefreshOAuthToken(http_client, ConfigFromEntry(*entry), existing->refresh_token);
+    auto tokens = mcp::RefreshOAuthToken(http_client, ConfigFromEntry(*entry, *client_secret), existing->refresh_token);
     if (!tokens.ok()) return WithMcpContext("token refresh", entry->name, tokens.status());
     if (tokens->refresh_token.empty()) tokens->refresh_token = existing->refresh_token;
     const absl::Status status = mcp::SaveOAuthTokens(entry->token_path, *tokens);

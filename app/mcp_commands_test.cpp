@@ -10,6 +10,7 @@
 #include "absl/time/clock.h"
 #include "core/http_client.h"
 #include "mcp/registry.h"
+#include "mcp/token_store.h"
 
 #include <gtest/gtest.h>
 
@@ -253,6 +254,48 @@ TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
   status = RunMcpCommand({"mcp", "refresh", "github"}, &http_client, &input, &output, &error);
   EXPECT_FALSE(status.ok());
   EXPECT_NE(std::string(status.message()).find("MCP token refresh failed for server 'github'"), std::string::npos);
+}
+
+TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
+                                       "--client-id", "client", "--authorization-endpoint",
+                                       "https://manual.example/authorize", "--token-endpoint",
+                                       "https://manual.example/token"},
+                                      &http_client, &input, &output, &error);
+  ASSERT_TRUE(status.ok()) << status;
+  ASSERT_TRUE(mcp::SaveOAuthTokens(mcp::DefaultTokenPath("github"), {"old-access", "old-refresh", 0}).ok());
+
+  http_client.post_response = {200, R"({"access_token":"new-access","refresh_token":"new-refresh","expires_in":60})", {}};
+  status = RunMcpCommand({"mcp", "refresh", "github", "--client-secret", "top secret"}, &http_client, &input, &output,
+                         &error);
+  ASSERT_TRUE(status.ok()) << status;
+  EXPECT_NE(http_client.post_body.find("client_secret=top%20secret"), std::string::npos);
+
+  auto tokens = mcp::LoadOAuthTokens(mcp::DefaultTokenPath("github"));
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->access_token, "new-access");
+  EXPECT_EQ(output.str().find("top secret"), std::string::npos);
+}
+
+TEST(McpCommandsTest, AddRejectsClientSecretBecauseItIsNotPersisted) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
+                                       "--client-id", "client", "--client-secret", "top secret"},
+                                      &http_client, &input, &output, &error);
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_NE(std::string(status.message()).find("Unknown MCP flag: --client-secret"), std::string::npos);
 }
 
 }  // namespace
