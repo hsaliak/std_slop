@@ -55,6 +55,23 @@ bool IsDebugToolsEnabled() { return std::getenv("SLOP_DEBUG_TOOLS") != nullptr; 
 constexpr absl::string_view kPromptCacheKeyPrefix = "slop:";
 constexpr size_t kPromptCacheKeyMaxLength = 64;
 
+bool MessageItemHasOutputText(const nlohmann::json& item) {
+  if (json_get_or(item, "type", std::string{}) != "message") return false;
+  const auto* content = json_at(item, "content");
+  if (content == nullptr || !content->is_array()) return false;
+  for (const auto& part : *content) {
+    if (json_get_or(part, "type", std::string{}) == "output_text" &&
+        !json_get_or(part, "text", std::string{}).empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsEmptyMessageItem(const nlohmann::json& item) {
+  return json_get_or(item, "type", std::string{}) == "message" && !MessageItemHasOutputText(item);
+}
+
 std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string& payload) {
   if (!absl::StrContains(payload, "event:") || !absl::StrContains(payload, "data:")) {
     return std::nullopt;
@@ -71,17 +88,8 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
 
   const auto upsert_output_item = [&](const nlohmann::json& item) {
     const std::string type = json_get_or(item, "type", std::string{});
-    if (type == "message") {
-      const auto* content = json_at(item, "content");
-      if (content != nullptr && content->is_array()) {
-        for (const auto& part : *content) {
-          if (json_get_or(part, "type", std::string{}) == "output_text" &&
-              !json_get_or(part, "text", std::string{}).empty()) {
-            saw_output_text_item = true;
-            break;
-          }
-        }
-      }
+    if (MessageItemHasOutputText(item)) {
+      saw_output_text_item = true;
     }
     std::string stable_id =
         type == "function_call" ? json_get_or(item, "call_id", std::string{}) : std::string{};
@@ -260,6 +268,10 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
         return absl::InvalidArgumentError("Stored Responses API item is not a valid JSON object");
       }
       const std::string type = json_get_or(*item, "type", std::string{});
+      if (IsEmptyMessageItem(*item)) {
+        LOG(WARNING) << "Filtering empty Responses message item from history";
+        continue;
+      }
       if (type == "function_call") {
         const std::string name = json_get_or(*item, "name", std::string{});
         if (!enabled_tool_names.contains(name)) {
@@ -324,6 +336,10 @@ absl::StatusOr<nlohmann::json> OpenAiResponsesOrchestrator::BuildRequest(const R
       continue;
     }
 
+    if (msg.role == "assistant" && msg.content.empty()) {
+      LOG(WARNING) << "Filtering empty assistant message from history";
+      continue;
+    }
     input.push_back({{"role", msg.role}, {"content", msg.content}});
   }
 
@@ -496,6 +512,10 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
       }
     }
 
+    if (type == "message" && content.empty()) {
+      LOG(WARNING) << "Skipping empty assistant message item from Responses output";
+      continue;
+    }
     const bool should_assign_tokens =
         !assigned_tokens && (status == "tool_call" || (!has_function_calls && status == "completed"));
     auto st = db_->AppendMessage(session_id, "assistant", content, tool_call_id, status, group_id, "openai",

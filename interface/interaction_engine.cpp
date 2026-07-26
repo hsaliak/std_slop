@@ -31,39 +31,6 @@ namespace slop {
 namespace {
 constexpr char kStructuredOutputToolName[] = "structured_output";
 
-
-bool HasUnclosedCodeFence(const std::string& text) {
-  size_t fence_count = 0;
-  size_t position = 0;
-  while ((position = text.find("```", position)) != std::string::npos) {
-    ++fence_count;
-    position += 3;
-  }
-  return fence_count % 2 != 0;
-}
-
-std::string TakeRenderableMarkdown(std::string* buffered_text, bool flush) {
-  if (buffered_text == nullptr || buffered_text->empty()) return "";
-  if (flush) {
-    std::string rendered = std::move(*buffered_text);
-    buffered_text->clear();
-    return rendered;
-  }
-
-  size_t boundary = buffered_text->rfind("\n\n");
-  size_t delimiter_size = 2;
-  if (boundary == std::string::npos) {
-    boundary = buffered_text->rfind('\n');
-    delimiter_size = 1;
-  }
-  if (boundary == std::string::npos) return "";
-  const size_t rendered_size = boundary + delimiter_size;
-  const std::string candidate = buffered_text->substr(0, rendered_size);
-  if (HasUnclosedCodeFence(candidate)) return "";
-  buffered_text->erase(0, rendered_size);
-  return candidate;
-}
-
 absl::StatusOr<nlohmann::json> ExtractStructuredOutputResult(const std::vector<ToolCall>& calls,
                                                               const nlohmann::json& schema) {
   int structured_count = 0;
@@ -330,7 +297,6 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
       bool http_cancellation_announced = false;
       bool receiving_announced = false;
-      std::string streamed_markdown;
       while (!http_done) {
         std::string stream_text;
         {
@@ -342,9 +308,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           slop::PrintTurnStatus({TurnPhase::kReceiving, "", 0, std::nullopt, absl::Now() - turn_started});
         }
         if (!stream_text.empty() && !config.silent && !structured_output_mode) {
-          streamed_markdown.append(stream_text);
-          const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, false);
-          if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
+          slop::PrintAssistantTextDelta(stream_text, "    ");
         }
         if (maybe_handle_ask_user_prompt(
                 ask_state, [&]() { raw.reset(); },
@@ -353,8 +317,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         }
         if (!config.silent && !http_cancellation_announced && slop::IsInterruptPressed()) {
           http_cancellation_announced = true;
-          const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, true);
-          if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
+          if (received_stream_text) slop::EndAssistantTextStream();
           slop::PrintTurnStatus({TurnPhase::kCancelled, "", 0, std::nullopt, absl::Now() - turn_started});
           http_cancellation->Cancel();
           std::cout << "\n" << slop::Colorize("[Esc/Ctrl-C] Cancelling HTTP request...", "", ansi::Red) << std::endl;
@@ -367,12 +330,11 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         absl::MutexLock lock(stream_text_mu);
         final_stream_text.swap(pending_stream_text);
       }
-      if (!final_stream_text.empty() && !config.silent) {
-        streamed_markdown.append(final_stream_text);
+      if (!final_stream_text.empty() && !config.silent && !structured_output_mode) {
+        slop::PrintAssistantTextDelta(final_stream_text, "    ");
       }
-      if (!config.silent && !structured_output_mode) {
-        const std::string renderable = TakeRenderableMarkdown(&streamed_markdown, true);
-        if (!renderable.empty()) slop::PrintAssistantMessage(renderable);
+      if (!config.silent && !structured_output_mode && received_stream_text) {
+        slop::EndAssistantTextStream();
       }
 
       // Cleanup handler

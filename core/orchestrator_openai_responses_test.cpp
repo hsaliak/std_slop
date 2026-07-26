@@ -666,6 +666,49 @@ TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseCoalescesAddedAndDoneReas
   EXPECT_EQ((*history_or)[1].status, "completed");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseSkipsEmptyMessageWhenToolCallPresent) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex", "https://api.openai.com/v1");
+  const nlohmann::json response = {{"output", nlohmann::json::array({
+                                                 {{"type", "message"},
+                                                  {"id", "msg_empty"},
+                                                  {"role", "assistant"},
+                                                  {"content", nlohmann::json::array()}},
+                                                 {{"type", "function_call"},
+                                                  {"call_id", "call_1"},
+                                                  {"name", "query_db"},
+                                                  {"arguments", "{\"sql\":\"SELECT 1\"}"}},
+                                             })}};
+
+  ASSERT_TRUE(orchestrator.ProcessResponse("s1", json_dump(response), "g1").ok());
+
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  ASSERT_EQ(history_or->size(), 1);
+  EXPECT_EQ((*history_or)[0].status, "tool_call");
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, BuildRequestFiltersStoredEmptyResponsesMessageItems) {
+  ASSERT_TRUE(db.AppendMessage("s1", "assistant", "", "", "intermediate", "", "openai", 0,
+                               R"({"type":"message","id":"msg_empty","role":"assistant","content":[]})")
+                  .ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "next").ok());
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-5.3-codex", "https://api.openai.com/v1");
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+
+  auto payload_or = BuildRequest(orchestrator, db, "s1", "System prompt", *history_or, {});
+
+  ASSERT_TRUE(payload_or.ok()) << payload_or.status();
+  ASSERT_EQ((*payload_or)["input"].size(), 1);
+  EXPECT_EQ(json_get_or((*payload_or)["input"][0], "role", std::string{}), "user");
+  EXPECT_EQ(json_get_or((*payload_or)["input"][0], "content", std::string{}), "next");
+
+  auto clean_payload_or = BuildRequest(orchestrator, db, "s1", "System prompt", {*history_or->rbegin()}, {});
+  ASSERT_TRUE(clean_payload_or.ok()) << clean_payload_or.status();
+  EXPECT_EQ(json_get_or(*payload_or, "prompt_cache_key", std::string{}),
+            json_get_or(*clean_payload_or, "prompt_cache_key", std::string{}));
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, RejectsMalformedProviderFunctionCallBeforePersistence) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
   const nlohmann::json response = {

@@ -29,6 +29,19 @@ ResponsesEventType EventTypeFor(const std::string& type) {
   return event_type == kEventTypes.end() ? ResponsesEventType::kUnknown : event_type->second;
 }
 
+bool MessageItemHasOutputText(const nlohmann::json& item) {
+  if (json_get_or(item, "type", std::string{}) != "message") return false;
+  const auto* content = json_at(item, "content");
+  if (content == nullptr || !content->is_array()) return false;
+  for (const auto& part : *content) {
+    if (json_get_or(part, "type", std::string{}) == "output_text" &&
+        !json_get_or(part, "text", std::string{}).empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 absl::StatusOr<std::vector<ResponsesEvent>> ResponsesEventDecoder::Feed(absl::string_view chunk) {
@@ -124,11 +137,14 @@ std::optional<nlohmann::json> ResponsesEventDecoder::NormalizeSsePayload(absl::s
     } else if (event.type == ResponsesEventType::kOutputItem) {
       const auto* item = json_at(event.payload, "item");
       if (item != nullptr && json_get_or(event.payload, "type", std::string{}) == "response.output_item.done") {
+        if (json_get_or(*item, "type", std::string{}) == "message" && !MessageItemHasOutputText(*item)) {
+          continue;
+        }
         output.push_back(*item);
         if (json_get_or(*item, "type", std::string{}) == "function_call") {
           function_call_indexes[json_get_or(*item, "call_id", std::string{})] = output.size() - 1;
         }
-        has_message = has_message || json_get_or(*item, "type", std::string{}) == "message";
+        has_message = has_message || MessageItemHasOutputText(*item);
       }
     } else if (event.type == ResponsesEventType::kCompleted) {
       const auto* response = json_at(event.payload, "response");
@@ -139,6 +155,9 @@ std::optional<nlohmann::json> ResponsesEventDecoder::NormalizeSsePayload(absl::s
         if (response_output) {
           for (const auto& item : *response_output) {
             const bool is_function_call = json_get_or(item, "type", std::string{}) == "function_call";
+            if (json_get_or(item, "type", std::string{}) == "message" && !MessageItemHasOutputText(item)) {
+              continue;
+            }
             const std::string call_id = is_function_call ? json_get_or(item, "call_id", std::string{}) : "";
             const auto existing_function_call = function_call_indexes.find(call_id);
             if (is_function_call && existing_function_call != function_call_indexes.end()) {
@@ -147,7 +166,7 @@ std::optional<nlohmann::json> ResponsesEventDecoder::NormalizeSsePayload(absl::s
               output.push_back(item);
               if (is_function_call) function_call_indexes[call_id] = output.size() - 1;
             }
-            has_message = has_message || json_get_or(item, "type", std::string{}) == "message";
+            has_message = has_message || MessageItemHasOutputText(item);
           }
         }
       }
