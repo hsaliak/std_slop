@@ -141,7 +141,7 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                           {"client_id", config.client_id},
                                                           {"redirect_uri", config.redirect_uri},
                                                           {"code_verifier", code_verifier}}),
-                                                {"Content-Type: application/x-www-form-urlencoded"});
+                                                {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) return absl::UnauthenticatedError("OAuth token exchange failed");
   return ParseTokenResponse(response->body);
@@ -156,7 +156,7 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
                                                 FormBody({{"grant_type", "refresh_token"},
                                                           {"refresh_token", refresh_token},
                                                           {"client_id", config.client_id}}),
-                                                {"Content-Type: application/x-www-form-urlencoded"});
+                                                {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) return absl::UnauthenticatedError("OAuth refresh failed");
   return ParseTokenResponse(response->body);

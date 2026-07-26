@@ -1,5 +1,6 @@
 #include "mcp/oauth_client.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -59,16 +60,24 @@ TEST(OAuthClientTest, OmitsEmptyScopeParameter) {
   EXPECT_EQ(session->authorization_url.find("scope="), std::string::npos);
 }
 
+bool HasHeader(const std::vector<std::string>& headers, const std::string& expected) {
+  return std::find(headers.begin(), headers.end(), expected) != headers.end();
+}
+
 TEST(OAuthClientTest, ExchangesAndRefreshesTokens) {
   FakeHttpClient http;
   auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
   ASSERT_TRUE(exchanged.ok()) << exchanged.status();
   EXPECT_EQ(exchanged->access_token, "access");
   EXPECT_NE(http.last_body.find("grant_type=authorization_code"), std::string::npos);
+  EXPECT_TRUE(HasHeader(http.last_headers, "Accept: application/json"));
+  EXPECT_TRUE(HasHeader(http.last_headers, "Content-Type: application/x-www-form-urlencoded"));
 
   auto refreshed = RefreshOAuthToken(&http, Config(), "refresh");
   ASSERT_TRUE(refreshed.ok()) << refreshed.status();
   EXPECT_NE(http.last_body.find("grant_type=refresh_token"), std::string::npos);
+  EXPECT_TRUE(HasHeader(http.last_headers, "Accept: application/json"));
+  EXPECT_TRUE(HasHeader(http.last_headers, "Content-Type: application/x-www-form-urlencoded"));
 }
 
 }  // namespace
