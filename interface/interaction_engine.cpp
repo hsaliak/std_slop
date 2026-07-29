@@ -297,6 +297,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
 
       bool http_cancellation_announced = false;
       bool receiving_announced = false;
+      bool stream_prefix_printed = false;
       while (!http_done) {
         std::string stream_text;
         {
@@ -308,7 +309,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
           slop::PrintTurnStatus({TurnPhase::kReceiving, "", 0, std::nullopt, absl::Now() - turn_started});
         }
         if (!stream_text.empty() && !config.silent && !structured_output_mode) {
-          slop::PrintAssistantTextDelta(stream_text, "    ");
+          slop::PrintAssistantTextDelta(stream_text, stream_prefix_printed ? "" : "    ");
+          stream_prefix_printed = true;
         }
         if (maybe_handle_ask_user_prompt(
                 ask_state, [&]() { raw.reset(); },
@@ -331,7 +333,8 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
         final_stream_text.swap(pending_stream_text);
       }
       if (!final_stream_text.empty() && !config.silent && !structured_output_mode) {
-        slop::PrintAssistantTextDelta(final_stream_text, "    ");
+        slop::PrintAssistantTextDelta(final_stream_text, stream_prefix_printed ? "" : "    ");
+        stream_prefix_printed = true;
       }
       if (!config.silent && !structured_output_mode && received_stream_text) {
         slop::EndAssistantTextStream();
