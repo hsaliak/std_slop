@@ -127,6 +127,34 @@ TEST(OpenAiUtilsTest, RecordsResponsesCacheTelemetry) {
   EXPECT_EQ(usage->cache_write_prompt_tokens, 10);
 }
 
+TEST(OpenAiUtilsTest, RecordsCacheWritePresenceSeparatelyFromZero) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  const nlohmann::json absent = {{"usage", {{"input_tokens", 100}, {"output_tokens", 25},
+                                              {"input_tokens_details", {{"cached_tokens", 0}}}}}};
+  const nlohmann::json zero = {{"usage", {{"input_tokens", 100}, {"output_tokens", 25},
+                                            {"input_tokens_details", {{"cached_tokens", 0}, {"cache_write_tokens", 0}}}}}};
+
+  ASSERT_EQ(RecordOpenAiResponsesUsage(&db, "s1", "gpt-test", absent), 125);
+  ASSERT_EQ(RecordOpenAiResponsesUsage(&db, "s1", "gpt-test", zero), 125);
+
+  auto stmt_or = db.Prepare("SELECT cache_write_prompt_tokens, cache_write_reported FROM usage "
+                            "WHERE session_id = ? ORDER BY id");
+  ASSERT_TRUE(stmt_or.ok()) << stmt_or.status();
+  ASSERT_TRUE((*stmt_or)->Bind(1, "s1").ok());
+  auto row_or = (*stmt_or)->Step();
+  ASSERT_TRUE(row_or.ok()) << row_or.status();
+  ASSERT_TRUE(*row_or);
+  EXPECT_EQ((*stmt_or)->ColumnInt(0), 0);
+  EXPECT_EQ((*stmt_or)->ColumnInt(1), 0);
+
+  row_or = (*stmt_or)->Step();
+  ASSERT_TRUE(row_or.ok()) << row_or.status();
+  ASSERT_TRUE(*row_or);
+  EXPECT_EQ((*stmt_or)->ColumnInt(0), 0);
+  EXPECT_EQ((*stmt_or)->ColumnInt(1), 1);
+}
+
 TEST(OpenAiUtilsTest, GetOpenAiModelsParsesApiDataShape) {
   MockHttpClient mock_http;
   EXPECT_CALL(mock_http, Get("https://api.openai.com/v1/models", _)).WillOnce(Return(R"({"data":[{"id":"gpt-4o"}]})"));

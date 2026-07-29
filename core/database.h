@@ -131,7 +131,7 @@ class Database {
   };
   absl::Status RecordUsage(const std::string& session_id, const std::string& model, int prompt_tokens,
                            int completion_tokens, int cached_prompt_tokens = 0,
-                           int cache_write_prompt_tokens = 0);
+                           int cache_write_prompt_tokens = 0, bool cache_write_reported = false);
   struct TotalUsage {
     int prompt_tokens;
     int completion_tokens;

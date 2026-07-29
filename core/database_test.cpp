@@ -22,6 +22,33 @@ TEST(DatabaseTest, InitWorks) {
   auto status = db.Init(":memory:");
   EXPECT_TRUE(status.ok()) << status.message();
 }
+TEST(DatabaseTest, InitMigratesCacheWriteReportedColumn) {
+  const std::string path = absl::StrCat(::testing::TempDir(), "/std_slop_usage_",
+                                        absl::ToUnixNanos(absl::Now()), ".db");
+  sqlite3* raw_db = nullptr;
+  ASSERT_EQ(sqlite3_open(path.c_str(), &raw_db), SQLITE_OK);
+  ASSERT_EQ(sqlite3_exec(raw_db,
+                         "CREATE TABLE usage (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, model TEXT, "
+                         "prompt_tokens INTEGER, completion_tokens INTEGER, total_tokens INTEGER, "
+                         "created_at DATETIME DEFAULT CURRENT_TIMESTAMP);",
+                         nullptr, nullptr, nullptr),
+            SQLITE_OK);
+  ASSERT_EQ(sqlite3_close(raw_db), SQLITE_OK);
+
+  {
+    slop::Database db;
+    ASSERT_TRUE(db.Init(path).ok());
+    ASSERT_TRUE(db.RecordUsage("s1", "model", 100, 10, 90, 0, true).ok());
+    auto statement_or = db.Prepare("SELECT cache_write_reported FROM usage WHERE session_id = ?");
+    ASSERT_TRUE(statement_or.ok()) << statement_or.status();
+    ASSERT_TRUE((*statement_or)->Bind(1, "s1").ok());
+    auto row_or = (*statement_or)->Step();
+    ASSERT_TRUE(row_or.ok()) << row_or.status();
+    ASSERT_TRUE(*row_or);
+    EXPECT_EQ((*statement_or)->ColumnInt(0), 1);
+  }
+  std::remove(path.c_str());
+}
 TEST(DatabaseTest, InitDropsLegacySessionStateTable) {
   const std::string path = absl::StrCat(::testing::TempDir(), "/std_slop_session_state_",
                                         absl::ToUnixNanos(absl::Now()), ".db");
@@ -177,7 +204,7 @@ TEST(DatabaseTest, CloneSession) {
   // Set up source session
   ASSERT_TRUE(db.AppendMessage("source", "user", "Hello").ok());
   ASSERT_TRUE(db.AppendMessage("source", "assistant", "Hi").ok());
-  ASSERT_TRUE(db.RecordUsage("source", "gpt-4", 10, 20, 7, 3).ok());
+  ASSERT_TRUE(db.RecordUsage("source", "gpt-4", 10, 20, 7, 3, true).ok());
   // Clone it
   auto status = db.CloneSession("source", "target");
   EXPECT_TRUE(status.ok()) << status.message();
@@ -193,6 +220,13 @@ TEST(DatabaseTest, CloneSession) {
   EXPECT_EQ(usage->total_tokens, 30);
   EXPECT_EQ(usage->cached_prompt_tokens, 7);
   EXPECT_EQ(usage->cache_write_prompt_tokens, 3);
+  auto reported_or = db.Prepare("SELECT cache_write_reported FROM usage WHERE session_id = ?");
+  ASSERT_TRUE(reported_or.ok()) << reported_or.status();
+  ASSERT_TRUE((*reported_or)->Bind(1, "target").ok());
+  auto row_or = (*reported_or)->Step();
+  ASSERT_TRUE(row_or.ok()) << row_or.status();
+  ASSERT_TRUE(*row_or);
+  EXPECT_EQ((*reported_or)->ColumnInt(0), 1);
   // Verify uniqueness check
   status = db.CloneSession("source", "target");
   EXPECT_EQ(status.code(), absl::StatusCode::kAlreadyExists);
@@ -337,9 +371,9 @@ TEST(DatabaseTest, CloneSessionThroughGroupCopiesPrefixOnly) {
   ASSERT_TRUE(db.AppendMessage("s1", "user", "u3", "", "completed", "g3").ok());
   ASSERT_TRUE(db.UpdateMessageStatus(3, "dropped").ok());
   ASSERT_TRUE(db.SetScratchpad("s1", "scratch").ok());
-  ASSERT_TRUE(db.RecordUsage("s1", "model", 10, 1, 8, 2).ok());
-  ASSERT_TRUE(db.RecordUsage("s1", "model", 20, 2, 12, 4).ok());
-  ASSERT_TRUE(db.RecordUsage("s1", "model", 30, 3, 16, 6).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 10, 1, 8, 2, false).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 20, 2, 12, 4, true).ok());
+  ASSERT_TRUE(db.RecordUsage("s1", "model", 30, 3, 16, 6, true).ok());
   ASSERT_TRUE(db.Execute("UPDATE usage SET created_at = '2000-01-01 00:00:00' WHERE prompt_tokens IN (10, 20);").ok());
   ASSERT_TRUE(db.Execute("UPDATE usage SET created_at = '2999-01-01 00:00:00' WHERE prompt_tokens = 30;").ok());
 
@@ -361,6 +395,18 @@ TEST(DatabaseTest, CloneSessionThroughGroupCopiesPrefixOnly) {
   EXPECT_EQ(usage->total_tokens, 33);
   EXPECT_EQ(usage->cached_prompt_tokens, 20);
   EXPECT_EQ(usage->cache_write_prompt_tokens, 6);
+
+  auto reported_or = db.Prepare("SELECT cache_write_reported FROM usage WHERE session_id = ? ORDER BY prompt_tokens");
+  ASSERT_TRUE(reported_or.ok()) << reported_or.status();
+  ASSERT_TRUE((*reported_or)->Bind(1, "s2").ok());
+  auto row_or = (*reported_or)->Step();
+  ASSERT_TRUE(row_or.ok()) << row_or.status();
+  ASSERT_TRUE(*row_or);
+  EXPECT_EQ((*reported_or)->ColumnInt(0), 0);
+  row_or = (*reported_or)->Step();
+  ASSERT_TRUE(row_or.ok()) << row_or.status();
+  ASSERT_TRUE(*row_or);
+  EXPECT_EQ((*reported_or)->ColumnInt(0), 1);
 }
 
 TEST(DatabaseTest, CloneSessionThroughGroupRejectsMissingGroupAndExistingTarget) {
