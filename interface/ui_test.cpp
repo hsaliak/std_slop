@@ -78,6 +78,27 @@ TEST(UiTest, PrintAssistantMessageWithPrefix) {
   std::string output = buffer.str();
   EXPECT_TRUE(absl::StrContains(output, "Hello world"));
 }
+TEST(UiTest, PrintAssistantMessageRendersCompleteMarkdown) {
+  const std::string content =
+      "## Documentation\n\n"
+      "### 16. `mcp/README.md` duplicates the registration guide\n\n"
+      "1. Keep one canonical section.\n"
+      "2. Link to `docs/mcp-api.md`.\n\n"
+      "```text\n"
+      "mcp/README.md\n"
+      "```";
+  std::stringstream buffer;
+  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+  PrintAssistantMessage(content);
+  std::cout.rdbuf(old);
+
+  const std::string output = buffer.str();
+  EXPECT_TRUE(absl::StrContains(output, "Documentation"));
+  EXPECT_TRUE(absl::StrContains(output, "mcp/README.md"));
+  EXPECT_TRUE(absl::StrContains(output, "registration guide"));
+  EXPECT_TRUE(absl::StrContains(output, "canonical section"));
+  EXPECT_TRUE(absl::StrContains(output, "docs/mcp-api.md"));
+}
 TEST(UiTest, PrintAssistantMessageWithTokens) {
   std::string content = "Hello world";
   std::stringstream buffer;
@@ -117,21 +138,6 @@ TEST(UiTest, PrintToolCallMessage) {
   EXPECT_TRUE(absl::StrContains(output, "test_tool"));
   EXPECT_TRUE(absl::StrContains(output, "❯"));
   EXPECT_TRUE(absl::StrContains(output, "query: \"test\""));
-}
-
-TEST(UiTest, PrintAssistantTextDeltaDoesNotIndentLaterFragments) {
-  std::stringstream buffer;
-  std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
-  PrintAssistantTextDelta("partial", "  ");
-  PrintAssistantTextDelta(" response");
-  EndAssistantTextStream();
-  std::cout.rdbuf(old);
-
-  const std::string output = buffer.str();
-  EXPECT_TRUE(absl::StrContains(output, "partial"));
-  EXPECT_TRUE(absl::StrContains(output, " response"));
-  EXPECT_EQ(output.find("partial"), output.rfind("partial"));
-  EXPECT_TRUE(absl::EndsWith(output, "\n"));
 }
 
 TEST(UiTest, FormatTurnStatusIncludesCacheTelemetry) {

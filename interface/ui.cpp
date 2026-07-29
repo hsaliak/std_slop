@@ -380,17 +380,6 @@ void PrintAssistantMessage(const std::string& content, const std::string& prefix
   }
 }
 
-void PrintAssistantTextDelta(const std::string& text, const std::string& prefix) {
-  if (text.empty()) return;
-  absl::MutexLock lock(g_ui_mu);
-  std::cout << prefix << Colorize(text, "", ansi::Assistant) << std::flush;
-}
-
-void EndAssistantTextStream() {
-  absl::MutexLock lock(g_ui_mu);
-  std::cout << std::endl;
-}
-
 std::string FormatTurnStatus(const TurnStatus& status) {
   const char* phase = "Preparing context";
   switch (status.phase) {
