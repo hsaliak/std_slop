@@ -1,5 +1,9 @@
 #include "core/openai_utils.h"
 
+#include <cstdlib>
+
+#include "absl/log/log.h"
+
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -129,11 +133,29 @@ std::optional<std::string> FormatCachedInputTokens(const ResponseUsage& usage) {
   return absl::StrCat(*usage.cached_input_tokens, "/", usage.input_tokens, " (", percentage, "%)");
 }
 
+std::string OptionalCacheTokenText(const std::optional<int>& value) {
+  return value.has_value() ? std::to_string(*value) : "absent";
+}
+
 int RecordOpenAiResponsesUsage(Database* db, const std::string& session_id, const std::string& model,
                                const nlohmann::json& response) {
   const auto usage = ParseOpenAiResponsesUsage(response);
   if (!usage.has_value()) {
     return 0;
+  }
+  if (std::getenv("SLOP_DEBUG_CACHE") != nullptr && usage->input_tokens >= 1024 &&
+      (!usage->cached_input_tokens.has_value() || *usage->cached_input_tokens == 0)) {
+    const char* write_state = "unreported";
+    if (usage->cache_write_input_tokens.has_value()) {
+      write_state = *usage->cache_write_input_tokens > 0 ? "positive" : "zero";
+    }
+    const char* read_state = usage->cached_input_tokens.has_value() ? "miss" : "unreported";
+    LOG(INFO) << "[cache] Responses prompt cache read state=" << read_state << " model=" << model
+              << " input_tokens=" << usage->input_tokens
+              << " cached_tokens=" << OptionalCacheTokenText(usage->cached_input_tokens)
+              << " cache_write_tokens=" << OptionalCacheTokenText(usage->cache_write_input_tokens)
+              << " write_state=" << write_state
+              << " output_tokens=" << usage->output_tokens;
   }
   (void)db->RecordUsage(session_id, model, usage->input_tokens, usage->output_tokens,
                          usage->cached_input_tokens.value_or(0), usage->cache_write_input_tokens.value_or(0),
