@@ -1,3 +1,14 @@
+## v0.26 - 2026-07-31
+
+- **MCP client library**: Added a reusable Streamable HTTP MCP client with JSON-RPC framing, SSE response decoding, session lifecycle management, initialization, ping, tool discovery and calls, resource listing/reading, prompt listing/getting, notifications, cancellation, and protocol validation.
+- **MCP server runtime**: Added MCP server registry persistence and startup-time tool discovery. Discovered tools are projected into the normal tool catalog as `mcp_<server>_<tool>` and routed back to their originating MCP server.
+- **MCP command-line workflow**: Added `std_slop mcp add`, `list`, `login`, `refresh`, `logout`, `remove`, and `help` commands for configuring and operating MCP servers.
+- **MCP authentication**: Added bearer-token support with protected token-file storage, OAuth authorization-code + PKCE login and refresh flows, client-secret support for token requests, OAuth endpoint discovery from protected-resource metadata, and improved authentication diagnostics.
+- **MCP examples and documentation**: Added C++ MCP client examples and dedicated documentation for the library API, MCP server configuration, OAuth discovery, bearer tokens, runtime tool exposure, and troubleshooting.
+- **Responses prompt caching**: Stabilized Responses prompt-cache inputs and cache keys, recorded cached-token and cache-write telemetry, preserved whether cache-write telemetry was reported, and added opt-in `SLOP_DEBUG_CACHE` logging for large prompt cache misses.
+- **Streaming and Markdown rendering**: Restored buffered rendering of complete Responses output so headings, lists, inline code, fenced code, and other Markdown are rendered consistently. Fixed extra spaces and missing content caused by incremental stream rendering.
+- **Responses reliability**: Prevented empty Responses message items from poisoning future session requests and improved SSE response normalization across streamed Responses output.
+
 ## v0.25 - 2026-07-19
 - **Structured output**: Batch prompt mode can validate final model output against a bounded JSON Schema subset and emit the validated JSON value to stdout.
 
