@@ -333,7 +333,7 @@ Use status codes to distinguish failures:
 - no queued response available: `Unavailable`
 - closed or uninitialized session: `FailedPrecondition`
 
-Callers should add host-specific remediation text at their boundary. For example, `std::slop` adds messages that tell users to run `std_slop mcp add ... --auth bearer --token ...`, `std_slop mcp login`, or `std_slop mcp refresh`.
+Callers should add host-specific remediation text at their boundary. For example, `std::slop` adds messages that tell users to run `std_slop mcp add ... --auth bearer --token ...`, `std_slop mcp oauth-login`, or `std_slop mcp oauth-refresh`.
 
 ## Security notes
 

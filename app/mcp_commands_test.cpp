@@ -401,6 +401,23 @@ TEST(McpCommandsTest, WrongArgumentsReturnPrescriptiveUsage) {
   EXPECT_TRUE(absl::IsInvalidArgument(status));
   EXPECT_NE(std::string(status.message()).find("OAuth endpoints are discovered"), std::string::npos);
   EXPECT_NE(std::string(status.message()).find("--auth bearer --token <token>"), std::string::npos);
+  EXPECT_NE(std::string(status.message()).find("oauth-login <name>"), std::string::npos);
+  EXPECT_NE(std::string(status.message()).find("oauth-refresh <name>"), std::string::npos);
+}
+
+TEST(McpCommandsTest, OAuthLoginUsesRenamedCommand) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  absl::Status status = RunMcpCommand({"mcp", "oauth-login", "missing"}, &http_client, &input, &output, &error);
+  EXPECT_TRUE(absl::IsNotFound(status));
+
+  status = RunMcpCommand({"mcp", "login", "missing"}, &http_client, &input, &output, &error);
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_NE(std::string(status.message()).find("oauth-login <name>"), std::string::npos);
 }
 
 TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
@@ -417,7 +434,7 @@ TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
                                       &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
 
-  status = RunMcpCommand({"mcp", "refresh", "github"}, &http_client, &input, &output, &error);
+  status = RunMcpCommand({"mcp", "oauth-refresh", "github"}, &http_client, &input, &output, &error);
   EXPECT_FALSE(status.ok());
   EXPECT_NE(std::string(status.message()).find("MCP token refresh failed for server 'github'"), std::string::npos);
 }
@@ -438,7 +455,7 @@ TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
   ASSERT_TRUE(mcp::SaveOAuthTokens(mcp::DefaultTokenPath("github"), {"old-access", "old-refresh", 0}).ok());
 
   http_client.post_response = {200, R"({"access_token":"new-access","refresh_token":"new-refresh","expires_in":60})", {}};
-  status = RunMcpCommand({"mcp", "refresh", "github", "--client-secret", "top secret"}, &http_client, &input, &output,
+  status = RunMcpCommand({"mcp", "oauth-refresh", "github", "--client-secret", "top secret"}, &http_client, &input, &output,
                          &error);
   ASSERT_TRUE(status.ok()) << status;
   EXPECT_NE(http_client.post_body.find("client_secret=top%20secret"), std::string::npos);

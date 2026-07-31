@@ -48,7 +48,7 @@ std::string AuthFailureHint(const ServerRegistryEntry& entry) {
                         " --auth bearer --token <token>`");
   }
   if (entry.auth == kAuthOAuth) {
-    return absl::StrCat("run `std_slop mcp login ", entry.name, "` or `std_slop mcp refresh ", entry.name, "`");
+    return absl::StrCat("run `std_slop mcp oauth-login ", entry.name, "` or `std_slop mcp oauth-refresh ", entry.name, "`");
   }
   return "check the server configuration";
 }

@@ -34,7 +34,7 @@ After initialization, the `Session` supports:
 - `ParseAuthorizationServerMetadata()` validates authorization server metadata JSON.
 - `TokenProvider` is a narrow interface for callers that manage access tokens outside the MCP session.
 
-The helpers parse metadata used by OAuth discovery. The `std_slop mcp add --auth oauth` command can use this metadata to discover authorization and token endpoints, while `std_slop mcp login` performs the PKCE browser-paste flow and stores credentials in the per-server token file. Confidential OAuth clients can pass `--client-secret <secret>` to `mcp login` and `mcp refresh`; the secret is used for that request and is not stored.
+The helpers parse metadata used by OAuth discovery. The `std_slop mcp add --auth oauth` command can use this metadata to discover authorization and token endpoints, while `std_slop mcp oauth-login` performs the PKCE browser-paste flow and stores credentials in the per-server token file. Confidential OAuth clients can pass `--client-secret <secret>` to `mcp oauth-login` and `mcp oauth-refresh`; the secret is used for that request and is not stored.
 
 ## Register MCP servers with std_slop
 
@@ -51,7 +51,7 @@ bazel run //app:std_slop -- mcp add github \
   --url https://example.com/mcp \
   --auth oauth \
   --client-id CLIENT_ID
-bazel run //app:std_slop -- mcp login github
+bazel run //app:std_slop -- mcp oauth-login github
 ```
 
 `CLIENT_ID` must be a real client ID from a registered OAuth app or GitHub App. Discovery finds the authorization and token endpoints only; it cannot create or infer a client ID.
@@ -59,8 +59,8 @@ bazel run //app:std_slop -- mcp login github
 If that app also requires a client secret, pass it only when exchanging or refreshing tokens:
 
 ```sh
-bazel run //app:std_slop -- mcp login github --client-secret CLIENT_SECRET
-bazel run //app:std_slop -- mcp refresh github --client-secret CLIENT_SECRET
+bazel run //app:std_slop -- mcp oauth-login github --client-secret CLIENT_SECRET
+bazel run //app:std_slop -- mcp oauth-refresh github --client-secret CLIENT_SECRET
 ```
 
 The client secret is not written to `mcp.ini` or the token file.
@@ -73,7 +73,7 @@ bazel run //app:std_slop -- mcp add githubcopilot \
   --auth oauth \
   --client-id YOUR_REGISTERED_GITHUB_APP_CLIENT_ID \
   --scope read:user
-bazel run //app:std_slop -- mcp login githubcopilot --client-secret YOUR_REGISTERED_GITHUB_APP_CLIENT_SECRET
+bazel run //app:std_slop -- mcp oauth-login githubcopilot --client-secret YOUR_REGISTERED_GITHUB_APP_CLIENT_SECRET
 ```
 
 If the server does not publish OAuth metadata, pass endpoints manually:
@@ -125,7 +125,7 @@ bazel run //app:std_slop -- mcp add github \
   --client-id CLIENT_ID \
   --authorization-endpoint https://auth.example.com/authorize \
   --token-endpoint https://auth.example.com/token
-bazel run //app:std_slop -- mcp login github
+bazel run //app:std_slop -- mcp oauth-login github
 ```
 
 ## Examples

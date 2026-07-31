@@ -29,10 +29,10 @@ Commands:
       omitted. Use --authorization-endpoint and --token-endpoint together only for manual fallback.
   list
       List configured MCP servers.
-  login <name> [--client-secret <secret>]
+  oauth-login <name> [--client-secret <secret>]
       Start OAuth authorization-code + PKCE browser login and paste the callback URL. Pass --client-secret
       only for OAuth clients that require it; the secret is used once and is not stored.
-  refresh <name> [--client-secret <secret>]
+  oauth-refresh <name> [--client-secret <secret>]
       Refresh a stored OAuth token. Pass --client-secret again if the OAuth server requires it.
   logout <name>
       Delete a stored OAuth token.
@@ -42,7 +42,7 @@ Commands:
 Examples:
   std_slop mcp add private --url https://example.com/mcp --auth bearer --token <token>
   std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id <real_client_id>
-  std_slop mcp login githubcopilot --client-secret <secret>)USAGE";
+  std_slop mcp oauth-login githubcopilot --client-secret <secret>)USAGE";
 }
 
 absl::Status Usage() { return absl::InvalidArgumentError(McpUsageText()); }
@@ -102,7 +102,7 @@ mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, co
 absl::StatusOr<std::string> ClientSecretFromArgs(const std::vector<std::string>& args) {
   if (args.size() == 3) return std::string{};
   if (args.size() == 5 && args[3] == "--client-secret" && !args[4].empty()) return args[4];
-  return absl::InvalidArgumentError("usage: std_slop mcp login|refresh <name> [--client-secret <secret>]");
+  return absl::InvalidArgumentError("usage: std_slop mcp oauth-login|oauth-refresh <name> [--client-secret <secret>]");
 }
 
 absl::Status WithMcpContext(const std::string& action, const std::string& server_name, const absl::Status& status) {
@@ -234,7 +234,7 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     *out << "MCP token deleted: " << args[2] << "\n";
     return absl::OkStatus();
   }
-  if (command == "login") {
+  if (command == "oauth-login") {
     if ((args.size() != 3 && args.size() != 5) || http_client == nullptr || in == nullptr) return Usage();
     auto client_secret = ClientSecretFromArgs(args);
     if (!client_secret.ok()) return client_secret.status();
@@ -252,10 +252,10 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     if (!tokens.ok()) return WithMcpContext("token exchange", entry->name, tokens.status());
     const absl::Status status = mcp::SaveOAuthTokens(entry->token_path, *tokens);
     if (!status.ok()) return WithMcpContext("token save", entry->name, status);
-    *out << "MCP login complete: " << entry->name << "\n";
+    *out << "MCP OAuth login complete: " << entry->name << "\n";
     return absl::OkStatus();
   }
-  if (command == "refresh") {
+  if (command == "oauth-refresh") {
     if ((args.size() != 3 && args.size() != 5) || http_client == nullptr) return Usage();
     auto client_secret = ClientSecretFromArgs(args);
     if (!client_secret.ok()) return client_secret.status();

@@ -360,10 +360,11 @@ TEST(UiTest, GetCliHelpTextDocumentsCleanPromptInputContract) {
 TEST(UiTest, GetCliHelpTextDocumentsMcpCommands) {
   const std::string help = GetCliHelpText();
 
-  EXPECT_TRUE(absl::StrContains(help, "std_slop mcp <add|remove|list|login|refresh|logout|help>"));
+  EXPECT_TRUE(absl::StrContains(help, "std_slop mcp <add|remove|list|oauth-login|oauth-refresh|logout|help>"));
   EXPECT_TRUE(absl::StrContains(help, "std_slop mcp add <name>"));
   EXPECT_TRUE(absl::StrContains(help, "registered OAuth/GitHub App"));
   EXPECT_TRUE(absl::StrContains(help, "--client-secret <secret>"));
+  EXPECT_TRUE(absl::StrContains(help, "std_slop mcp oauth-refresh <name>"));
 }
 
 TEST(UiTest, GetInAppHelpTextShowsSlashCommands) {

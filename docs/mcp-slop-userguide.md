@@ -178,12 +178,12 @@ std_slop mcp add github \
 
 Do not pass only one endpoint. Manual fallback requires both.
 
-### Login
+### OAuth login
 
 Start browser-paste login:
 
 ```sh
-std_slop mcp login github
+std_slop mcp oauth-login github
 ```
 
 The command prints an authorization URL. Open it in a browser, complete the provider flow, then paste the callback URL at the prompt.
@@ -191,23 +191,23 @@ The command prints an authorization URL. Open it in a browser, complete the prov
 If the OAuth client requires a secret, pass it only when exchanging the code:
 
 ```sh
-std_slop mcp login github --client-secret CLIENT_SECRET
+std_slop mcp oauth-login github --client-secret CLIENT_SECRET
 ```
 
 The client secret is used for that request and is not stored.
 
-### Refresh
+### OAuth refresh
 
 Refresh a stored OAuth token:
 
 ```sh
-std_slop mcp refresh github
+std_slop mcp oauth-refresh github
 ```
 
 If the OAuth client requires a secret for refresh:
 
 ```sh
-std_slop mcp refresh github --client-secret CLIENT_SECRET
+std_slop mcp oauth-refresh github --client-secret CLIENT_SECRET
 ```
 
 ### Logout
@@ -260,13 +260,13 @@ std_slop mcp add <name> --url <mcp_endpoint> --auth bearer --token <token>
 Fix:
 
 ```sh
-std_slop mcp login <name>
+std_slop mcp oauth-login <name>
 ```
 
 or:
 
 ```sh
-std_slop mcp refresh <name>
+std_slop mcp oauth-refresh <name>
 ```
 
 ### Permission denied
