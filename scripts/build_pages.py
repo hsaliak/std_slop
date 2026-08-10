@@ -33,6 +33,7 @@ class PageSpec:
     label: str
     title: str
     sources: tuple[SourceSpec, ...]
+    show_hero: bool = True
 
 
 PAGES = (
@@ -49,6 +50,7 @@ PAGES = (
             "📚 Documentation",
             "🏗️ Architecture & Codebase Layout",
         ), True),),
+        False,
     ),
     PageSpec(
         "agent.html",
@@ -318,7 +320,7 @@ def navigation(active: str) -> str:
 
 def page_document(spec: PageSpec, content: str) -> str:
     title_markup = "" if content.lstrip().startswith("<h1>") else f"<h1>{html.escape(spec.title)}</h1>"
-    hero = f'<section class="page-hero shell"><p class="eyebrow">Source: {html.escape(spec.label)}</p>{title_markup}</section>' if title_markup else ""
+    hero = f'<section class="page-hero shell"><p class="eyebrow">Source: {html.escape(spec.label)}</p>{title_markup}</section>' if title_markup and spec.show_hero else ""
     return f'''<!doctype html>
 <html lang="en">
 <head>
@@ -330,7 +332,7 @@ def page_document(spec: PageSpec, content: str) -> str:
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
-  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><span class="prompt">$</span> std::slop</a><nav aria-label="Primary navigation">{navigation(spec.output)}</nav></div></header>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation">{navigation(spec.output)}</nav></div></header>
   <main id="main-content">
 {hero}
     <article class="shell markdown-content">{content}<p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
