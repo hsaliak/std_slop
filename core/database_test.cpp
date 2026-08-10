@@ -148,6 +148,7 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
   bool found_patcher = false;
   bool found_self_improvement_learner = false;
   bool found_subagent_creator = false;
+  bool found_github_pages = false;
   std::string patcher_prompt;
   std::string self_improvement_learner_prompt;
   std::string subagent_creator_prompt;
@@ -166,14 +167,16 @@ TEST(DatabaseTest, DefaultSkillsAndToolsRegistered) {
       found_subagent_creator = true;
       subagent_creator_prompt = s.system_prompt_patch;
     }
+    if (s.name == "github-pages") found_github_pages = true;
     EXPECT_FALSE(s.system_prompt_patch.empty());
   }
-  EXPECT_EQ(skills->size(), 8);
+  EXPECT_EQ(skills->size(), 9);
   EXPECT_TRUE(found_planner);
   EXPECT_TRUE(found_code_reviewer);
   EXPECT_TRUE(found_patcher);
   EXPECT_TRUE(found_self_improvement_learner);
   EXPECT_TRUE(found_subagent_creator);
+  EXPECT_TRUE(found_github_pages);
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "/review mail"));
   EXPECT_TRUE(absl::StrContains(patcher_prompt, "Do NOT declare completion"));
   EXPECT_TRUE(absl::StrContains(self_improvement_learner_prompt, "direct tool usage"));
