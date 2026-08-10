@@ -173,6 +173,16 @@ TEST_F(CommandHandlerTest, HandlesUnknownCommand) {
   auto res = handler.Handle(input, sid, active_skills, []() {}, {});
   EXPECT_EQ(res, CommandHandler::Result::UNKNOWN);
 }
+TEST_F(CommandHandlerTest, RemovedMemoAliasIsUnknown) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string input = "/memo";
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  auto res = handler.Handle(input, sid, active_skills, []() {}, {});
+  EXPECT_EQ(res, CommandHandler::Result::UNKNOWN);
+}
 TEST_F(CommandHandlerTest, HandlesCommandWithWhitespace) {
   auto handler_or = CommandHandler::Create(&db);
   ASSERT_TRUE(handler_or.ok());

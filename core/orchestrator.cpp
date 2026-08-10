@@ -72,8 +72,7 @@ void Orchestrator::Builder::Apply(Orchestrator* orchestrator) {
  * 1. Fetching session context settings (e.g., window size).
  * 2. Retrieving relevant conversation history from the database.
  * 3. Building system instructions including history guidelines.
- * 4. Injecting relevant memos based on history context.
- * 5. formatting the final Responses request.
+ * 4. Formatting the final Responses request.
  *
  * @param session_id The active session ID.
  * @param active_skills List of skills currently active for the turn.

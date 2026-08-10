@@ -9,7 +9,9 @@ The `automated-mail-mode` skill can execute this workflow with minimal interrupt
 
 ## 1. Core Philosophy
 
-Mail Mode treats the agent as a remote contributor. Instead of making ad hoc changes directly on `main`, the agent builds a reviewable patch series on a staging branch. This encourages atomic commits, clearer rationale, and bisect-safe history.
+Mail Mode treats the agent as a remote contributor. Instead of making ad hoc changes directly on `main`, the agent builds a reviewable patch series on a staging branch. It is ideal when manual code review still happens: the human reviewer remains responsible for correctness and approval, while the agent keeps the implementation in small, discrete, reviewable patch sets.
+
+Each patch should represent one logical change, carry a clear rationale, pass the relevant checks on its own, and leave the repository in a usable state. This keeps the series easy to review, safe to reroll, and useful for `git bisect` when a regression is found. Mail Mode automates staging, patch metadata, verification, rerolls, and finalization; it does not replace manual code review.
 
 ## 2. High-Level Flow
 
@@ -26,9 +28,10 @@ Mail Mode treats the agent as a remote contributor. Instead of making ad hoc cha
 ## 3. Staging Branch Workflow
 
 - **Branching**: Use `git_create_staging_branch(base_branch, name)` to create or switch to a staging branch.
-- **Atomic commits**: Keep each commit logically scoped and bisect-safe.
+- **Small patch sets**: Keep each commit focused on one logical change, independently reviewable and bisect-safe.
+- **Manual review**: Review every patch for correctness, regressions, and design fit before approval; Mail Mode does not substitute for that judgment.
 - **Rationale**: Use `git_commit_patch(summary, rationale)` so each patch records why it exists, not just what changed.
-- **Verification**: Run a deterministic validation command before asking for review.
+- **Verification**: Run a deterministic validation command for each patch before asking for review.
 
 ## 4. Review and Reroll
 
@@ -63,5 +66,5 @@ Mail Mode treats the agent as a remote contributor. Instead of making ad hoc cha
 
 - Start with a clean working tree.
 - Keep `slop.db` and related SQLite artifacts outside the repository or in `.gitignore`.
-- Prefer several small patches over one large patch.
+- Prefer several small, discrete patches over one large patch; each patch should be easy to review, verify, revert, and locate with `git bisect`.
 - Use the same deterministic validation command for local verification and `git_verify_series(...)`.

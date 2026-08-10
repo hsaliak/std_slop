@@ -242,9 +242,6 @@ void MarkdownRenderer::RenderNodeRecursive(TSNode node, const ParsedMarkdown& pa
     } else if (absl::StrContains(lower_text, "skill")) {
       output.append(icons::Skill);
       output.append(" ");
-    } else if (absl::StrContains(lower_text, "memo")) {
-      output.append(icons::Memo);
-      output.append(" ");
     }
   }
 

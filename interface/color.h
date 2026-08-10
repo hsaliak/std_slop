@@ -12,7 +12,6 @@ constexpr const char* Tool = "🛠️";
 constexpr const char* Thought = "🧠";
 constexpr const char* Output = "📤";
 constexpr const char* Input = "📥";
-constexpr const char* Memo = "📝";
 constexpr const char* Skill = "🎓";
 constexpr const char* Session = "🕒";
 constexpr const char* Robot = "🤖";

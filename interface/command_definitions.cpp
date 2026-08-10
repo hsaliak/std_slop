@@ -15,7 +15,7 @@ const std::vector<CommandDefinition>& GetCommandDefinitions() {
        "Session & Memory"},
       {"/agents_md",
        {"show", "reload"},
-       {"/memo"},
+       {},
        {"/agents_md show", "/agents_md reload [path]"},
        "Session & Memory"},
       {"/message",

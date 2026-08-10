@@ -10,7 +10,7 @@ Use this index to find the right `std::slop` doc for your task.
 
 ## Advanced Workflows
 
-- [mail_mode.md](mail_mode.md) — patch-based workflow using staging branches, review, rerolls, and finalization.
+- [mail_mode.md](mail_mode.md) — manual-review-first patch workflow using small, discrete, bisectable staging-branch patches, review, rerolls, and finalization.
 - [mcp-slop-userguide.md](mcp-slop-userguide.md) — configure and use MCP servers from `std_slop`.
 
 ## Core Concepts and Reference

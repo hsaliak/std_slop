@@ -9,7 +9,7 @@
 
 `std::slop` is a persistent, SQLite-driven C++ CLI coding agent. It exposes direct, schema-validated tools for repository inspection, exact edits, unified patches, shell validation, database access, scratchpad state, and mail-mode git workflows.
 
-Direct tools keep ordinary operations explicit and individually reviewable. Mail workflow tools enforce staging, review, approval, and finalization protections server-side.
+Direct tools keep ordinary operations explicit and individually reviewable. Mail workflow tools enforce staging, review, approval, and finalization protections server-side. Mail Mode is ideal when manual code review still happens: it breaks work into small, discrete, reviewable patch sets that preserve clear rationale and support reliable git bisection.
 
 ## Key Features
 
@@ -18,7 +18,7 @@ Direct tools keep ordinary operations explicit and individually reviewable. Mail
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: SQL-backed, per-session accordion history preserves an append-only prompt prefix between resets, so sessions can grow independently while retaining cache-friendly context.
 - **🪗 Accordion context**: Use `/context <retain_groups> [watermark_tokens]` to grow a cache-friendly prompt prefix, then reset to complete recent groups after the latest actual prompt usage reaches the watermark (defaults: `2`, `350000`). Tool results remain full fidelity up to their configured per-result limit.
-- **Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for patch-based delivery.
+- **Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for a review-first patch workflow. Manual code review remains the authority while each small, discrete patch stays independently reviewable, verifiable, and suitable for git bisection.
 - **Models**: Supports OpenAI-compatible Responses endpoints and ChatGPT Plus/Pro OAuth.
 - **Hotwords**: Activate a skill for one turn with `hey <skill> <query>`.
 
@@ -166,7 +166,7 @@ Detailed behavior and policy constraints are documented in
 ### `core/` - The Engine
 The core logic is divided into modules:
 
-- **`database.h`**: Manages the SQLite-backed ledger. Handles persistence for messages, memos, tools, and skills.
+- **`database.h`**: Manages the SQLite-backed ledger. Handles persistence for messages, tools, skills, sessions, and usage data.
 - **`tool_dispatcher.h`**: Implements a thread-safe execution engine. It dispatches multiple tool calls concurrently while ensuring results are returned in the proper order for the LLM.
 - **`cancellation.h`**: Provides a mechanism for interrupting tasks. It supports registering callbacks to kill shell processes or abort HTTP requests.
 - **`orchestrator.h`**: high-level interface for model interaction. The Responses API orchestrator manages history windowing and response parsing.
