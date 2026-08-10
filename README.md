@@ -5,7 +5,7 @@
 
 [![CodeQL Advanced](https://github.com/hsaliak/std_slop/actions/workflows/codeql.yml/badge.svg)](https://github.com/hsaliak/std_slop/actions/workflows/codeql.yml)
 
-![std::slop](docs/slop.png)
+![std::slop logo](docs/slop.png)
 
 `std::slop` is a persistent, SQLite-driven C++ CLI coding agent. It exposes direct, schema-validated tools for repository inspection, exact edits, unified patches, shell validation, database access, scratchpad state, and mail-mode git workflows.
 

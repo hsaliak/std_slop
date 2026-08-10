@@ -2,6 +2,8 @@
 
 Use this index to find the right `std::slop` doc for your task.
 
+![std::slop logo](slop.png)
+
 ## Start Here
 
 - [WALKTHROUGH.md](WALKTHROUGH.md) — canonical onboarding guide for installation, authentication setup, `config.ini`, first session flow, and `llm_query` subquery configuration.

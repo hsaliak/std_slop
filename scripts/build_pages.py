@@ -156,7 +156,7 @@ def read_source(root: Path, spec: SourceSpec) -> list[str]:
         len(lines),
     )
     intro = lines[:first_section]
-    intro = [line for line in intro if not line.startswith("# ") and not line.startswith("[") and not line.startswith("![")]
+    intro = [line for line in intro if not line.startswith("# ") and not line.startswith("[")]
     return intro + selected
 
 
