@@ -7,9 +7,9 @@
 
 ![std::slop logo](docs/slop.png)
 
-`std::slop` is a persistent, SQLite-driven C++ CLI coding agent. It exposes direct, schema-validated tools for repository inspection, exact edits, unified patches, shell validation, database access, scratchpad state, and mail-mode git workflows.
+`std::slop` is a persistent, SQLite-driven C++ CLI coding agent. 
 
-Direct tools keep ordinary operations explicit and individually reviewable. Mail workflow tools enforce staging, review, approval, and finalization protections server-side. Mail Mode is ideal when manual code review still happens: it breaks work into small, discrete, reviewable patch sets that preserve clear rationale and support reliable git bisection.
+It exposes direct, schema-validated tools for repository inspection, exact edits, unified patches, shell validation, database access, scratchpad state, and mail-mode git workflows. Direct tools keep ordinary operations explicit and individually reviewable. Mail workflow tools enforce staging, review, approval, and finalization protections server-side. Mail Mode is ideal when manual code review still happens: it breaks work into small, discrete, reviewable patch sets that preserve clear rationale and support reliable git bisection.
 
 ## Key Features
 
