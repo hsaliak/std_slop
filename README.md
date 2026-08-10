@@ -18,8 +18,8 @@ Direct tools keep ordinary operations explicit and individually reviewable. Mail
 - **📝 Session Scratchpad**: Maintain a per-session planning buffer with `/scratchpad edit`, `/scratchpad save`, and `read_scratchpad`/`write_scratchpad` tools.
 - **🎛️ Context Control**: SQL-backed, per-session accordion history preserves an append-only prompt prefix between resets, so sessions can grow independently while retaining cache-friendly context.
 - **🪗 Accordion context**: Use `/context <retain_groups> [watermark_tokens]` to grow a cache-friendly prompt prefix, then reset to complete recent groups after the latest actual prompt usage reaches the watermark (defaults: `2`, `350000`). Tool results remain full fidelity up to their configured per-result limit.
-- **Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for a review-first patch workflow. Manual code review remains the authority while each small, discrete patch stays independently reviewable, verifiable, and suitable for git bisection.
-- **Models**: Supports OpenAI-compatible Responses endpoints and ChatGPT Plus/Pro OAuth.
+- **Mail workflows**: Use [docs/mail_mode.md](docs/mail_mode.md) for a review-first patch workflow. Careful code review remains the authority while each small, discrete patch stays independently reviewable, verifiable, and suitable for git bisection.
+- **Models**: Supports OpenAI-compatible Responses endpoints and ChatGPT Plus/Pro OAuth. Practically, routers such as OpenRouter make this sufficient for accessing a variety of models.
 - **Hotwords**: Activate a skill for one turn with `hey <skill> <query>`.
 
 ## 🚀 Quick Start
