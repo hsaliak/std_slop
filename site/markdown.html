@@ -1,24 +1,78 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="The self-contained C++ Tree-sitter Markdown parser and ANSI renderer included in std::slop."><title>Markdown library — std::slop</title><link rel="stylesheet" href="styles.css"></head>
-<body><a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><span class="prompt">$</span> std::slop</a><nav aria-label="Primary navigation"><a href="agent.html">Agent</a><a href="mcp.html">MCP</a><a class="active" aria-current="page" href="markdown.html">Markdown</a><a href="docs.html">Docs</a><a class="nav-github" href="https://github.com/hsaliak/std_slop">GitHub</a></nav></div></header>
-<main id="main-content"><section class="page-hero shell"><p class="eyebrow">Library / Markdown</p><h1>A self-contained C++ Markdown parser and renderer.</h1><p class="lede">The <code>markdown/</code> package is used by the std::slop terminal UI, but has a clean API and package boundary of its own. It parses with Tree-sitter and renders ANSI-styled terminal output.</p></section>
-<section class="section shell"><div class="section-heading"><p class="eyebrow">C++ API</p><h2>Parse a source buffer and render into a sink.</h2></div><div class="terminal-window"><div class="terminal-bar"><span></span><span></span><span></span><strong>markdown.cpp</strong></div><pre><code>#include "markdown/parser.h"
-#include "markdown/renderer.h"
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Technical documentation for std::slop: a C++ coding agent and integrated MCP and Markdown libraries.">
+  <title>Markdown library — std::slop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><span class="prompt">$</span> std::slop</a><nav aria-label="Primary navigation"><a href="agent.html">Agent</a><a href="mcp.html">MCP</a><a class="active" aria-current="page" href="markdown.html">Markdown</a><a href="docs.html">Docs</a><a href="https://github.com/hsaliak/std_slop">GitHub</a></nav></div></header>
+  <main id="main-content">
 
+    <article class="shell markdown-content"><h1>Markdown Parser &amp; Renderer</h1>
+<p>A C++ library for parsing and rendering Markdown to terminal output with ANSI styling, powered by <a href="https://tree-sitter.github.io/tree-sitter/">Tree-sitter</a>.</p>
+<h2>Architecture</h2>
+<p>The library is split into two main components:</p>
+<h3>1. Markdown Parser (<code>//markdown:parser</code>)</h3>
+<p>Wraps the <code>tree-sitter-markdown</code> and <code>tree-sitter-markdown-inline</code> grammars.</p>
+<ul><li><strong>Dual-Phase Parsing</strong>: First parses block-level structures, then automatically identifies and parses inline content (injections).</li><li><strong>Injection Support</strong>: Detects fenced code blocks and tracks their language and content ranges.</li><li><strong>Efficiency</strong>: Reuses parsers and uses optimized lookups for injected trees.</li></ul>
+<h3>2. Markdown Renderer (<code>//markdown:renderer</code>)</h3>
+<p>Transforms a <code>ParsedMarkdown</code> object into an ANSI-styled <code>std::string</code>.</p>
+<ul><li><strong>DFS Traversal</strong>: Recursively visits nodes in the Tree-sitter forest.</li><li><strong>Centralized Styling</strong>: Uses <code>color.h</code> (specifically the <code>ansi::theme::markdown</code> namespace) for all visual definitions.</li><li><strong>Bleed Prevention</strong>: Automatically re-applies styles when traversing across markers (e.g., ensuring a heading text remains colored after the <code>#</code> marker reset).</li></ul>
+<h2>API Reference</h2>
+<h3><code>MarkdownParser</code></h3>
+<p>The primary entry point for parsing Markdown content.</p>
+<ul><li><code>MarkdownParser()</code>: Initializes the Tree-sitter parsers and languages.</li><li><code>absl::StatusOr&lt;std::unique_ptr&lt;ParsedMarkdown&gt;&gt; Parse(std::string source)</code>: Parses the provided Markdown source string. Returns a <code>ParsedMarkdown</code> object containing the syntax forest and detected injections.</li></ul>
+<h3><code>ParsedMarkdown</code></h3>
+<p>A container for the results of a parse operation.</p>
+<ul><li><code>const std::string&amp; source() const</code>: Returns the original Markdown source string.</li><li><code>TSTree* tree() const</code>: Returns the root block-level Tree-sitter tree.</li><li><code>const Injection* GetInjection(Range range) const</code>: Retrieves an injection (e.g., inline formatting or code block) for a specific byte range, if one exists.</li></ul>
+<h3><code>MarkdownRenderer</code></h3>
+<p>Handles the conversion of a <code>ParsedMarkdown</code> object into a styled string.</p>
+<ul><li><code>void SetMaxWidth(size_t width)</code>: Sets the maximum width for layout (e.g., terminal width). If set to 0 (default), no wrapping or shrinking is applied.</li><li><code>void Render(const ParsedMarkdown&amp; parsed, std::string* output)</code>: <strong>(Preferred)</strong> Appends the rendered output to the provided <code>std::string</code>. This "sink" model allows for efficient pre-allocation and avoids large string copies when building complex UI components.</li><li><code>std::string Render(const ParsedMarkdown&amp; parsed)</code>: Convenience wrapper that returns a new string.</li></ul>
+<h4>Syntax Highlighting</h4>
+<p>The renderer uses Tree-sitter grammars to provide syntax highlighting within fenced code blocks. Currently supported languages include:</p>
+<ul><li><strong>C / C++</strong> (<code>cpp</code>, <code>c</code>, <code>cc</code>, <code>cxx</code>, <code>hpp</code>)</li><li><strong>Python</strong> (<code>python</code>, <code>py</code>)</li><li><strong>Go</strong> (<code>go</code>)</li><li><strong>JavaScript</strong> (<code>javascript</code>, <code>js</code>)</li><li><strong>Rust</strong> (<code>rust</code>, <code>rs</code>)</li><li><strong>Bash / Shell</strong> (<code>bash</code>, <code>sh</code>)</li></ul>
+<h3>Dynamic Table Wrapping</h3>
+<p>The renderer includes algorithmic table layout logic:</p>
+<ul><li><strong>Greedy Column Shrinking</strong>: If a table exceeds <code>max_width</code>, the renderer iteratively shrinks the widest columns until the table fits or a minimum column width is reached.</li><li><strong>Multi-line Cells</strong>: Content within table cells is word-wrapped to the column's assigned width, creating multi-line rows that preserve the table grid structure.</li><li><strong>UTF-8 Awareness</strong>: Width calculations and word-breaking logic are multi-byte aware, ensuring correct rendering of international characters and ANSI-styled content.</li></ul>
+<h3>Supporting Types</h3>
+<ul><li><code>Range</code>: Represents a byte range <code>[start_byte, end_byte)</code> in the source document.</li><li><code>Injection</code>: Contains metadata about a sub-language injection, including the language name, the range it occupies, and a pointer to its own <code>TSTree</code>.</li></ul>
+<h2>Usage</h2>
+<pre><code class="language-cpp">#include &quot;markdown/parser.h&quot;
+#include &quot;markdown/renderer.h&quot;
+
+// 1. Create a parser and parse source.
+// The parser takes a std::string by value and moves it internally
+// to ensure the buffer remains stable for the syntax tree.
 slop::markdown::MarkdownParser parser;
-std::string source = "# Hello World\\nThis is **bold**.";
-auto parsed = parser.Parse(std::move(source));
-if (!parsed.ok()) return parsed.status();
+std::string source = &quot;# Hello World\nThis is **bold**.&quot;;
+auto result = parser.Parse(std::move(source));
 
-slop::markdown::MarkdownRenderer renderer;
-renderer.SetMaxWidth(80);
-std::string output;
-renderer.Render(*parsed.value(), &amp;output);
-std::cout &lt;&lt; output;</code></pre></div></section>
-<section class="section section-muted"><div class="shell card-grid two-columns"><article class="card"><p class="card-kicker">Parser</p><h2>Tree-sitter structure.</h2><p>The parser wraps the block-level and inline Markdown grammars. Fenced code blocks are parsed through language injections and stored with their source ranges and syntax trees.</p><p><code>//markdown:parser</code></p></article><article class="card"><p class="card-kicker">Renderer</p><h2>ANSI terminal output.</h2><p>The renderer traverses the parsed tree, applies centralized styles, and supports sink-based output so callers can reuse and reserve their destination buffer.</p><p><code>//markdown:renderer</code></p></article></div></section>
-<section class="section shell"><div class="section-heading"><p class="eyebrow">Implementation details</p><h2>Output constraints are handled in the library.</h2></div><div class="feature-list"><article class="feature-row"><span class="feature-number">01</span><div><h3>Fenced-code highlighting</h3><p>C/C++, Python, Go, JavaScript, Rust, and Bash/Shell are supported through Tree-sitter grammars.</p></div></article><article class="feature-row"><span class="feature-number">02</span><div><h3>Table layout</h3><p>Wide tables shrink the widest columns, wrap multi-line cells, and preserve the table grid within <code>max_width</code>.</p></div></article><article class="feature-row"><span class="feature-number">03</span><div><h3>Buffer ownership</h3><p><code>MarkdownParser::Parse</code> takes the source by value so the parsed result owns the buffer referenced by Tree-sitter.</p></div></article><article class="feature-row"><span class="feature-number">04</span><div><h3>UTF-8-aware width</h3><p>Width calculation and word breaking account for multi-byte text and ANSI-styled content.</p></div></article></div></section>
-<section class="section section-dark"><div class="shell split-section align-start"><div><p class="eyebrow">Bazel targets</p><h2>Use the package through its public targets.</h2><p>The package is part of the same repository and build graph as the agent. Its tests cover parser structure, rendering, syntax highlighting, and terminal layout.</p></div><div class="terminal-window"><div class="terminal-bar"><span></span><span></span><span></span><strong>bazel</strong></div><pre><code>bazel test //markdown:parser_test
-bazel test //markdown:renderer_test</code></pre></div></div></section>
-<section class="section shell"><p><a class="text-link" href="https://github.com/hsaliak/std_slop/blob/main/markdown/README.md">Library README <span aria-hidden="true">→</span></a> · <a class="text-link" href="https://github.com/hsaliak/std_slop/tree/main/markdown">Source package <span aria-hidden="true">→</span></a></p></section>
-</main><footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP and Markdown libraries</span><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer></body></html>
+if (result.ok()) {
+    auto&amp; parsed = *result.value();
+
+    // 2. Render to terminal-ready string.
+    slop::markdown::MarkdownRenderer renderer;
+    renderer.SetMaxWidth(80);
+
+    // Use the sink-based Render for better performance
+    std::string terminal_output;
+    terminal_output.reserve(parsed.source().length() * 2); // Heuristic for ANSI overhead
+    renderer.Render(parsed, &amp;terminal_output);
+
+    std::cout &lt;&lt; terminal_output &lt;&lt; std::endl;
+}</code></pre>
+<h2>Styling</h2>
+<p>Styles are centralized in <code>color.h</code>. You can customize the look of headers, code blocks, and other elements by modifying the <code>ansi::theme::markdown</code> namespace.</p>
+<h2>Design &amp; Performance Considerations</h2>
+<h3>Memory Management &amp; Ownership</h3>
+<ul><li><strong>Parser Input</strong>: <code>MarkdownParser::Parse</code> takes <code>std::string</code> by value. This is a deliberate design choice:</li><li>It allows the caller to <code>std::move</code> an existing buffer, avoiding any copies.</li><li>It guarantees that the <code>ParsedMarkdown</code> object owns its source buffer. This is critical because the underlying <code>tree-sitter</code> syntax tree maintains raw pointers into this buffer.</li><li><strong>Renderer "Sink" Model</strong>: The <code>Render(parsed, &amp;output)</code> method is the primary way to generate output. By passing a pointer to an existing string, callers can reuse buffers or pre-allocate memory (via <code>reserve()</code>), which is faster than returning large strings from deep recursion.</li></ul>
+<h3>Efficiency</h3>
+<ul><li><strong>Tree-sitter Forest</strong>: The library manages multiple <code>TSTree</code> objects (main tree + injections) efficiently via <code>shared_ptr</code> and custom destructors.</li><li><strong>Lookups</strong>: Injected trees are stored in a <code>std::map</code> with custom <code>Range</code> keys for $O(\log N)$ lookup during rendering. This ensures that even with hundreds of injections (e.g., in a large table), finding the correct tree for a node is fast.</li><li><strong>ANSI Styling</strong>: The renderer minimizes style code bloat by only emitting ANSI reset codes when necessary and tracking the current styling state to avoid redundant escape sequences.</li></ul><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP and Markdown libraries</span><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+</body>
+</html>

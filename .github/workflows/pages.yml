@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Build site from repository documentation
+        run: python3 scripts/build_pages.py
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact

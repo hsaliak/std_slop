@@ -5,6 +5,7 @@ exports_files([
     "fix.sh",
     "clang_tidy_fix.sh",
     "generate_builtin_skills.sh",
+    "build_pages.py",
 ])
 
 
