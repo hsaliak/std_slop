@@ -235,8 +235,21 @@ def table(lines: list[str], source_path: str) -> str:
     return "".join(output)
 
 
-def render_markdown(lines: list[str], source_path: str) -> str:
+def heading_id(title: str, used_ids: set[str]) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "section"
+    candidate = base
+    suffix = 2
+    while candidate in used_ids:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    used_ids.add(candidate)
+    return candidate
+
+
+def render_markdown(lines: list[str], source_path: str, used_heading_ids: set[str] | None = None) -> str:
     output: list[str] = []
+    if used_heading_ids is None:
+        used_heading_ids = set()
     paragraph: list[str] = []
     index = 0
 
@@ -272,7 +285,8 @@ def render_markdown(lines: list[str], source_path: str) -> str:
         if current_heading:
             flush_paragraph()
             level, title = current_heading
-            output.append(f'<h{level}>{inline(title, source_path)}</h{level}>')
+            anchor = heading_id(title, used_heading_ids)
+            output.append(f'<h{level} id="{anchor}">{inline(title, source_path)}</h{level}>')
             index += 1
             continue
         if stripped.startswith("|") and index + 1 < len(lines) and re.match(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$", lines[index + 1]):
@@ -318,9 +332,36 @@ def navigation(active: str) -> str:
     return "".join(links)
 
 
+def markup_text(markup: str) -> str:
+    return html.escape(html.unescape(re.sub(r"<[^>]+>", "", markup)))
+
+
+def build_toc(content: str) -> str:
+    headings = re.findall(r'<h([23]) id="([^"]+)">(.*?)</h[23]>', content)
+    if not headings:
+        return ""
+    items = []
+    for level, anchor, title in headings:
+        items.append(f'<li class="toc-level-{level}"><a href="#{anchor}">{markup_text(title)}</a></li>')
+    return '<aside class="toc" aria-label="On this page"><p>On this page</p><ul>' + "".join(items) + "</ul></aside>"
+
+
+def structure_content(content: str) -> str:
+    parts = re.split(r'(?=<h2 id="[^"]+">)', content)
+    lead = parts[0].strip()
+    sections = [f'<section class="doc-section">{part.strip()}</section>' for part in parts[1:] if part.strip()]
+    output = []
+    if lead:
+        output.append(f'<div class="doc-lead">{lead}</div>')
+    output.extend(sections)
+    return "\n".join(output)
+
+
 def page_document(spec: PageSpec, content: str) -> str:
     title_markup = "" if content.lstrip().startswith("<h1>") else f"<h1>{html.escape(spec.title)}</h1>"
     hero = f'<section class="page-hero shell"><p class="eyebrow">Source: {html.escape(spec.label)}</p>{title_markup}</section>' if title_markup and spec.show_hero else ""
+    toc = build_toc(content)
+    layout_class = "doc-layout" if toc else "doc-layout no-toc"
     return f'''<!doctype html>
 <html lang="en">
 <head>
@@ -335,7 +376,8 @@ def page_document(spec: PageSpec, content: str) -> str:
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation">{navigation(spec.output)}</nav></div></header>
   <main id="main-content">
 {hero}
-    <article class="shell markdown-content">{content}<p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    <div class="shell {layout_class}">{toc}<article class="markdown-content">{structure_content(content)}<p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
   </main>
   <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP and Markdown libraries</span><a href="{REPOSITORY_URL}">Source on GitHub</a></div></footer>
 </body>
@@ -353,8 +395,9 @@ def build(root: Path, output: Path) -> None:
         old.unlink()
     for spec in PAGES:
         fragments = []
+        used_heading_ids: set[str] = set()
         for source in spec.sources:
-            fragments.append(render_markdown(read_source(root, source), source.path))
+            fragments.append(render_markdown(read_source(root, source), source.path, used_heading_ids))
         (output / spec.output).write_text(page_document(spec, "\n".join(fragments)), encoding="utf-8")
     write_not_found(output)
     stylesheet = root / "site/styles.css"

@@ -11,36 +11,36 @@
   <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><a href="agent.html">Agent</a><a href="mcp.html">MCP</a><a class="active" aria-current="page" href="markdown.html">Markdown</a><a href="docs.html">Docs</a><a href="https://github.com/hsaliak/std_slop">GitHub</a></nav></div></header>
   <main id="main-content">
-
-    <article class="shell markdown-content"><h1>Markdown Parser &amp; Renderer</h1>
-<p>A C++ library for parsing and rendering Markdown to terminal output with ANSI styling, powered by <a href="https://tree-sitter.github.io/tree-sitter/">Tree-sitter</a>.</p>
-<h2>Architecture</h2>
+<section class="page-hero shell"><p class="eyebrow">Source: markdown/README.md</p><h1>Markdown library</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#architecture">Architecture</a></li><li class="toc-level-3"><a href="#1-markdown-parser-markdown-parser">1. Markdown Parser (//markdown:parser)</a></li><li class="toc-level-3"><a href="#2-markdown-renderer-markdown-renderer">2. Markdown Renderer (//markdown:renderer)</a></li><li class="toc-level-2"><a href="#api-reference">API Reference</a></li><li class="toc-level-3"><a href="#markdownparser">MarkdownParser</a></li><li class="toc-level-3"><a href="#parsedmarkdown">ParsedMarkdown</a></li><li class="toc-level-3"><a href="#markdownrenderer">MarkdownRenderer</a></li><li class="toc-level-3"><a href="#dynamic-table-wrapping">Dynamic Table Wrapping</a></li><li class="toc-level-3"><a href="#supporting-types">Supporting Types</a></li><li class="toc-level-2"><a href="#usage">Usage</a></li><li class="toc-level-2"><a href="#styling">Styling</a></li><li class="toc-level-2"><a href="#design-performance-considerations">Design &amp; Performance Considerations</a></li><li class="toc-level-3"><a href="#memory-management-ownership">Memory Management &amp; Ownership</a></li><li class="toc-level-3"><a href="#efficiency">Efficiency</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="markdown-parser-renderer">Markdown Parser &amp; Renderer</h1>
+<p>A C++ library for parsing and rendering Markdown to terminal output with ANSI styling, powered by <a href="https://tree-sitter.github.io/tree-sitter/">Tree-sitter</a>.</p></div>
+<section class="doc-section"><h2 id="architecture">Architecture</h2>
 <p>The library is split into two main components:</p>
-<h3>1. Markdown Parser (<code>//markdown:parser</code>)</h3>
+<h3 id="1-markdown-parser-markdown-parser">1. Markdown Parser (<code>//markdown:parser</code>)</h3>
 <p>Wraps the <code>tree-sitter-markdown</code> and <code>tree-sitter-markdown-inline</code> grammars.</p>
 <ul><li><strong>Dual-Phase Parsing</strong>: First parses block-level structures, then automatically identifies and parses inline content (injections).</li><li><strong>Injection Support</strong>: Detects fenced code blocks and tracks their language and content ranges.</li><li><strong>Efficiency</strong>: Reuses parsers and uses optimized lookups for injected trees.</li></ul>
-<h3>2. Markdown Renderer (<code>//markdown:renderer</code>)</h3>
+<h3 id="2-markdown-renderer-markdown-renderer">2. Markdown Renderer (<code>//markdown:renderer</code>)</h3>
 <p>Transforms a <code>ParsedMarkdown</code> object into an ANSI-styled <code>std::string</code>.</p>
-<ul><li><strong>DFS Traversal</strong>: Recursively visits nodes in the Tree-sitter forest.</li><li><strong>Centralized Styling</strong>: Uses <code>color.h</code> (specifically the <code>ansi::theme::markdown</code> namespace) for all visual definitions.</li><li><strong>Bleed Prevention</strong>: Automatically re-applies styles when traversing across markers (e.g., ensuring a heading text remains colored after the <code>#</code> marker reset).</li></ul>
-<h2>API Reference</h2>
-<h3><code>MarkdownParser</code></h3>
+<ul><li><strong>DFS Traversal</strong>: Recursively visits nodes in the Tree-sitter forest.</li><li><strong>Centralized Styling</strong>: Uses <code>color.h</code> (specifically the <code>ansi::theme::markdown</code> namespace) for all visual definitions.</li><li><strong>Bleed Prevention</strong>: Automatically re-applies styles when traversing across markers (e.g., ensuring a heading text remains colored after the <code>#</code> marker reset).</li></ul></section>
+<section class="doc-section"><h2 id="api-reference">API Reference</h2>
+<h3 id="markdownparser"><code>MarkdownParser</code></h3>
 <p>The primary entry point for parsing Markdown content.</p>
 <ul><li><code>MarkdownParser()</code>: Initializes the Tree-sitter parsers and languages.</li><li><code>absl::StatusOr&lt;std::unique_ptr&lt;ParsedMarkdown&gt;&gt; Parse(std::string source)</code>: Parses the provided Markdown source string. Returns a <code>ParsedMarkdown</code> object containing the syntax forest and detected injections.</li></ul>
-<h3><code>ParsedMarkdown</code></h3>
+<h3 id="parsedmarkdown"><code>ParsedMarkdown</code></h3>
 <p>A container for the results of a parse operation.</p>
 <ul><li><code>const std::string&amp; source() const</code>: Returns the original Markdown source string.</li><li><code>TSTree* tree() const</code>: Returns the root block-level Tree-sitter tree.</li><li><code>const Injection* GetInjection(Range range) const</code>: Retrieves an injection (e.g., inline formatting or code block) for a specific byte range, if one exists.</li></ul>
-<h3><code>MarkdownRenderer</code></h3>
+<h3 id="markdownrenderer"><code>MarkdownRenderer</code></h3>
 <p>Handles the conversion of a <code>ParsedMarkdown</code> object into a styled string.</p>
 <ul><li><code>void SetMaxWidth(size_t width)</code>: Sets the maximum width for layout (e.g., terminal width). If set to 0 (default), no wrapping or shrinking is applied.</li><li><code>void Render(const ParsedMarkdown&amp; parsed, std::string* output)</code>: <strong>(Preferred)</strong> Appends the rendered output to the provided <code>std::string</code>. This "sink" model allows for efficient pre-allocation and avoids large string copies when building complex UI components.</li><li><code>std::string Render(const ParsedMarkdown&amp; parsed)</code>: Convenience wrapper that returns a new string.</li></ul>
-<h4>Syntax Highlighting</h4>
+<h4 id="syntax-highlighting">Syntax Highlighting</h4>
 <p>The renderer uses Tree-sitter grammars to provide syntax highlighting within fenced code blocks. Currently supported languages include:</p>
 <ul><li><strong>C / C++</strong> (<code>cpp</code>, <code>c</code>, <code>cc</code>, <code>cxx</code>, <code>hpp</code>)</li><li><strong>Python</strong> (<code>python</code>, <code>py</code>)</li><li><strong>Go</strong> (<code>go</code>)</li><li><strong>JavaScript</strong> (<code>javascript</code>, <code>js</code>)</li><li><strong>Rust</strong> (<code>rust</code>, <code>rs</code>)</li><li><strong>Bash / Shell</strong> (<code>bash</code>, <code>sh</code>)</li></ul>
-<h3>Dynamic Table Wrapping</h3>
+<h3 id="dynamic-table-wrapping">Dynamic Table Wrapping</h3>
 <p>The renderer includes algorithmic table layout logic:</p>
 <ul><li><strong>Greedy Column Shrinking</strong>: If a table exceeds <code>max_width</code>, the renderer iteratively shrinks the widest columns until the table fits or a minimum column width is reached.</li><li><strong>Multi-line Cells</strong>: Content within table cells is word-wrapped to the column's assigned width, creating multi-line rows that preserve the table grid structure.</li><li><strong>UTF-8 Awareness</strong>: Width calculations and word-breaking logic are multi-byte aware, ensuring correct rendering of international characters and ANSI-styled content.</li></ul>
-<h3>Supporting Types</h3>
-<ul><li><code>Range</code>: Represents a byte range <code>[start_byte, end_byte)</code> in the source document.</li><li><code>Injection</code>: Contains metadata about a sub-language injection, including the language name, the range it occupies, and a pointer to its own <code>TSTree</code>.</li></ul>
-<h2>Usage</h2>
+<h3 id="supporting-types">Supporting Types</h3>
+<ul><li><code>Range</code>: Represents a byte range <code>[start_byte, end_byte)</code> in the source document.</li><li><code>Injection</code>: Contains metadata about a sub-language injection, including the language name, the range it occupies, and a pointer to its own <code>TSTree</code>.</li></ul></section>
+<section class="doc-section"><h2 id="usage">Usage</h2>
 <pre><code class="language-cpp">#include &quot;markdown/parser.h&quot;
 #include &quot;markdown/renderer.h&quot;
 
@@ -64,14 +64,15 @@ if (result.ok()) {
     renderer.Render(parsed, &amp;terminal_output);
 
     std::cout &lt;&lt; terminal_output &lt;&lt; std::endl;
-}</code></pre>
-<h2>Styling</h2>
-<p>Styles are centralized in <code>color.h</code>. You can customize the look of headers, code blocks, and other elements by modifying the <code>ansi::theme::markdown</code> namespace.</p>
-<h2>Design &amp; Performance Considerations</h2>
-<h3>Memory Management &amp; Ownership</h3>
+}</code></pre></section>
+<section class="doc-section"><h2 id="styling">Styling</h2>
+<p>Styles are centralized in <code>color.h</code>. You can customize the look of headers, code blocks, and other elements by modifying the <code>ansi::theme::markdown</code> namespace.</p></section>
+<section class="doc-section"><h2 id="design-performance-considerations">Design &amp; Performance Considerations</h2>
+<h3 id="memory-management-ownership">Memory Management &amp; Ownership</h3>
 <ul><li><strong>Parser Input</strong>: <code>MarkdownParser::Parse</code> takes <code>std::string</code> by value. This is a deliberate design choice:</li><li>It allows the caller to <code>std::move</code> an existing buffer, avoiding any copies.</li><li>It guarantees that the <code>ParsedMarkdown</code> object owns its source buffer. This is critical because the underlying <code>tree-sitter</code> syntax tree maintains raw pointers into this buffer.</li><li><strong>Renderer "Sink" Model</strong>: The <code>Render(parsed, &amp;output)</code> method is the primary way to generate output. By passing a pointer to an existing string, callers can reuse buffers or pre-allocate memory (via <code>reserve()</code>), which is faster than returning large strings from deep recursion.</li></ul>
-<h3>Efficiency</h3>
-<ul><li><strong>Tree-sitter Forest</strong>: The library manages multiple <code>TSTree</code> objects (main tree + injections) efficiently via <code>shared_ptr</code> and custom destructors.</li><li><strong>Lookups</strong>: Injected trees are stored in a <code>std::map</code> with custom <code>Range</code> keys for $O(\log N)$ lookup during rendering. This ensures that even with hundreds of injections (e.g., in a large table), finding the correct tree for a node is fast.</li><li><strong>ANSI Styling</strong>: The renderer minimizes style code bloat by only emitting ANSI reset codes when necessary and tracking the current styling state to avoid redundant escape sequences.</li></ul><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+<h3 id="efficiency">Efficiency</h3>
+<ul><li><strong>Tree-sitter Forest</strong>: The library manages multiple <code>TSTree</code> objects (main tree + injections) efficiently via <code>shared_ptr</code> and custom destructors.</li><li><strong>Lookups</strong>: Injected trees are stored in a <code>std::map</code> with custom <code>Range</code> keys for $O(\log N)$ lookup during rendering. This ensures that even with hundreds of injections (e.g., in a large table), finding the correct tree for a node is fast.</li><li><strong>ANSI Styling</strong>: The renderer minimizes style code bloat by only emitting ANSI reset codes when necessary and tracking the current styling state to avoid redundant escape sequences.</li></ul></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
   </main>
   <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP and Markdown libraries</span><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
 </body>

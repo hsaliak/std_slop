@@ -11,11 +11,11 @@
   <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><a href="agent.html">Agent</a><a class="active" aria-current="page" href="mcp.html">MCP</a><a href="markdown.html">Markdown</a><a href="docs.html">Docs</a><a href="https://github.com/hsaliak/std_slop">GitHub</a></nav></div></header>
   <main id="main-content">
-
-    <article class="shell markdown-content"><h1>MCP API and C++ client library</h1>
+<section class="page-hero shell"><p class="eyebrow">Source: docs/mcp-api.md + docs/mcp-slop-userguide.md</p><h1>MCP library and runtime</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#scope">Scope</a></li><li class="toc-level-2"><a href="#protocol-surface">Protocol surface</a></li><li class="toc-level-2"><a href="#connect-to-a-streamable-http-server">Connect to a Streamable HTTP server</a></li><li class="toc-level-2"><a href="#session-api">Session API</a></li><li class="toc-level-2"><a href="#transport-behavior">Transport behavior</a></li><li class="toc-level-2"><a href="#bearer-token-clients">Bearer token clients</a></li><li class="toc-level-2"><a href="#oauth-clients">OAuth clients</a></li><li class="toc-level-3"><a href="#oauth-endpoint-discovery">OAuth endpoint discovery</a></li><li class="toc-level-3"><a href="#oauth-discovery-metadata">OAuth discovery metadata</a></li><li class="toc-level-3"><a href="#pkce-browser-flow">PKCE browser flow</a></li><li class="toc-level-2"><a href="#token-persistence">Token persistence</a></li><li class="toc-level-2"><a href="#error-model">Error model</a></li><li class="toc-level-2"><a href="#security-notes">Security notes</a></li><li class="toc-level-2"><a href="#what-mcp-adds-to-std-slop">What MCP adds to std_slop</a></li><li class="toc-level-2"><a href="#command-overview">Command overview</a></li><li class="toc-level-2"><a href="#registry-and-token-files">Registry and token files</a></li><li class="toc-level-2"><a href="#unauthenticated-servers">Unauthenticated servers</a></li><li class="toc-level-2"><a href="#bearer-token-servers">Bearer-token servers</a></li><li class="toc-level-2"><a href="#oauth-servers">OAuth servers</a></li><li class="toc-level-3"><a href="#register-with-discovery">Register with discovery</a></li><li class="toc-level-3"><a href="#register-with-manual-endpoints">Register with manual endpoints</a></li><li class="toc-level-3"><a href="#oauth-login">OAuth login</a></li><li class="toc-level-3"><a href="#oauth-refresh">OAuth refresh</a></li><li class="toc-level-3"><a href="#logout">Logout</a></li><li class="toc-level-2"><a href="#remove-a-server">Remove a server</a></li><li class="toc-level-2"><a href="#runtime-tool-names">Runtime tool names</a></li><li class="toc-level-2"><a href="#diagnostics">Diagnostics</a></li><li class="toc-level-3"><a href="#bearer-token-missing-or-invalid">Bearer token missing or invalid</a></li><li class="toc-level-3"><a href="#oauth-token-missing-or-invalid">OAuth token missing or invalid</a></li><li class="toc-level-3"><a href="#permission-denied">Permission denied</a></li><li class="toc-level-2"><a href="#security-notes-2">Security notes</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="mcp-api-and-c-client-library">MCP API and C++ client library</h1>
 <p>This document describes the reusable C++ Model Context Protocol (MCP) client library in this repository. It is for C++ callers that want to connect to Streamable HTTP MCP servers directly.</p>
-<p>For the <code>std_slop mcp ...</code> command-line workflow, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">mcp-slop-userguide.md</a>.</p>
-<h2>Scope</h2>
+<p>For the <code>std_slop mcp ...</code> command-line workflow, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">mcp-slop-userguide.md</a>.</p></div>
+<section class="doc-section"><h2 id="scope">Scope</h2>
 <p>The library supports MCP Streamable HTTP servers. It does not implement stdio transport or the deprecated HTTP+SSE transport.</p>
 <p>Core package:</p>
 <pre><code class="language-text">mcp/
@@ -29,8 +29,8 @@
   oauth_client.h               PKCE OAuth helpers
   token_store.h                token file persistence helpers
   registry.h                   server registry data model</code></pre>
-<p>The public API uses <code>absl::Status</code> and <code>absl::StatusOr&lt;T&gt;</code> for fallible operations.</p>
-<h2>Protocol surface</h2>
+<p>The public API uses <code>absl::Status</code> and <code>absl::StatusOr&lt;T&gt;</code> for fallible operations.</p></section>
+<section class="doc-section"><h2 id="protocol-surface">Protocol surface</h2>
 <p>The client speaks JSON-RPC 2.0 over Streamable HTTP and targets MCP protocol version <code>2025-11-25</code>.</p>
 <p>Implemented lifecycle support:</p>
 <ul><li><code>initialize</code></li><li>initialize result validation</li><li><code>notifications/initialized</code></li><li>negotiated protocol version tracking</li><li>server capability parsing</li></ul>
@@ -39,8 +39,8 @@
 <p>Implemented server notification parsing:</p>
 <ul><li>progress notifications</li><li>logging notifications</li><li>tools/resources/prompts list-change notifications</li></ul>
 <p>Unsupported or host-policy dependent features:</p>
-<ul><li>stdio transport</li><li>deprecated HTTP+SSE transport</li><li>automatic sampling approval</li><li>automatic roots approval</li><li>automatic elicitation approval</li><li>full JSON Schema validation</li></ul>
-<h2>Connect to a Streamable HTTP server</h2>
+<ul><li>stdio transport</li><li>deprecated HTTP+SSE transport</li><li>automatic sampling approval</li><li>automatic roots approval</li><li>automatic elicitation approval</li><li>full JSON Schema validation</li></ul></section>
+<section class="doc-section"><h2 id="connect-to-a-streamable-http-server">Connect to a Streamable HTTP server</h2>
 <p>Use <code>ConnectStreamableHttp()</code> for the common case. It creates the transport, sends <code>initialize</code>, validates the response, and returns an initialized <code>Session</code>.</p>
 <pre><code class="language-c++">#include &quot;core/http_client.h&quot;
 #include &quot;mcp/client.h&quot;
@@ -65,8 +65,8 @@ if (!tools.ok()) return tools.status();
 absl::StatusOr&lt;slop::mcp::ToolCallResult&gt; result =
     (*session)-&gt;CallTool(&quot;search&quot;, nlohmann::json{{&quot;query&quot;, &quot;mcp&quot;}});
 if (!result.ok()) return result.status();</code></pre>
-<p><code>ToolCallResult::is_error</code> represents an MCP tool-level error. It is not the same as a transport failure.</p>
-<h2>Session API</h2>
+<p><code>ToolCallResult::is_error</code> represents an MCP tool-level error. It is not the same as a transport failure.</p></section>
+<section class="doc-section"><h2 id="session-api">Session API</h2>
 <p><code>mcp/session.h</code> exposes:</p>
 <pre><code class="language-c++">absl::Status Close();
 absl::Status Ping();
@@ -77,24 +77,24 @@ absl::StatusOr&lt;std::vector&lt;Resource&gt;&gt; ListResources();
 absl::StatusOr&lt;ResourceReadResult&gt; ReadResource(absl::string_view uri);
 absl::StatusOr&lt;std::vector&lt;Prompt&gt;&gt; ListPrompts();
 absl::StatusOr&lt;PromptGetResult&gt; GetPrompt(absl::string_view name, const nlohmann::json&amp; arguments);</code></pre>
-<p>Notifications received during requests are queued and returned by <code>DrainNotifications()</code>.</p>
-<h2>Transport behavior</h2>
+<p>Notifications received during requests are queued and returned by <code>DrainNotifications()</code>.</p></section>
+<section class="doc-section"><h2 id="transport-behavior">Transport behavior</h2>
 <p><code>StreamableHttpTransport</code> sends JSON-RPC messages to one MCP endpoint.</p>
 <p>Request headers include:</p>
 <ul><li><code>Content-Type: application/json</code></li><li><code>Accept: application/json, text/event-stream</code></li><li><code>MCP-Protocol-Version: &lt;version&gt;</code> after initialization</li><li><code>Mcp-Session-Id: &lt;id&gt;</code> when the server provides one</li><li><code>Authorization: Bearer &lt;token&gt;</code> when <code>bearer_token</code> is configured</li><li>any caller-supplied <code>extra_headers</code></li></ul>
-<p>Responses can be direct JSON or <code>text/event-stream</code>. SSE event <code>data:</code> payloads are parsed as JSON-RPC messages.</p>
-<h2>Bearer token clients</h2>
+<p>Responses can be direct JSON or <code>text/event-stream</code>. SSE event <code>data:</code> payloads are parsed as JSON-RPC messages.</p></section>
+<section class="doc-section"><h2 id="bearer-token-clients">Bearer token clients</h2>
 <p>For static bearer authentication, put the token into <code>StreamableHttpConfig::bearer_token</code> before connection:</p>
 <pre><code class="language-c++">slop::mcp::StreamableHttpConfig config;
 config.endpoint_url = &quot;https://example.com/mcp&quot;;
 config.bearer_token = &quot;YOUR_TOKEN&quot;;</code></pre>
 <p>The transport injects:</p>
 <pre><code class="language-text">Authorization: Bearer YOUR_TOKEN</code></pre>
-<p>Do not log token values. If you persist tokens with <code>SaveOAuthTokens()</code>, the token store rejects access tokens with HTTP header control characters so they cannot create malformed Authorization headers.</p>
-<h2>OAuth clients</h2>
+<p>Do not log token values. If you persist tokens with <code>SaveOAuthTokens()</code>, the token store rejects access tokens with HTTP header control characters so they cannot create malformed Authorization headers.</p></section>
+<section class="doc-section"><h2 id="oauth-clients">OAuth clients</h2>
 <p>The library has three OAuth pieces:</p>
 <ol><li>Endpoint discovery in <code>mcp/oauth_discovery.h</code>.</li><li>Discovery parsers in <code>mcp/authorization.h</code>.</li><li>PKCE authorization-code helpers in <code>mcp/oauth_client.h</code>.</li></ol>
-<h3>OAuth endpoint discovery</h3>
+<h3 id="oauth-endpoint-discovery">OAuth endpoint discovery</h3>
 <p>Use <code>DiscoverOAuthEndpoints()</code> when a host wants the library to do the full MCP OAuth discovery sequence from an MCP endpoint URL:</p>
 <pre><code class="language-c++">#include &quot;mcp/oauth_discovery.h&quot;
 
@@ -120,7 +120,7 @@ oauth.scopes = discovery-&gt;scopes_supported;</code></pre>
 <ol><li>Fetches and validates authorization server metadata.</li><li>Returns the authorization endpoint, token endpoint, protected resource metadata URL, authorization server URL, and supported scopes.</li></ol>
 <p>Discovery requires HTTPS for the resource metadata URL, authorization server URL, authorization endpoint, and token endpoint. It also requires exactly one advertised authorization server. If a server advertises zero or multiple authorization servers, the host should ask the user to pass endpoints manually.</p>
 <p>The caller still supplies a registered OAuth <code>client_id</code>. Discovery cannot create or infer a client ID.</p>
-<h3>OAuth discovery metadata</h3>
+<h3 id="oauth-discovery-metadata">OAuth discovery metadata</h3>
 <p>Use <code>ParseWwwAuthenticateResourceMetadata()</code> to extract the protected resource metadata URL from a Bearer <code>WWW-Authenticate</code> header:</p>
 <pre><code class="language-c++">absl::StatusOr&lt;std::string&gt; metadata_url =
     slop::mcp::ParseWwwAuthenticateResourceMetadata(www_authenticate_header);</code></pre>
@@ -150,7 +150,7 @@ absl::StatusOr&lt;slop::mcp::AuthorizationServerMetadata&gt; auth_server =
    }</code></pre>
 <p><code>ParseAuthorizationServerMetadata()</code> reads those <code>authorization_endpoint</code> and <code>token_endpoint</code> values. <code>DiscoverOAuthEndpoints()</code> performs all four steps and returns both endpoints in <code>OAuthDiscoveryResult</code>.</p>
 <p>The generic MCP client keeps MCP-specific discovery parsing in <code>mcp/authorization.*</code>. It does not put provider-specific OAuth policy into the transport.</p>
-<h3>PKCE browser flow</h3>
+<h3 id="pkce-browser-flow">PKCE browser flow</h3>
 <p>Use <code>OAuthClientConfig</code> and <code>StartPkceAuthorization()</code> to start an authorization-code + PKCE flow:</p>
 <pre><code class="language-c++">slop::mcp::OAuthClientConfig oauth;
 oauth.client_id = &quot;CLIENT_ID&quot;;
@@ -171,8 +171,8 @@ if (!tokens.ok()) return tokens.status();</code></pre>
 <p>Confidential OAuth clients can set <code>oauth.client_secret</code> for token exchange and refresh. Do not persist client secrets unless your host application has an explicit secret-storage policy.</p>
 <p>Refresh a token with:</p>
 <pre><code class="language-c++">auto refreshed = slop::mcp::RefreshOAuthToken(&amp;http_client, oauth, old_refresh_token);</code></pre>
-<p>Use the returned <code>OAuthTokenSet::access_token</code> as <code>StreamableHttpConfig::bearer_token</code>.</p>
-<h2>Token persistence</h2>
+<p>Use the returned <code>OAuthTokenSet::access_token</code> as <code>StreamableHttpConfig::bearer_token</code>.</p></section>
+<section class="doc-section"><h2 id="token-persistence">Token persistence</h2>
 <p><code>mcp/token_store.h</code> provides:</p>
 <pre><code class="language-c++">absl::Status SaveOAuthTokens(const std::string&amp; path, const OAuthTokenSet&amp; tokens);
 absl::StatusOr&lt;OAuthTokenSet&gt; LoadOAuthTokens(const std::string&amp; path);
@@ -183,24 +183,24 @@ absl::Status DeleteOAuthTokens(const std::string&amp; path);</code></pre>
   &quot;refresh_token&quot;: &quot;REFRESH_TOKEN&quot;,
   &quot;expires_at&quot;: 0
 }</code></pre>
-<p><code>SaveOAuthTokens()</code> creates parent directories as needed and writes token files with restricted permissions.</p>
-<h2>Error model</h2>
+<p><code>SaveOAuthTokens()</code> creates parent directories as needed and writes token files with restricted permissions.</p></section>
+<section class="doc-section"><h2 id="error-model">Error model</h2>
 <p>Use status codes to distinguish failures:</p>
 <ul><li>malformed JSON-RPC or response shape: <code>InvalidArgument</code></li><li>unsupported MCP protocol version: <code>Unimplemented</code></li><li>HTTP 401: <code>Unauthenticated</code></li><li>HTTP 403: <code>PermissionDenied</code></li><li>other HTTP failure: <code>Unavailable</code></li><li>no queued response available: <code>Unavailable</code></li><li>closed or uninitialized session: <code>FailedPrecondition</code></li></ul>
-<p>Callers should add host-specific remediation text at their boundary. For example, <code>std::slop</code> adds messages that tell users to run <code>std_slop mcp add ... --auth bearer --token ...</code>, <code>std_slop mcp oauth-login</code>, or <code>std_slop mcp oauth-refresh</code>.</p>
-<h2>Security notes</h2>
+<p>Callers should add host-specific remediation text at their boundary. For example, <code>std::slop</code> adds messages that tell users to run <code>std_slop mcp add ... --auth bearer --token ...</code>, <code>std_slop mcp oauth-login</code>, or <code>std_slop mcp oauth-refresh</code>.</p></section>
+<section class="doc-section"><h2 id="security-notes">Security notes</h2>
 <ul><li>Treat all server messages as untrusted.</li><li>Validate JSON-RPC shape before session side effects.</li><li>Validate tool result content before converting it to host output.</li><li>Do not execute server-provided data.</li><li>Do not log bearer tokens or Authorization headers.</li><li>Do not fetch server-provided icons with credentials unless the host policy allows it.</li><li>Require explicit host callbacks for sampling, roots, and elicitation.</li><li>Roots are not a security boundary; use OS sandboxing or file permissions for enforcement.</li></ul>
-<h1>std::slop MCP user guide</h1>
+<h1 id="std-slop-mcp-user-guide">std::slop MCP user guide</h1>
 <p>This guide explains how <code>std_slop</code> uses Model Context Protocol (MCP) servers.</p>
-<p>For the reusable C++ MCP library API, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-api.md">mcp-api.md</a>.</p>
-<h2>What MCP adds to std_slop</h2>
+<p>For the reusable C++ MCP library API, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-api.md">mcp-api.md</a>.</p></section>
+<section class="doc-section"><h2 id="what-mcp-adds-to-std-slop">What MCP adds to std_slop</h2>
 <p><code>std_slop</code> can start configured Streamable HTTP MCP servers at application startup, discover their tools, and project those tools into the normal tool catalog.</p>
 <p>Runtime behavior:</p>
 <ol><li><code>std_slop</code> reads the MCP registry from <code>~/.config/slop/mcp.ini</code>.</li><li>Each enabled server is started.</li><li>Tools are discovered with <code>tools/list</code>.</li><li>Discovered tools are registered as top-level tools named:</li></ol>
 <pre><code class="language-text">   mcp_&lt;server&gt;_&lt;tool&gt;</code></pre>
 <ol><li>Calls to those tools route back to the matching MCP server.</li><li>Stale <code>mcp_</code> tool rows are removed at startup before discovery.</li></ol>
-<p>If a server cannot be started or authenticated, its tools are not exposed to the model.</p>
-<h2>Command overview</h2>
+<p>If a server cannot be started or authenticated, its tools are not exposed to the model.</p></section>
+<section class="doc-section"><h2 id="command-overview">Command overview</h2>
 <pre><code class="language-sh">std_slop mcp &lt;command&gt; [arguments]</code></pre>
 <p>Commands:</p>
 <pre><code class="language-text">add &lt;name&gt; --url &lt;mcp_endpoint&gt; [--auth none|bearer|oauth] [--token &lt;token&gt;] [--token-path &lt;path&gt;] [--client-id &lt;id&gt;] [--scope &lt;scope&gt;...]
@@ -210,8 +210,8 @@ refresh &lt;name&gt; [--client-secret &lt;secret&gt;]
 logout &lt;name&gt;
 remove &lt;name&gt;
 help</code></pre>
-<p>Server names can contain letters, digits, hyphens, and underscores. The same name is used in runtime tool names, so keep it short and descriptive.</p>
-<h2>Registry and token files</h2>
+<p>Server names can contain letters, digits, hyphens, and underscores. The same name is used in runtime tool names, so keep it short and descriptive.</p></section>
+<section class="doc-section"><h2 id="registry-and-token-files">Registry and token files</h2>
 <p>Default registry path:</p>
 <pre><code class="language-text">~/.config/slop/mcp.ini</code></pre>
 <p>Default token path:</p>
@@ -228,15 +228,15 @@ token_path = /Users/example/.config/slop/mcp/tokens/github.json</code></pre>
   &quot;access_token&quot;: &quot;TOKEN&quot;,
   &quot;refresh_token&quot;: &quot;&quot;,
   &quot;expires_at&quot;: 0
-}</code></pre>
-<h2>Unauthenticated servers</h2>
+}</code></pre></section>
+<section class="doc-section"><h2 id="unauthenticated-servers">Unauthenticated servers</h2>
 <p>Use <code>--auth none</code> for servers that do not require credentials:</p>
 <pre><code class="language-sh">std_slop mcp add local --url https://example.com/mcp --auth none</code></pre>
 <p>List configured servers:</p>
 <pre><code class="language-sh">std_slop mcp list</code></pre>
 <p>Example output:</p>
-<pre><code class="language-text">local   none    enabled https://example.com/mcp</code></pre>
-<h2>Bearer-token servers</h2>
+<pre><code class="language-text">local   none    enabled https://example.com/mcp</code></pre></section>
+<section class="doc-section"><h2 id="bearer-token-servers">Bearer-token servers</h2>
 <p>Use <code>--auth bearer --token &lt;token&gt;</code> for a static bearer token:</p>
 <pre><code class="language-sh">std_slop mcp add github \
   --url https://api.githubcopilot.com/mcp \
@@ -250,10 +250,10 @@ token_path = /Users/example/.config/slop/mcp/tokens/github.json</code></pre>
   --auth bearer \
   --token YOUR_TOKEN \
   --token-path ~/.config/slop/mcp/tokens/github.json</code></pre>
-<p>If a bearer token is missing or invalid at startup, <code>std_slop</code> logs a warning and does not expose that server's tools.</p>
-<h2>OAuth servers</h2>
+<p>If a bearer token is missing or invalid at startup, <code>std_slop</code> logs a warning and does not expose that server's tools.</p></section>
+<section class="doc-section"><h2 id="oauth-servers">OAuth servers</h2>
 <p>Use <code>--auth oauth</code> for servers that support OAuth authorization-code + PKCE.</p>
-<h3>Register with discovery</h3>
+<h3 id="register-with-discovery">Register with discovery</h3>
 <p>If the server publishes protected resource metadata, omit explicit endpoints and let <code>std_slop</code> discover them:</p>
 <pre><code class="language-sh">std_slop mcp add github \
   --url https://example.com/mcp \
@@ -264,7 +264,7 @@ token_path = /Users/example/.config/slop/mcp/tokens/github.json</code></pre>
 <p>What <code>std_slop</code> does during discovery:</p>
 <ol><li>Sends an unauthenticated MCP <code>initialize</code> request to the MCP endpoint.</li><li>Reads the Bearer <code>WWW-Authenticate</code> header from the <code>401 Unauthorized</code> response.</li><li>Extracts the <code>resource_metadata</code> URL.</li><li>Fetches protected resource metadata.</li><li>Reads the single advertised authorization server URL from <code>authorization_servers</code>.</li><li>Derives the authorization-server metadata URL. If the advertised URL does not already contain <code>/.well-known/</code>, <code>std_slop</code> inserts <code>/.well-known/oauth-authorization-server</code> after the origin and before any issuer path.</li><li>Fetches authorization-server metadata.</li><li>Stores <code>authorization_endpoint</code>, <code>token_endpoint</code>, <code>resource_metadata_url</code>, and <code>authorization_server_url</code> in <code>mcp.ini</code>.</li></ol>
 <p>Discovery requires HTTPS metadata and endpoint URLs, and it requires exactly one advertised authorization server. If discovery fails, pass both endpoints manually.</p>
-<h3>Register with manual endpoints</h3>
+<h3 id="register-with-manual-endpoints">Register with manual endpoints</h3>
 <p>If discovery is not available, pass both endpoints:</p>
 <pre><code class="language-sh">std_slop mcp add github \
   --url https://example.com/mcp \
@@ -273,46 +273,47 @@ token_path = /Users/example/.config/slop/mcp/tokens/github.json</code></pre>
   --authorization-endpoint https://auth.example.com/authorize \
   --token-endpoint https://auth.example.com/token</code></pre>
 <p>Do not pass only one endpoint. Manual fallback requires both.</p>
-<h3>OAuth login</h3>
+<h3 id="oauth-login">OAuth login</h3>
 <p>Start browser-paste login:</p>
 <pre><code class="language-sh">std_slop mcp oauth-login github</code></pre>
 <p>The command prints an authorization URL. Open it in a browser, complete the provider flow, then paste the callback URL at the prompt.</p>
 <p>If the OAuth client requires a secret, pass it only when exchanging the code:</p>
 <pre><code class="language-sh">std_slop mcp oauth-login github --client-secret CLIENT_SECRET</code></pre>
 <p>The client secret is used for that request and is not stored.</p>
-<h3>OAuth refresh</h3>
+<h3 id="oauth-refresh">OAuth refresh</h3>
 <p>Refresh a stored OAuth token:</p>
 <pre><code class="language-sh">std_slop mcp oauth-refresh github</code></pre>
 <p>If the OAuth client requires a secret for refresh:</p>
 <pre><code class="language-sh">std_slop mcp oauth-refresh github --client-secret CLIENT_SECRET</code></pre>
-<h3>Logout</h3>
+<h3 id="logout">Logout</h3>
 <p>Delete the stored token file:</p>
-<pre><code class="language-sh">std_slop mcp logout github</code></pre>
-<h2>Remove a server</h2>
+<pre><code class="language-sh">std_slop mcp logout github</code></pre></section>
+<section class="doc-section"><h2 id="remove-a-server">Remove a server</h2>
 <p>Remove a registry entry and its token file:</p>
-<pre><code class="language-sh">std_slop mcp remove github</code></pre>
-<h2>Runtime tool names</h2>
+<pre><code class="language-sh">std_slop mcp remove github</code></pre></section>
+<section class="doc-section"><h2 id="runtime-tool-names">Runtime tool names</h2>
 <p>MCP tools are exposed with this shape:</p>
 <pre><code class="language-text">mcp_&lt;server&gt;_&lt;tool&gt;</code></pre>
 <p>Examples:</p>
 <pre><code class="language-text">mcp_github_search_repositories
 mcp_github_create_pull_request</code></pre>
-<p>Names are sanitized for provider tool-name limits. If two discovered tools collide after sanitization, startup rejects that server's projected tools.</p>
-<h2>Diagnostics</h2>
+<p>Names are sanitized for provider tool-name limits. If two discovered tools collide after sanitization, startup rejects that server's projected tools.</p></section>
+<section class="doc-section"><h2 id="diagnostics">Diagnostics</h2>
 <p>Common messages and fixes:</p>
-<h3>Bearer token missing or invalid</h3>
+<h3 id="bearer-token-missing-or-invalid">Bearer token missing or invalid</h3>
 <p>Fix:</p>
 <pre><code class="language-sh">std_slop mcp add &lt;name&gt; --url &lt;mcp_endpoint&gt; --auth bearer --token &lt;token&gt;</code></pre>
-<h3>OAuth token missing or invalid</h3>
+<h3 id="oauth-token-missing-or-invalid">OAuth token missing or invalid</h3>
 <p>Fix:</p>
 <pre><code class="language-sh">std_slop mcp oauth-login &lt;name&gt;</code></pre>
 <p>or:</p>
 <pre><code class="language-sh">std_slop mcp oauth-refresh &lt;name&gt;</code></pre>
-<h3>Permission denied</h3>
+<h3 id="permission-denied">Permission denied</h3>
 <p>For bearer servers, check token scopes or provider permissions.</p>
-<p>For OAuth servers, check app scopes and then refresh or login again.</p>
-<h2>Security notes</h2>
-<ul><li>Do not paste bearer tokens into shared terminals or logs.</li><li><code>std_slop</code> does not print token values in normal command output.</li><li>Bearer tokens are stored in the token file, not in <code>mcp.ini</code>.</li><li>Client secrets for OAuth login and refresh are not stored.</li><li>MCP server content is untrusted. <code>std_slop</code> validates protocol and tool-result shapes before exposing results.</li></ul><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+<p>For OAuth servers, check app scopes and then refresh or login again.</p></section>
+<section class="doc-section"><h2 id="security-notes-2">Security notes</h2>
+<ul><li>Do not paste bearer tokens into shared terminals or logs.</li><li><code>std_slop</code> does not print token values in normal command output.</li><li>Bearer tokens are stored in the token file, not in <code>mcp.ini</code>.</li><li>Client secrets for OAuth login and refresh are not stored.</li><li>MCP server content is untrusted. <code>std_slop</code> validates protocol and tool-result shapes before exposing results.</li></ul></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
   </main>
   <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP and Markdown libraries</span><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
 </body>
