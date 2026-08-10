@@ -31,13 +31,13 @@ nav a { color: var(--muted); font-size: .92rem; text-decoration: none; }
 nav a:hover, nav a.active { color: var(--ink); }
 nav a.active { font-weight: 700; }
 .nav-github { padding: .42rem .75rem; border: 1px solid var(--line); border-radius: 999px; }
-.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; padding-top: 6.5rem; padding-bottom: 6.5rem; }
-.hero h1, .page-hero h1 { max-width: 780px; margin: .4rem 0 1.25rem; font-size: clamp(2.6rem, 6vw, 5.1rem); line-height: 1.04; letter-spacing: -.055em; }
-.page-hero { padding-top: 5.5rem; padding-bottom: 3.5rem; }
-.page-hero h1 { font-size: clamp(2.6rem, 6vw, 4.5rem); }
+.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; padding-top: 4rem; padding-bottom: 4rem; }
+.hero h1, .page-hero h1 { max-width: 780px; margin: .4rem 0 1.25rem; font-size: clamp(2.2rem, 4.5vw, 3.8rem); line-height: 1.04; letter-spacing: -.045em; }
+.page-hero { padding-top: 3.5rem; padding-bottom: 2.5rem; }
+.page-hero h1 { font-size: clamp(2.2rem, 4.5vw, 3.5rem); }
 .lede { max-width: 660px; color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.28rem); }
 .eyebrow { margin: 0; color: var(--accent-dark); font-size: .75rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
-.hero-art { overflow: hidden; border: 1px solid var(--line); border-radius: 1rem; background: var(--dark); box-shadow: var(--shadow); }
+.hero-art { overflow: hidden; margin: 0; border: 1px solid var(--line); border-radius: .6rem; background: var(--dark); }.hero-art figcaption { padding: .55rem .8rem; color: #a9b5bf; font: .72rem ui-monospace, monospace; }
 .hero-art img { display: block; width: 100%; }
 .button-row { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; margin: 1.8rem 0; }
 .button { display: inline-block; padding: .65rem 1rem; border: 1px solid transparent; border-radius: .45rem; font-weight: 700; text-decoration: none; }
@@ -47,7 +47,7 @@ nav a.active { font-weight: 700; }
 .button-secondary:hover { color: var(--ink); border-color: var(--accent); }
 .badges { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 .badge-link { display: inline-block; padding: .3rem .55rem; border: 1px solid var(--line); border-radius: .35rem; background: var(--white); color: var(--muted); font: .72rem ui-monospace, monospace; text-decoration: none; }.badge-link:hover { border-color: var(--accent); color: var(--accent-dark); }
-.section { padding-top: 5.5rem; padding-bottom: 5.5rem; }
+.section { padding-top: 3.5rem; padding-bottom: 3.5rem; }
 .section-dark { color: var(--white); background: var(--dark); }
 .section-muted { background: #edf1f4; }
 .section-dark .eyebrow { color: #e3a57f; }
@@ -75,7 +75,7 @@ code { font-size: .92em; }
 .terminal-muted { color: #8ea0ad; }.terminal-ok { color: var(--green); }
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
 .step { padding-top: 1rem; border-top: 2px solid var(--accent); }.step span { display: block; margin-bottom: .7rem; color: var(--accent-dark); font: .75rem ui-monospace, monospace; }.step strong { display: block; font-size: 1.1rem; }.step p { margin-top: .4rem; color: var(--muted); font-size: .92rem; }
-.feature-list { max-width: 900px; }.feature-row { display: grid; grid-template-columns: 4rem 1fr; gap: 1rem; padding: 1.35rem 0; border-top: 1px solid var(--line); }.feature-row:last-child { border-bottom: 1px solid var(--line); }.feature-row p { max-width: 700px; color: var(--muted); }.feature-row h3 { margin-top: 0; }.feature-number { color: var(--accent-dark); font-size: .8rem; font-weight: 700; }
+.feature-list { max-width: 900px; }.dark-list { margin: 1.2rem 0; padding-left: 1.25rem; color: #d7e0e6; }.dark-list li { margin: .45rem 0; }.dark-list code { color: #f1b18b; }.feature-row { display: grid; grid-template-columns: 4rem 1fr; gap: 1rem; padding: 1.35rem 0; border-top: 1px solid var(--line); }.feature-row:last-child { border-bottom: 1px solid var(--line); }.feature-row p { max-width: 700px; color: var(--muted); }.feature-row h3 { margin-top: 0; }.feature-number { color: var(--accent-dark); font-size: .8rem; font-weight: 700; }
 .cta-row { display: flex; justify-content: space-between; gap: 2rem; align-items: center; }.cta-row h2 { margin-bottom: 0; }.section-dark .button-secondary { color: var(--white); border-color: #51606c; background: transparent; }.section-dark .button-secondary:hover { border-color: #e3a57f; }
 .flow-diagram { display: flex; align-items: stretch; justify-content: center; gap: .7rem; }.flow-node { display: flex; min-width: 130px; flex: 1; flex-direction: column; justify-content: center; padding: 1rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--white); text-align: center; }.flow-node strong { color: var(--accent-dark); font: .82rem ui-monospace, monospace; }.flow-node span { margin-top: .35rem; color: var(--muted); font-size: .78rem; }.flow-arrow { align-self: center; color: var(--accent); font-size: 1.4rem; }.section-note { max-width: 720px; margin: 1.4rem auto 0; color: var(--muted); text-align: center; }.spec-list { border-top: 1px solid var(--line); }.spec-list div { display: flex; justify-content: space-between; gap: 1rem; padding: .8rem 0; border-bottom: 1px solid var(--line); }.spec-list span { color: var(--muted); text-align: right; }.code-label { margin-top: 1.4rem; padding-top: .85rem; border-top: 1px solid var(--line); color: var(--accent-dark); font-size: .78rem; }.docs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }.doc-group { padding: 1.5rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--white); }.doc-group h2 { font-size: 1.55rem; }.doc-group a, .link-panel a, .repo-map a { display: flex; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-top: 1px solid var(--line); font-weight: 700; }.doc-group p { color: var(--muted); font-size: .91rem; }.link-panel { display: grid; padding: 0 1rem; border-top: 1px solid var(--line); }.repo-map { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 2rem; }.repo-map a { align-items: center; text-decoration: none; }.repo-map code { color: var(--accent-dark); }.repo-map span { color: var(--muted); font-size: .88rem; text-align: right; }
 .workflow-image { display: block; width: 100%; border: 1px solid var(--line); border-radius: .7rem; box-shadow: var(--shadow); }

@@ -1,23 +1,43 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Explore the reusable C++ MCP client library and runtime MCP integration in std::slop."><title>MCP — std::slop</title><link rel="stylesheet" href="styles.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="The self-contained C++ MCP library and runtime integration included in std::slop."><title>MCP library — std::slop</title><link rel="stylesheet" href="styles.css"></head>
 <body><a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><span class="prompt">$</span> std::slop</a><nav aria-label="Primary navigation"><a href="agent.html">Agent</a><a class="active" aria-current="page" href="mcp.html">MCP</a><a href="markdown.html">Markdown</a><a href="docs.html">Docs</a><a class="nav-github" href="https://github.com/hsaliak/std_slop">GitHub</a></nav></div></header>
-<main id="main-content"><section class="page-hero shell"><p class="eyebrow">Model Context Protocol</p><h1>Connect tools without hiding the boundary.</h1><p class="lede">std::slop includes a reusable C++ MCP client library and runtime integration for discovering and calling tools from Streamable HTTP MCP servers.</p></section>
-<section class="section shell"><div class="section-heading"><p class="eyebrow">Runtime flow</p><h2>From server configuration to agent tool.</h2></div><div class="flow-diagram" aria-label="MCP runtime flow"><div class="flow-node"><strong>mcp.ini</strong><span>configured servers</span></div><div class="flow-arrow" aria-hidden="true">→</div><div class="flow-node"><strong>tools/list</strong><span>discovery</span></div><div class="flow-arrow" aria-hidden="true">→</div><div class="flow-node"><strong>mcp_server_tool</strong><span>normal catalog</span></div><div class="flow-arrow" aria-hidden="true">→</div><div class="flow-node"><strong>std::slop</strong><span>tool call</span></div></div><p class="section-note">At startup, enabled servers are started, their tools are discovered, and discovered tools are projected into the normal std::slop tool catalog.</p></section>
-<section class="section section-muted"><div class="shell card-grid two-columns"><article class="card"><p class="card-kicker">CLI workflow</p><h2>Configure MCP from std::slop.</h2><p>Use the command-line workflow to add servers, list registrations, authenticate, refresh OAuth tokens, log out, or remove a server.</p><pre><code>std_slop mcp add github \
-  --url https://example.com/mcp \
-  --auth bearer \
-  --token YOUR_TOKEN
+<main id="main-content"><section class="page-hero shell"><p class="eyebrow">Library / MCP</p><h1>A self-contained C++ MCP library inside std::slop.</h1><p class="lede">The <code>mcp/</code> package has a clean typed API for Streamable HTTP MCP servers. The agent runtime uses the same library for server startup, discovery, authentication, and tool dispatch; the package is not a separate product boundary.</p></section>
+<section class="section shell"><div class="section-heading"><p class="eyebrow">C++ API</p><h2>Connect, inspect, and call through typed methods.</h2></div><div class="terminal-window"><div class="terminal-bar"><span></span><span></span><span></span><strong>client.cpp</strong></div><pre><code>#include "mcp/client.h"
+#include "mcp/session.h"
 
-std_slop mcp list
-std_slop mcp oauth-login github</code></pre></article><article class="card"><p class="card-kicker">C++ library</p><h2>Use the client directly.</h2><p>The reusable library exposes typed session methods for pinging, listing tools, calling tools, reading resources, getting prompts, and draining notifications.</p><pre><code>mcp/
+slop::mcp::StreamableHttpConfig config;
+config.endpoint_url = "https://example.com/mcp";
+
+slop::mcp::InitializeOptions options;
+options.client_info.name = "my-client";
+options.client_info.version = "1.0";
+
+auto session = slop::mcp::ConnectStreamableHttp(
+    config, options, &amp;http_client);
+if (!session.ok()) return session.status();
+
+RETURN_IF_ERROR((*session)-&gt;Ping());
+auto tools = (*session)-&gt;ListTools();
+auto result = (*session)-&gt;CallTool(
+    "search", nlohmann::json{{"query", "mcp"}});</code></pre></div></section>
+<section class="section section-muted"><div class="shell card-grid two-columns"><article class="card"><p class="card-kicker">Package surface</p><h2>Small headers, explicit ownership.</h2><pre><code>mcp/
   client.h
   session.h
   streamable_http_transport.h
   json_rpc.h
   types.h
   authorization.h
-  oauth_discovery.h</code></pre></article></div></section>
-<section class="section shell"><div class="split-section align-start"><div><p class="eyebrow">Streamable HTTP</p><h2>A small, typed transport layer.</h2><p>The client sends JSON-RPC messages to one MCP endpoint. Responses may be direct JSON or server-sent events. Session identifiers, protocol versions, bearer tokens, and caller-supplied headers are handled by the transport.</p><a class="text-link" href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-api.md">Read the API reference <span aria-hidden="true">→</span></a></div><div class="spec-list"><div><strong>Transport</strong><span>Streamable HTTP</span></div><div><strong>Protocol</strong><span>JSON-RPC</span></div><div><strong>Discovery</strong><span>Tools, resources, prompts</span></div><div><strong>Auth</strong><span>Bearer tokens and OAuth PKCE</span></div></div></div></section>
-<section class="section section-dark"><div class="shell cta-row"><div><p class="eyebrow">Detailed guides</p><h2>Choose the integration path.</h2></div><div class="button-row"><a class="button button-primary" href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">MCP user guide</a><a class="button button-secondary" href="https://github.com/hsaliak/std_slop/tree/main/mcp">MCP source</a></div></div></section></main>
-<footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP tooling · Markdown libraries</span><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer></body></html>
+  oauth_discovery.h
+  oauth_client.h
+  token_store.h</code></pre><p>Sessions expose methods for ping, tool/resource/prompt discovery, calls, notifications, and close.</p></article><article class="card"><p class="card-kicker">Transport</p><h2>Streamable HTTP and JSON-RPC.</h2><p>The transport sends JSON-RPC requests to one endpoint. Responses can be direct JSON or <code>text/event-stream</code>. It manages protocol headers, session identifiers, bearer authorization, and caller-supplied headers.</p><div class="spec-list"><div><strong>Transport</strong><span>Streamable HTTP</span></div><div><strong>Protocol</strong><span>JSON-RPC</span></div><div><strong>Discovery</strong><span>Tools, resources, prompts</span></div><div><strong>Auth</strong><span>Bearer and OAuth PKCE</span></div></div></article></div></section>
+<section class="section shell"><div class="split-section align-start"><div><p class="eyebrow">Runtime integration</p><h2>Discovery projects into the agent catalog.</h2><p>At startup, std::slop reads the MCP registry, starts enabled servers, sends <code>tools/list</code>, and registers discovered tools as <code>mcp_&lt;server&gt;_&lt;tool&gt;</code>. Calls route back through the matching MCP session.</p></div><div class="flow-diagram" aria-label="MCP runtime flow"><div class="flow-node"><strong>mcp.ini</strong><span>registry</span></div><div class="flow-arrow" aria-hidden="true">→</div><div class="flow-node"><strong>tools/list</strong><span>discovery</span></div><div class="flow-arrow" aria-hidden="true">→</div><div class="flow-node"><strong>mcp_server_tool</strong><span>tool catalog</span></div></div></div></section>
+<section class="section section-dark"><div class="shell split-section align-start"><div><p class="eyebrow">Authentication</p><h2>Bearer tokens and OAuth discovery.</h2><p>Static bearer tokens are kept out of <code>mcp.ini</code> and loaded from the token store. OAuth support includes protected-resource discovery, authorization-code + PKCE login, refresh, and client-secret handling at request time.</p></div><div class="terminal-window"><div class="terminal-bar"><span></span><span></span><span></span><strong>mcp command line</strong></div><pre><code>std_slop mcp add github \
+  --url https://example.com/mcp \
+  --auth bearer \
+  --token YOUR_TOKEN
+
+std_slop mcp oauth-login github
+std_slop mcp oauth-refresh github</code></pre></div></div></section>
+<section class="section shell"><p><a class="text-link" href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-api.md">C++ API reference <span aria-hidden="true">→</span></a> · <a class="text-link" href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">Runtime user guide <span aria-hidden="true">→</span></a> · <a class="text-link" href="https://github.com/hsaliak/std_slop/tree/main/mcp">Source package <span aria-hidden="true">→</span></a></p></section>
+</main><footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP and Markdown libraries</span><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer></body></html>
