@@ -56,6 +56,28 @@ TEST(ResponsesEventDecoderTest, NormalizationHandlesNonObjectError) {
   EXPECT_EQ((*normalized)["error"]["message"], "");
 }
 
+TEST(ResponsesEventDecoderTest, NormalizationPreservesNestedResponseErrorObject) {
+  auto normalized = ResponsesEventDecoder::NormalizeSsePayload(
+      "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{"
+      "\"code\":\"server_error\",\"message\":\"Our servers are currently overloaded\"}}}\n\n");
+  ASSERT_TRUE(normalized.has_value());
+  EXPECT_EQ((*normalized)["status"], "failed");
+  EXPECT_EQ((*normalized)["error"]["code"], "server_error");
+  EXPECT_EQ((*normalized)["error"]["message"], "Our servers are currently overloaded");
+}
+
+TEST(ResponsesEventDecoderTest, NormalizationPreservesErrorEventPayload) {
+  auto normalized = ResponsesEventDecoder::NormalizeSsePayload(
+      "data: {\"type\":\"error\",\"code\":\"server_is_overloaded\","
+      "\"message\":\"Our servers are currently overloaded\",\"param\":null,\"sequence_number\":1}\n\n");
+  ASSERT_TRUE(normalized.has_value());
+  EXPECT_EQ((*normalized)["status"], "failed");
+  EXPECT_EQ((*normalized)["error"]["type"], "error");
+  EXPECT_EQ((*normalized)["error"]["code"], "server_is_overloaded");
+  EXPECT_EQ((*normalized)["error"]["message"], "Our servers are currently overloaded");
+  EXPECT_TRUE((*normalized)["error"]["param"].is_null());
+}
+
 TEST(ResponsesEventDecoderTest, RejectsMalformedEvent) {
   ResponsesEventDecoder decoder;
   auto events = decoder.Feed("data: not-json\n\n");

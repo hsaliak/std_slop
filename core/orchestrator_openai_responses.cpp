@@ -72,6 +72,17 @@ bool IsEmptyMessageItem(const nlohmann::json& item) {
   return json_get_or(item, "type", std::string{}) == "message" && !MessageItemHasOutputText(item);
 }
 
+std::optional<absl::Status> TryResponsesProviderError(const nlohmann::json& payload) {
+  const std::string status = json_get_or(payload, "status", std::string{});
+  const bool failed_status = status == "failed" || status == "incomplete";
+  const auto* error = json_at(payload, "error");
+  const bool has_error = error != nullptr && !error->is_null();
+  if (!failed_status && !has_error) {
+    return std::nullopt;
+  }
+  return absl::UnavailableError(absl::StrCat("OpenAI Responses returned an error payload: ", json_dump(payload)));
+}
+
 std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string& payload) {
   if (!absl::StrContains(payload, "event:") || !absl::StrContains(payload, "data:")) {
     return std::nullopt;
@@ -80,6 +91,8 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
   nlohmann::json output = nlohmann::json::array();
   std::unordered_map<std::string, size_t> output_index_by_key;
   nlohmann::json usage;
+  nlohmann::json provider_error;
+  std::string provider_status;
   bool saw_stream_event = false;
   std::string output_text_delta;
   std::string output_text_done;
@@ -177,6 +190,21 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
       output_text_done = json_get_or(evt, "text", std::string{});
       return;
     }
+    if (type == "response.failed" || type == "response.incomplete" || type == "error") {
+      provider_status = type == "response.incomplete" ? "incomplete" : "failed";
+      const auto* error = json_at(evt, "error");
+      const auto* response = json_at(evt, "response");
+      if ((error == nullptr || error->is_null()) && response != nullptr) {
+        error = json_at(*response, "error");
+        provider_status = json_get_or(*response, "status", provider_status);
+      }
+      if (type == "error") {
+        provider_error = evt;
+      } else if (error != nullptr && !error->is_null()) {
+        provider_error = *error;
+      }
+      return;
+    }
     if (type == "response.completed" || type == "response.done") {
       const auto* response = json_at(evt, "response");
       if (response != nullptr) {
@@ -226,6 +254,12 @@ std::optional<nlohmann::json> TryNormalizeSseResponsesPayload(const std::string&
   }
 
   nlohmann::json normalized = {{"output", output}};
+  if (!provider_status.empty()) {
+    normalized["status"] = provider_status;
+  }
+  if (!provider_error.is_null()) {
+    normalized["error"] = provider_error;
+  }
   if (!usage.is_null() && !usage.empty()) {
     normalized["usage"] = usage;
   }
@@ -401,6 +435,9 @@ absl::StatusOr<int> OpenAiResponsesOrchestrator::ProcessResponse(const std::stri
     return absl::InternalError("Failed to parse OpenAI Responses payload");
   }
   const auto& j = *j_opt;
+  if (auto provider_error = TryResponsesProviderError(j); provider_error.has_value()) {
+    return *provider_error;
+  }
   last_response_usage_ = ParseOpenAiResponsesUsage(j);
 
   const int total_tokens = RecordOpenAiResponsesUsage(db_, session_id, model_, j);
@@ -571,6 +608,10 @@ absl::StatusOr<std::string> OpenAiResponsesOrchestrator::ExtractAssistantText(co
   }
   if (!j_opt) {
     return absl::InternalError("Failed to parse LLM response");
+  }
+
+  if (auto provider_error = TryResponsesProviderError(*j_opt); provider_error.has_value()) {
+    return *provider_error;
   }
 
   const auto output = json_get<nlohmann::json::array_t>(*j_opt, "output");

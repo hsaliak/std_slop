@@ -24,6 +24,7 @@ ResponsesEventType EventTypeFor(const std::string& type) {
       {"response.done", ResponsesEventType::kCompleted},
       {"response.failed", ResponsesEventType::kFailed},
       {"response.incomplete", ResponsesEventType::kIncomplete},
+      {"error", ResponsesEventType::kError},
   };
   const auto event_type = kEventTypes.find(type);
   return event_type == kEventTypes.end() ? ResponsesEventType::kUnknown : event_type->second;
@@ -170,12 +171,22 @@ std::optional<nlohmann::json> ResponsesEventDecoder::NormalizeSsePayload(absl::s
           }
         }
       }
-    } else if (event.type == ResponsesEventType::kFailed || event.type == ResponsesEventType::kIncomplete) {
+    } else if (event.type == ResponsesEventType::kFailed || event.type == ResponsesEventType::kIncomplete ||
+               event.type == ResponsesEventType::kError) {
       const auto* error = json_at(event.payload, "error");
-      const std::string message = error != nullptr ? json_get_or(*error, "message", std::string{}) : "";
-      nlohmann::json normalized = {{"output", output},
-                                   {"status", event.type == ResponsesEventType::kFailed ? "failed" : "incomplete"},
-                                   {"error", {{"message", message}}}};
+      const auto* response = json_at(event.payload, "response");
+      std::string status = event.type == ResponsesEventType::kIncomplete ? "incomplete" : "failed";
+      if ((error == nullptr || error->is_null()) && response != nullptr) {
+        error = json_at(*response, "error");
+        status = json_get_or(*response, "status", status);
+      }
+      nlohmann::json error_payload = {{"message", ""}};
+      if (event.type == ResponsesEventType::kError) {
+        error_payload = event.payload;
+      } else if (error != nullptr && error->is_object()) {
+        error_payload = *error;
+      }
+      nlohmann::json normalized = {{"output", output}, {"status", status}, {"error", error_payload}};
       return normalized;
     }
   }

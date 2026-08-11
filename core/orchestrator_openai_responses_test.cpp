@@ -419,6 +419,109 @@ TEST_F(OpenAiResponsesOrchestratorTest, ExtractAssistantTextParsesSsePayload) {
   EXPECT_EQ(*text_or, "Compact summary");
 }
 
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseReportsProviderErrorPayload) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const nlohmann::json response = {{"error",
+                                    {{"type", "service_unavailable_error"},
+                                     {"code", "server_is_overloaded"},
+                                     {"message", "Our servers are currently overloaded. Please try again later"},
+                                     {"param", nullptr}}}};
+
+  auto st_or = orchestrator.ProcessResponse("s1", json_dump(response), "g1");
+
+  ASSERT_FALSE(st_or.ok());
+  EXPECT_EQ(st_or.status().code(), absl::StatusCode::kUnavailable);
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "OpenAI Responses returned an error payload"));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "server_is_overloaded"));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "Our servers are currently overloaded"));
+
+  auto history_or = db.GetConversationHistory("s1");
+  ASSERT_TRUE(history_or.ok());
+  EXPECT_TRUE(history_or->empty());
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseReportsFailedStatusPayload) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const nlohmann::json response = {{"output", nlohmann::json::array()},
+                                   {"status", "failed"},
+                                   {"error", {{"message", "Our servers are currently overloaded. Please try again later"}}}};
+
+  auto st_or = orchestrator.ProcessResponse("s1", json_dump(response), "g1");
+
+  ASSERT_FALSE(st_or.ok());
+  EXPECT_EQ(st_or.status().code(), absl::StatusCode::kUnavailable);
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "OpenAI Responses returned an error payload"));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "\"status\":\"failed\""));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "Our servers are currently overloaded"));
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseReportsSseFailedPayload) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const std::string sse_payload =
+      "event: response.failed\n"
+      "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{"
+      "\"code\":\"server_error\","
+      "\"message\":\"Our servers are currently overloaded. Please try again later\"}}}\n\n";
+
+  auto st_or = orchestrator.ProcessResponse("s1", sse_payload, "g1");
+
+  ASSERT_FALSE(st_or.ok());
+  EXPECT_EQ(st_or.status().code(), absl::StatusCode::kUnavailable);
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "OpenAI Responses returned an error payload"));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "server_error"));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "Our servers are currently overloaded"));
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseReportsSseErrorEventPayload) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const std::string sse_payload =
+      "event: error\n"
+      "data: {\"type\":\"error\",\"code\":\"server_is_overloaded\","
+      "\"message\":\"Our servers are currently overloaded. Please try again later\","
+      "\"param\":null,\"sequence_number\":1}\n\n";
+
+  auto st_or = orchestrator.ProcessResponse("s1", sse_payload, "g1");
+
+  ASSERT_FALSE(st_or.ok());
+  EXPECT_EQ(st_or.status().code(), absl::StatusCode::kUnavailable);
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "OpenAI Responses returned an error payload"));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "server_is_overloaded"));
+  EXPECT_TRUE(absl::StrContains(st_or.status().message(), "Our servers are currently overloaded"));
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseAllowsCompletedPayloadWithNullError) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const nlohmann::json response = {{"status", "completed"},
+                                   {"error", nullptr},
+                                   {"usage", {{"input_tokens", 3}, {"output_tokens", 4}}},
+                                   {"output", nlohmann::json::array({{{"type", "message"},
+                                                                      {"content", nlohmann::json::array(
+                                                                                      {{{"type", "output_text"},
+                                                                                        {"text", "ok"}}})}}})}};
+
+  auto st_or = orchestrator.ProcessResponse("s1", json_dump(response), "g1");
+
+  ASSERT_TRUE(st_or.ok()) << st_or.status();
+  EXPECT_EQ(*st_or, 7);
+}
+
+TEST_F(OpenAiResponsesOrchestratorTest, ExtractAssistantTextReportsProviderErrorPayload) {
+  OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-4o", "https://api.openai.com/v1");
+  const nlohmann::json response = {{"error",
+                                    {{"type", "service_unavailable_error"},
+                                     {"code", "server_is_overloaded"},
+                                     {"message", "Our servers are currently overloaded. Please try again later"},
+                                     {"param", nullptr}}}};
+
+  auto text_or = orchestrator.ExtractAssistantText(json_dump(response));
+
+  ASSERT_FALSE(text_or.ok());
+  EXPECT_EQ(text_or.status().code(), absl::StatusCode::kUnavailable);
+  EXPECT_TRUE(absl::StrContains(text_or.status().message(), "OpenAI Responses returned an error payload"));
+  EXPECT_TRUE(absl::StrContains(text_or.status().message(), "server_is_overloaded"));
+  EXPECT_TRUE(absl::StrContains(text_or.status().message(), "Our servers are currently overloaded"));
+}
+
 TEST_F(OpenAiResponsesOrchestratorTest, ProcessResponseParsesSseTextDeltas) {
   OpenAiResponsesOrchestrator orchestrator(&db, &http, "gpt-oss-120b", "https://chatgpt.com/backend-api/codex");
   const std::string sse_payload =

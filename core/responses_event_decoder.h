@@ -18,6 +18,7 @@ enum class ResponsesEventType {
   kCompleted,
   kFailed,
   kIncomplete,
+  kError,
   kUnknown,
 };
 
