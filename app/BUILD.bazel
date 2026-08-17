@@ -103,6 +103,42 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "sl",
+    srcs = ["sl_main.cpp"],
+    copts = [],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":llm_tool_specializations",
+        ":mcp_commands",
+        ":prompt_mode",
+        "//core:api",
+        "//core:cancellation",
+        "//interface:app_api",
+        "//mcp:runtime",
+        "//tools:api",
+        "@abseil-cpp//absl/debugging:failure_signal_handler",
+        "@abseil-cpp//absl/debugging:symbolize",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+sh_test(
+    name = "sl_cli_test",
+    srcs = ["sl_cli_test.sh"],
+    data = [
+        ":sl",
+        "@bazel_tools//tools/bash/runfiles",
+    ],
+)
+
 cc_test(
     name = "prompt_mode_test",
     srcs = ["prompt_mode_test.cpp"],

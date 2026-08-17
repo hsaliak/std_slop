@@ -80,6 +80,39 @@ cat incident.log | std_slop \
 ```
 The supported schema subset is a root object plus nested object, array, string, number, integer, boolean, and null types; `properties`, `required`, boolean `additionalProperties`, `items`, and non-empty `enum` arrays.
 
+### Lightweight endpoint: `sl`
+`sl` is the non-interactive endpoint for scripted codebase work. It uses the same prompt behavior as batch mode but keeps a persistent database by default:
+
+```bash
+sl --prompt "Review the authentication flow"
+sl --prompt_file task.md --session incident
+cat build.log | sl --prompt "Explain this failure"
+sl --db /tmp/project.db --prompt "Inspect the database"
+sl --ephemeral --prompt "Try this without changing the ledger"
+```
+
+Without `--db` or `--ephemeral`, `sl` uses the configured database or `slop.db`. `--db` and `--ephemeral` are mutually exclusive. Every JSON-producing command must explicitly use `--json`; `--schema` requires `--json` and emits the validated structured value directly:
+
+```bash
+sl --prompt "Extract the issue" --json
+sl --prompt "Extract the issue" --json --schema issue.schema.json
+sl context show --json
+sl session list --json
+```
+
+Database and agent state are available as shell-friendly subcommands. Slash commands remain available only in the interactive `std_slop` TUI:
+
+```bash
+sl context show
+sl context set --retain_groups=2 --watermark_tokens=350000
+sl session list
+sl message list
+sl scratchpad show
+sl skill list
+sl stats
+sl tool list
+sl mcp list
+```
 
 Read the [Walkthrough](docs/WALKTHROUGH.md) first for the recommended getting-started flow, authentication setup paths, `config.ini` setup, docs-folder navigation, and `llm_query` subquery/persona configuration. Then use [docs/README.md](docs/README.md) as the docs index for deeper reference material.
 

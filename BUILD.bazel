@@ -9,6 +9,11 @@ alias(
     actual = "//app:std_slop",
 )
 
+alias(
+    name = "sl",
+    actual = "//app:sl",
+)
+
 cc_library(
     name = "core_api",
     visibility = ["//visibility:public"],
