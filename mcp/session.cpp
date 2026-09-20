@@ -4,11 +4,12 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+
 #include "core/json_utils.h"
 #include "mcp/json_rpc.h"
 #include "mcp/protocol.h"
 
-namespace slop::mcp {
+namespace slop::mcp::v2025_11_25 {
 namespace {
 
 bool HasObject(const nlohmann::json& object, const char* key) {
@@ -41,7 +42,7 @@ absl::Status Session::Initialize(const InitializeOptions& options) {
   options_ = options;
   nlohmann::json client_info = {{"name", options.client_info.name}, {"version", options.client_info.version}};
   if (options.client_info.title.has_value()) client_info["title"] = *options.client_info.title;
-  nlohmann::json params = {{"protocolVersion", std::string(kLatestProtocolVersion)},
+  nlohmann::json params = {{"protocolVersion", std::string(kClassicProtocolVersion)},
                            {"capabilities", BuildClientCapabilities(options.capabilities)},
                            {"clientInfo", client_info}};
   auto result_or = SendRequest("initialize", params, options.request_timeout);
@@ -163,8 +164,8 @@ absl::StatusOr<PromptGetResult> Session::GetPrompt(absl::string_view name, const
   if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
   if (name.empty()) return absl::InvalidArgumentError("prompt name must not be empty");
   if (!arguments.is_object()) return absl::InvalidArgumentError("prompt arguments must be an object");
-  auto result_or = SendRequest("prompts/get", {{"name", std::string(name)}, {"arguments", arguments}},
-                               options_.request_timeout);
+  auto result_or =
+      SendRequest("prompts/get", {{"name", std::string(name)}, {"arguments", arguments}}, options_.request_timeout);
   if (!result_or.ok()) return result_or.status();
   return ParsePromptGetResult(*result_or);
 }
@@ -184,9 +185,10 @@ absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, co
         if (!request_id->is_number_integer() && !request_id->is_string() && !request_id->is_null()) {
           return absl::InvalidArgumentError("MCP server request id must be null, an integer, or a string");
         }
-        const nlohmann::json error = {{"jsonrpc", "2.0"},
-                                      {"id", *request_id},
-                                      {"error", {{"code", -32601}, {"message", "MCP server requests are unsupported"}}}};
+        const nlohmann::json error = {
+            {"jsonrpc", "2.0"},
+            {"id", *request_id},
+            {"error", {{"code", -32601}, {"message", "MCP server requests are unsupported"}}}};
         const absl::Status send_status = transport_->Send(error);
         if (!send_status.ok()) return send_status;
         continue;
@@ -199,8 +201,8 @@ absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, co
     if (!response_or.ok()) return response_or.status();
     if (JsonRpcIdToString(response_or->id) != JsonRpcIdToString(id)) continue;
     if (response_or->error.has_value()) {
-      return absl::UnknownError(absl::StrCat("MCP JSON-RPC error ", response_or->error->code, ": ",
-                                            response_or->error->message));
+      return absl::UnknownError(
+          absl::StrCat("MCP JSON-RPC error ", response_or->error->code, ": ", response_or->error->message));
     }
     return *response_or->result;
   }
@@ -346,7 +348,8 @@ absl::Status Session::ParseInitializeResult(const nlohmann::json& result) {
   if (!result.is_object()) return absl::InvalidArgumentError("initialize result must be an object");
   const std::string version = json_get_or(result, "protocolVersion", std::string{});
   if (version.empty()) return absl::InvalidArgumentError("initialize result missing protocolVersion");
-  if (version != kLatestProtocolVersion) return absl::UnimplementedError(absl::StrCat("Unsupported MCP protocol version: ", version));
+  if (version != kClassicProtocolVersion)
+    return absl::UnimplementedError(absl::StrCat("Unsupported MCP protocol version: ", version));
   const auto* capabilities = json_at(result, "capabilities");
   if (capabilities == nullptr) return absl::InvalidArgumentError("initialize result missing capabilities");
   auto capabilities_or = ParseServerCapabilities(*capabilities);
@@ -356,4 +359,4 @@ absl::Status Session::ParseInitializeResult(const nlohmann::json& result) {
   return absl::OkStatus();
 }
 
-}  // namespace slop::mcp
+}  // namespace slop::mcp::v2025_11_25

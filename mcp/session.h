@@ -10,11 +10,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
-#include "mcp/transport.h"
-#include "mcp/types.h"
 #include "nlohmann/json.hpp"
 
-namespace slop::mcp {
+#include "mcp/transport.h"
+#include "mcp/types.h"
+
+namespace slop::mcp::v2025_11_25 {
 
 struct InitializeOptions {
   ImplementationInfo client_info;
@@ -69,6 +70,6 @@ class Session {
   std::vector<ServerNotification> notifications_;
 };
 
-}  // namespace slop::mcp
+}  // namespace slop::mcp::v2025_11_25
 
 #endif  // SLOP_MCP_SESSION_H_

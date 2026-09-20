@@ -10,12 +10,13 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
-#include "core/json_utils.h"
+#include "nlohmann/json.hpp"
+
 #include "core/http_client.h"
+#include "core/json_utils.h"
 #include "mcp/protocol.h"
 #include "mcp/registry.h"
 #include "mcp/token_store.h"
-#include "nlohmann/json.hpp"
 #include "tools/tool_executor.h"
 
 #include <gtest/gtest.h>
@@ -26,8 +27,8 @@ namespace {
 class FakeHttpClient : public HttpClient {
  public:
   absl::StatusOr<HttpResponse> PostStreamWithResponse(const std::string& url, const std::string& body,
-                                                       const std::vector<std::string>& headers,
-                                                       ChunkCallback on_chunk) override {
+                                                      const std::vector<std::string>& headers,
+                                                      ChunkCallback on_chunk) override {
     last_url = url;
     last_headers = headers;
     request_count++;
@@ -37,12 +38,12 @@ class FakeHttpClient : public HttpClient {
     if (method == "notifications/initialized") return HttpResponse{202, "", {}};
     nlohmann::json response = {{"jsonrpc", "2.0"}, {"id", json_get_or(*request, "id", 0)}};
     if (method == "initialize") {
-      response["result"] = {{"protocolVersion", std::string(kLatestProtocolVersion)},
+      response["result"] = {{"protocolVersion", std::string(kClassicProtocolVersion)},
                             {"capabilities", nlohmann::json::object()}};
     } else if (method == "tools/list") {
-      response["result"] = {{"tools", nlohmann::json::array({{{"name", "search"},
-                                                                 {"description", "Search"},
-                                                                 {"inputSchema", {{"type", "object"}}}}})}};
+      response["result"] = {
+          {"tools", nlohmann::json::array(
+                        {{{"name", "search"}, {"description", "Search"}, {"inputSchema", {{"type", "object"}}}}})}};
     } else {
       response["result"] = nlohmann::json::object();
     }
@@ -124,7 +125,8 @@ TEST(McpRuntimeTest, DuplicateServerToolNamesDoNotCollide) {
                          [&sessions](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
                            ToolCallResult result;
                            result.content.push_back(nlohmann::json{{"type", "text"}, {"text", "ok"}});
-                           auto session = std::make_unique<FakeRuntimeSession>(std::vector<Tool>{MakeTool("search")}, result);
+                           auto session =
+                               std::make_unique<FakeRuntimeSession>(std::vector<Tool>{MakeTool("search")}, result);
                            sessions.push_back(session.get());
                            return absl::StatusOr<std::unique_ptr<RuntimeSession>>(std::move(session));
                          });
@@ -155,14 +157,14 @@ TEST(McpRuntimeTest, ProviderUnsafeLongNamesAreRejected) {
   ASSERT_TRUE(SaveServerRegistry(registry_path, {MakeEntry("github")}).ok());
   RuntimeOptions options;
   options.registry_path = registry_path;
-  RuntimeManager manager(&db, executor->get(), &http_client, options,
-                         [](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
-                           ToolCallResult result;
-                           result.content.push_back(nlohmann::json{{"type", "text"}, {"text", "ok"}});
-                           auto session = std::make_unique<FakeRuntimeSession>(
-                               std::vector<Tool>{MakeTool("tool_name_that_is_longer_than_provider_function_name_limits")}, result);
-                           return absl::StatusOr<std::unique_ptr<RuntimeSession>>(std::move(session));
-                         });
+  RuntimeManager manager(
+      &db, executor->get(), &http_client, options, [](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
+        ToolCallResult result;
+        result.content.push_back(nlohmann::json{{"type", "text"}, {"text", "ok"}});
+        auto session = std::make_unique<FakeRuntimeSession>(
+            std::vector<Tool>{MakeTool("tool_name_that_is_longer_than_provider_function_name_limits")}, result);
+        return absl::StatusOr<std::unique_ptr<RuntimeSession>>(std::move(session));
+      });
   absl::Status status = manager.Start();
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsFailedPrecondition(status));
@@ -216,17 +218,15 @@ TEST(McpRuntimeTest, AuthFailureDoesNotExposeStaleTool) {
   ASSERT_TRUE(SaveServerRegistry(registry_path, {MakeEntry("github")}).ok());
   RuntimeOptions options;
   options.registry_path = registry_path;
-  RuntimeManager manager(&db, executor->get(), &http_client, options,
-                         [](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
-                           return absl::StatusOr<std::unique_ptr<RuntimeSession>>(
-                               absl::UnauthenticatedError("login required"));
-                         });
+  RuntimeManager manager(
+      &db, executor->get(), &http_client, options, [](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
+        return absl::StatusOr<std::unique_ptr<RuntimeSession>>(absl::UnauthenticatedError("login required"));
+      });
   ASSERT_TRUE(manager.Start().ok());
   auto tools = db.GetTopLevelTools();
   ASSERT_TRUE(tools.ok());
-  EXPECT_EQ(std::find_if(tools->begin(), tools->end(), [](const Database::Tool& tool) {
-              return tool.name == "mcp_github_search";
-            }),
+  EXPECT_EQ(std::find_if(tools->begin(), tools->end(),
+                         [](const Database::Tool& tool) { return tool.name == "mcp_github_search"; }),
             tools->end());
 }
 
@@ -239,7 +239,8 @@ TEST(McpRuntimeTest, BearerTokenIsLoadedIntoTransportHeaders) {
 
   ServerRegistryEntry entry = MakeEntry("github");
   entry.auth = kAuthBearer;
-  entry.token_path = absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
+  entry.token_path =
+      absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
   ASSERT_TRUE(SaveOAuthTokens(entry.token_path, {"secret-token", "", 0}).ok());
   const std::string registry_path = TempRegistryPath();
   ASSERT_TRUE(SaveServerRegistry(registry_path, {entry}).ok());
@@ -252,9 +253,8 @@ TEST(McpRuntimeTest, BearerTokenIsLoadedIntoTransportHeaders) {
   EXPECT_TRUE(HasHeader(http_client.last_headers, "Authorization: Bearer secret-token"));
   auto tools = db.GetTopLevelTools();
   ASSERT_TRUE(tools.ok());
-  EXPECT_NE(std::find_if(tools->begin(), tools->end(), [](const Database::Tool& tool) {
-              return tool.name == "mcp_github_search";
-            }),
+  EXPECT_NE(std::find_if(tools->begin(), tools->end(),
+                         [](const Database::Tool& tool) { return tool.name == "mcp_github_search"; }),
             tools->end());
 }
 
@@ -268,7 +268,8 @@ TEST(McpRuntimeTest, MissingBearerTokenDoesNotExposeStaleTool) {
 
   ServerRegistryEntry entry = MakeEntry("github");
   entry.auth = kAuthBearer;
-  entry.token_path = absl::StrCat(::testing::TempDir(), "/missing_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
+  entry.token_path =
+      absl::StrCat(::testing::TempDir(), "/missing_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
   const std::string registry_path = TempRegistryPath();
   ASSERT_TRUE(SaveServerRegistry(registry_path, {entry}).ok());
   RuntimeOptions options;
@@ -281,9 +282,8 @@ TEST(McpRuntimeTest, MissingBearerTokenDoesNotExposeStaleTool) {
   EXPECT_EQ(http_client.request_count, 0);
   auto tools = db.GetTopLevelTools();
   ASSERT_TRUE(tools.ok());
-  EXPECT_EQ(std::find_if(tools->begin(), tools->end(), [](const Database::Tool& tool) {
-              return tool.name == "mcp_github_search";
-            }),
+  EXPECT_EQ(std::find_if(tools->begin(), tools->end(),
+                         [](const Database::Tool& tool) { return tool.name == "mcp_github_search"; }),
             tools->end());
 }
 
@@ -296,7 +296,8 @@ TEST(McpRuntimeTest, InvalidBearerTokenDoesNotStartServer) {
 
   ServerRegistryEntry entry = MakeEntry("github");
   entry.auth = kAuthBearer;
-  entry.token_path = absl::StrCat(::testing::TempDir(), "/invalid_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
+  entry.token_path =
+      absl::StrCat(::testing::TempDir(), "/invalid_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
   {
     std::ofstream token_file(entry.token_path);
     token_file << "not json";
@@ -322,23 +323,25 @@ TEST(McpRuntimeTest, ToolCallAuthFailureIncludesBearerHint) {
 
   ServerRegistryEntry entry = MakeEntry("github");
   entry.auth = kAuthBearer;
-  entry.token_path = absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_tool_token_", absl::ToUnixNanos(absl::Now()), ".json");
+  entry.token_path =
+      absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_tool_token_", absl::ToUnixNanos(absl::Now()), ".json");
   const std::string registry_path = TempRegistryPath();
   ASSERT_TRUE(SaveServerRegistry(registry_path, {entry}).ok());
   RuntimeOptions options;
   options.registry_path = registry_path;
-  RuntimeManager manager(&db, executor->get(), &http_client, options,
-                         [](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
-                           auto session = std::make_unique<FakeRuntimeSession>(
-                               std::vector<Tool>{MakeTool("search")}, ToolCallResult{},
-                               absl::UnauthenticatedError("server requires authentication"));
-                           return absl::StatusOr<std::unique_ptr<RuntimeSession>>(std::move(session));
-                         });
+  RuntimeManager manager(
+      &db, executor->get(), &http_client, options, [](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
+        auto session =
+            std::make_unique<FakeRuntimeSession>(std::vector<Tool>{MakeTool("search")}, ToolCallResult{},
+                                                 absl::UnauthenticatedError("server requires authentication"));
+        return absl::StatusOr<std::unique_ptr<RuntimeSession>>(std::move(session));
+      });
   ASSERT_TRUE(manager.Start().ok());
   auto call = (*executor)->Execute("mcp_github_search", nlohmann::json{{"query", "repo"}});
   ASSERT_FALSE(call.ok());
   EXPECT_TRUE(absl::IsUnauthenticated(call.status()));
-  EXPECT_NE(std::string(call.status().message()).find("std_slop mcp add github --url https://github.example/mcp --auth bearer --token <token>"),
+  EXPECT_NE(std::string(call.status().message())
+                .find("std_slop mcp add github --url https://github.example/mcp --auth bearer --token <token>"),
             std::string::npos);
   EXPECT_EQ(std::string(call.status().message()).find("secret-token"), std::string::npos);
 }

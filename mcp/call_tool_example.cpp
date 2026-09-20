@@ -3,11 +3,12 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "nlohmann/json.hpp"
+
 #include "core/http_client.h"
 #include "core/json_utils.h"
 #include "mcp/client.h"
 #include "mcp/types.h"
-#include "nlohmann/json.hpp"
 
 int main(int argc, char** argv) {
   if (argc != 4) {
@@ -24,12 +25,12 @@ int main(int argc, char** argv) {
   slop::mcp::StreamableHttpConfig config;
   config.endpoint_url = argv[1];
 
-  slop::mcp::InitializeOptions options;
+  slop::mcp::v2025_11_25::InitializeOptions options;
   options.client_info.name = "slop-call-tool-example";
   options.client_info.version = "1.0";
 
   slop::HttpClient http_client;
-  auto session = slop::mcp::ConnectStreamableHttp(config, options, &http_client);
+  auto session = slop::mcp::ConnectClassicStreamableHttp(config, options, &http_client);
   if (!session.ok()) {
     std::cerr << session.status() << "\n";
     return 1;

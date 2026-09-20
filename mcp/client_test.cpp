@@ -4,19 +4,22 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "core/http_client.h"
 #include "gtest/gtest.h"
-#include "mcp/protocol.h"
 #include "nlohmann/json.hpp"
+
+#include "core/http_client.h"
+#include "mcp/protocol.h"
 
 namespace slop::mcp {
 namespace {
 
+using v2025_11_25::InitializeOptions;
+
 class FakeHttpClient : public HttpClient {
  public:
   absl::StatusOr<HttpResponse> PostStreamWithResponse(const std::string& url, const std::string& body,
-                                                       const std::vector<std::string>& headers,
-                                                       ChunkCallback on_chunk) override {
+                                                      const std::vector<std::string>& headers,
+                                                      ChunkCallback on_chunk) override {
     last_url = url;
     bodies.push_back(body);
     last_headers = headers;
@@ -51,39 +54,39 @@ HttpResponse InitializeResponse() {
           {{"content-type", "application/json"}}};
 }
 
-TEST(McpClientTest, ConnectStreamableHttpRejectsNullHttpClient) {
+TEST(McpClientTest, ConnectClassicStreamableHttpRejectsNullHttpClient) {
   StreamableHttpConfig config;
   config.endpoint_url = "https://example.com/mcp";
 
-  auto session = ConnectStreamableHttp(config, MakeOptions(), nullptr);
+  auto session = ConnectClassicStreamableHttp(config, MakeOptions(), nullptr);
 
   ASSERT_FALSE(session.ok());
   EXPECT_EQ(session.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
-TEST(McpClientTest, ConnectStreamableHttpRejectsEmptyEndpoint) {
+TEST(McpClientTest, ConnectClassicStreamableHttpRejectsEmptyEndpoint) {
   FakeHttpClient http;
   StreamableHttpConfig config;
   http.responses.push_back(InitializeResponse());
 
-  auto session = ConnectStreamableHttp(config, MakeOptions(), &http);
+  auto session = ConnectClassicStreamableHttp(config, MakeOptions(), &http);
 
   ASSERT_FALSE(session.ok());
   EXPECT_EQ(session.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
-TEST(McpClientTest, ConnectStreamableHttpReturnsInitializedSession) {
+TEST(McpClientTest, ConnectClassicStreamableHttpReturnsInitializedSession) {
   FakeHttpClient http;
   http.responses.push_back(InitializeResponse());
   http.responses.push_back({202, "", {}});
   StreamableHttpConfig config;
   config.endpoint_url = "https://example.com/mcp";
 
-  auto session = ConnectStreamableHttp(config, MakeOptions(), &http);
+  auto session = ConnectClassicStreamableHttp(config, MakeOptions(), &http);
 
   ASSERT_TRUE(session.ok()) << session.status();
   EXPECT_TRUE((*session)->initialized());
-  EXPECT_EQ((*session)->protocol_version(), kLatestProtocolVersion);
+  EXPECT_EQ((*session)->protocol_version(), kClassicProtocolVersion);
   EXPECT_TRUE((*session)->server_capabilities().tools);
   EXPECT_EQ(http.last_url, "https://example.com/mcp");
   ASSERT_EQ(http.bodies.size(), 2);

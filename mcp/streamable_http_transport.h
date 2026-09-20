@@ -7,12 +7,13 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "nlohmann/json.hpp"
+
 #include "core/http_client.h"
 #include "mcp/transport.h"
 #include "mcp/types.h"
-#include "nlohmann/json.hpp"
 
-namespace slop::mcp {
+namespace slop::mcp::v2025_11_25 {
 
 class StreamableHttpTransport : public Transport {
  public:
@@ -24,7 +25,9 @@ class StreamableHttpTransport : public Transport {
   absl::Status Close() override;
 
   const std::string& session_id() const { return session_id_; }
-  void SetProtocolVersion(absl::string_view protocol_version) override { protocol_version_ = std::string(protocol_version); }
+  void SetProtocolVersion(absl::string_view protocol_version) override {
+    protocol_version_ = std::string(protocol_version);
+  }
 
  private:
   std::vector<std::string> BuildHeaders() const;
@@ -39,6 +42,6 @@ class StreamableHttpTransport : public Transport {
   bool closed_ = false;
 };
 
-}  // namespace slop::mcp
+}  // namespace slop::mcp::v2025_11_25
 
 #endif  // SLOP_MCP_STREAMABLE_HTTP_TRANSPORT_H_

@@ -7,14 +7,15 @@
 
 #include "absl/status/status.h"
 #include "absl/time/time.h"
-#include "core/json_utils.h"
 #include "gtest/gtest.h"
+#include "nlohmann/json.hpp"
+
+#include "core/json_utils.h"
 #include "mcp/json_rpc.h"
 #include "mcp/protocol.h"
 #include "mcp/transport.h"
-#include "nlohmann/json.hpp"
 
-namespace slop::mcp {
+namespace slop::mcp::v2025_11_25 {
 namespace {
 
 class FakeTransport : public Transport {
@@ -63,7 +64,8 @@ InitializeOptions MakeOptions() {
 nlohmann::json InitializeResult(nlohmann::json capabilities = {{"tools", {{"listChanged", true}}}}) {
   return {{"jsonrpc", "2.0"},
           {"id", 1},
-          {"result", {{"protocolVersion", std::string(kLatestProtocolVersion)}, {"capabilities", std::move(capabilities)}}}};
+          {"result",
+           {{"protocolVersion", std::string(kClassicProtocolVersion)}, {"capabilities", std::move(capabilities)}}}};
 }
 
 TEST(SessionTest, InitializeStartsTransportAndSendsInitializedNotification) {
@@ -79,7 +81,7 @@ TEST(SessionTest, InitializeStartsTransportAndSendsInitializedNotification) {
   EXPECT_EQ(json_get_or(raw->sent[0], "method", std::string{}), "initialize");
   EXPECT_EQ(json_get_or(raw->sent[1], "method", std::string{}), "notifications/initialized");
   EXPECT_TRUE(session.initialized());
-  EXPECT_EQ(session.protocol_version(), kLatestProtocolVersion);
+  EXPECT_EQ(session.protocol_version(), kClassicProtocolVersion);
   EXPECT_TRUE(session.server_capabilities().tools);
   EXPECT_TRUE(session.server_capabilities().tools_list_changed);
 }
@@ -117,9 +119,10 @@ TEST(SessionTest, RejectsServerRequestWhileWaitingForResponse) {
 
 TEST(SessionTest, InitializeRejectsUnsupportedVersion) {
   auto fake = std::make_unique<FakeTransport>();
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 1},
-                             {"result", {{"protocolVersion", "1900-01-01"}, {"capabilities", nlohmann::json::object()}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"},
+       {"id", 1},
+       {"result", {{"protocolVersion", "1900-01-01"}, {"capabilities", nlohmann::json::object()}}}});
   Session session(std::move(fake));
 
   auto status = session.Initialize(MakeOptions());
@@ -130,7 +133,8 @@ TEST(SessionTest, InitializeRejectsUnsupportedVersion) {
 
 TEST(SessionTest, InitializeRejectsMalformedResult) {
   auto fake = std::make_unique<FakeTransport>();
-  fake->responses.push_back({{"jsonrpc", "2.0"}, {"id", 1}, {"result", {{"protocolVersion", std::string(kLatestProtocolVersion)}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 1}, {"result", {{"protocolVersion", std::string(kClassicProtocolVersion)}}}});
   Session session(std::move(fake));
 
   auto status = session.Initialize(MakeOptions());
@@ -183,9 +187,7 @@ TEST(SessionTest, ListToolsParsesTools) {
                                {"inputSchema", {{"type", "object"}}},
                                {"outputSchema", {{"type", "object"}}},
                                {"annotations", {{"readOnlyHint", true}}}};
-  raw->responses.push_back({{"jsonrpc", "2.0"},
-                            {"id", 2},
-                            {"result", {{"tools", nlohmann::json::array({tool})}}}});
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", 2}, {"result", {{"tools", nlohmann::json::array({tool})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -214,9 +216,8 @@ TEST(SessionTest, ListToolsFollowsPagination) {
   raw->responses.push_back({{"jsonrpc", "2.0"},
                             {"id", 2},
                             {"result", {{"tools", nlohmann::json::array({first_tool})}, {"nextCursor", "next"}}}});
-  raw->responses.push_back({{"jsonrpc", "2.0"},
-                            {"id", 3},
-                            {"result", {{"tools", nlohmann::json::array({second_tool})}}}});
+  raw->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 3}, {"result", {{"tools", nlohmann::json::array({second_tool})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -234,9 +235,8 @@ TEST(SessionTest, ListToolsFollowsPagination) {
 TEST(SessionTest, ListToolsRejectsMalformedTool) {
   auto fake = std::make_unique<FakeTransport>();
   fake->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 2},
-                             {"result", {{"tools", nlohmann::json::array({{{"name", "bad"}}})}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 2}, {"result", {{"tools", nlohmann::json::array({{{"name", "bad"}}})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -274,9 +274,8 @@ TEST(SessionTest, CallToolParsesSuccessResult) {
 TEST(SessionTest, CallToolPreservesIsError) {
   auto fake = std::make_unique<FakeTransport>();
   fake->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 2},
-                             {"result", {{"content", nlohmann::json::array()}, {"isError", true}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 2}, {"result", {{"content", nlohmann::json::array()}, {"isError", true}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -308,12 +307,12 @@ TEST(SessionTest, ListResourcesParsesResourcesAndPagination) {
                                          {"description", "First resource"},
                                          {"mimeType", "text/plain"}};
   const nlohmann::json second_resource = {{"uri", "file:///two"}, {"name", "two"}};
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 2},
-                             {"result", {{"resources", nlohmann::json::array({first_resource})}, {"nextCursor", "next"}}}});
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 3},
-                             {"result", {{"resources", nlohmann::json::array({second_resource})}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"},
+       {"id", 2},
+       {"result", {{"resources", nlohmann::json::array({first_resource})}, {"nextCursor", "next"}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 3}, {"result", {{"resources", nlohmann::json::array({second_resource})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -338,9 +337,8 @@ TEST(SessionTest, ListResourcesParsesResourcesAndPagination) {
 TEST(SessionTest, ListResourcesRejectsMalformedResource) {
   auto fake = std::make_unique<FakeTransport>();
   fake->responses.push_back(InitializeResult({{"resources", nlohmann::json::object()}}));
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 2},
-                             {"result", {{"resources", nlohmann::json::array({{{"name", "missing-uri"}}})}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 2}, {"result", {{"resources", nlohmann::json::array({{{"name", "missing-uri"}}})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -354,10 +352,10 @@ TEST(SessionTest, ReadResourceParsesContents) {
   auto fake = std::make_unique<FakeTransport>();
   FakeTransport* raw = fake.get();
   fake->responses.push_back(InitializeResult({{"resources", nlohmann::json::object()}}));
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 2},
-                             {"result",
-                              {{"contents", nlohmann::json::array({{{"uri", "file:///one"}, {"text", "hello"}}})}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"},
+       {"id", 2},
+       {"result", {{"contents", nlohmann::json::array({{{"uri", "file:///one"}, {"text", "hello"}}})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -385,16 +383,15 @@ TEST(SessionTest, ListPromptsParsesPromptsAndPagination) {
   FakeTransport* raw = fake.get();
   fake->responses.push_back(InitializeResult({{"prompts", nlohmann::json::object()}}));
   const nlohmann::json first_prompt = {{"name", "summarize"},
-                                      {"title", "Summarize"},
-                                      {"description", "Summarize text"},
-                                      {"arguments", nlohmann::json::array({{{"name", "topic"}}})}};
+                                       {"title", "Summarize"},
+                                       {"description", "Summarize text"},
+                                       {"arguments", nlohmann::json::array({{{"name", "topic"}}})}};
   const nlohmann::json second_prompt = {{"name", "explain"}};
   fake->responses.push_back({{"jsonrpc", "2.0"},
                              {"id", 2},
                              {"result", {{"prompts", nlohmann::json::array({first_prompt})}, {"nextCursor", "next"}}}});
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 3},
-                             {"result", {{"prompts", nlohmann::json::array({second_prompt})}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 3}, {"result", {{"prompts", nlohmann::json::array({second_prompt})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -416,9 +413,10 @@ TEST(SessionTest, ListPromptsParsesPromptsAndPagination) {
 TEST(SessionTest, ListPromptsRejectsMalformedPrompt) {
   auto fake = std::make_unique<FakeTransport>();
   fake->responses.push_back(InitializeResult({{"prompts", nlohmann::json::object()}}));
-  fake->responses.push_back({{"jsonrpc", "2.0"},
-                             {"id", 2},
-                             {"result", {{"prompts", nlohmann::json::array({{{"arguments", nlohmann::json::array()}}})}}}});
+  fake->responses.push_back(
+      {{"jsonrpc", "2.0"},
+       {"id", 2},
+       {"result", {{"prompts", nlohmann::json::array({{{"arguments", nlohmann::json::array()}}})}}}});
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
@@ -465,4 +463,4 @@ TEST(SessionTest, GetPromptRejectsNonObjectArguments) {
 }
 
 }  // namespace
-}  // namespace slop::mcp
+}  // namespace slop::mcp::v2025_11_25

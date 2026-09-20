@@ -6,12 +6,13 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+
 #include "core/json_utils.h"
 #include "mcp/json_rpc.h"
 #include "mcp/protocol.h"
 #include "mcp/sse_decoder.h"
 
-namespace slop::mcp {
+namespace slop::mcp::v2025_11_25 {
 namespace {
 
 std::string HeaderValue(const absl::flat_hash_map<std::string, std::string>& headers, absl::string_view key) {
@@ -114,4 +115,4 @@ absl::Status StreamableHttpTransport::EnqueueResponseMessages(const HttpResponse
   return absl::InvalidArgumentError(absl::StrCat("Unsupported MCP response content type: ", content_type));
 }
 
-}  // namespace slop::mcp
+}  // namespace slop::mcp::v2025_11_25

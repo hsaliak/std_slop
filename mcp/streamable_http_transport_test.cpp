@@ -7,20 +7,21 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/time/time.h"
-#include "core/http_client.h"
-#include "core/json_utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
-namespace slop::mcp {
+#include "core/http_client.h"
+#include "core/json_utils.h"
+
+namespace slop::mcp::v2025_11_25 {
 namespace {
 
 class FakeHttpClient : public HttpClient {
  public:
   absl::StatusOr<HttpResponse> PostStreamWithResponse(const std::string& url, const std::string& body,
-                                                       const std::vector<std::string>& headers,
-                                                       ChunkCallback on_chunk) override {
+                                                      const std::vector<std::string>& headers,
+                                                      ChunkCallback on_chunk) override {
     last_url = url;
     last_body = body;
     last_headers = headers;
@@ -45,7 +46,9 @@ bool HasHeader(const std::vector<std::string>& headers, const std::string& expec
 
 TEST(StreamableHttpTransportTest, SendsRequiredHeadersAndParsesJsonResponse) {
   FakeHttpClient http;
-  http.response = {200, R"({"jsonrpc":"2.0","id":1,"result":{"ok":true}})", { {"content-type", "application/json"}, {"mcp-session-id", "sess-1"} }};
+  http.response = {200,
+                   R"({"jsonrpc":"2.0","id":1,"result":{"ok":true}})",
+                   {{"content-type", "application/json"}, {"mcp-session-id", "sess-1"}}};
   StreamableHttpConfig config;
   config.endpoint_url = "https://example.com/mcp";
   config.bearer_token = "token";
@@ -144,4 +147,4 @@ TEST(StreamableHttpTransportTest, RejectsNullHttpClient) {
 }
 
 }  // namespace
-}  // namespace slop::mcp
+}  // namespace slop::mcp::v2025_11_25
