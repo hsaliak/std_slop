@@ -1,7 +1,7 @@
 #include "core/http_client.h"
 
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -40,6 +40,7 @@ struct ResponseBuffer {
   std::string body;
   size_t bytes_received = 0;
   size_t bytes_delivered = 0;
+  size_t max_response_bytes = 0;
   long response_code = 0;
   HttpClient::ChunkCallback on_chunk;
   absl::Status callback_status;
@@ -50,8 +51,7 @@ struct HeaderCapture {
   ResponseBuffer* response;
 };
 
-std::string HttpFailureDetails(CURLcode result, long response_code, size_t bytes_received,
-                               absl::Duration elapsed) {
+std::string HttpFailureDetails(CURLcode result, long response_code, size_t bytes_received, absl::Duration elapsed) {
   return absl::StrCat("curl_code=", static_cast<int>(result), " curl_error=\"", curl_easy_strerror(result),
                       "\" response_code=", response_code, " bytes_received=", bytes_received,
                       " elapsed=", absl::FormatDuration(elapsed),
@@ -128,11 +128,16 @@ HttpClient::~HttpClient() = default;
 size_t HttpClient::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   const size_t total_size = size * nmemb;
   auto* response = static_cast<ResponseBuffer*>(userp);
+  if (response->max_response_bytes != 0 && total_size > response->max_response_bytes - response->body.size()) {
+    response->callback_status = absl::ResourceExhaustedError("HTTP response byte limit exceeded");
+    return 0;
+  }
   response->body.append(static_cast<char*>(contents), total_size);
   response->bytes_received += total_size;
 
   const bool should_deliver_chunk =
-      response->on_chunk && (response->response_code == 0 || (response->response_code >= 200 && response->response_code < 300));
+      response->on_chunk &&
+      (response->response_code == 0 || (response->response_code >= 200 && response->response_code < 300));
   if (should_deliver_chunk) {
     response->callback_status = response->on_chunk(absl::string_view(static_cast<char*>(contents), total_size));
     if (!response->callback_status.ok()) return 0;
@@ -157,8 +162,7 @@ bool HttpClient::ParseHttpStatusLine(absl::string_view header, long* response_co
   return true;
 }
 
-void HttpClient::CaptureHeaderField(absl::string_view header,
-                                    absl::flat_hash_map<std::string, std::string>* headers) {
+void HttpClient::CaptureHeaderField(absl::string_view header, absl::flat_hash_map<std::string, std::string>* headers) {
   const size_t colon_pos = header.find(':');
   if (colon_pos == absl::string_view::npos) return;
 
@@ -197,8 +201,7 @@ absl::StatusOr<HttpResponse> HttpClient::PostWithResponse(const std::string& url
 }
 
 absl::StatusOr<std::string> HttpClient::PostStream(const std::string& url, const std::string& body,
-                                                   const std::vector<std::string>& headers,
-                                                   ChunkCallback on_chunk) {
+                                                   const std::vector<std::string>& headers, ChunkCallback on_chunk) {
   auto response_or = ExecuteWithRetryResponse(url, "POST", body, headers, std::move(on_chunk));
   if (!response_or.ok()) return response_or.status();
   return response_or->body;
@@ -210,11 +213,18 @@ absl::StatusOr<HttpResponse> HttpClient::PostStreamWithResponse(const std::strin
   return ExecuteWithRetryResponse(url, "POST", body, headers, std::move(on_chunk), true);
 }
 
-absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::string& url, const std::string& method,
-                                                                  const std::string& body,
-                                                                  const std::vector<std::string>& headers,
-                                                                  ChunkCallback on_chunk,
-                                                                  bool return_auth_error_response) {
+absl::StatusOr<HttpResponse> HttpClient::PostOnceStreamWithResponse(const std::string& url, const std::string& body,
+                                                                    const std::vector<std::string>& headers,
+                                                                    absl::Duration timeout, size_t max_response_bytes,
+                                                                    ChunkCallback on_chunk) {
+  return ExecuteWithRetryResponse(url, "POST", body, headers, std::move(on_chunk), false, false, true, timeout,
+                                  max_response_bytes);
+}
+
+absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(
+    const std::string& url, const std::string& method, const std::string& body, const std::vector<std::string>& headers,
+    ChunkCallback on_chunk, bool return_auth_error_response, bool allow_retries, bool return_all_http_responses,
+    absl::Duration timeout, size_t max_response_bytes) {
   // Preserve an abort issued before the worker starts instead of accepting it
   // as the request's initial generation. Reset after this request so the next
   // independent request is not poisoned by an earlier cancellation.
@@ -223,7 +233,8 @@ absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::str
   int retry_count = 0;
   int64_t backoff_ms = initial_backoff_ms_;
 
-  while (retry_count <= max_retries_) {
+  const int retry_limit = allow_retries ? max_retries_ : 0;
+  while (retry_count <= retry_limit) {
     CURL* curl = curl_easy_init();
     absl::Cleanup curl_cleaner = [curl] { curl_easy_cleanup(curl); };
     if (!curl) {
@@ -232,6 +243,7 @@ absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::str
 
     ResponseBuffer response;
     response.on_chunk = on_chunk;
+    response.max_response_bytes = max_response_bytes;
     absl::flat_hash_map<std::string, std::string> response_headers;
     HeaderCapture header_capture{&response_headers, &response};
     struct curl_slist* chunk = nullptr;
@@ -263,7 +275,14 @@ absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::str
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, ProgressCallback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
+    if (timeout != absl::InfiniteDuration()) {
+      if (timeout <= absl::ZeroDuration()) {
+        return absl::DeadlineExceededError("HTTP request deadline expired");
+      }
+      curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(absl::ToInt64Milliseconds(timeout)));
+    } else {
+      curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
+    }
     curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, kHttpLowSpeedLimitBytesPerSecond);
     curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, kHttpLowSpeedTimeSeconds);
 
@@ -284,8 +303,9 @@ absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::str
     if (on_chunk && response.bytes_delivered > 0 && (res != CURLE_OK || response_code < 200 || response_code >= 300)) {
       LogStreamingHttpFailure(method, url, res, response_code, response.bytes_received, elapsed, response,
                               response_headers);
-      return absl::UnavailableError(absl::StrCat("Streaming HTTP request failed after receiving response data. ",
-                                                 HttpFailureDetails(res, response_code, response.bytes_received, elapsed)));
+      return absl::UnavailableError(
+          absl::StrCat("Streaming HTTP request failed after receiving response data. ",
+                       HttpFailureDetails(res, response_code, response.bytes_received, elapsed)));
     }
 
     if (IsDebugHttpEnabled()) {
@@ -305,7 +325,7 @@ absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::str
     }
 
     if (res == CURLE_OK) {
-      if (response_code >= 200 && response_code < 300) {
+      if ((response_code >= 200 && response_code < 300) || return_all_http_responses) {
         return HttpResponse{response_code, response.body, response_headers};
       }
 
@@ -318,9 +338,9 @@ absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::str
           LOG(WARNING) << "Terminal HTTP error detected for " << method << " " << url << ": "
                        << HttpFailureDetails(res, response_code, response.bytes_received, elapsed);
         }
-        const std::string diagnostic = absl::StrCat("Terminal HTTP error. ",
-                                                    HttpFailureDetails(res, response_code, response.bytes_received, elapsed),
-                                                    " Body: ", response.body);
+        const std::string diagnostic = absl::StrCat(
+            "Terminal HTTP error. ", HttpFailureDetails(res, response_code, response.bytes_received, elapsed),
+            " Body: ", response.body);
         const absl::Status context_status = ContextOverflowStatus(response_code, response.body);
         if (!context_status.ok()) return absl::ResourceExhaustedError(diagnostic);
         return absl::UnavailableError(diagnostic);
@@ -328,10 +348,10 @@ absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(const std::str
     }
 
     if (IsAborted()) return absl::CancelledError("HTTP request cancelled");
-    if (retry_count >= max_retries_) {
-      return absl::UnavailableError(absl::StrCat("HTTP request failed after ", retry_count,
-                                                 " retries. ", HttpFailureDetails(res, response_code,
-                                                                                  response.bytes_received, elapsed)));
+    if (retry_count >= retry_limit) {
+      return absl::UnavailableError(
+          absl::StrCat("HTTP request failed after ", retry_count, " retries. ",
+                       HttpFailureDetails(res, response_code, response.bytes_received, elapsed)));
     }
 
     int64_t header_delay = ParseRetryAfter(response_headers);
@@ -412,8 +432,7 @@ absl::Status HttpClient::ContextOverflowStatus(long response_code, absl::string_
 
   if (match_reason != nullptr) {
     if (IsDebugHttpEnabled()) {
-      LOG(INFO) << "Classified provider response as context overflow: HTTP 400 matched \"" << match_reason
-                << "\".";
+      LOG(INFO) << "Classified provider response as context overflow: HTTP 400 matched \"" << match_reason << "\".";
     }
     return absl::ResourceExhaustedError("Provider context overflow");
   }

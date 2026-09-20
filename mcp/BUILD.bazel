@@ -75,6 +75,60 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "modern_http",
+    srcs = ["modern_http.cpp"],
+    hdrs = ["modern_http.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":json_rpc",
+        ":modern",
+        ":protocol",
+        ":sse_decoder",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_http_test",
+    srcs = ["modern_http_test.cpp"],
+    deps = [
+        ":modern_http",
+        ":protocol",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_http_fuzz_test",
+    srcs = ["modern_http_fuzz_test.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-parameter",
+    ],
+    deps = [
+        ":modern_http",
+        "//core:transport",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "modern_test",
     srcs = ["modern_test.cpp"],

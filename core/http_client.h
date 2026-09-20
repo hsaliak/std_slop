@@ -7,8 +7,8 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -39,16 +39,22 @@ class HttpClient {
                                            const std::vector<std::string>& headers);
 
   virtual absl::StatusOr<HttpResponse> PostWithResponse(const std::string& url, const std::string& body,
-                                                         const std::vector<std::string>& headers);
+                                                        const std::vector<std::string>& headers);
 
   // Delivers response body chunks in transport order and returns the complete body.
   virtual absl::StatusOr<std::string> PostStream(const std::string& url, const std::string& body,
-                                                 const std::vector<std::string>& headers,
-                                                 ChunkCallback on_chunk);
+                                                 const std::vector<std::string>& headers, ChunkCallback on_chunk);
 
   virtual absl::StatusOr<HttpResponse> PostStreamWithResponse(const std::string& url, const std::string& body,
-                                                               const std::vector<std::string>& headers,
-                                                               ChunkCallback on_chunk);
+                                                              const std::vector<std::string>& headers,
+                                                              ChunkCallback on_chunk);
+
+  // Executes one POST attempt, returns every HTTP status, and never replays
+  // the request.
+  virtual absl::StatusOr<HttpResponse> PostOnceStreamWithResponse(const std::string& url, const std::string& body,
+                                                                  const std::vector<std::string>& headers,
+                                                                  absl::Duration timeout, size_t max_response_bytes,
+                                                                  ChunkCallback on_chunk);
 
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
   static bool IsTerminalError(long response_code, const std::string& response_body);
@@ -67,8 +73,7 @@ class HttpClient {
   // status code. Returns false for non-status-line or malformed input.
   static bool ParseHttpStatusLine(absl::string_view header, long* response_code);
   // Captures a single "Key: Value" header line into the lowercase-keyed map.
-  static void CaptureHeaderField(absl::string_view header,
-                                 absl::flat_hash_map<std::string, std::string>* headers);
+  static void CaptureHeaderField(absl::string_view header, absl::flat_hash_map<std::string, std::string>* headers);
 
   int64_t ParseRetryAfter(const absl::flat_hash_map<std::string, std::string>& headers);
   int64_t ParseXRateLimitReset(const absl::flat_hash_map<std::string, std::string>& headers);
@@ -77,11 +82,11 @@ class HttpClient {
  private:
   void CancellableSleep(int64_t wait_ms);
 
-  absl::StatusOr<HttpResponse> ExecuteWithRetryResponse(const std::string& url, const std::string& method,
-                                                         const std::string& body,
-                                                         const std::vector<std::string>& headers,
-                                                         ChunkCallback on_chunk = nullptr,
-                                                         bool return_auth_error_response = false);
+  absl::StatusOr<HttpResponse> ExecuteWithRetryResponse(
+      const std::string& url, const std::string& method, const std::string& body,
+      const std::vector<std::string>& headers, ChunkCallback on_chunk = nullptr,
+      bool return_auth_error_response = false, bool allow_retries = true, bool return_all_http_responses = false,
+      absl::Duration timeout = absl::InfiniteDuration(), size_t max_response_bytes = 0);
 
   std::atomic<uint64_t> abort_generation_{0};
   std::atomic<uint64_t> active_generation_{0};

@@ -103,6 +103,8 @@ enum class ServerNotificationKind {
   kToolsListChanged,
   kResourcesListChanged,
   kPromptsListChanged,
+  kSubscriptionAcknowledged,
+  kUnknown,
 };
 
 struct ServerNotification {
