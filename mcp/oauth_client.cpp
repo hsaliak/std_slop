@@ -8,9 +8,11 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+
 #include "core/json_utils.h"
 #include "core/sha256.h"
 
@@ -95,6 +97,12 @@ absl::StatusOr<OAuthTokenSet> ParseTokenResponse(const std::string& body) {
   OAuthTokenSet tokens;
   tokens.access_token = json_get_or(*parsed, "access_token", std::string{});
   tokens.refresh_token = json_get_or(*parsed, "refresh_token", std::string{});
+  tokens.token_type = json_get_or(*parsed, "token_type", std::string("Bearer"));
+  tokens.scope = json_get_or(*parsed, "scope", std::string{});
+  if (!absl::EqualsIgnoreCase(tokens.token_type, "Bearer")) {
+    return absl::InvalidArgumentError("OAuth token response token_type must be Bearer");
+  }
+  tokens.token_type = "Bearer";
   const int expires_in = json_get_or(*parsed, "expires_in", 0);
   tokens.expires_at_unix_seconds = expires_in <= 0 ? 0 : static_cast<int64_t>(std::time(nullptr)) + expires_in;
   if (tokens.access_token.empty()) {
@@ -114,11 +122,19 @@ std::string FormBody(const std::vector<std::pair<std::string, std::string>>& fie
 
 absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClientConfig& config) {
   if (config.client_id.empty()) return absl::InvalidArgumentError("OAuth client_id must not be empty");
+  if (absl::StartsWith(config.client_id, "https://") && !config.client_secret.empty()) {
+    return absl::InvalidArgumentError("CIMD public clients must not configure a client_secret");
+  }
   if (config.authorization_endpoint.empty()) return absl::InvalidArgumentError("OAuth authorization endpoint missing");
   if (config.token_endpoint.empty()) return absl::InvalidArgumentError("OAuth token endpoint missing");
   if (!IsHttpsUrl(config.authorization_endpoint) || !IsHttpsUrl(config.token_endpoint)) {
     return absl::InvalidArgumentError("OAuth endpoints must use https");
   }
+  if (!config.s256_supported) {
+    return absl::FailedPreconditionError("authorization server does not support S256 PKCE");
+  }
+  auto scopes = MergeAuthorizationScopes({}, config.scopes, config.max_scope_count);
+  if (!scopes.ok()) return scopes.status();
   PkceAuthorizationSession session;
   session.state = RandomToken();
   session.code_verifier = RandomToken();
@@ -128,12 +144,16 @@ absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClien
   session.redirect_uri = config.redirect_uri;
   auto challenge = Sha256Digest(session.code_verifier);
   if (!challenge.ok()) return challenge.status();
-  const std::string code_challenge = absl::WebSafeBase64Escape(
-      absl::string_view(reinterpret_cast<const char*>(challenge->data()), challenge->size()));
-  session.authorization_url = absl::StrCat(config.authorization_endpoint, "?response_type=code&client_id=",
-                                           UrlEncode(config.client_id), "&redirect_uri=", UrlEncode(session.redirect_uri));
-  if (!config.scopes.empty()) {
-    absl::StrAppend(&session.authorization_url, "&scope=", UrlEncode(absl::StrJoin(config.scopes, " ")));
+  const std::string code_challenge =
+      absl::WebSafeBase64Escape(absl::string_view(reinterpret_cast<const char*>(challenge->data()), challenge->size()));
+  session.authorization_url =
+      absl::StrCat(config.authorization_endpoint, "?response_type=code&client_id=", UrlEncode(config.client_id),
+                   "&redirect_uri=", UrlEncode(session.redirect_uri));
+  if (!scopes->empty()) {
+    absl::StrAppend(&session.authorization_url, "&scope=", UrlEncode(absl::StrJoin(*scopes, " ")));
+  }
+  if (!config.resource.empty()) {
+    absl::StrAppend(&session.authorization_url, "&resource=", UrlEncode(config.resource));
   }
   absl::StrAppend(&session.authorization_url, "&state=", UrlEncode(session.state), "&code_challenge=", code_challenge,
                   "&code_challenge_method=S256");
@@ -141,7 +161,8 @@ absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClien
 }
 
 absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::string& callback_url,
-                                                                  const std::string& expected_state) {
+                                                                 const std::string& expected_state,
+                                                                 const std::string& expected_issuer) {
   const size_t query = callback_url.find('?');
   if (query == std::string::npos) return absl::InvalidArgumentError("OAuth callback missing query");
   std::string code;
@@ -149,6 +170,7 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
   std::string error;
   std::string error_description;
   std::string error_uri;
+  std::string issuer;
   for (const absl::string_view part : absl::StrSplit(callback_url.substr(query + 1), '&', absl::SkipEmpty())) {
     const size_t equals = part.find('=');
     if (equals == absl::string_view::npos) continue;
@@ -159,8 +181,12 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
     if (key == "error") error = value;
     if (key == "error_description") error_description = value;
     if (key == "error_uri") error_uri = value;
+    if (key == "iss") issuer = value;
   }
   if (state != expected_state) return absl::PermissionDeniedError("OAuth callback state mismatch");
+  if (!expected_issuer.empty() && issuer != expected_issuer) {
+    return absl::PermissionDeniedError("OAuth callback issuer mismatch");
+  }
   if (!error.empty()) {
     std::string message = absl::StrCat("OAuth callback error: ", error);
     if (!error_description.empty()) absl::StrAppend(&message, ": ", error_description);
@@ -172,41 +198,58 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
 }
 
 absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client, const OAuthClientConfig& config,
-                                                        const std::string& code,
-                                                        const std::string& code_verifier) {
+                                                        const std::string& code, const std::string& code_verifier) {
   if (http_client == nullptr) return absl::InvalidArgumentError("http_client must not be null");
   if (!IsHttpsUrl(config.token_endpoint)) return absl::InvalidArgumentError("OAuth token endpoint must use https");
+  if (absl::StartsWith(config.client_id, "https://") && !config.client_secret.empty()) {
+    return absl::InvalidArgumentError("CIMD public clients must not configure a client_secret");
+  }
   std::vector<std::pair<std::string, std::string>> fields = {{"grant_type", "authorization_code"},
-                                                              {"code", code},
-                                                              {"client_id", config.client_id},
-                                                              {"redirect_uri", config.redirect_uri},
-                                                              {"code_verifier", code_verifier}};
+                                                             {"code", code},
+                                                             {"client_id", config.client_id},
+                                                             {"redirect_uri", config.redirect_uri},
+                                                             {"code_verifier", code_verifier}};
+  if (!config.resource.empty()) fields.push_back({"resource", config.resource});
   if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
-  auto response = http_client->PostWithResponse(
-      config.token_endpoint, FormBody(fields), {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+  auto response =
+      http_client->PostWithResponse(config.token_endpoint, FormBody(fields),
+                                    {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth token exchange failed");
   }
-  return ParseTokenResponse(response->body);
+  auto tokens = ParseTokenResponse(response->body);
+  if (!tokens.ok()) return tokens.status();
+  tokens->issuer = config.issuer;
+  tokens->resource = config.resource;
+  return *tokens;
 }
 
 absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const OAuthClientConfig& config,
                                                 const std::string& refresh_token) {
   if (http_client == nullptr) return absl::InvalidArgumentError("http_client must not be null");
   if (!IsHttpsUrl(config.token_endpoint)) return absl::InvalidArgumentError("OAuth token endpoint must use https");
+  if (absl::StartsWith(config.client_id, "https://") && !config.client_secret.empty()) {
+    return absl::InvalidArgumentError("CIMD public clients must not configure a client_secret");
+  }
   if (refresh_token.empty()) return absl::InvalidArgumentError("OAuth refresh token must not be empty");
-  std::vector<std::pair<std::string, std::string>> fields = {{"grant_type", "refresh_token"},
-                                                              {"refresh_token", refresh_token},
-                                                              {"client_id", config.client_id}};
+  std::vector<std::pair<std::string, std::string>> fields = {
+      {"grant_type", "refresh_token"}, {"refresh_token", refresh_token}, {"client_id", config.client_id}};
+  if (!config.resource.empty()) fields.push_back({"resource", config.resource});
   if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
-  auto response = http_client->PostWithResponse(
-      config.token_endpoint, FormBody(fields), {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+  auto response =
+      http_client->PostWithResponse(config.token_endpoint, FormBody(fields),
+                                    {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth refresh failed");
   }
-  return ParseTokenResponse(response->body);
+  auto tokens = ParseTokenResponse(response->body);
+  if (!tokens.ok()) return tokens.status();
+  tokens->issuer = config.issuer;
+  tokens->resource = config.resource;
+  if (tokens->refresh_token.empty()) tokens->refresh_token = refresh_token;
+  return *tokens;
 }
 
 }  // namespace slop::mcp

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+
 #include "core/http_client.h"
 
 #include <gtest/gtest.h>
@@ -29,13 +30,16 @@ class FakeHttpClient : public HttpClient {
     return absl::NotFoundError("unexpected URL");
   }
 
-  HttpResponse post_response = {401, "", {{"www-authenticate", R"(Bearer resource_metadata="https://api.example/.well-known/oauth-protected-resource")"}}};
+  HttpResponse post_response = {
+      401,
+      "",
+      {{"www-authenticate", R"(Bearer resource_metadata="https://api.example/.well-known/oauth-protected-resource")"}}};
   std::string resource_metadata_url = "https://api.example/.well-known/oauth-protected-resource";
   std::string authorization_metadata_url = "https://auth.example/.well-known/oauth-authorization-server";
   std::string resource_metadata_body =
       R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example"]})";
   std::string authorization_metadata_body =
-      R"({"issuer":"https://auth.example","authorization_endpoint":"https://auth.example/authorize","token_endpoint":"https://auth.example/token","scopes_supported":["repo","read:user"]})";
+      R"({"issuer":"https://auth.example","authorization_endpoint":"https://auth.example/authorize","token_endpoint":"https://auth.example/token","scopes_supported":["repo","read:user"],"code_challenge_methods_supported":["S256"]})";
   std::string post_url;
   std::string post_body;
   std::vector<std::string> post_headers;
@@ -50,6 +54,8 @@ TEST(OAuthDiscoveryTest, DiscoversEndpointsFromWwwAuthenticateChallenge) {
 
   ASSERT_TRUE(discovered.ok()) << discovered.status();
   EXPECT_EQ(http.post_url, "https://api.example/mcp");
+  EXPECT_NE(http.post_body.find("initialize"), std::string::npos);
+  EXPECT_EQ(http.post_body.find("server/discover"), std::string::npos);
   ASSERT_EQ(http.get_urls.size(), 2);
   EXPECT_EQ(http.get_urls[0], "https://api.example/.well-known/oauth-protected-resource");
   EXPECT_EQ(http.get_urls[1], "https://auth.example/.well-known/oauth-authorization-server");
@@ -67,7 +73,7 @@ TEST(OAuthDiscoveryTest, InsertsWellKnownBeforePathIssuer) {
       R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example/tenant-a"]})";
   http.authorization_metadata_url = "https://auth.example/.well-known/oauth-authorization-server/tenant-a";
   http.authorization_metadata_body =
-      R"({"issuer":"https://auth.example/tenant-a","authorization_endpoint":"https://auth.example/tenant-a/authorize","token_endpoint":"https://auth.example/tenant-a/token"})";
+      R"({"issuer":"https://auth.example/tenant-a","authorization_endpoint":"https://auth.example/tenant-a/authorize","token_endpoint":"https://auth.example/tenant-a/token","code_challenge_methods_supported":["S256"]})";
 
   auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
 
@@ -117,11 +123,19 @@ TEST(OAuthDiscoveryTest, RejectsMultipleAuthorizationServers) {
 
   ASSERT_FALSE(discovered.ok());
   EXPECT_TRUE(absl::IsFailedPrecondition(discovered.status()));
+
+  OAuthDiscoveryOptions options;
+  options.selected_authorization_server = "https://auth.example";
+  auto selected = DiscoverOAuthEndpoints(&http, "https://api.example/mcp", options);
+  ASSERT_TRUE(selected.ok()) << selected.status();
+  EXPECT_EQ(selected->issuer, "https://auth.example");
+  EXPECT_EQ(selected->resource, "https://api.example/mcp");
 }
 
 TEST(OAuthDiscoveryTest, RejectsHttpAuthorizationServer) {
   FakeHttpClient http;
-  http.resource_metadata_body = R"({"resource":"https://api.example/mcp","authorization_servers":["http://auth.example"]})";
+  http.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp","authorization_servers":["http://auth.example"]})";
 
   auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
 

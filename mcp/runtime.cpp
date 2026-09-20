@@ -1,6 +1,7 @@
 #include "mcp/runtime.h"
 
 #include <cctype>
+#include <ctime>
 #include <memory>
 #include <string>
 #include <utility>
@@ -81,6 +82,17 @@ absl::StatusOr<StreamableHttpConfig> TransportConfigFromEntry(const ServerRegist
       }
       return absl::UnauthenticatedError(absl::StrCat("MCP OAuth token is missing or invalid for server '", entry.name,
                                                      "'; ", AuthFailureHint(entry)));
+    }
+    if (entry.auth == kAuthOAuth) {
+      if (tokens->issuer.empty() || tokens->resource.empty() || tokens->issuer != entry.authorization_server_url ||
+          tokens->resource != entry.url) {
+        return absl::PermissionDeniedError(
+            absl::StrCat("MCP OAuth token binding does not match server '", entry.name, "'"));
+      }
+      if (tokens->expires_at_unix_seconds != 0 && tokens->expires_at_unix_seconds <= std::time(nullptr)) {
+        return absl::UnauthenticatedError(
+            absl::StrCat("MCP OAuth token is expired for server '", entry.name, "'; ", AuthFailureHint(entry)));
+      }
     }
     config.bearer_token = tokens->access_token;
   }

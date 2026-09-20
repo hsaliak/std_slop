@@ -33,6 +33,8 @@ OAuthClientConfig Config() {
   config.authorization_endpoint = "https://auth.example/authorize";
   config.token_endpoint = "https://auth.example/token";
   config.scopes = {"repo"};
+  config.resource = "https://api.example/mcp";
+  config.issuer = "https://auth.example";
   return config;
 }
 
@@ -42,11 +44,37 @@ TEST(OAuthClientTest, BuildsPkceAuthorizationUrlAndParsesCallback) {
   EXPECT_NE(session->authorization_url.find("client_id=client"), std::string::npos);
   EXPECT_NE(session->authorization_url.find("code_challenge_method=S256"), std::string::npos);
   EXPECT_NE(session->authorization_url.find("scope=repo"), std::string::npos);
+  EXPECT_NE(session->authorization_url.find("resource=https%3A%2F%2Fapi.example%2Fmcp"), std::string::npos);
 
   auto code = ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=abc&state=" + session->state,
                                                    session->state);
   ASSERT_TRUE(code.ok());
   EXPECT_EQ(*code, "abc");
+}
+
+TEST(OAuthClientTest, ValidatesCallbackIssuerAndPkceAdvertisement) {
+  auto code = ExtractAuthorizationCodeFromCallback(
+      "http://127.0.0.1/callback?code=abc&state=expected&iss=https%3A%2F%2Fauth.example", "expected",
+      "https://auth.example");
+  ASSERT_TRUE(code.ok()) << code.status();
+  auto mismatch = ExtractAuthorizationCodeFromCallback(
+      "http://127.0.0.1/callback?code=abc&state=expected&iss=https%3A%2F%2Fevil.example", "expected",
+      "https://auth.example");
+  EXPECT_EQ(mismatch.status().code(), absl::StatusCode::kPermissionDenied);
+
+  OAuthClientConfig config = Config();
+  config.s256_supported = false;
+  EXPECT_EQ(StartPkceAuthorization(config).status().code(), absl::StatusCode::kFailedPrecondition);
+
+  config.s256_supported = true;
+  config.max_scope_count = 1;
+  config.scopes = {"repo", "issues"};
+  EXPECT_EQ(StartPkceAuthorization(config).status().code(), absl::StatusCode::kResourceExhausted);
+
+  config = Config();
+  config.client_id = "https://client.example/metadata.json";
+  config.client_secret = "secret";
+  EXPECT_EQ(StartPkceAuthorization(config).status().code(), absl::StatusCode::kInvalidArgument);
 }
 
 TEST(OAuthClientTest, RejectsStateMismatch) {
@@ -56,8 +84,7 @@ TEST(OAuthClientTest, RejectsStateMismatch) {
 
 TEST(OAuthClientTest, ReportsCallbackOAuthError) {
   auto code = ExtractAuthorizationCodeFromCallback(
-      "http://127.0.0.1/callback?error=access_denied&error_description=User+denied&state=expected",
-      "expected");
+      "http://127.0.0.1/callback?error=access_denied&error_description=User+denied&state=expected", "expected");
   ASSERT_FALSE(code.ok());
   EXPECT_TRUE(absl::IsUnauthenticated(code.status()));
   EXPECT_TRUE(absl::StrContains(code.status().message(), "access_denied"));
@@ -82,6 +109,9 @@ TEST(OAuthClientTest, ExchangesAndRefreshesTokens) {
   ASSERT_TRUE(exchanged.ok()) << exchanged.status();
   EXPECT_EQ(exchanged->access_token, "access");
   EXPECT_NE(http.last_body.find("grant_type=authorization_code"), std::string::npos);
+  EXPECT_NE(http.last_body.find("resource=https%3A%2F%2Fapi.example%2Fmcp"), std::string::npos);
+  EXPECT_EQ(exchanged->issuer, "https://auth.example");
+  EXPECT_EQ(exchanged->resource, "https://api.example/mcp");
   EXPECT_TRUE(HasHeader(http.last_headers, "Accept: application/json"));
   EXPECT_TRUE(HasHeader(http.last_headers, "Content-Type: application/x-www-form-urlencoded"));
 

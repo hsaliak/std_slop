@@ -1,20 +1,21 @@
 #include "mcp/authorization.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+
 #include "core/json_utils.h"
 
 namespace slop::mcp {
 namespace {
 
-std::string Trim(absl::string_view value) {
-  return std::string(absl::StripAsciiWhitespace(value));
-}
+std::string Trim(absl::string_view value) { return std::string(absl::StripAsciiWhitespace(value)); }
 
 absl::StatusOr<std::vector<std::string>> GetOptionalStringArray(const nlohmann::json& metadata,
                                                                 const std::string& key) {
@@ -136,11 +137,106 @@ absl::StatusOr<AuthorizationServerMetadata> ParseAuthorizationServerMetadata(con
   if (parsed.authorization_endpoint.empty()) {
     return absl::InvalidArgumentError("authorization server metadata missing authorization_endpoint");
   }
-  if (parsed.token_endpoint.empty()) return absl::InvalidArgumentError("authorization server metadata missing token_endpoint");
+  if (parsed.token_endpoint.empty())
+    return absl::InvalidArgumentError("authorization server metadata missing token_endpoint");
   auto scopes_supported = GetOptionalStringArray(metadata, "scopes_supported");
   if (!scopes_supported.ok()) return scopes_supported.status();
   parsed.scopes_supported = *scopes_supported;
+  auto challenge_methods = GetOptionalStringArray(metadata, "code_challenge_methods_supported");
+  if (!challenge_methods.ok()) return challenge_methods.status();
+  parsed.code_challenge_methods_supported = *challenge_methods;
+  if (const auto* cimd = json_at(metadata, "client_id_metadata_document_supported")) {
+    if (!cimd->is_boolean()) {
+      return absl::InvalidArgumentError("client_id_metadata_document_supported must be boolean");
+    }
+    parsed.client_id_metadata_document_supported = cimd->get<bool>();
+  }
   return parsed;
+}
+
+absl::StatusOr<ClientIdMetadataDocument> ParseClientIdMetadataDocument(const nlohmann::json& metadata,
+                                                                       absl::string_view document_url) {
+  if (!metadata.is_object()) {
+    return absl::InvalidArgumentError("Client ID Metadata Document must be an object");
+  }
+  if (!absl::StartsWith(document_url, "https://")) {
+    return absl::InvalidArgumentError("Client ID Metadata Document URL must use https");
+  }
+  ClientIdMetadataDocument parsed;
+  parsed.client_id = json_get_or(metadata, "client_id", std::string{});
+  if (parsed.client_id != document_url) {
+    return absl::PermissionDeniedError("Client ID Metadata Document client_id does not match its URL");
+  }
+  auto redirects = GetOptionalStringArray(metadata, "redirect_uris");
+  if (!redirects.ok()) return redirects.status();
+  if (redirects->empty()) {
+    return absl::InvalidArgumentError("Client ID Metadata Document missing redirect_uris");
+  }
+  parsed.redirect_uris = std::move(*redirects);
+  parsed.token_endpoint_auth_method = json_get_or(metadata, "token_endpoint_auth_method", std::string("none"));
+  if (parsed.token_endpoint_auth_method != "none") {
+    return absl::UnimplementedError("only public CIMD clients with token_endpoint_auth_method=none are supported");
+  }
+  return parsed;
+}
+
+absl::Status ValidateAuthorizationBinding(const ProtectedResourceMetadata& resource_metadata,
+                                          absl::string_view expected_resource,
+                                          const AuthorizationServerMetadata& server_metadata,
+                                          absl::string_view selected_authorization_server) {
+  if (resource_metadata.resource != expected_resource) {
+    return absl::PermissionDeniedError("protected resource metadata resource mismatch");
+  }
+  bool selected_is_advertised = false;
+  for (const std::string& candidate : resource_metadata.authorization_servers) {
+    selected_is_advertised = selected_is_advertised || candidate == selected_authorization_server;
+  }
+  if (!selected_is_advertised) {
+    return absl::PermissionDeniedError("authorization server was not advertised by the resource");
+  }
+  if (server_metadata.issuer != selected_authorization_server) {
+    return absl::PermissionDeniedError("authorization server issuer mismatch");
+  }
+  bool supports_s256 = false;
+  for (const std::string& method : server_metadata.code_challenge_methods_supported) {
+    supports_s256 = supports_s256 || method == "S256";
+  }
+  if (!supports_s256) {
+    return absl::FailedPreconditionError("authorization server does not advertise S256 PKCE");
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<std::string>> MergeAuthorizationScopes(const std::vector<std::string>& previously_requested,
+                                                                  const std::vector<std::string>& challenge_scopes,
+                                                                  size_t max_scopes) {
+  if (max_scopes == 0) {
+    return absl::InvalidArgumentError("scope limit must be positive");
+  }
+  std::vector<std::string> merged;
+  merged.reserve(std::min(max_scopes, previously_requested.size() + challenge_scopes.size()));
+  absl::flat_hash_set<std::string> seen;
+  auto append_unique = [&merged, &seen, max_scopes](const std::string& scope) -> absl::Status {
+    if (scope.empty()) {
+      return absl::InvalidArgumentError("scope values must not be empty");
+    }
+    if (seen.contains(scope)) return absl::OkStatus();
+    if (merged.size() >= max_scopes) {
+      return absl::ResourceExhaustedError("requested scope set exceeds limit");
+    }
+    seen.insert(scope);
+    merged.push_back(scope);
+    return absl::OkStatus();
+  };
+  for (const std::string& scope : previously_requested) {
+    absl::Status status = append_unique(scope);
+    if (!status.ok()) return status;
+  }
+  for (const std::string& scope : challenge_scopes) {
+    absl::Status status = append_unique(scope);
+    if (!status.ok()) return status;
+  }
+  return merged;
 }
 
 }  // namespace slop::mcp

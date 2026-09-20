@@ -1,12 +1,12 @@
-#include "mcp/authorization.h"
-
 #include <string>
 #include <tuple>
 #include <vector>
 
-#include "fuzztest/fuzztest.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
+
+#include "fuzztest/fuzztest.h"
+#include "mcp/authorization.h"
 
 namespace slop::mcp {
 namespace {
@@ -22,6 +22,7 @@ void MetadataParsersNeverCrash(const std::string& raw) {
   const nlohmann::json not_object = nlohmann::json::array({raw, nullptr});
   (void)ParseProtectedResourceMetadata(not_object);
   (void)ParseAuthorizationServerMetadata(not_object);
+  (void)ParseClientIdMetadataDocument(not_object, "https://client.example/metadata.json");
 
   nlohmann::json object = nlohmann::json::object();
   object["resource"] = raw;
@@ -30,8 +31,11 @@ void MetadataParsersNeverCrash(const std::string& raw) {
   object["issuer"] = raw;
   object["authorization_endpoint"] = raw;
   object["token_endpoint"] = raw;
+  object["client_id"] = raw;
+  object["redirect_uris"] = nlohmann::json::array({raw});
   (void)ParseProtectedResourceMetadata(object);
   (void)ParseAuthorizationServerMetadata(object);
+  (void)ParseClientIdMetadataDocument(object, "https://client.example/metadata.json");
 }
 
 FUZZ_TEST(McpAuthorizationFuzzTest, WwwAuthenticateParserNeverCrashes)

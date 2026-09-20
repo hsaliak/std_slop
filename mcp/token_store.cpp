@@ -1,15 +1,19 @@
 #include "mcp/token_store.h"
 
+#include <unistd.h>
+
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+
 #include "core/json_utils.h"
+
+#include <sys/stat.h>
 
 namespace slop::mcp {
 namespace {
@@ -32,19 +36,27 @@ absl::Status ValidateAccessTokenForHeader(const std::string& access_token) {
 
 }  // namespace
 
-
 absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& tokens) {
   const absl::Status token_status = ValidateAccessTokenForHeader(tokens.access_token);
   if (!token_status.ok()) return token_status;
+  if (!absl::EqualsIgnoreCase(tokens.token_type, "Bearer")) {
+    return absl::InvalidArgumentError("OAuth token file token_type must be Bearer");
+  }
   const std::filesystem::path token_path(path);
   std::error_code error;
   if (!token_path.parent_path().empty()) {
     std::filesystem::create_directories(token_path.parent_path(), error);
     if (error) return absl::UnavailableError(absl::StrCat("Failed to create token directory: ", error.message()));
   }
-  const std::string content = json_dump({{"access_token", tokens.access_token},
-                                         {"refresh_token", tokens.refresh_token},
-                                         {"expires_at", tokens.expires_at_unix_seconds}});
+  const std::string content = json_dump({
+      {"access_token", tokens.access_token},
+      {"refresh_token", tokens.refresh_token},
+      {"token_type", "Bearer"},
+      {"scope", tokens.scope},
+      {"issuer", tokens.issuer},
+      {"resource", tokens.resource},
+      {"expires_at", tokens.expires_at_unix_seconds},
+  });
   std::string temporary_template = absl::StrCat(path, ".tmp.XXXXXX");
   std::vector<char> buffer(temporary_template.begin(), temporary_template.end());
   buffer.push_back('\0');
@@ -62,6 +74,9 @@ absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& token
     std::filesystem::remove(buffer.data(), error);
     return absl::UnavailableError(absl::StrCat("Failed to replace token file: ", error.message()));
   }
+  if (chmod(path.c_str(), 0600) != 0) {
+    return absl::UnavailableError("Failed to restrict token file permissions");
+  }
   return absl::OkStatus();
 }
 
@@ -74,7 +89,15 @@ absl::StatusOr<OAuthTokenSet> LoadOAuthTokens(const std::string& path) {
   OAuthTokenSet tokens;
   tokens.access_token = json_get_or(*parsed, "access_token", std::string{});
   tokens.refresh_token = json_get_or(*parsed, "refresh_token", std::string{});
+  tokens.token_type = json_get_or(*parsed, "token_type", std::string("Bearer"));
+  tokens.scope = json_get_or(*parsed, "scope", std::string{});
+  tokens.issuer = json_get_or(*parsed, "issuer", std::string{});
+  tokens.resource = json_get_or(*parsed, "resource", std::string{});
   tokens.expires_at_unix_seconds = json_get_or(*parsed, "expires_at", int64_t{0});
+  if (!absl::EqualsIgnoreCase(tokens.token_type, "Bearer")) {
+    return absl::InvalidArgumentError("OAuth token file token_type must be Bearer");
+  }
+  tokens.token_type = "Bearer";
   const absl::Status token_status = ValidateAccessTokenForHeader(tokens.access_token);
   if (!token_status.ok()) return token_status;
   return tokens;

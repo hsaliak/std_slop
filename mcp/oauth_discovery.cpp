@@ -1,11 +1,13 @@
 #include "mcp/oauth_discovery.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+
 #include "core/json_utils.h"
 #include "mcp/authorization.h"
 
@@ -45,14 +47,24 @@ absl::StatusOr<nlohmann::json> GetJson(HttpClient* http_client, const std::strin
 }  // namespace
 
 absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_client,
-                                                            const std::string& mcp_endpoint_url) {
+                                                            const std::string& mcp_endpoint_url,
+                                                            OAuthDiscoveryOptions options) {
   if (http_client == nullptr) return absl::InvalidArgumentError("http_client must not be null");
   if (!IsHttpUrl(mcp_endpoint_url)) return absl::InvalidArgumentError("MCP endpoint URL must use http or https");
 
-  const std::string probe_body = R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})";
-  auto challenge = http_client->PostWithResponse(mcp_endpoint_url, probe_body,
-                                                 {"Accept: application/json, text/event-stream",
-                                                  "Content-Type: application/json"});
+  const nlohmann::json probe = {
+      {"jsonrpc", "2.0"},
+      {"id", "oauth-discovery"},
+      {"method", "initialize"},
+      {"params",
+       {{"protocolVersion", "2025-06-18"},
+        {"capabilities", nlohmann::json::object()},
+        {"clientInfo", {{"name", "std_slop"}, {"version", "oauth-discovery"}}}}},
+  };
+  auto challenge =
+      http_client->PostWithResponse(mcp_endpoint_url, json_dump(probe),
+                                    {"Accept: application/json, text/event-stream", "Content-Type: application/json",
+                                     "MCP-Protocol-Version: 2025-06-18", "Mcp-Method: initialize"});
   if (!challenge.ok()) return challenge.status();
   if (challenge->status_code != 401) {
     return absl::UnauthenticatedError(
@@ -61,7 +73,8 @@ absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_cli
   }
 
   const auto header = challenge->headers.find("www-authenticate");
-  if (header == challenge->headers.end()) return absl::UnauthenticatedError("MCP OAuth discovery missing WWW-Authenticate header");
+  if (header == challenge->headers.end())
+    return absl::UnauthenticatedError("MCP OAuth discovery missing WWW-Authenticate header");
   auto resource_metadata_url = ParseWwwAuthenticateResourceMetadata(header->second);
   if (!resource_metadata_url.ok()) return resource_metadata_url.status();
   if (!IsHttpsUrl(*resource_metadata_url)) {
@@ -72,12 +85,13 @@ absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_cli
   if (!resource_json.ok()) return resource_json.status();
   auto resource_metadata = ParseProtectedResourceMetadata(*resource_json);
   if (!resource_metadata.ok()) return resource_metadata.status();
-  if (resource_metadata->authorization_servers.size() != 1) {
-    return absl::FailedPreconditionError(
-        "MCP OAuth discovery requires exactly one authorization server; pass endpoints manually");
+  std::string authorization_server_url = options.selected_authorization_server;
+  if (authorization_server_url.empty()) {
+    if (resource_metadata->authorization_servers.size() != 1) {
+      return absl::FailedPreconditionError("multiple authorization servers advertised; select one explicitly");
+    }
+    authorization_server_url = resource_metadata->authorization_servers.front();
   }
-
-  const std::string authorization_server_url = resource_metadata->authorization_servers[0];
   if (!IsHttpsUrl(authorization_server_url)) {
     return absl::InvalidArgumentError("MCP OAuth authorization server URL must use https");
   }
@@ -89,9 +103,14 @@ absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_cli
   if (!IsHttpsUrl(server_metadata->authorization_endpoint) || !IsHttpsUrl(server_metadata->token_endpoint)) {
     return absl::InvalidArgumentError("MCP OAuth authorization and token endpoints must use https");
   }
+  const absl::Status binding =
+      ValidateAuthorizationBinding(*resource_metadata, mcp_endpoint_url, *server_metadata, authorization_server_url);
+  if (!binding.ok()) return binding;
 
   OAuthDiscoveryResult result;
   result.resource_metadata_url = *resource_metadata_url;
+  result.resource = resource_metadata->resource;
+  result.issuer = server_metadata->issuer;
   result.authorization_server_url = authorization_server_url;
   result.authorization_endpoint = server_metadata->authorization_endpoint;
   result.token_endpoint = server_metadata->token_endpoint;

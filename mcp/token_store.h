@@ -11,6 +11,10 @@ namespace slop::mcp {
 struct OAuthTokenSet {
   std::string access_token;
   std::string refresh_token;
+  std::string token_type = "Bearer";
+  std::string scope;
+  std::string issuer;
+  std::string resource;
   int64_t expires_at_unix_seconds = 0;
 };
 

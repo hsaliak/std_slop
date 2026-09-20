@@ -10,6 +10,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
+
 #include "core/http_client.h"
 #include "mcp/registry.h"
 #include "mcp/token_store.h"
@@ -41,11 +42,14 @@ class FakeHttpClient : public HttpClient {
     return absl::NotFoundError("unexpected URL");
   }
 
-  HttpResponse post_response = {401, "", {{"www-authenticate", R"(Bearer resource_metadata="https://api.example/.well-known/oauth-protected-resource")"}}};
+  HttpResponse post_response = {
+      401,
+      "",
+      {{"www-authenticate", R"(Bearer resource_metadata="https://api.example/.well-known/oauth-protected-resource")"}}};
   std::string resource_metadata_body =
       R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example"]})";
   std::string authorization_metadata_body =
-      R"({"issuer":"https://auth.example","authorization_endpoint":"https://auth.example/authorize","token_endpoint":"https://auth.example/token","scopes_supported":["repo"]})";
+      R"({"issuer":"https://auth.example","authorization_endpoint":"https://auth.example/authorize","token_endpoint":"https://auth.example/token","scopes_supported":["repo"],"code_challenge_methods_supported":["S256"]})";
   std::string post_url;
   std::string post_body;
   std::vector<std::string> post_headers;
@@ -116,9 +120,9 @@ TEST(McpCommandsTest, AddRejectsDuplicateFlag) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://one.example/mcp", "--url",
-                                       "https://two.example/mcp"},
-                                      &http_client, &input, &output, &error);
+  absl::Status status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://one.example/mcp", "--url", "https://two.example/mcp"},
+                    &http_client, &input, &output, &error);
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsInvalidArgument(status));
 }
@@ -130,9 +134,9 @@ TEST(McpCommandsTest, AddBearerSavesTokenOutsideRegistry) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth",
-                                       "bearer", "--token", " secret-token "},
-                                      &http_client, &input, &output, &error);
+  absl::Status status = RunMcpCommand(
+      {"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer", "--token", " secret-token "},
+      &http_client, &input, &output, &error);
 
   ASSERT_TRUE(status.ok()) << status;
   EXPECT_NE(output.str().find("MCP server saved: github"), std::string::npos);
@@ -160,8 +164,7 @@ TEST(McpCommandsTest, AddBearerRequiresToken) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth",
-                                       "bearer"},
+  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer"},
                                       &http_client, &input, &output, &error);
 
   EXPECT_FALSE(status.ok());
@@ -176,9 +179,9 @@ TEST(McpCommandsTest, AddRejectsTokenForNonBearerAuth) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "none",
-                                       "--token", "secret-token"},
-                                      &http_client, &input, &output, &error);
+  absl::Status status = RunMcpCommand(
+      {"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "none", "--token", "secret-token"},
+      &http_client, &input, &output, &error);
 
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsInvalidArgument(status));
@@ -191,15 +194,17 @@ TEST(McpCommandsTest, AddBearerDeletesOldTokenWhenTokenPathChanges) {
   std::istringstream input;
   std::ostringstream output;
   std::ostringstream error;
-  const std::string old_path = absl::StrCat(::testing::TempDir(), "/old_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
-  const std::string new_path = absl::StrCat(::testing::TempDir(), "/new_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+  const std::string old_path =
+      absl::StrCat(::testing::TempDir(), "/old_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+  const std::string new_path =
+      absl::StrCat(::testing::TempDir(), "/new_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
 
-  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
-                             "--token", "old-token", "--token-path", old_path},
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer", "--token",
+                             "old-token", "--token-path", old_path},
                             &http_client, &input, &output, &error)
                   .ok());
-  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
-                             "--token", "new-token", "--token-path", new_path},
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer", "--token",
+                             "new-token", "--token-path", new_path},
                             &http_client, &input, &output, &error)
                   .ok());
 
@@ -215,10 +220,11 @@ TEST(McpCommandsTest, AddNonBearerDeletesOldBearerToken) {
   std::istringstream input;
   std::ostringstream output;
   std::ostringstream error;
-  const std::string token_path = absl::StrCat(::testing::TempDir(), "/old_mcp_bearer_mode_", absl::ToUnixNanos(absl::Now()), ".json");
+  const std::string token_path =
+      absl::StrCat(::testing::TempDir(), "/old_mcp_bearer_mode_", absl::ToUnixNanos(absl::Now()), ".json");
 
-  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
-                             "--token", "old-token", "--token-path", token_path},
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer", "--token",
+                             "old-token", "--token-path", token_path},
                             &http_client, &input, &output, &error)
                   .ok());
   ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "none"},
@@ -234,10 +240,11 @@ TEST(McpCommandsTest, AddBearerRestoresOldTokenWhenRegistryUpdateFails) {
   std::istringstream input;
   std::ostringstream output;
   std::ostringstream error;
-  const std::string token_path = absl::StrCat(::testing::TempDir(), "/restore_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+  const std::string token_path =
+      absl::StrCat(::testing::TempDir(), "/restore_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
 
-  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
-                             "--token", "old-token", "--token-path", token_path},
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer", "--token",
+                             "old-token", "--token-path", token_path},
                             &http_client, &input, &output, &error)
                   .ok());
 
@@ -247,10 +254,10 @@ TEST(McpCommandsTest, AddBearerRestoresOldTokenWhenRegistryUpdateFails) {
   const absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://changed.example/mcp", "--auth",
                                              "bearer", "--token", "new-token", "--token-path", token_path},
                                             &http_client, &input, &output, &error);
-  std::filesystem::permissions(registry_dir,
-                               std::filesystem::perms::owner_all | std::filesystem::perms::group_read |
-                                   std::filesystem::perms::group_exec,
-                               std::filesystem::perm_options::replace);
+  std::filesystem::permissions(
+      registry_dir,
+      std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec,
+      std::filesystem::perm_options::replace);
 
   ASSERT_FALSE(status.ok());
   auto tokens = mcp::LoadOAuthTokens(token_path);
@@ -264,10 +271,11 @@ TEST(McpCommandsTest, AddBearerDeletesNewTokenWhenRegistryUpdateFailsWithoutOldT
   std::istringstream input;
   std::ostringstream output;
   std::ostringstream error;
-  const std::string token_path = absl::StrCat(::testing::TempDir(), "/delete_new_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
+  const std::string token_path =
+      absl::StrCat(::testing::TempDir(), "/delete_new_mcp_bearer_", absl::ToUnixNanos(absl::Now()), ".json");
 
-  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer",
-                             "--token", "old-token", "--token-path", token_path},
+  ASSERT_TRUE(RunMcpCommand({"mcp", "add", "github", "--url", "https://example.com/mcp", "--auth", "bearer", "--token",
+                             "old-token", "--token-path", token_path},
                             &http_client, &input, &output, &error)
                   .ok());
   ASSERT_TRUE(mcp::DeleteOAuthTokens(token_path).ok());
@@ -278,10 +286,10 @@ TEST(McpCommandsTest, AddBearerDeletesNewTokenWhenRegistryUpdateFailsWithoutOldT
   const absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://changed.example/mcp", "--auth",
                                              "bearer", "--token", "new-token", "--token-path", token_path},
                                             &http_client, &input, &output, &error);
-  std::filesystem::permissions(registry_dir,
-                               std::filesystem::perms::owner_all | std::filesystem::perms::group_read |
-                                   std::filesystem::perms::group_exec,
-                               std::filesystem::perm_options::replace);
+  std::filesystem::permissions(
+      registry_dir,
+      std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec,
+      std::filesystem::perm_options::replace);
 
   ASSERT_FALSE(status.ok());
   EXPECT_FALSE(mcp::LoadOAuthTokens(token_path).ok());
@@ -319,11 +327,11 @@ TEST(McpCommandsTest, OAuthAddManualEndpointsSkipsDiscovery) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
-                                       "--client-id", "client", "--authorization-endpoint",
-                                       "https://manual.example/authorize", "--token-endpoint",
-                                       "https://manual.example/token"},
-                                      &http_client, &input, &output, &error);
+  absl::Status status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
+                     "client", "--authorization-endpoint", "https://manual.example/authorize", "--token-endpoint",
+                     "https://manual.example/token"},
+                    &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
   EXPECT_TRUE(http_client.post_url.empty());
 
@@ -341,10 +349,10 @@ TEST(McpCommandsTest, OAuthAddRejectsPartialManualEndpoint) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
-                                       "--client-id", "client", "--authorization-endpoint",
-                                       "https://manual.example/authorize"},
-                                      &http_client, &input, &output, &error);
+  absl::Status status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
+                     "client", "--authorization-endpoint", "https://manual.example/authorize"},
+                    &http_client, &input, &output, &error);
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsInvalidArgument(status));
   EXPECT_TRUE(http_client.post_url.empty());
@@ -371,9 +379,9 @@ TEST(McpCommandsTest, OAuthAddReportsDiscoveryFailure) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
-                                       "--client-id", "client"},
-                                      &http_client, &input, &output, &error);
+  absl::Status status = RunMcpCommand(
+      {"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id", "client"},
+      &http_client, &input, &output, &error);
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsUnauthenticated(status));
 }
@@ -427,11 +435,11 @@ TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
-                                       "--client-id", "client", "--authorization-endpoint",
-                                       "https://manual.example/authorize", "--token-endpoint",
-                                       "https://manual.example/token"},
-                                      &http_client, &input, &output, &error);
+  absl::Status status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
+                     "client", "--authorization-endpoint", "https://manual.example/authorize", "--token-endpoint",
+                     "https://manual.example/token"},
+                    &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
 
   status = RunMcpCommand({"mcp", "oauth-refresh", "github"}, &http_client, &input, &output, &error);
@@ -446,17 +454,21 @@ TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth",
-                                       "--client-id", "client", "--authorization-endpoint",
-                                       "https://manual.example/authorize", "--token-endpoint",
-                                       "https://manual.example/token"},
-                                      &http_client, &input, &output, &error);
+  absl::Status status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
+                     "client", "--authorization-endpoint", "https://manual.example/authorize", "--token-endpoint",
+                     "https://manual.example/token"},
+                    &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
-  ASSERT_TRUE(mcp::SaveOAuthTokens(mcp::DefaultTokenPath("github"), {"old-access", "old-refresh", 0}).ok());
+  mcp::OAuthTokenSet old_tokens;
+  old_tokens.access_token = "old-access";
+  old_tokens.refresh_token = "old-refresh";
+  ASSERT_TRUE(mcp::SaveOAuthTokens(mcp::DefaultTokenPath("github"), old_tokens).ok());
 
-  http_client.post_response = {200, R"({"access_token":"new-access","refresh_token":"new-refresh","expires_in":60})", {}};
-  status = RunMcpCommand({"mcp", "oauth-refresh", "github", "--client-secret", "top secret"}, &http_client, &input, &output,
-                         &error);
+  http_client.post_response = {
+      200, R"({"access_token":"new-access","refresh_token":"new-refresh","expires_in":60})", {}};
+  status = RunMcpCommand({"mcp", "oauth-refresh", "github", "--client-secret", "top secret"}, &http_client, &input,
+                         &output, &error);
   ASSERT_TRUE(status.ok()) << status;
   EXPECT_NE(http_client.post_body.find("client_secret=top%20secret"), std::string::npos);
 

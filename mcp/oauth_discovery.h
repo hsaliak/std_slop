@@ -5,12 +5,19 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+
 #include "core/http_client.h"
 
 namespace slop::mcp {
 
+struct OAuthDiscoveryOptions {
+  std::string selected_authorization_server;
+};
+
 struct OAuthDiscoveryResult {
   std::string resource_metadata_url;
+  std::string resource;
+  std::string issuer;
   std::string authorization_server_url;
   std::string authorization_endpoint;
   std::string token_endpoint;
@@ -18,7 +25,8 @@ struct OAuthDiscoveryResult {
 };
 
 absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_client,
-                                                            const std::string& mcp_endpoint_url);
+                                                            const std::string& mcp_endpoint_url,
+                                                            OAuthDiscoveryOptions options = OAuthDiscoveryOptions());
 
 }  // namespace slop::mcp
 

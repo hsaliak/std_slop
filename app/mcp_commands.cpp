@@ -10,6 +10,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+
 #include "mcp/oauth_client.h"
 #include "mcp/oauth_discovery.h"
 #include "mcp/registry.h"
@@ -107,7 +108,8 @@ absl::StatusOr<std::string> ClientSecretFromArgs(const std::vector<std::string>&
 
 absl::Status WithMcpContext(const std::string& action, const std::string& server_name, const absl::Status& status) {
   if (status.ok()) return status;
-  return absl::Status(status.code(), absl::StrCat("MCP ", action, " failed for server '", server_name, "': ", status.message()));
+  return absl::Status(status.code(),
+                      absl::StrCat("MCP ", action, " failed for server '", server_name, "': ", status.message()));
 }
 
 bool ShouldDeleteOldToken(const std::optional<mcp::ServerRegistryEntry>& old_entry,
@@ -129,9 +131,9 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
   }
   if (command == "add") {
     if (args.size() < 3) return Usage();
-    const absl::Status flag_status = ValidateFlags(args, {"--scope"}, {"--url", "--auth", "--token", "--client-id",
-                                                                          "--token-path", "--authorization-endpoint",
-                                                                          "--token-endpoint"});
+    const absl::Status flag_status = ValidateFlags(
+        args, {"--scope"},
+        {"--url", "--auth", "--token", "--client-id", "--token-path", "--authorization-endpoint", "--token-endpoint"});
     if (!flag_status.ok()) return flag_status;
     mcp::ServerRegistryEntry entry;
     entry.name = args[2];
@@ -184,7 +186,9 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
       if (loaded_old_tokens.ok()) old_tokens = *loaded_old_tokens;
     }
     if (entry.auth == mcp::kAuthBearer) {
-      const absl::Status token_status = mcp::SaveOAuthTokens(entry.token_path, {bearer_token, "", 0});
+      mcp::OAuthTokenSet tokens;
+      tokens.access_token = bearer_token;
+      const absl::Status token_status = mcp::SaveOAuthTokens(entry.token_path, tokens);
       if (!token_status.ok()) return WithMcpContext("bearer token save", entry.name, token_status);
     }
     const absl::Status status = mcp::UpsertServerRegistryEntry(mcp::DefaultRegistryPath(), entry);
@@ -195,7 +199,8 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
         } else {
           (void)mcp::DeleteOAuthTokens(entry.token_path);
         }
-      } else if (entry.auth == mcp::kAuthBearer && (!old_entry.has_value() || old_entry->token_path != entry.token_path)) {
+      } else if (entry.auth == mcp::kAuthBearer &&
+                 (!old_entry.has_value() || old_entry->token_path != entry.token_path)) {
         (void)mcp::DeleteOAuthTokens(entry.token_path);
       }
       return status;
@@ -220,8 +225,8 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
     if (!entries.ok()) return entries.status();
     for (const auto& entry : *entries) {
-      *out << entry.name << "\t" << entry.auth << "\t" << (entry.enabled ? "enabled" : "disabled") << "\t"
-           << entry.url << "\n";
+      *out << entry.name << "\t" << entry.auth << "\t" << (entry.enabled ? "enabled" : "disabled") << "\t" << entry.url
+           << "\n";
     }
     return absl::OkStatus();
   }

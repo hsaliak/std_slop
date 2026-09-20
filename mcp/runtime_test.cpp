@@ -306,7 +306,9 @@ TEST(McpRuntimeTest, BearerTokenIsLoadedIntoTransportHeaders) {
   entry.auth = kAuthBearer;
   entry.token_path =
       absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_token_", absl::ToUnixNanos(absl::Now()), ".json");
-  ASSERT_TRUE(SaveOAuthTokens(entry.token_path, {"secret-token", "", 0}).ok());
+  OAuthTokenSet tokens;
+  tokens.access_token = "secret-token";
+  ASSERT_TRUE(SaveOAuthTokens(entry.token_path, tokens).ok());
   const std::string registry_path = TempRegistryPath();
   ASSERT_TRUE(SaveServerRegistry(registry_path, {entry}).ok());
 
