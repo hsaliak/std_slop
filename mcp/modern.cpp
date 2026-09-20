@@ -342,6 +342,10 @@ absl::StatusOr<Result> ParseResult(const nlohmann::json& result) {
   }
   Result parsed;
   parsed.value = result;
+  const auto* type_value = json_at(result, "resultType");
+  if (type_value != nullptr && !type_value->is_string()) {
+    return absl::InvalidArgumentError("modern MCP resultType must be a string");
+  }
   const std::string type = json_get_or(result, "resultType", std::string{});
   if (type.empty() || type == "complete") {
     parsed.type = ResultType::kComplete;

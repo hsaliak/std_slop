@@ -256,6 +256,19 @@ TEST(SessionTest, ListToolsFollowsPagination) {
   EXPECT_EQ(json_get_or(raw->sent[3]["params"], "cursor", std::string{}), "next");
 }
 
+TEST(SessionTest, ListToolsRejectsCursorCycles) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));
+  raw->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 2}, {"result", {{"tools", nlohmann::json::array()}, {"nextCursor", "same"}}}});
+  raw->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"id", 3}, {"result", {{"tools", nlohmann::json::array()}, {"nextCursor", "same"}}}});
+  Session session(std::move(fake));
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+  EXPECT_EQ(session.ListTools().status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 TEST(SessionTest, ListToolsRejectsMalformedTool) {
   auto fake = std::make_unique<FakeTransport>();
   fake->responses.push_back(InitializeResult({{"tools", nlohmann::json::object()}}));

@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
@@ -87,7 +88,10 @@ absl::StatusOr<std::vector<Tool>> Session::ListTools() {
   if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
   std::vector<Tool> tools;
   std::string cursor;
+  absl::flat_hash_set<std::string> seen_cursors;
+  size_t page_count = 0;
   do {
+    if (++page_count > 100) return absl::ResourceExhaustedError("MCP pagination page limit exceeded");
     nlohmann::json params = nlohmann::json::object();
     if (!cursor.empty()) params["cursor"] = cursor;
     auto result_or = SendRequest("tools/list", params, options_.request_timeout);
@@ -103,6 +107,9 @@ absl::StatusOr<std::vector<Tool>> Session::ListTools() {
     auto next_cursor = NextCursor(*result_or);
     if (!next_cursor.ok()) return next_cursor.status();
     cursor = *next_cursor;
+    if (!cursor.empty() && !seen_cursors.insert(cursor).second) {
+      return absl::InvalidArgumentError("MCP pagination cursor cycle");
+    }
   } while (!cursor.empty());
   return tools;
 }
@@ -121,7 +128,10 @@ absl::StatusOr<std::vector<Resource>> Session::ListResources() {
   if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
   std::vector<Resource> resources;
   std::string cursor;
+  absl::flat_hash_set<std::string> seen_cursors;
+  size_t page_count = 0;
   do {
+    if (++page_count > 100) return absl::ResourceExhaustedError("MCP pagination page limit exceeded");
     nlohmann::json params = nlohmann::json::object();
     if (!cursor.empty()) params["cursor"] = cursor;
     auto result_or = SendRequest("resources/list", params, options_.request_timeout);
@@ -137,6 +147,9 @@ absl::StatusOr<std::vector<Resource>> Session::ListResources() {
     auto next_cursor = NextCursor(*result_or);
     if (!next_cursor.ok()) return next_cursor.status();
     cursor = *next_cursor;
+    if (!cursor.empty() && !seen_cursors.insert(cursor).second) {
+      return absl::InvalidArgumentError("MCP pagination cursor cycle");
+    }
   } while (!cursor.empty());
   return resources;
 }
@@ -173,7 +186,10 @@ absl::StatusOr<std::vector<Prompt>> Session::ListPrompts() {
   if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
   std::vector<Prompt> prompts;
   std::string cursor;
+  absl::flat_hash_set<std::string> seen_cursors;
+  size_t page_count = 0;
   do {
+    if (++page_count > 100) return absl::ResourceExhaustedError("MCP pagination page limit exceeded");
     nlohmann::json params = nlohmann::json::object();
     if (!cursor.empty()) params["cursor"] = cursor;
     auto result_or = SendRequest("prompts/list", params, options_.request_timeout);
@@ -189,6 +205,9 @@ absl::StatusOr<std::vector<Prompt>> Session::ListPrompts() {
     auto next_cursor = NextCursor(*result_or);
     if (!next_cursor.ok()) return next_cursor.status();
     cursor = *next_cursor;
+    if (!cursor.empty() && !seen_cursors.insert(cursor).second) {
+      return absl::InvalidArgumentError("MCP pagination cursor cycle");
+    }
   } while (!cursor.empty());
   return prompts;
 }
