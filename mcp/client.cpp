@@ -54,6 +54,10 @@ class ClassicClient final : public Client {
   absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {
     return session_->CallTool(name, arguments);
   }
+  absl::StatusOr<ToolCallResult> ContinueToolCall(const std::string&, const nlohmann::json&,
+                                                  const nlohmann::json&) override {
+    return absl::UnimplementedError("tool continuations require modern MCP");
+  }
 
  private:
   std::unique_ptr<v2025_11_25::Session> session_;
@@ -108,6 +112,17 @@ class ModernClient final : public Client {
   }
 
   absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {
+    return ExecuteToolCall(name, arguments, nullptr);
+  }
+
+  absl::StatusOr<ToolCallResult> ContinueToolCall(const std::string& name, const nlohmann::json& arguments,
+                                                  const nlohmann::json& request_state) override {
+    return ExecuteToolCall(name, arguments, &request_state);
+  }
+
+ private:
+  absl::StatusOr<ToolCallResult> ExecuteToolCall(const std::string& name, const nlohmann::json& arguments,
+                                                 const nlohmann::json* request_state) {
     const auto tool = tools_.find(name);
     if (tool == tools_.end()) {
       return absl::FailedPreconditionError("tools/list must provide a valid tool before tools/call");
@@ -116,6 +131,7 @@ class ModernClient final : public Client {
     if (!validation.ok()) return validation;
     v2026_07_28::Request request = MakeRequest("tools/call");
     request.params = {{"name", name}, {"arguments", arguments}};
+    if (request_state != nullptr) request.params["requestState"] = *request_state;
     request.tool_schema = tool->second.input_schema;
     auto exchange_or = exchange_.Execute(request);
     if (!exchange_or.ok()) return exchange_or.status();
@@ -127,7 +143,6 @@ class ModernClient final : public Client {
     return v2026_07_28::ParseToolCallResult(*exchange_or->response->result, output_schema);
   }
 
- private:
   v2026_07_28::Request MakeRequest(absl::string_view method) {
     v2026_07_28::Request request;
     request.id = absl::StrCat("modern-", next_request_id_++);

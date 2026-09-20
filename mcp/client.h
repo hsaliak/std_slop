@@ -25,6 +25,8 @@ class Client {
   virtual ProtocolRevision revision() const = 0;
   virtual absl::StatusOr<std::vector<Tool>> ListTools() = 0;
   virtual absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) = 0;
+  virtual absl::StatusOr<ToolCallResult> ContinueToolCall(const std::string& name, const nlohmann::json& arguments,
+                                                          const nlohmann::json& request_state) = 0;
 };
 
 struct ClientOptions {

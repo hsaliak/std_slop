@@ -113,7 +113,9 @@ TEST(McpClientTest, SelectsModernAndExecutesTools) {
   http.responses.push_back(JsonResponse(
       R"({"jsonrpc":"2.0","id":"modern-2","result":{"tools":[{"name":"echo","inputSchema":{"type":"object","required":["text"],"properties":{"text":{"type":"string"}}}}]}})"));
   http.responses.push_back(JsonResponse(
-      R"({"jsonrpc":"2.0","id":"modern-3","result":{"resultType":"complete","content":[{"type":"text","text":"ok"}],"structuredContent":[1,2]}})"));
+      R"({"jsonrpc":"2.0","id":"modern-3","result":{"resultType":"input_required","requestState":{"step":1},"content":[]}})"));
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-4","result":{"resultType":"complete","content":[{"type":"text","text":"ok"}],"structuredContent":[1,2]}})"));
   StreamableHttpConfig config;
   config.endpoint_url = "https://example.com/mcp";
 
@@ -125,9 +127,15 @@ TEST(McpClientTest, SelectsModernAndExecutesTools) {
   ASSERT_EQ(tools->size(), 1);
   auto result = (*client)->CallTool("echo", {{"text", "hello"}});
   ASSERT_TRUE(result.ok()) << result.status();
-  ASSERT_TRUE(result->structured_content.has_value());
-  EXPECT_TRUE(result->structured_content->is_array());
-  EXPECT_EQ(http.modern_calls, 3);
+  EXPECT_EQ(result->kind, ToolResultKind::kInputRequired);
+  ASSERT_TRUE(result->request_state.has_value());
+  auto continued = (*client)->ContinueToolCall("echo", {{"text", "hello"}}, *result->request_state);
+  ASSERT_TRUE(continued.ok()) << continued.status();
+  EXPECT_EQ(continued->kind, ToolResultKind::kComplete);
+  ASSERT_TRUE(continued->structured_content.has_value());
+  EXPECT_TRUE(continued->structured_content->is_array());
+  EXPECT_EQ(http.modern_calls, 4);
+  EXPECT_NE(http.bodies.back().find("requestState"), std::string::npos);
 }
 
 TEST(McpClientTest, AggregatesPagesAndRejectsCursorCycles) {
