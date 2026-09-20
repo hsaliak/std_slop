@@ -63,6 +63,7 @@ class ToolExecutor {
   using ToolHandler =
       std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   void RegisterTool(const std::string& name, ToolHandler handler);
+  void UnregisterTool(const std::string& name);
 
   ~ToolExecutor();
 

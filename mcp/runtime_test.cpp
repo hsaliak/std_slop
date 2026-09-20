@@ -78,7 +78,13 @@ class FakeRuntimeSession : public RuntimeSession {
   FakeRuntimeSession(std::vector<Tool> tools, ToolCallResult result, absl::Status call_status = absl::OkStatus())
       : tools_(std::move(tools)), result_(std::move(result)), call_status_(std::move(call_status)) {}
 
-  absl::StatusOr<std::vector<Tool>> ListTools() override { return tools_; }
+  absl::StatusOr<std::vector<Tool>> ListTools() override {
+    if (!list_status_.ok()) return list_status_;
+    return tools_;
+  }
+
+  void SetTools(std::vector<Tool> tools) { tools_ = std::move(tools); }
+  void SetListStatus(absl::Status status) { list_status_ = std::move(status); }
 
   absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {
     called_tool_name = name;
@@ -94,6 +100,7 @@ class FakeRuntimeSession : public RuntimeSession {
   std::vector<Tool> tools_;
   ToolCallResult result_;
   absl::Status call_status_;
+  absl::Status list_status_ = absl::OkStatus();
 };
 
 Tool MakeTool(const std::string& name) {
@@ -159,6 +166,45 @@ TEST(McpRuntimeTest, DuplicateServerToolNamesDoNotCollide) {
   EXPECT_EQ(sessions[0]->called_arguments["query"], "repo");
 }
 
+TEST(McpRuntimeTest, RefreshReplacesCatalogAtomicallyAndKeepsLastSnapshotOnFailure) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  FakeHttpClient http_client;
+  const std::string registry_path = TempRegistryPath();
+  ASSERT_TRUE(SaveServerRegistry(registry_path, {MakeEntry("github")}).ok());
+
+  FakeRuntimeSession* session = nullptr;
+  RuntimeOptions options;
+  options.registry_path = registry_path;
+  RuntimeManager manager(&db, executor->get(), &http_client, options,
+                         [&session](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
+                           auto owned = std::make_unique<FakeRuntimeSession>(std::vector<Tool>{MakeTool("old")},
+                                                                             ToolCallResult{});
+                           session = owned.get();
+                           return absl::StatusOr<std::unique_ptr<RuntimeSession>>(std::move(owned));
+                         });
+  ASSERT_TRUE(manager.Start().ok());
+  ASSERT_NE(session, nullptr);
+
+  session->SetTools({MakeTool("new")});
+  ASSERT_TRUE(manager.RefreshCatalogs().ok());
+  auto tools = db.GetTopLevelTools();
+  ASSERT_TRUE(tools.ok());
+  EXPECT_TRUE(std::any_of(tools->begin(), tools->end(),
+                          [](const Database::Tool& tool) { return tool.name == "mcp_github_new"; }));
+  EXPECT_TRUE(std::none_of(tools->begin(), tools->end(),
+                           [](const Database::Tool& tool) { return tool.name == "mcp_github_old"; }));
+
+  session->SetListStatus(absl::UnavailableError("temporary"));
+  EXPECT_TRUE(absl::IsUnavailable(manager.RefreshCatalogs()));
+  tools = db.GetTopLevelTools();
+  ASSERT_TRUE(tools.ok());
+  EXPECT_TRUE(std::any_of(tools->begin(), tools->end(),
+                          [](const Database::Tool& tool) { return tool.name == "mcp_github_new"; }));
+}
+
 TEST(McpRuntimeTest, ProviderUnsafeLongNamesAreRejected) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -205,6 +251,12 @@ TEST(McpRuntimeTest, SanitizedToolNameCollisionsAreRejected) {
   absl::Status status = manager.Start();
   EXPECT_FALSE(status.ok());
   EXPECT_TRUE(absl::IsFailedPrecondition(status));
+  auto tools = db.GetTopLevelTools();
+  ASSERT_TRUE(tools.ok());
+  EXPECT_TRUE(std::none_of(tools->begin(), tools->end(),
+                           [](const Database::Tool& tool) { return tool.name == "mcp_github_search_repo"; }));
+  const auto names = executor->get()->GetRegisteredToolNamesForTest();
+  EXPECT_EQ(std::count(names.begin(), names.end(), "mcp_github_search_repo"), 0);
 }
 
 TEST(McpRuntimeTest, ToolErrorIsPreservedInNormalizedOutput) {

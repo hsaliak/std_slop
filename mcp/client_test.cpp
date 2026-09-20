@@ -130,6 +130,36 @@ TEST(McpClientTest, SelectsModernAndExecutesTools) {
   EXPECT_EQ(http.modern_calls, 3);
 }
 
+TEST(McpClientTest, AggregatesPagesAndRejectsCursorCycles) {
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+  FakeHttpClient paged;
+  paged.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","result":{"supportedVersions":["2026-07-28"],"capabilities":{}}})"));
+  paged.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-2","result":{"tools":[{"name":"one","inputSchema":{"type":"object"}}],"nextCursor":"next"}})"));
+  paged.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-3","result":{"tools":[{"name":"two","inputSchema":{"type":"object"}}]}})"));
+  auto client = ConnectMcp(config, MakeClientOptions(), &paged);
+  ASSERT_TRUE(client.ok()) << client.status();
+  auto tools = (*client)->ListTools();
+  ASSERT_TRUE(tools.ok()) << tools.status();
+  ASSERT_EQ(tools->size(), 2);
+  EXPECT_EQ((*tools)[0].name, "one");
+  EXPECT_EQ((*tools)[1].name, "two");
+
+  FakeHttpClient cycle;
+  cycle.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","result":{"supportedVersions":["2026-07-28"],"capabilities":{}}})"));
+  cycle.responses.push_back(
+      JsonResponse(R"({"jsonrpc":"2.0","id":"modern-2","result":{"tools":[],"nextCursor":"same"}})"));
+  cycle.responses.push_back(
+      JsonResponse(R"({"jsonrpc":"2.0","id":"modern-3","result":{"tools":[],"nextCursor":"same"}})"));
+  auto cycle_client = ConnectMcp(config, MakeClientOptions(), &cycle);
+  ASSERT_TRUE(cycle_client.ok()) << cycle_client.status();
+  EXPECT_EQ((*cycle_client)->ListTools().status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 TEST(McpClientTest, PreferLatestFallsBackOnUnrecognizedDiscovery400) {
   FakeHttpClient http;
   http.responses.push_back({400, "", {}});

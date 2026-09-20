@@ -1,6 +1,7 @@
 #ifndef SLOP_MCP_CLIENT_H_
 #define SLOP_MCP_CLIENT_H_
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -14,6 +15,9 @@
 #include "mcp/types.h"
 
 namespace slop::mcp {
+
+inline constexpr size_t kMaxCatalogPages = 100;
+inline constexpr size_t kMaxCatalogTools = 10000;
 
 class Client {
  public:

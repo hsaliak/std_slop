@@ -41,6 +41,8 @@ void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
   dispatch_map_[name] = std::move(handler);
 }
 
+void ToolExecutor::UnregisterTool(const std::string& name) { dispatch_map_.erase(name); }
+
 std::vector<std::string> ToolExecutor::GetRegisteredToolNamesForTest() const {
   std::vector<std::string> names;
   names.reserve(dispatch_map_.size());

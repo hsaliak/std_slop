@@ -180,30 +180,119 @@ absl::Status RuntimeManager::Start() {
     std::unique_ptr<RuntimeSession> owned_session = std::move(*session);
     RuntimeSession* session_ptr = owned_session.get();
     RETURN_IF_ERROR(RegisterServerTools(entry, session_ptr, *tools));
-    sessions_.push_back(std::move(owned_session));
+    sessions_.push_back(ActiveSession{entry, std::move(owned_session)});
+  }
+  return absl::OkStatus();
+}
+
+absl::Status RuntimeManager::RefreshCatalogs() {
+  struct Candidate {
+    std::string runtime_name;
+    ActiveSession* active;
+    Tool tool;
+  };
+  std::vector<Candidate> candidates;
+  absl::flat_hash_set<std::string> names;
+  for (ActiveSession& active : sessions_) {
+    auto tools_or = active.session->ListTools();
+    if (!tools_or.ok()) return tools_or.status();
+    for (Tool& tool : *tools_or) {
+      const std::string runtime_name = RuntimeToolName(active.entry.name, tool.name);
+      if (runtime_name.size() > kMaxRuntimeToolNameLength) {
+        return absl::FailedPreconditionError(
+            absl::StrCat("MCP runtime tool name is too long for providers: ", runtime_name));
+      }
+      if (!names.insert(runtime_name).second) {
+        return absl::FailedPreconditionError(absl::StrCat("Duplicate MCP runtime tool name: ", runtime_name));
+      }
+      candidates.push_back({runtime_name, &active, std::move(tool)});
+    }
+  }
+
+  RETURN_IF_ERROR(db_->Execute("BEGIN IMMEDIATE"));
+  for (const auto& [runtime_name, route] : routes_) {
+    (void)route;
+    const absl::Status status = db_->Execute("DELETE FROM tools WHERE name = ?", runtime_name);
+    if (!status.ok()) {
+      (void)db_->Execute("ROLLBACK");
+      return status;
+    }
+  }
+  for (const Candidate& candidate : candidates) {
+    const absl::Status status = db_->RegisterTool(
+        Database::Tool{candidate.runtime_name, ToolDescription(candidate.active->entry, candidate.tool),
+                       json_dump(candidate.tool.input_schema), true, 0, true});
+    if (!status.ok()) {
+      (void)db_->Execute("ROLLBACK");
+      return status;
+    }
+  }
+  const absl::Status commit = db_->Execute("COMMIT");
+  if (!commit.ok()) {
+    (void)db_->Execute("ROLLBACK");
+    return commit;
+  }
+
+  for (const auto& [runtime_name, route] : routes_) {
+    (void)route;
+    tool_executor_->UnregisterTool(runtime_name);
+  }
+  routes_.clear();
+  for (const Candidate& candidate : candidates) {
+    routes_[candidate.runtime_name] =
+        ToolRoute{candidate.active->session.get(), candidate.active->entry.name, candidate.active->entry.url,
+                  candidate.active->entry.auth, candidate.tool.name};
+    tool_executor_->RegisterTool(candidate.runtime_name,
+                                 [this, runtime_name = candidate.runtime_name](const nlohmann::json& args, auto) {
+                                   return ExecuteRuntimeTool(runtime_name, args);
+                                 });
   }
   return absl::OkStatus();
 }
 
 absl::Status RuntimeManager::RegisterServerTools(const ServerRegistryEntry& entry, RuntimeSession* session,
                                                  const std::vector<Tool>& tools) {
+  struct Candidate {
+    std::string runtime_name;
+    const Tool* tool;
+  };
+  std::vector<Candidate> candidates;
+  candidates.reserve(tools.size());
   absl::flat_hash_set<std::string> server_tool_names;
   for (const Tool& tool : tools) {
     const std::string runtime_name = RuntimeToolName(entry.name, tool.name);
-    if (runtime_name.size() > 64) {
+    if (runtime_name.size() > kMaxRuntimeToolNameLength) {
       return absl::FailedPreconditionError(
           absl::StrCat("MCP runtime tool name is too long for providers: ", runtime_name));
     }
-    if (routes_.contains(runtime_name) || server_tool_names.contains(runtime_name)) {
+    if (routes_.contains(runtime_name) || !server_tool_names.insert(runtime_name).second) {
       return absl::FailedPreconditionError(absl::StrCat("Duplicate MCP runtime tool name: ", runtime_name));
     }
-    server_tool_names.insert(runtime_name);
-    RETURN_IF_ERROR(db_->RegisterTool(
-        Database::Tool{runtime_name, ToolDescription(entry, tool), json_dump(tool.input_schema), true, 0, true}));
-    routes_[runtime_name] = ToolRoute{session, entry.name, entry.url, entry.auth, tool.name};
-    tool_executor_->RegisterTool(runtime_name, [this, runtime_name](const nlohmann::json& args, auto) {
-      return ExecuteRuntimeTool(runtime_name, args);
-    });
+    candidates.push_back({runtime_name, &tool});
+  }
+
+  RETURN_IF_ERROR(db_->Execute("BEGIN IMMEDIATE"));
+  for (const Candidate& candidate : candidates) {
+    const absl::Status status =
+        db_->RegisterTool(Database::Tool{candidate.runtime_name, ToolDescription(entry, *candidate.tool),
+                                         json_dump(candidate.tool->input_schema), true, 0, true});
+    if (!status.ok()) {
+      (void)db_->Execute("ROLLBACK");
+      return status;
+    }
+  }
+  const absl::Status commit = db_->Execute("COMMIT");
+  if (!commit.ok()) {
+    (void)db_->Execute("ROLLBACK");
+    return commit;
+  }
+
+  for (const Candidate& candidate : candidates) {
+    routes_[candidate.runtime_name] = ToolRoute{session, entry.name, entry.url, entry.auth, candidate.tool->name};
+    tool_executor_->RegisterTool(candidate.runtime_name,
+                                 [this, runtime_name = candidate.runtime_name](const nlohmann::json& args, auto) {
+                                   return ExecuteRuntimeTool(runtime_name, args);
+                                 });
   }
   return absl::OkStatus();
 }

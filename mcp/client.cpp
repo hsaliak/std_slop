@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -67,18 +68,43 @@ class ModernClient final : public Client {
   ProtocolRevision revision() const override { return ProtocolRevision::k2026_07_28; }
 
   absl::StatusOr<std::vector<Tool>> ListTools() override {
-    v2026_07_28::Request request = MakeRequest("tools/list");
-    auto exchange_or = exchange_.Execute(request);
-    if (!exchange_or.ok()) return exchange_or.status();
-    if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
-    if (!exchange_or->response || !exchange_or->response->result) {
-      return absl::InvalidArgumentError("tools/list missing result");
+    std::vector<Tool> catalog;
+    absl::flat_hash_set<std::string> tool_names;
+    absl::flat_hash_set<std::string> cursors;
+    std::optional<std::string> cursor;
+    for (size_t page = 0; page < kMaxCatalogPages; ++page) {
+      v2026_07_28::Request request = MakeRequest("tools/list");
+      if (cursor) request.params["cursor"] = *cursor;
+      auto exchange_or = exchange_.Execute(request);
+      if (!exchange_or.ok()) return exchange_or.status();
+      if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
+      if (!exchange_or->response || !exchange_or->response->result) {
+        return absl::InvalidArgumentError("tools/list missing result");
+      }
+      const nlohmann::json& result = *exchange_or->response->result;
+      auto page_tools_or = v2026_07_28::ParseToolsList(result);
+      if (!page_tools_or.ok()) return page_tools_or.status();
+      for (Tool& tool : *page_tools_or) {
+        if (!tool_names.insert(tool.name).second) {
+          return absl::InvalidArgumentError(absl::StrCat("duplicate MCP tool name: ", tool.name));
+        }
+        if (catalog.size() >= kMaxCatalogTools) {
+          return absl::ResourceExhaustedError("MCP catalog tool limit exceeded");
+        }
+        catalog.push_back(std::move(tool));
+      }
+      const auto next_cursor = json_get<std::string>(result, "nextCursor");
+      if (!next_cursor || next_cursor->empty()) {
+        tools_.clear();
+        for (const Tool& tool : catalog) tools_[tool.name] = tool;
+        return catalog;
+      }
+      if (!cursors.insert(*next_cursor).second) {
+        return absl::InvalidArgumentError("MCP catalog cursor cycle");
+      }
+      cursor = *next_cursor;
     }
-    auto tools_or = v2026_07_28::ParseToolsList(*exchange_or->response->result);
-    if (!tools_or.ok()) return tools_or.status();
-    tools_.clear();
-    for (const Tool& tool : *tools_or) tools_[tool.name] = tool;
-    return *tools_or;
+    return absl::ResourceExhaustedError("MCP catalog page limit exceeded");
   }
 
   absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {

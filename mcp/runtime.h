@@ -1,6 +1,7 @@
 #ifndef SLOP_MCP_RUNTIME_H_
 #define SLOP_MCP_RUNTIME_H_
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
@@ -9,14 +10,17 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "nlohmann/json.hpp"
+
 #include "core/database.h"
 #include "core/http_client.h"
 #include "mcp/registry.h"
 #include "mcp/types.h"
-#include "nlohmann/json.hpp"
 #include "tools/tool_executor.h"
 
 namespace slop::mcp {
+
+inline constexpr size_t kMaxRuntimeToolNameLength = 64;
 
 class RuntimeSession {
  public:
@@ -36,17 +40,22 @@ std::string RuntimeToolName(const std::string& server_name, const std::string& t
 
 class RuntimeManager {
  public:
-  using SessionFactory = std::function<absl::StatusOr<std::unique_ptr<RuntimeSession>>(const ServerRegistryEntry& entry,
-                                                                                       HttpClient* http_client,
-                                                                                       const RuntimeOptions& options)>;
+  using SessionFactory = std::function<absl::StatusOr<std::unique_ptr<RuntimeSession>>(
+      const ServerRegistryEntry& entry, HttpClient* http_client, const RuntimeOptions& options)>;
 
   RuntimeManager(Database* db, ToolExecutor* tool_executor, HttpClient* http_client, RuntimeOptions options,
                  SessionFactory session_factory);
 
   absl::Status Start();
+  absl::Status RefreshCatalogs();
   size_t active_server_count() const { return sessions_.size(); }
 
  private:
+  struct ActiveSession {
+    ServerRegistryEntry entry;
+    std::unique_ptr<RuntimeSession> session;
+  };
+
   struct ToolRoute {
     RuntimeSession* session = nullptr;
     std::string server_name;
@@ -64,7 +73,7 @@ class RuntimeManager {
   HttpClient* http_client_;
   RuntimeOptions options_;
   SessionFactory session_factory_;
-  std::vector<std::unique_ptr<RuntimeSession>> sessions_;
+  std::vector<ActiveSession> sessions_;
   absl::flat_hash_map<std::string, ToolRoute> routes_;
 };
 
