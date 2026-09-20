@@ -87,25 +87,26 @@ absl::StatusOr<StreamableHttpConfig> TransportConfigFromEntry(const ServerRegist
   return config;
 }
 
-v2025_11_25::InitializeOptions InitializeOptionsForRuntime(const RuntimeOptions& options) {
-  v2025_11_25::InitializeOptions init;
-  init.client_info.name = options.client_name;
-  init.client_info.version = options.client_version;
-  return init;
+ClientOptions ClientOptionsForRuntime(const RuntimeOptions& options) {
+  ClientOptions client_options;
+  client_options.selection = SelectionPolicy::kPreferLatest;
+  client_options.client_info.name = options.client_name;
+  client_options.client_info.version = options.client_version;
+  return client_options;
 }
 
 class RealRuntimeSession : public RuntimeSession {
  public:
-  explicit RealRuntimeSession(std::unique_ptr<v2025_11_25::Session> session) : session_(std::move(session)) {}
+  explicit RealRuntimeSession(std::unique_ptr<Client> client) : client_(std::move(client)) {}
 
-  absl::StatusOr<std::vector<Tool>> ListTools() override { return session_->ListTools(); }
+  absl::StatusOr<std::vector<Tool>> ListTools() override { return client_->ListTools(); }
 
   absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {
-    return session_->CallTool(name, arguments);
+    return client_->CallTool(name, arguments);
   }
 
  private:
-  std::unique_ptr<v2025_11_25::Session> session_;
+  std::unique_ptr<Client> client_;
 };
 
 absl::StatusOr<std::unique_ptr<RuntimeSession>> RealSessionFactory(const ServerRegistryEntry& entry,
@@ -113,9 +114,9 @@ absl::StatusOr<std::unique_ptr<RuntimeSession>> RealSessionFactory(const ServerR
                                                                    const RuntimeOptions& options) {
   auto config = TransportConfigFromEntry(entry);
   if (!config.ok()) return config.status();
-  auto session = ConnectClassicStreamableHttp(*config, InitializeOptionsForRuntime(options), http_client);
-  if (!session.ok()) return WithAuthContext(entry, session.status());
-  return std::make_unique<RealRuntimeSession>(std::move(*session));
+  auto client = ConnectMcp(*config, ClientOptionsForRuntime(options), http_client);
+  if (!client.ok()) return WithAuthContext(entry, client.status());
+  return std::make_unique<RealRuntimeSession>(std::move(*client));
 }
 
 }  // namespace

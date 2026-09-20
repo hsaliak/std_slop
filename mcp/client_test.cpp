@@ -34,6 +34,25 @@ class FakeHttpClient : public HttpClient {
     return response;
   }
 
+  absl::StatusOr<HttpResponse> PostOnceStreamWithResponse(const std::string& url, const std::string& body,
+                                                          const std::vector<std::string>& headers, absl::Duration,
+                                                          size_t, ChunkCallback on_chunk) override {
+    ++modern_calls;
+    last_url = url;
+    bodies.push_back(body);
+    last_headers = headers;
+    if (!status.ok()) return status;
+    if (responses.empty()) return absl::UnavailableError("no response queued");
+    HttpResponse response = responses.front();
+    responses.erase(responses.begin());
+    if (on_chunk && !response.body.empty()) {
+      const absl::Status callback_status = on_chunk(response.body);
+      if (!callback_status.ok()) return callback_status;
+    }
+    return response;
+  }
+
+  int modern_calls = 0;
   absl::Status status = absl::OkStatus();
   std::vector<HttpResponse> responses;
   std::string last_url;
@@ -52,6 +71,18 @@ HttpResponse InitializeResponse() {
   return {200,
           R"({"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}}}})",
           {{"content-type", "application/json"}}};
+}
+
+ClientOptions MakeClientOptions(SelectionPolicy policy = SelectionPolicy::kPreferLatest) {
+  ClientOptions options;
+  options.selection = policy;
+  options.client_info.name = "client-test";
+  options.client_info.version = "1.0";
+  return options;
+}
+
+HttpResponse JsonResponse(std::string body, long status = 200) {
+  return {status, std::move(body), {{"content-type", "application/json"}}};
 }
 
 TEST(McpClientTest, ConnectClassicStreamableHttpRejectsNullHttpClient) {
@@ -73,6 +104,117 @@ TEST(McpClientTest, ConnectClassicStreamableHttpRejectsEmptyEndpoint) {
 
   ASSERT_FALSE(session.ok());
   EXPECT_EQ(session.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(McpClientTest, SelectsModernAndExecutesTools) {
+  FakeHttpClient http;
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","result":{"supportedVersions":["2026-07-28"],"capabilities":{"tools":{}}}})"));
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-2","result":{"tools":[{"name":"echo","inputSchema":{"type":"object","required":["text"],"properties":{"text":{"type":"string"}}}}]}})"));
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-3","result":{"resultType":"complete","content":[{"type":"text","text":"ok"}],"structuredContent":[1,2]}})"));
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+
+  auto client = ConnectMcp(config, MakeClientOptions(), &http);
+  ASSERT_TRUE(client.ok()) << client.status();
+  EXPECT_EQ((*client)->revision(), ProtocolRevision::k2026_07_28);
+  auto tools = (*client)->ListTools();
+  ASSERT_TRUE(tools.ok()) << tools.status();
+  ASSERT_EQ(tools->size(), 1);
+  auto result = (*client)->CallTool("echo", {{"text", "hello"}});
+  ASSERT_TRUE(result.ok()) << result.status();
+  ASSERT_TRUE(result->structured_content.has_value());
+  EXPECT_TRUE(result->structured_content->is_array());
+  EXPECT_EQ(http.modern_calls, 3);
+}
+
+TEST(McpClientTest, PreferLatestFallsBackOnUnrecognizedDiscovery400) {
+  FakeHttpClient http;
+  http.responses.push_back({400, "", {}});
+  http.responses.push_back(InitializeResponse());
+  http.responses.push_back({202, "", {}});
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+
+  auto client = ConnectMcp(config, MakeClientOptions(), &http);
+
+  ASSERT_TRUE(client.ok()) << client.status();
+  EXPECT_EQ((*client)->revision(), ProtocolRevision::k2025_11_25);
+  EXPECT_EQ(http.modern_calls, 1);
+  EXPECT_EQ(http.bodies.size(), 3);
+}
+
+TEST(McpClientTest, PreferLatestFallsBackOnDiscoveryMethodNotFound) {
+  FakeHttpClient http;
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"Method not found"}})"));
+  http.responses.push_back(InitializeResponse());
+  http.responses.push_back({202, "", {}});
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+
+  auto client = ConnectMcp(config, MakeClientOptions(), &http);
+
+  ASSERT_TRUE(client.ok()) << client.status();
+  EXPECT_EQ((*client)->revision(), ProtocolRevision::k2025_11_25);
+  EXPECT_EQ(http.modern_calls, 1);
+  EXPECT_EQ(http.bodies.size(), 3);
+}
+
+TEST(McpClientTest, DoesNotDowngradeRecognizedModernOrAuthErrors) {
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+  FakeHttpClient modern_error;
+  modern_error.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32022,"message":"unsupported","data":{"supported":["2025-11-25"]}}})",
+      400));
+  auto unsupported = ConnectMcp(config, MakeClientOptions(), &modern_error);
+  EXPECT_FALSE(unsupported.ok());
+  EXPECT_EQ(modern_error.modern_calls, 1);
+  EXPECT_EQ(modern_error.bodies.size(), 1);
+
+  FakeHttpClient method_not_found_bad_request;
+  method_not_found_bad_request.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"Method not found"}})", 400));
+  auto bad_request = ConnectMcp(config, MakeClientOptions(), &method_not_found_bad_request);
+  EXPECT_FALSE(bad_request.ok());
+  EXPECT_EQ(method_not_found_bad_request.modern_calls, 1);
+  EXPECT_EQ(method_not_found_bad_request.bodies.size(), 1);
+
+  FakeHttpClient auth_error;
+  auth_error.responses.push_back({401, "", {}});
+  auto unauthorized = ConnectMcp(config, MakeClientOptions(), &auth_error);
+  EXPECT_TRUE(absl::IsUnauthenticated(unauthorized.status()));
+  EXPECT_EQ(auth_error.modern_calls, 1);
+  EXPECT_EQ(auth_error.bodies.size(), 1);
+
+  FakeHttpClient json_auth_error;
+  json_auth_error.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"unauthorized"}})", 401));
+  auto json_unauthorized = ConnectMcp(config, MakeClientOptions(), &json_auth_error);
+  EXPECT_TRUE(absl::IsUnauthenticated(json_unauthorized.status()));
+  EXPECT_EQ(json_auth_error.modern_calls, 1);
+  EXPECT_EQ(json_auth_error.bodies.size(), 1);
+}
+
+TEST(McpClientTest, HonorsExplicitSelectionPolicies) {
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+  FakeHttpClient classic;
+  classic.responses.push_back(InitializeResponse());
+  classic.responses.push_back({202, "", {}});
+  auto classic_client = ConnectMcp(config, MakeClientOptions(SelectionPolicy::kClassicOnly), &classic);
+  ASSERT_TRUE(classic_client.ok()) << classic_client.status();
+  EXPECT_EQ((*classic_client)->revision(), ProtocolRevision::k2025_11_25);
+  EXPECT_EQ(classic.modern_calls, 0);
+
+  FakeHttpClient latest;
+  latest.responses.push_back({400, "", {}});
+  auto latest_client = ConnectMcp(config, MakeClientOptions(SelectionPolicy::kLatestOnly), &latest);
+  EXPECT_FALSE(latest_client.ok());
+  EXPECT_EQ(latest.bodies.size(), 1);
 }
 
 TEST(McpClientTest, ConnectClassicStreamableHttpReturnsInitializedSession) {

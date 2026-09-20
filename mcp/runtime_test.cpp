@@ -36,14 +36,21 @@ class FakeHttpClient : public HttpClient {
     if (!request || !request->is_object()) return absl::InvalidArgumentError("invalid request");
     const std::string method = json_get_or(*request, "method", std::string{});
     if (method == "notifications/initialized") return HttpResponse{202, "", {}};
-    nlohmann::json response = {{"jsonrpc", "2.0"}, {"id", json_get_or(*request, "id", 0)}};
+    nlohmann::json response = {{"jsonrpc", "2.0"}};
+    const auto* id = json_at(*request, "id");
+    if (id != nullptr) response["id"] = *id;
     if (method == "initialize") {
       response["result"] = {{"protocolVersion", std::string(kClassicProtocolVersion)},
                             {"capabilities", nlohmann::json::object()}};
+    } else if (method == "server/discover") {
+      response["result"] = {{"supportedVersions", {std::string(kModernProtocolVersion)}},
+                            {"capabilities", {{"tools", nlohmann::json::object()}}}};
     } else if (method == "tools/list") {
       response["result"] = {
           {"tools", nlohmann::json::array(
                         {{{"name", "search"}, {"description", "Search"}, {"inputSchema", {{"type", "object"}}}}})}};
+    } else if (method == "tools/call") {
+      response["result"] = {{"content", nlohmann::json::array({{{"type", "text"}, {"text", "ok"}}})}};
     } else {
       response["result"] = nlohmann::json::object();
     }
@@ -53,6 +60,12 @@ class FakeHttpClient : public HttpClient {
       if (!chunk_status.ok()) return chunk_status;
     }
     return HttpResponse{200, response_body, {{"content-type", "application/json"}}};
+  }
+
+  absl::StatusOr<HttpResponse> PostOnceStreamWithResponse(const std::string& url, const std::string& body,
+                                                          const std::vector<std::string>& headers, absl::Duration,
+                                                          size_t, ChunkCallback on_chunk) override {
+    return PostStreamWithResponse(url, body, headers, std::move(on_chunk));
   }
 
   std::string last_url;

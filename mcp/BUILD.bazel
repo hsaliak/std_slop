@@ -360,12 +360,18 @@ cc_library(
     hdrs = ["client.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":modern",
+        ":modern_http",
+        ":protocol",
         ":session",
         ":streamable_http_transport",
-        ":protocol",
+        "//core:json_utils",
         "//core:transport",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
     ],
 )
 
