@@ -16,6 +16,48 @@ cc_library(
 )
 
 cc_library(
+    name = "json_schema",
+    srcs = ["json_schema.cpp"],
+    hdrs = ["json_schema.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "json_schema_test",
+    srcs = ["json_schema_test.cpp"],
+    deps = [
+        ":json_schema",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "json_schema_fuzz_test",
+    srcs = ["json_schema_fuzz_test.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-parameter",
+    ],
+    deps = [
+        ":json_schema",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "json_rpc",
     srcs = ["json_rpc.cpp"],
     hdrs = ["json_rpc.h"],
@@ -173,6 +215,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//core:json_utils",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -309,6 +352,7 @@ cc_library(
         ":protocol",
         ":transport",
         "//core:json_utils",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
