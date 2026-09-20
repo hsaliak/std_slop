@@ -102,6 +102,30 @@ TEST(SessionTest, CollectsNotificationsWhileWaitingForResponse) {
   EXPECT_EQ(json_get_or(notifications[0].params, "progress", 0), 1);
 }
 
+TEST(SessionTest, SubscribesAndReceivesResourceUpdates) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult({{"resources", {{"subscribe", true}}}}));
+  Session session(std::move(fake));
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", 2}, {"result", nlohmann::json::object()}});
+  ASSERT_TRUE(session.SubscribeResource("file:///tmp/data").ok());
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", 3}, {"result", nlohmann::json::object()}});
+  ASSERT_TRUE(session.UnsubscribeResource("file:///tmp/data").ok());
+
+  raw->responses.push_back(
+      {{"jsonrpc", "2.0"}, {"method", "notifications/resources/updated"}, {"params", {{"uri", "file:///tmp/data"}}}});
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", 4}, {"result", nlohmann::json::object()}});
+  ASSERT_TRUE(session.Ping().ok());
+  auto notifications = session.DrainNotifications();
+  ASSERT_EQ(notifications.size(), 1);
+  EXPECT_EQ(notifications[0].kind, ServerNotificationKind::kResourceUpdated);
+  EXPECT_EQ(json_get_or(notifications[0].params, "uri", std::string{}), "file:///tmp/data");
+  EXPECT_EQ(json_get_or(raw->sent[2], "method", std::string{}), "resources/subscribe");
+  EXPECT_EQ(json_get_or(raw->sent[3], "method", std::string{}), "resources/unsubscribe");
+}
+
 TEST(SessionTest, RejectsServerRequestWhileWaitingForResponse) {
   auto fake = std::make_unique<FakeTransport>();
   FakeTransport* raw = fake.get();

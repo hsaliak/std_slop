@@ -35,6 +35,8 @@ class Session {
   absl::StatusOr<ToolCallResult> CallTool(absl::string_view name, const nlohmann::json& arguments);
   absl::StatusOr<std::vector<Resource>> ListResources();
   absl::StatusOr<ResourceReadResult> ReadResource(absl::string_view uri);
+  absl::Status SubscribeResource(absl::string_view uri);
+  absl::Status UnsubscribeResource(absl::string_view uri);
   absl::StatusOr<std::vector<Prompt>> ListPrompts();
   absl::StatusOr<PromptGetResult> GetPrompt(absl::string_view name, const nlohmann::json& arguments);
 

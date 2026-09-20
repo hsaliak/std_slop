@@ -138,6 +138,26 @@ absl::StatusOr<ResourceReadResult> Session::ReadResource(absl::string_view uri) 
   return ParseResourceReadResult(*result_or);
 }
 
+absl::Status Session::SubscribeResource(absl::string_view uri) {
+  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
+  if (uri.empty()) return absl::InvalidArgumentError("resource uri must not be empty");
+  if (!server_capabilities_.resources_subscribe) {
+    return absl::UnimplementedError("MCP server does not support resource subscriptions");
+  }
+  auto result_or = SendRequest("resources/subscribe", {{"uri", std::string(uri)}}, options_.request_timeout);
+  return result_or.ok() ? absl::OkStatus() : result_or.status();
+}
+
+absl::Status Session::UnsubscribeResource(absl::string_view uri) {
+  if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
+  if (uri.empty()) return absl::InvalidArgumentError("resource uri must not be empty");
+  if (!server_capabilities_.resources_subscribe) {
+    return absl::UnimplementedError("MCP server does not support resource subscriptions");
+  }
+  auto result_or = SendRequest("resources/unsubscribe", {{"uri", std::string(uri)}}, options_.request_timeout);
+  return result_or.ok() ? absl::OkStatus() : result_or.status();
+}
+
 absl::StatusOr<std::vector<Prompt>> Session::ListPrompts() {
   if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
   std::vector<Prompt> prompts;
@@ -227,6 +247,8 @@ absl::Status Session::HandleNotification(const nlohmann::json& message) {
     kind = ServerNotificationKind::kToolsListChanged;
   } else if (method == "notifications/resources/list_changed") {
     kind = ServerNotificationKind::kResourcesListChanged;
+  } else if (method == "notifications/resources/updated") {
+    kind = ServerNotificationKind::kResourceUpdated;
   } else if (method == "notifications/prompts/list_changed") {
     kind = ServerNotificationKind::kPromptsListChanged;
   } else {

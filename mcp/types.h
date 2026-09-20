@@ -102,6 +102,7 @@ enum class ServerNotificationKind {
   kLogging,
   kToolsListChanged,
   kResourcesListChanged,
+  kResourceUpdated,
   kPromptsListChanged,
   kSubscriptionAcknowledged,
   kUnknown,
