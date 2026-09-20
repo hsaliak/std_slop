@@ -173,7 +173,12 @@ absl::StatusOr<ClientIdMetadataDocument> ParseClientIdMetadataDocument(const nlo
     return absl::InvalidArgumentError("Client ID Metadata Document missing redirect_uris");
   }
   parsed.redirect_uris = std::move(*redirects);
-  parsed.token_endpoint_auth_method = json_get_or(metadata, "token_endpoint_auth_method", std::string("none"));
+  if (const auto* auth_method = json_at(metadata, "token_endpoint_auth_method")) {
+    if (!auth_method->is_string()) {
+      return absl::InvalidArgumentError("token_endpoint_auth_method must be a string");
+    }
+    parsed.token_endpoint_auth_method = auth_method->get<std::string>();
+  }
   if (parsed.token_endpoint_auth_method != "none") {
     return absl::UnimplementedError("only public CIMD clients with token_endpoint_auth_method=none are supported");
   }

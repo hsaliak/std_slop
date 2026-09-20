@@ -103,7 +103,7 @@ TEST(ModernCodecTest, ParsesDiscoveryAndResultVariants) {
   EXPECT_EQ(ParseResult({{"resultType", "future"}}).status().code(), absl::StatusCode::kInvalidArgument);
 }
 
-TEST(ModernCodecTest, ExcludesOnlyInvalidTools) {
+TEST(ModernCodecTest, RejectsInvalidToolsAndCursors) {
   const nlohmann::json result = {
       {"resultType", "complete"},
       {"tools",
@@ -112,11 +112,11 @@ TEST(ModernCodecTest, ExcludesOnlyInvalidTools) {
          {"inputSchema",
           {{"type", "object"}, {"properties", {{"value", {{"type", "array"}, {"x-mcp-header", "Invalid"}}}}}}}}}},
   };
-  auto tools = ParseToolsList(result);
-  ASSERT_TRUE(tools.ok()) << tools.status();
-  ASSERT_EQ(tools->size(), 1);
-  EXPECT_EQ((*tools)[0].name, "good");
-  EXPECT_EQ(json_get_or((*tools)[0].meta, "owner", std::string{}), "team");
+  EXPECT_EQ(ParseToolsList(result).status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(ParseToolsList({{"resultType", "complete"}, {"tools", nlohmann::json::array()}, {"nextCursor", 7}})
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
 }
 
 TEST(ModernCodecTest, PreservesStructuredContentPresenceAndMetadata) {

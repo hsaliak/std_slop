@@ -62,7 +62,11 @@ absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& token
   buffer.push_back('\0');
   const int fd = mkstemp(buffer.data());
   if (fd < 0) return absl::UnavailableError("Failed to create token file");
-  (void)fchmod(fd, 0600);
+  if (fchmod(fd, 0600) != 0) {
+    close(fd);
+    std::filesystem::remove(buffer.data(), error);
+    return absl::PermissionDeniedError("Failed to restrict temporary token file permissions");
+  }
   const ssize_t written = write(fd, content.data(), content.size());
   const int close_status = close(fd);
   if (written != static_cast<ssize_t>(content.size()) || close_status != 0) {
@@ -81,15 +85,26 @@ absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& token
 }
 
 absl::StatusOr<OAuthTokenSet> LoadOAuthTokens(const std::string& path) {
+  struct stat file_stat;
+  if (lstat(path.c_str(), &file_stat) != 0) {
+    return absl::NotFoundError("OAuth token file not found");
+  }
+  if (!S_ISREG(file_stat.st_mode) || (file_stat.st_mode & 0777) != 0600) {
+    return absl::PermissionDeniedError("OAuth token file must be a regular 0600 file");
+  }
   std::ifstream file(path);
-  if (!file.is_open()) return absl::NotFoundError("OAuth token file not found");
+  if (!file.is_open()) return absl::UnavailableError("OAuth token file could not be opened");
   const std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
   auto parsed = json_parse(content);
   if (!parsed || !parsed->is_object()) return absl::InvalidArgumentError("OAuth token file is invalid");
   OAuthTokenSet tokens;
   tokens.access_token = json_get_or(*parsed, "access_token", std::string{});
   tokens.refresh_token = json_get_or(*parsed, "refresh_token", std::string{});
-  tokens.token_type = json_get_or(*parsed, "token_type", std::string("Bearer"));
+  const auto token_type = json_get<std::string>(*parsed, "token_type");
+  if (!token_type.has_value()) {
+    return absl::InvalidArgumentError("OAuth token file missing token_type");
+  }
+  tokens.token_type = *token_type;
   tokens.scope = json_get_or(*parsed, "scope", std::string{});
   tokens.issuer = json_get_or(*parsed, "issuer", std::string{});
   tokens.resource = json_get_or(*parsed, "resource", std::string{});

@@ -90,6 +90,13 @@ absl::StatusOr<mcp::ServerRegistryEntry> FindEntry(const std::string& name) {
   return absl::NotFoundError(absl::StrCat("MCP server not found: ", name));
 }
 
+std::string IssuerFromEndpoint(const std::string& endpoint) {
+  const size_t authority_start = endpoint.find("://");
+  if (authority_start == std::string::npos) return std::string{};
+  const size_t path_start = endpoint.find('/', authority_start + 3);
+  return endpoint.substr(0, path_start == std::string::npos ? endpoint.size() : path_start);
+}
+
 mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, const std::string& client_secret = "") {
   mcp::OAuthClientConfig config;
   config.client_id = entry.client_id;
@@ -97,6 +104,9 @@ mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, co
   config.authorization_endpoint = entry.authorization_endpoint;
   config.token_endpoint = entry.token_endpoint;
   config.scopes = entry.scopes;
+  config.issuer = entry.authorization_server_url.empty() ? IssuerFromEndpoint(entry.authorization_endpoint)
+                                                         : entry.authorization_server_url;
+  config.resource = entry.url;
   return config;
 }
 
@@ -168,6 +178,12 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
       entry.token_endpoint = discovery->token_endpoint;
       entry.resource_metadata_url = discovery->resource_metadata_url;
       entry.authorization_server_url = discovery->authorization_server_url;
+    }
+    if (entry.auth == mcp::kAuthOAuth && entry.authorization_server_url.empty()) {
+      entry.authorization_server_url = IssuerFromEndpoint(entry.authorization_endpoint);
+      if (entry.authorization_server_url.empty()) {
+        return absl::InvalidArgumentError("MCP OAuth authorization endpoint has no issuer");
+      }
     }
     const absl::Status entry_status = mcp::ValidateServerRegistryEntry(entry);
     if (!entry_status.ok()) return entry_status;
@@ -245,15 +261,16 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     if (!client_secret.ok()) return client_secret.status();
     auto entry = FindEntry(args[2]);
     if (!entry.ok()) return entry.status();
-    auto session = mcp::StartPkceAuthorization(ConfigFromEntry(*entry, *client_secret));
+    const mcp::OAuthClientConfig config = ConfigFromEntry(*entry, *client_secret);
+    auto session = mcp::StartPkceAuthorization(config);
     if (!session.ok()) return WithMcpContext("login", entry->name, session.status());
     *out << session->authorization_url << "\nPaste callback URL: ";
     std::string callback;
     std::getline(*in, callback);
-    auto code = mcp::ExtractAuthorizationCodeFromCallback(callback, session->state);
+    auto code =
+        mcp::ExtractAuthorizationCodeFromCallback(callback, session->state, config.issuer, session->redirect_uri);
     if (!code.ok()) return WithMcpContext("login callback", entry->name, code.status());
-    auto tokens = mcp::ExchangeAuthorizationCode(http_client, ConfigFromEntry(*entry, *client_secret), *code,
-                                                 session->code_verifier);
+    auto tokens = mcp::ExchangeAuthorizationCode(http_client, config, *code, session->code_verifier);
     if (!tokens.ok()) return WithMcpContext("token exchange", entry->name, tokens.status());
     const absl::Status status = mcp::SaveOAuthTokens(entry->token_path, *tokens);
     if (!status.ok()) return WithMcpContext("token save", entry->name, status);

@@ -33,6 +33,12 @@ class FakeHttpClient : public HttpClient {
     return response;
   }
 
+  absl::StatusOr<HttpResponse> PostOnceStreamWithResponse(const std::string& url, const std::string& body,
+                                                          const std::vector<std::string>& headers, absl::Duration,
+                                                          size_t, ChunkCallback on_chunk) override {
+    return PostStreamWithResponse(url, body, headers, std::move(on_chunk));
+  }
+
   HttpResponse response;
   absl::Status status = absl::OkStatus();
   std::string last_url;

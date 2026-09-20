@@ -97,6 +97,10 @@ class ModernClient final : public Client {
         }
         catalog.push_back(std::move(tool));
       }
+      const nlohmann::json* next_cursor_value = json_at(result, "nextCursor");
+      if (next_cursor_value != nullptr && !next_cursor_value->is_string()) {
+        return absl::InvalidArgumentError("tools/list nextCursor must be a string");
+      }
       const auto next_cursor = json_get<std::string>(result, "nextCursor");
       if (!next_cursor || next_cursor->empty()) {
         tools_.clear();

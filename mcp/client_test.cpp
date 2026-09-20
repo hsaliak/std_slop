@@ -37,7 +37,11 @@ class FakeHttpClient : public HttpClient {
   absl::StatusOr<HttpResponse> PostOnceStreamWithResponse(const std::string& url, const std::string& body,
                                                           const std::vector<std::string>& headers, absl::Duration,
                                                           size_t, ChunkCallback on_chunk) override {
-    ++modern_calls;
+    bool is_modern = false;
+    for (const std::string& header : headers) {
+      is_modern = is_modern || header.find("2026-07-28") != std::string::npos;
+    }
+    if (is_modern) ++modern_calls;
     last_url = url;
     bodies.push_back(body);
     last_headers = headers;

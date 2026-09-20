@@ -22,6 +22,13 @@ bool HasListChanged(const nlohmann::json& object, const char* key) {
   return value != nullptr && value->is_object() && json_get_or(*value, "listChanged", false);
 }
 
+absl::StatusOr<std::string> NextCursor(const nlohmann::json& result) {
+  const auto* value = json_at(result, "nextCursor");
+  if (value == nullptr) return std::string{};
+  if (!value->is_string()) return absl::InvalidArgumentError("MCP nextCursor must be a string");
+  return value->get<std::string>();
+}
+
 }  // namespace
 
 Session::Session(std::unique_ptr<Transport> transport) : transport_(std::move(transport)) {}
@@ -93,7 +100,9 @@ absl::StatusOr<std::vector<Tool>> Session::ListTools() {
       if (!tool_or.ok()) return tool_or.status();
       tools.push_back(std::move(*tool_or));
     }
-    cursor = json_get_or(*result_or, "nextCursor", std::string{});
+    auto next_cursor = NextCursor(*result_or);
+    if (!next_cursor.ok()) return next_cursor.status();
+    cursor = *next_cursor;
   } while (!cursor.empty());
   return tools;
 }
@@ -125,7 +134,9 @@ absl::StatusOr<std::vector<Resource>> Session::ListResources() {
       if (!resource_or.ok()) return resource_or.status();
       resources.push_back(std::move(*resource_or));
     }
-    cursor = json_get_or(*result_or, "nextCursor", std::string{});
+    auto next_cursor = NextCursor(*result_or);
+    if (!next_cursor.ok()) return next_cursor.status();
+    cursor = *next_cursor;
   } while (!cursor.empty());
   return resources;
 }
@@ -175,7 +186,9 @@ absl::StatusOr<std::vector<Prompt>> Session::ListPrompts() {
       if (!prompt_or.ok()) return prompt_or.status();
       prompts.push_back(std::move(*prompt_or));
     }
-    cursor = json_get_or(*result_or, "nextCursor", std::string{});
+    auto next_cursor = NextCursor(*result_or);
+    if (!next_cursor.ok()) return next_cursor.status();
+    cursor = *next_cursor;
   } while (!cursor.empty());
   return prompts;
 }

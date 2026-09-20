@@ -30,6 +30,15 @@ class FakeHttpClient : public HttpClient {
     return post_response;
   }
 
+  absl::StatusOr<HttpResponse> PostOnceWithResponse(const std::string& url, const std::string& body,
+                                                    const std::vector<std::string>& headers) override {
+    return PostWithResponse(url, body, headers);
+  }
+
+  absl::StatusOr<std::string> GetOnce(const std::string& url, const std::vector<std::string>& headers) override {
+    return Get(url, headers);
+  }
+
   absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers) override {
     get_urls.push_back(url);
     get_headers = headers;
@@ -466,7 +475,7 @@ TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
   ASSERT_TRUE(mcp::SaveOAuthTokens(mcp::DefaultTokenPath("github"), old_tokens).ok());
 
   http_client.post_response = {
-      200, R"({"access_token":"new-access","refresh_token":"new-refresh","expires_in":60})", {}};
+      200, R"({"access_token":"new-access","refresh_token":"new-refresh","token_type":"Bearer","expires_in":60})", {}};
   status = RunMcpCommand({"mcp", "oauth-refresh", "github", "--client-secret", "top secret"}, &http_client, &input,
                          &output, &error);
   ASSERT_TRUE(status.ok()) << status;

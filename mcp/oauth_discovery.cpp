@@ -35,7 +35,7 @@ std::string AuthorizationServerMetadataUrl(const std::string& authorization_serv
 }
 
 absl::StatusOr<nlohmann::json> GetJson(HttpClient* http_client, const std::string& url, const std::string& label) {
-  auto body = http_client->Get(url, {"Accept: application/json"});
+  auto body = http_client->GetOnce(url, {"Accept: application/json"});
   if (!body.ok()) return body.status();
   auto parsed = json_parse(*body);
   if (!parsed.has_value() || parsed->is_discarded()) {
@@ -61,10 +61,10 @@ absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_cli
         {"capabilities", nlohmann::json::object()},
         {"clientInfo", {{"name", "std_slop"}, {"version", "oauth-discovery"}}}}},
   };
-  auto challenge =
-      http_client->PostWithResponse(mcp_endpoint_url, json_dump(probe),
-                                    {"Accept: application/json, text/event-stream", "Content-Type: application/json",
-                                     "MCP-Protocol-Version: 2025-06-18", "Mcp-Method: initialize"});
+  auto challenge = http_client->PostOnceWithResponse(
+      mcp_endpoint_url, json_dump(probe),
+      {"Accept: application/json, text/event-stream", "Content-Type: application/json",
+       "MCP-Protocol-Version: 2025-06-18", "Mcp-Method: initialize"});
   if (!challenge.ok()) return challenge.status();
   if (challenge->status_code != 401) {
     return absl::UnauthenticatedError(

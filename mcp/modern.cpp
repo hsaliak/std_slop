@@ -364,6 +364,10 @@ absl::StatusOr<std::vector<Tool>> ParseToolsList(const nlohmann::json& result) {
   if (parsed_or->type != ResultType::kComplete) {
     return absl::FailedPreconditionError("tools/list cannot complete while input is required");
   }
+  const auto* next_cursor = json_at(parsed_or->value, "nextCursor");
+  if (next_cursor != nullptr && !next_cursor->is_string()) {
+    return absl::InvalidArgumentError("tools/list nextCursor must be a string");
+  }
   const auto tools = json_get<nlohmann::json::array_t>(parsed_or->value, "tools");
   if (!tools) {
     return absl::InvalidArgumentError("tools/list result missing tools array");
@@ -372,7 +376,8 @@ absl::StatusOr<std::vector<Tool>> ParseToolsList(const nlohmann::json& result) {
   parsed.reserve(tools->size());
   for (const auto& value : *tools) {
     auto tool_or = ParseTool(value);
-    if (tool_or.ok()) parsed.push_back(std::move(*tool_or));
+    if (!tool_or.ok()) return tool_or.status();
+    parsed.push_back(std::move(*tool_or));
   }
   return parsed;
 }

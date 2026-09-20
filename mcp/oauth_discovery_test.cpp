@@ -22,6 +22,15 @@ class FakeHttpClient : public HttpClient {
     return post_response;
   }
 
+  absl::StatusOr<HttpResponse> PostOnceWithResponse(const std::string& url, const std::string& body,
+                                                    const std::vector<std::string>& headers) override {
+    return PostWithResponse(url, body, headers);
+  }
+
+  absl::StatusOr<std::string> GetOnce(const std::string& url, const std::vector<std::string>& headers) override {
+    return Get(url, headers);
+  }
+
   absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers) override {
     get_urls.push_back(url);
     get_headers = headers;

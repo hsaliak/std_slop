@@ -21,7 +21,13 @@ class FakeHttpClient : public HttpClient {
     return response;
   }
 
-  HttpResponse response{200, R"({"access_token":"access","refresh_token":"refresh","expires_in":60})", {}};
+  absl::StatusOr<HttpResponse> PostOnceWithResponse(const std::string& url, const std::string& body,
+                                                    const std::vector<std::string>& headers) override {
+    return PostWithResponse(url, body, headers);
+  }
+
+  HttpResponse response{
+      200, R"({"access_token":"access","refresh_token":"refresh","token_type":"Bearer","expires_in":60})", {}};
   std::string last_url;
   std::string last_body;
   std::vector<std::string> last_headers;

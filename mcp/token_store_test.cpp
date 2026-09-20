@@ -4,6 +4,8 @@
 
 #include "gtest/gtest.h"
 
+#include <sys/stat.h>
+
 namespace slop::mcp {
 namespace {
 
@@ -37,6 +39,17 @@ TEST(TokenStoreTest, RejectsMissingAccessToken) {
   OAuthTokenSet tokens;
   tokens.refresh_token = "refresh";
   EXPECT_FALSE(SaveOAuthTokens(TestTokenPath(), tokens).ok());
+}
+
+TEST(TokenStoreTest, RejectsInsecureTokenFilePermissions) {
+  const std::string path = TestTokenPath();
+  std::filesystem::remove(path);
+  OAuthTokenSet tokens;
+  tokens.access_token = "access";
+  ASSERT_TRUE(SaveOAuthTokens(path, tokens).ok());
+  ASSERT_EQ(chmod(path.c_str(), 0644), 0);
+  EXPECT_EQ(LoadOAuthTokens(path).status().code(), absl::StatusCode::kPermissionDenied);
+  std::filesystem::remove(path);
 }
 
 TEST(TokenStoreTest, RejectsAccessTokenHeaderControlCharacters) {

@@ -34,9 +34,9 @@ struct OAuthClientConfig {
 };
 
 absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClientConfig& config);
-absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::string& callback_url,
-                                                                 const std::string& expected_state,
-                                                                 const std::string& expected_issuer = std::string());
+absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(
+    const std::string& callback_url, const std::string& expected_state,
+    const std::string& expected_issuer = std::string(), const std::string& expected_redirect_uri = std::string());
 absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client, const OAuthClientConfig& config,
                                                         const std::string& code, const std::string& code_verifier);
 absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const OAuthClientConfig& config,

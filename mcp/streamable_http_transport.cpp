@@ -47,8 +47,9 @@ absl::Status StreamableHttpTransport::Send(const nlohmann::json& message) {
   auto outbound_or = ParseJsonRpcMessage(json_dump(message));
   if (!outbound_or.ok()) return outbound_or.status();
 
-  auto response_or = http_client_->PostStreamWithResponse(config_.endpoint_url, json_dump(message), BuildHeaders(),
-                                                          [](absl::string_view) { return absl::OkStatus(); });
+  auto response_or = http_client_->PostOnceStreamWithResponse(config_.endpoint_url, json_dump(message), BuildHeaders(),
+                                                              config_.request_timeout, 4 * 1024 * 1024,
+                                                              [](absl::string_view) { return absl::OkStatus(); });
   if (!response_or.ok()) return response_or.status();
   return EnqueueResponseMessages(*response_or);
 }

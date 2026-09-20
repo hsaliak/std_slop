@@ -187,6 +187,12 @@ absl::StatusOr<std::string> HttpClient::Get(const std::string& url, const std::v
   if (!response_or.ok()) return response_or.status();
   return response_or->body;
 }
+absl::StatusOr<std::string> HttpClient::GetOnce(const std::string& url, const std::vector<std::string>& headers) {
+  auto response_or = ExecuteWithRetryResponse(url, "GET", "", headers, nullptr, false, false, false, absl::Seconds(60),
+                                              4 * 1024 * 1024);
+  if (!response_or.ok()) return response_or.status();
+  return response_or->body;
+}
 
 absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::string& body,
                                              const std::vector<std::string>& headers) {
@@ -219,6 +225,11 @@ absl::StatusOr<HttpResponse> HttpClient::PostOnceStreamWithResponse(const std::s
                                                                     ChunkCallback on_chunk) {
   return ExecuteWithRetryResponse(url, "POST", body, headers, std::move(on_chunk), false, false, true, timeout,
                                   max_response_bytes);
+}
+
+absl::StatusOr<HttpResponse> HttpClient::PostOnceWithResponse(const std::string& url, const std::string& body,
+                                                              const std::vector<std::string>& headers) {
+  return PostOnceStreamWithResponse(url, body, headers, absl::Seconds(60), 4 * 1024 * 1024, nullptr);
 }
 
 absl::StatusOr<HttpResponse> HttpClient::ExecuteWithRetryResponse(

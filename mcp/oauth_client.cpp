@@ -97,7 +97,11 @@ absl::StatusOr<OAuthTokenSet> ParseTokenResponse(const std::string& body) {
   OAuthTokenSet tokens;
   tokens.access_token = json_get_or(*parsed, "access_token", std::string{});
   tokens.refresh_token = json_get_or(*parsed, "refresh_token", std::string{});
-  tokens.token_type = json_get_or(*parsed, "token_type", std::string("Bearer"));
+  const auto token_type = json_get<std::string>(*parsed, "token_type");
+  if (!token_type.has_value()) {
+    return absl::InvalidArgumentError("OAuth token response missing token_type");
+  }
+  tokens.token_type = *token_type;
   tokens.scope = json_get_or(*parsed, "scope", std::string{});
   if (!absl::EqualsIgnoreCase(tokens.token_type, "Bearer")) {
     return absl::InvalidArgumentError("OAuth token response token_type must be Bearer");
@@ -162,26 +166,48 @@ absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClien
 
 absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::string& callback_url,
                                                                  const std::string& expected_state,
-                                                                 const std::string& expected_issuer) {
+                                                                 const std::string& expected_issuer,
+                                                                 const std::string& expected_redirect_uri) {
   const size_t query = callback_url.find('?');
   if (query == std::string::npos) return absl::InvalidArgumentError("OAuth callback missing query");
+  if (callback_url.find('#') != std::string::npos) {
+    return absl::InvalidArgumentError("OAuth callback must not contain a fragment");
+  }
+  if (!expected_redirect_uri.empty() && callback_url.substr(0, query) != expected_redirect_uri) {
+    return absl::PermissionDeniedError("OAuth callback redirect URI mismatch");
+  }
   std::string code;
   std::string state;
   std::string error;
   std::string error_description;
   std::string error_uri;
   std::string issuer;
+  bool saw_code = false;
+  bool saw_state = false;
+  bool saw_issuer = false;
   for (const absl::string_view part : absl::StrSplit(callback_url.substr(query + 1), '&', absl::SkipEmpty())) {
     const size_t equals = part.find('=');
     if (equals == absl::string_view::npos) continue;
     const std::string key(part.substr(0, equals));
     const std::string value = UrlDecode(part.substr(equals + 1));
-    if (key == "code") code = value;
-    if (key == "state") state = value;
+    if (key == "code") {
+      if (saw_code) return absl::InvalidArgumentError("OAuth callback contains duplicate code");
+      saw_code = true;
+      code = value;
+    }
+    if (key == "state") {
+      if (saw_state) return absl::InvalidArgumentError("OAuth callback contains duplicate state");
+      saw_state = true;
+      state = value;
+    }
     if (key == "error") error = value;
     if (key == "error_description") error_description = value;
     if (key == "error_uri") error_uri = value;
-    if (key == "iss") issuer = value;
+    if (key == "iss") {
+      if (saw_issuer) return absl::InvalidArgumentError("OAuth callback contains duplicate issuer");
+      saw_issuer = true;
+      issuer = value;
+    }
   }
   if (state != expected_state) return absl::PermissionDeniedError("OAuth callback state mismatch");
   if (!expected_issuer.empty() && issuer != expected_issuer) {
@@ -211,9 +237,9 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                              {"code_verifier", code_verifier}};
   if (!config.resource.empty()) fields.push_back({"resource", config.resource});
   if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
-  auto response =
-      http_client->PostWithResponse(config.token_endpoint, FormBody(fields),
-                                    {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+  auto response = http_client->PostOnceWithResponse(
+      config.token_endpoint, FormBody(fields),
+      {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth token exchange failed");
@@ -237,9 +263,9 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
       {"grant_type", "refresh_token"}, {"refresh_token", refresh_token}, {"client_id", config.client_id}};
   if (!config.resource.empty()) fields.push_back({"resource", config.resource});
   if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
-  auto response =
-      http_client->PostWithResponse(config.token_endpoint, FormBody(fields),
-                                    {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+  auto response = http_client->PostOnceWithResponse(
+      config.token_endpoint, FormBody(fields),
+      {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth refresh failed");

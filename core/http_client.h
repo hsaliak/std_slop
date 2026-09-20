@@ -56,6 +56,11 @@ class HttpClient {
                                                                   absl::Duration timeout, size_t max_response_bytes,
                                                                   ChunkCallback on_chunk);
 
+  virtual absl::StatusOr<HttpResponse> PostOnceWithResponse(const std::string& url, const std::string& body,
+                                                            const std::vector<std::string>& headers);
+
+  virtual absl::StatusOr<std::string> GetOnce(const std::string& url, const std::vector<std::string>& headers);
+
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
   static bool IsTerminalError(long response_code, const std::string& response_body);
   // Classifies provider context-limit responses for accordion retry.
