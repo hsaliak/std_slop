@@ -59,12 +59,18 @@ struct Tool {
   nlohmann::json input_schema = nlohmann::json::object();
   nlohmann::json output_schema = nlohmann::json::object();
   nlohmann::json annotations = nlohmann::json::object();
+  nlohmann::json meta = nlohmann::json::object();
 };
+
+enum class ToolResultKind { kComplete, kInputRequired };
 
 struct ToolCallResult {
   std::vector<nlohmann::json> content;
   bool is_error = false;
-  nlohmann::json structured_content = nlohmann::json::object();
+  std::optional<nlohmann::json> structured_content;
+  nlohmann::json meta = nlohmann::json::object();
+  ToolResultKind kind = ToolResultKind::kComplete;
+  std::optional<nlohmann::json> request_state;
 };
 
 struct Resource {

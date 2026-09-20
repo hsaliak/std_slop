@@ -135,10 +135,10 @@ absl::StatusOr<std::string> NormalizeToolCallResult(const ToolCallResult& result
   nlohmann::json normalized = nlohmann::json::object();
   normalized["content"] = std::move(content);
   normalized["is_error"] = result.is_error;
-  if (!result.structured_content.is_object()) {
-    return absl::InvalidArgumentError("MCP tool result structured_content must be an object");
+  if (result.structured_content) {
+    normalized["structured_content"] = *result.structured_content;
   }
-  normalized["structured_content"] = result.structured_content;
+  if (!result.meta.empty()) normalized["meta"] = result.meta;
   return json_dump(normalized);
 }
 

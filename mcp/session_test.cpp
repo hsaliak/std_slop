@@ -264,7 +264,8 @@ TEST(SessionTest, CallToolParsesSuccessResult) {
   EXPECT_FALSE(result->is_error);
   ASSERT_EQ(result->content.size(), 1);
   EXPECT_EQ(json_get_or(result->content[0], "text", std::string{}), "ok");
-  EXPECT_EQ(json_get_or(result->structured_content, "answer", 0), 42);
+  ASSERT_TRUE(result->structured_content.has_value());
+  EXPECT_EQ(json_get_or(*result->structured_content, "answer", 0), 42);
   ASSERT_EQ(raw->sent.size(), 3);
   EXPECT_EQ(json_get_or(raw->sent[2], "method", std::string{}), "tools/call");
   ASSERT_TRUE(raw->sent[2].contains("params"));

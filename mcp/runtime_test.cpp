@@ -354,13 +354,15 @@ TEST(McpRuntimeTest, MalformedResultContentIsRejected) {
   EXPECT_TRUE(absl::IsInvalidArgument(normalized.status()));
 }
 
-TEST(McpRuntimeTest, MalformedStructuredContentIsRejected) {
+TEST(McpRuntimeTest, ScalarStructuredContentIsPreserved) {
   ToolCallResult result;
   result.content.push_back(nlohmann::json{{"type", "text"}, {"text", "ok"}});
-  result.structured_content = "not an object";
+  result.structured_content = "scalar";
   auto normalized = NormalizeToolCallResult(result);
-  EXPECT_FALSE(normalized.ok());
-  EXPECT_TRUE(absl::IsInvalidArgument(normalized.status()));
+  ASSERT_TRUE(normalized.ok()) << normalized.status();
+  auto parsed = json_parse(*normalized);
+  ASSERT_TRUE(parsed.has_value());
+  EXPECT_EQ((*parsed)["structured_content"], "scalar");
 }
 
 }  // namespace

@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
   }
 
   nlohmann::json output = {{"content", result->content}, {"isError", result->is_error}};
-  if (!result->structured_content.empty()) output["structuredContent"] = result->structured_content;
+  if (result->structured_content) output["structuredContent"] = *result->structured_content;
   std::cout << slop::json_dump(output, 2) << "\n";
   return result->is_error ? 1 : 0;
 }

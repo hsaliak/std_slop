@@ -58,6 +58,55 @@ cc_test(
 )
 
 cc_library(
+    name = "modern",
+    srcs = ["modern.cpp"],
+    hdrs = ["modern.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":json_rpc",
+        ":json_schema",
+        ":protocol",
+        "//core:json_utils",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_test",
+    srcs = ["modern_test.cpp"],
+    deps = [
+        ":modern",
+        ":protocol",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_fuzz_test",
+    srcs = ["modern_fuzz_test.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-parameter",
+    ],
+    deps = [
+        ":modern",
+        "//core:json_utils",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "json_rpc",
     srcs = ["json_rpc.cpp"],
     hdrs = ["json_rpc.h"],
