@@ -75,6 +75,7 @@ class RuntimeManager {
   SessionFactory session_factory_;
   std::vector<ActiveSession> sessions_;
   absl::flat_hash_map<std::string, ToolRoute> routes_;
+  absl::flat_hash_map<std::string, std::vector<Tool>> catalog_cache_;
 };
 
 absl::StatusOr<std::unique_ptr<RuntimeManager>> StartMcpRuntime(Database* db, ToolExecutor* tool_executor,

@@ -189,6 +189,7 @@ absl::Status RuntimeManager::Start() {
       LOG(WARNING) << "MCP tool discovery failed for " << entry.name << ": " << WithAuthContext(entry, tools.status());
       continue;
     }
+    catalog_cache_[entry.name] = *tools;
     std::unique_ptr<RuntimeSession> owned_session = std::move(*session);
     RuntimeSession* session_ptr = owned_session.get();
     RETURN_IF_ERROR(RegisterServerTools(entry, session_ptr, *tools));
@@ -207,7 +208,14 @@ absl::Status RuntimeManager::RefreshCatalogs() {
   absl::flat_hash_set<std::string> names;
   for (ActiveSession& active : sessions_) {
     auto tools_or = active.session->ListTools();
-    if (!tools_or.ok()) return tools_or.status();
+    if (!tools_or.ok()) {
+      const auto cached = catalog_cache_.find(active.entry.name);
+      if (cached == catalog_cache_.end()) return tools_or.status();
+      LOG(WARNING) << "Using cached MCP tool catalog for " << active.entry.name << ": " << tools_or.status();
+      tools_or = cached->second;
+    } else {
+      catalog_cache_[active.entry.name] = *tools_or;
+    }
     for (Tool& tool : *tools_or) {
       const std::string runtime_name = RuntimeToolName(active.entry.name, tool.name);
       if (runtime_name.size() > kMaxRuntimeToolNameLength) {

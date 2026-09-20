@@ -198,7 +198,7 @@ TEST(McpRuntimeTest, RefreshReplacesCatalogAtomicallyAndKeepsLastSnapshotOnFailu
                            [](const Database::Tool& tool) { return tool.name == "mcp_github_old"; }));
 
   session->SetListStatus(absl::UnavailableError("temporary"));
-  EXPECT_TRUE(absl::IsUnavailable(manager.RefreshCatalogs()));
+  EXPECT_TRUE(manager.RefreshCatalogs().ok());
   tools = db.GetTopLevelTools();
   ASSERT_TRUE(tools.ok());
   EXPECT_TRUE(std::any_of(tools->begin(), tools->end(),
