@@ -27,7 +27,7 @@ Commands:
       Register or update a Streamable HTTP MCP server. For --auth bearer, --token saves the bearer token
       to the per-server token file and does not write it to mcp.ini. For --auth oauth, --client-id must be
       a real client ID from a registered OAuth/GitHub App. OAuth endpoints are discovered when both are
-      omitted. Use --authorization-endpoint and --token-endpoint together only for manual fallback.
+      omitted. Use --authorization-endpoint, --token-endpoint, and --issuer together only for manual fallback.
   list
       List configured MCP servers.
   oauth-login <name> [--client-secret <secret>]
@@ -90,13 +90,6 @@ absl::StatusOr<mcp::ServerRegistryEntry> FindEntry(const std::string& name) {
   return absl::NotFoundError(absl::StrCat("MCP server not found: ", name));
 }
 
-std::string IssuerFromEndpoint(const std::string& endpoint) {
-  const size_t authority_start = endpoint.find("://");
-  if (authority_start == std::string::npos) return std::string{};
-  const size_t path_start = endpoint.find('/', authority_start + 3);
-  return endpoint.substr(0, path_start == std::string::npos ? endpoint.size() : path_start);
-}
-
 mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, const std::string& client_secret = "") {
   mcp::OAuthClientConfig config;
   config.client_id = entry.client_id;
@@ -104,8 +97,9 @@ mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, co
   config.authorization_endpoint = entry.authorization_endpoint;
   config.token_endpoint = entry.token_endpoint;
   config.scopes = entry.scopes;
-  config.issuer = entry.authorization_server_url.empty() ? IssuerFromEndpoint(entry.authorization_endpoint)
-                                                         : entry.authorization_server_url;
+  config.issuer = entry.authorization_server_url;
+  config.authorization_response_iss_parameter_supported =
+      entry.authorization_response_iss_parameter_supported;
   config.resource = entry.url;
   return config;
 }
@@ -143,7 +137,8 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     if (args.size() < 3) return Usage();
     const absl::Status flag_status = ValidateFlags(
         args, {"--scope"},
-        {"--url", "--auth", "--token", "--client-id", "--token-path", "--authorization-endpoint", "--token-endpoint"});
+        {"--url", "--auth", "--token", "--client-id", "--token-path", "--authorization-endpoint",
+         "--token-endpoint", "--issuer"});
     if (!flag_status.ok()) return flag_status;
     mcp::ServerRegistryEntry entry;
     entry.name = args[2];
@@ -155,6 +150,7 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     if (entry.token_path.empty()) entry.token_path = mcp::DefaultTokenPath(entry.name);
     entry.authorization_endpoint = ValueAfter(args, "--authorization-endpoint");
     entry.token_endpoint = ValueAfter(args, "--token-endpoint");
+    entry.authorization_server_url = ValueAfter(args, "--issuer");
     entry.scopes = ValuesAfter(args, "--scope");
     const std::string bearer_token = std::string(absl::StripAsciiWhitespace(ValueAfter(args, "--token")));
     if (entry.auth == mcp::kAuthBearer && bearer_token.empty()) {
@@ -178,12 +174,12 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
       entry.token_endpoint = discovery->token_endpoint;
       entry.resource_metadata_url = discovery->resource_metadata_url;
       entry.authorization_server_url = discovery->authorization_server_url;
+      entry.authorization_response_iss_parameter_supported =
+          discovery->authorization_response_iss_parameter_supported;
     }
     if (entry.auth == mcp::kAuthOAuth && entry.authorization_server_url.empty()) {
-      entry.authorization_server_url = IssuerFromEndpoint(entry.authorization_endpoint);
-      if (entry.authorization_server_url.empty()) {
-        return absl::InvalidArgumentError("MCP OAuth authorization endpoint has no issuer");
-      }
+      return absl::InvalidArgumentError(
+          "MCP OAuth manual endpoints require --issuer; discovery supplies it automatically");
     }
     const absl::Status entry_status = mcp::ValidateServerRegistryEntry(entry);
     if (!entry_status.ok()) return entry_status;
@@ -268,7 +264,9 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     std::string callback;
     std::getline(*in, callback);
     auto code =
-        mcp::ExtractAuthorizationCodeFromCallback(callback, session->state, config.issuer, session->redirect_uri);
+        mcp::ExtractAuthorizationCodeFromCallback(
+            callback, session->state, config.issuer, session->redirect_uri,
+            config.authorization_response_iss_parameter_supported);
     if (!code.ok()) return WithMcpContext("login callback", entry->name, code.status());
     auto tokens = mcp::ExchangeAuthorizationCode(http_client, config, *code, session->code_verifier);
     if (!tokens.ok()) return WithMcpContext("token exchange", entry->name, tokens.status());

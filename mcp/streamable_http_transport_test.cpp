@@ -77,6 +77,21 @@ TEST(StreamableHttpTransportTest, SendsRequiredHeadersAndParsesJsonResponse) {
   EXPECT_EQ(transport.session_id(), "sess-1");
 }
 
+TEST(StreamableHttpTransportTest, RejectsInvalidAndReservedExtraHeaders) {
+  for (const auto& [name, value] : std::vector<std::pair<std::string, std::string>>{
+           {"Authorization", "secret"}, {"Bad Header", "value"}, {"X-Test", "value\r\ninjected: true"}}) {
+    FakeHttpClient http;
+    StreamableHttpConfig config;
+    config.endpoint_url = "https://example.com/mcp";
+    config.extra_headers[name] = value;
+    StreamableHttpTransport transport(config, &http);
+    ASSERT_TRUE(transport.Start().ok());
+    EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).code(),
+              absl::StatusCode::kInvalidArgument);
+    EXPECT_TRUE(http.last_url.empty());
+  }
+}
+
 TEST(StreamableHttpTransportTest, ParsesSseMessages) {
   FakeHttpClient http;
   http.response = {200,

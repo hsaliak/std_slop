@@ -22,6 +22,7 @@ struct OAuthDiscoveryResult {
   std::string authorization_endpoint;
   std::string token_endpoint;
   std::vector<std::string> scopes_supported;
+  bool authorization_response_iss_parameter_supported = false;
 };
 
 absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_client,

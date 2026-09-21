@@ -339,7 +339,7 @@ TEST(McpCommandsTest, OAuthAddManualEndpointsSkipsDiscovery) {
   absl::Status status =
       RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
                      "client", "--authorization-endpoint", "https://manual.example/authorize", "--token-endpoint",
-                     "https://manual.example/token"},
+                     "https://manual.example/token", "--issuer", "https://manual.example"},
                     &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
   EXPECT_TRUE(http_client.post_url.empty());
@@ -349,6 +349,22 @@ TEST(McpCommandsTest, OAuthAddManualEndpointsSkipsDiscovery) {
   ASSERT_EQ(entries->size(), 1);
   EXPECT_EQ((*entries)[0].authorization_endpoint, "https://manual.example/authorize");
   EXPECT_EQ((*entries)[0].token_endpoint, "https://manual.example/token");
+}
+
+TEST(McpCommandsTest, OAuthManualEndpointsRequireExplicitIssuer) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+  const auto status = RunMcpCommand(
+      {"mcp", "add", "manual", "--url", "https://api.example/mcp", "--auth", "oauth",
+       "--client-id", "client", "--authorization-endpoint", "https://auth.example/authorize",
+       "--token-endpoint", "https://auth.example/token"},
+      &http_client, &input, &output, &error);
+  EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_NE(std::string(status.message()).find("--issuer"), std::string::npos);
+  EXPECT_TRUE(http_client.post_url.empty());
 }
 
 TEST(McpCommandsTest, OAuthAddRejectsPartialManualEndpoint) {
@@ -447,7 +463,7 @@ TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
   absl::Status status =
       RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
                      "client", "--authorization-endpoint", "https://manual.example/authorize", "--token-endpoint",
-                     "https://manual.example/token"},
+                     "https://manual.example/token", "--issuer", "https://manual.example"},
                     &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
 
@@ -466,7 +482,7 @@ TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
   absl::Status status =
       RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
                      "client", "--authorization-endpoint", "https://manual.example/authorize", "--token-endpoint",
-                     "https://manual.example/token"},
+                     "https://manual.example/token", "--issuer", "https://manual.example"},
                     &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
   mcp::OAuthTokenSet old_tokens;

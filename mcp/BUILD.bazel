@@ -16,6 +16,18 @@ cc_library(
 )
 
 cc_library(
+    name = "http_headers",
+    srcs = ["http_headers.cpp"],
+    hdrs = ["http_headers.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "json_schema",
     srcs = ["json_schema.cpp"],
     hdrs = ["json_schema.h"],
@@ -81,6 +93,7 @@ cc_library(
     hdrs = ["modern_http.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":http_headers",
         ":json_rpc",
         ":modern",
         ":protocol",
@@ -224,6 +237,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@curl//:curl",
         "@nlohmann_json//:json",
     ],
 )
@@ -268,10 +282,14 @@ cc_test(
 cc_library(
     name = "token_store",
     srcs = ["token_store.cpp"],
-    hdrs = ["token_store.h"],
+    hdrs = [
+        "token_store.h",
+        "token_store_internal.h",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//core:json_utils",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -504,6 +522,7 @@ cc_library(
     hdrs = ["streamable_http_transport.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":http_headers",
         ":json_rpc",
         ":protocol",
         ":sse_decoder",

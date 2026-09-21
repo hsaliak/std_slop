@@ -31,12 +31,14 @@ struct OAuthClientConfig {
   bool s256_supported = true;
   size_t max_scope_count = 64;
   std::string redirect_uri = "http://127.0.0.1/callback";
+  bool authorization_response_iss_parameter_supported = false;
 };
 
 absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClientConfig& config);
 absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(
     const std::string& callback_url, const std::string& expected_state,
-    const std::string& expected_issuer = std::string(), const std::string& expected_redirect_uri = std::string());
+    const std::string& expected_issuer = std::string(), const std::string& expected_redirect_uri = std::string(),
+    bool require_issuer = false);
 absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client, const OAuthClientConfig& config,
                                                         const std::string& code, const std::string& code_verifier);
 absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const OAuthClientConfig& config,

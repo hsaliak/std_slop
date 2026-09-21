@@ -1,6 +1,5 @@
 #include "mcp/modern.h"
 
-#include <cctype>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -29,7 +28,7 @@ constexpr int64_t kMaxSafeInteger = 9007199254740991LL;
 bool IsHttpToken(absl::string_view value) {
   if (value.empty()) return false;
   for (const unsigned char c : value) {
-    if (std::isalnum(c)) continue;
+    if (absl::ascii_isalnum(c)) continue;
     switch (c) {
       case '!':
       case '#':
@@ -54,19 +53,16 @@ bool IsHttpToken(absl::string_view value) {
   return true;
 }
 
-std::string Base64Encode(absl::string_view input) {
-  std::string output;
-  absl::Base64Escape(input, &output);
-  return output;
-}
-
 std::string EncodeHeaderValue(absl::string_view value) {
   bool safe = !value.empty() && !absl::ascii_isspace(value.front()) && !absl::ascii_isspace(value.back()) &&
               !(absl::StartsWith(value, "=?base64?") && absl::EndsWith(value, "?="));
   for (const unsigned char c : value) {
     safe = safe && c >= 0x20 && c <= 0x7e && c != 0x7f;
   }
-  return safe ? std::string(value) : absl::StrCat("=?base64?", Base64Encode(value), "?=");
+  if (safe) return std::string(value);
+  std::string encoded;
+  absl::Base64Escape(value, &encoded);
+  return absl::StrCat("=?base64?", encoded, "?=");
 }
 
 absl::StatusOr<ImplementationInfo> ParseImplementationInfo(const nlohmann::json& value) {

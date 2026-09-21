@@ -11,9 +11,9 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/strip.h"
 
 #include "core/json_utils.h"
+#include "mcp/http_headers.h"
 #include "mcp/json_rpc.h"
 #include "mcp/sse_decoder.h"
 
@@ -23,13 +23,6 @@ namespace {
 std::string HeaderValue(const absl::flat_hash_map<std::string, std::string>& headers, absl::string_view name) {
   const auto it = headers.find(absl::AsciiStrToLower(name));
   return it == headers.end() ? std::string() : it->second;
-}
-
-bool IsReservedHeader(absl::string_view name) {
-  const std::string lower = absl::AsciiStrToLower(name);
-  return lower == "content-type" || lower == "accept" || lower == "authorization" || lower == "mcp-protocol-version" ||
-         lower == "mcp-method" || lower == "mcp-name" || lower == "mcp-session-id" || lower == "last-event-id" ||
-         absl::StartsWith(lower, "mcp-param-");
 }
 
 absl::StatusOr<ServerNotification> ParseNotification(const nlohmann::json& message) {
@@ -96,17 +89,7 @@ absl::Status HttpExchange::ValidateOptions() const {
   if (options_.deadline <= absl::ZeroDuration()) {
     return absl::InvalidArgumentError("MCP deadline must be positive");
   }
-  for (const auto& [name, value] : options_.extra_headers) {
-    const absl::string_view trimmed = absl::StripAsciiWhitespace(name);
-    if (trimmed.empty() || IsReservedHeader(trimmed)) {
-      return absl::InvalidArgumentError(absl::StrCat("reserved or empty MCP header: ", name));
-    }
-    if (name.find(':') != std::string::npos || value.find('\r') != std::string::npos ||
-        value.find('\n') != std::string::npos) {
-      return absl::InvalidArgumentError("invalid MCP extra header");
-    }
-  }
-  return absl::OkStatus();
+  return ValidateExtraHeaders(options_.extra_headers);
 }
 
 absl::StatusOr<HttpExchangeResult> HttpExchange::Execute(const Request& request) {

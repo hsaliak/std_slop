@@ -25,6 +25,7 @@ struct ServerRegistryEntry {
   std::string authorization_server_url;
   std::string authorization_endpoint;
   std::string token_endpoint;
+  bool authorization_response_iss_parameter_supported = false;
 };
 
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry);

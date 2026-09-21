@@ -26,6 +26,7 @@ struct AuthorizationServerMetadata {
   std::vector<std::string> scopes_supported;
   std::vector<std::string> code_challenge_methods_supported;
   bool client_id_metadata_document_supported = false;
+  bool authorization_response_iss_parameter_supported = false;
 };
 
 struct ClientIdMetadataDocument {

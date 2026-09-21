@@ -183,6 +183,18 @@ TEST(ModernHttpTest, RejectsReservedHeadersBeforeNetwork) {
   EXPECT_EQ(http.calls, 0);
 }
 
+TEST(ModernHttpTest, RejectsInvalidHeaderNameAndControlCharacters) {
+  for (const auto& [name, value] :
+       std::vector<std::pair<std::string, std::string>>{{"Bad Header", "value"}, {"X-Test", "value\nInjected: true"}}) {
+    FakeHttpClient http;
+    HttpExchangeOptions options = MakeOptions();
+    options.extra_headers[name] = value;
+    HttpExchange exchange(options, &http);
+    EXPECT_EQ(exchange.Execute(MakeRequest()).status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_EQ(http.calls, 0);
+  }
+}
+
 TEST(ModernHttpTest, RejectsMismatchedAndTruncatedResponses) {
   FakeHttpClient mismatch_http;
   mismatch_http.response = {

@@ -1,17 +1,19 @@
 #include "mcp/oauth_client.h"
 
 #include <array>
-#include <cctype>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
+#include <limits>
 
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "curl/curl.h"
 
 #include "core/json_utils.h"
 #include "core/sha256.h"
@@ -19,41 +21,43 @@
 namespace slop::mcp {
 namespace {
 
-std::string UrlEncode(const std::string& value) {
-  std::string encoded;
-  static constexpr char kHex[] = "0123456789ABCDEF";
-  for (const unsigned char c : value) {
-    if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-      encoded.push_back(static_cast<char>(c));
-    } else {
-      encoded.push_back('%');
-      encoded.push_back(kHex[c >> 4]);
-      encoded.push_back(kHex[c & 0x0F]);
-    }
+absl::StatusOr<std::string> UrlEncode(absl::string_view value) {
+  if (value.empty()) return std::string{};
+  if (value.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    return absl::ResourceExhaustedError("OAuth form value is too large");
   }
+  char* escaped = curl_easy_escape(nullptr, value.data(), static_cast<int>(value.size()));
+  if (escaped == nullptr) return absl::ResourceExhaustedError("Failed to encode OAuth form value");
+  std::string encoded(escaped);
+  curl_free(escaped);
   return encoded;
 }
 
-int HexValue(char c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-  return -1;
-}
-
-std::string UrlDecode(absl::string_view value) {
-  std::string decoded;
+absl::StatusOr<std::string> UrlDecode(absl::string_view value) {
+  if (value.empty()) return std::string{};
   for (size_t i = 0; i < value.size(); ++i) {
-    if (value[i] == '%' && i + 2 < value.size()) {
-      const int hi = HexValue(value[i + 1]);
-      const int lo = HexValue(value[i + 2]);
-      if (hi >= 0 && lo >= 0) {
-        decoded.push_back(static_cast<char>((hi << 4) | lo));
-        i += 2;
-        continue;
-      }
+    if (value[i] != '%') continue;
+    if (i + 2 >= value.size() || !absl::ascii_isxdigit(value[i + 1]) ||
+        !absl::ascii_isxdigit(value[i + 2])) {
+      return absl::InvalidArgumentError("OAuth callback contains invalid percent encoding");
     }
-    decoded.push_back(value[i] == '+' ? ' ' : value[i]);
+    i += 2;
+  }
+  if (value.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    return absl::ResourceExhaustedError("OAuth callback value is too large");
+  }
+  // Form encoding treats literal '+' as space, but preserves escaped '%2B'.
+  std::string component(value);
+  for (char& c : component) {
+    if (c == '+') c = ' ';
+  }
+  int decoded_size = 0;
+  char* unescaped = curl_easy_unescape(nullptr, component.data(), static_cast<int>(component.size()), &decoded_size);
+  if (unescaped == nullptr) return absl::ResourceExhaustedError("Failed to decode OAuth callback value");
+  std::string decoded(unescaped, decoded_size);
+  curl_free(unescaped);
+  if (decoded.find('\0') != std::string::npos) {
+    return absl::InvalidArgumentError("OAuth callback value contains NUL");
   }
   return decoded;
 }
@@ -116,9 +120,15 @@ absl::StatusOr<OAuthTokenSet> ParseTokenResponse(const std::string& body) {
   return tokens;
 }
 
-std::string FormBody(const std::vector<std::pair<std::string, std::string>>& fields) {
+absl::StatusOr<std::string> FormBody(const std::vector<std::pair<std::string, std::string>>& fields) {
   std::vector<std::string> parts;
-  for (const auto& [key, value] : fields) parts.push_back(absl::StrCat(key, "=", UrlEncode(value)));
+  for (const auto& [key, value] : fields) {
+    auto encoded_key = UrlEncode(key);
+    if (!encoded_key.ok()) return encoded_key.status();
+    auto encoded_value = UrlEncode(value);
+    if (!encoded_value.ok()) return encoded_value.status();
+    parts.push_back(absl::StrCat(*encoded_key, "=", *encoded_value));
+  }
   return absl::StrJoin(parts, "&");
 }
 
@@ -150,24 +160,27 @@ absl::StatusOr<PkceAuthorizationSession> StartPkceAuthorization(const OAuthClien
   if (!challenge.ok()) return challenge.status();
   const std::string code_challenge =
       absl::WebSafeBase64Escape(absl::string_view(reinterpret_cast<const char*>(challenge->data()), challenge->size()));
-  session.authorization_url =
-      absl::StrCat(config.authorization_endpoint, "?response_type=code&client_id=", UrlEncode(config.client_id),
-                   "&redirect_uri=", UrlEncode(session.redirect_uri));
-  if (!scopes->empty()) {
-    absl::StrAppend(&session.authorization_url, "&scope=", UrlEncode(absl::StrJoin(*scopes, " ")));
-  }
-  if (!config.resource.empty()) {
-    absl::StrAppend(&session.authorization_url, "&resource=", UrlEncode(config.resource));
-  }
-  absl::StrAppend(&session.authorization_url, "&state=", UrlEncode(session.state), "&code_challenge=", code_challenge,
-                  "&code_challenge_method=S256");
+  std::vector<std::pair<std::string, std::string>> fields = {
+      {"response_type", "code"},
+      {"client_id", config.client_id},
+      {"redirect_uri", session.redirect_uri},
+  };
+  if (!scopes->empty()) fields.push_back({"scope", absl::StrJoin(*scopes, " ")});
+  if (!config.resource.empty()) fields.push_back({"resource", config.resource});
+  fields.push_back({"state", session.state});
+  fields.push_back({"code_challenge", code_challenge});
+  fields.push_back({"code_challenge_method", "S256"});
+  auto query = FormBody(fields);
+  if (!query.ok()) return query.status();
+  session.authorization_url = absl::StrCat(config.authorization_endpoint, "?", *query);
   return session;
 }
 
 absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::string& callback_url,
                                                                  const std::string& expected_state,
                                                                  const std::string& expected_issuer,
-                                                                 const std::string& expected_redirect_uri) {
+                                                                 const std::string& expected_redirect_uri,
+                                                                 bool require_issuer) {
   const size_t query = callback_url.find('?');
   if (query == std::string::npos) return absl::InvalidArgumentError("OAuth callback missing query");
   if (callback_url.find('#') != std::string::npos) {
@@ -188,8 +201,12 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
   for (const absl::string_view part : absl::StrSplit(callback_url.substr(query + 1), '&', absl::SkipEmpty())) {
     const size_t equals = part.find('=');
     if (equals == absl::string_view::npos) continue;
-    const std::string key(part.substr(0, equals));
-    const std::string value = UrlDecode(part.substr(equals + 1));
+    auto key_or = UrlDecode(part.substr(0, equals));
+    if (!key_or.ok()) return key_or.status();
+    auto value_or = UrlDecode(part.substr(equals + 1));
+    if (!value_or.ok()) return value_or.status();
+    const std::string& key = *key_or;
+    const std::string& value = *value_or;
     if (key == "code") {
       if (saw_code) return absl::InvalidArgumentError("OAuth callback contains duplicate code");
       saw_code = true;
@@ -210,7 +227,10 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
     }
   }
   if (state != expected_state) return absl::PermissionDeniedError("OAuth callback state mismatch");
-  if (!expected_issuer.empty() && issuer != expected_issuer) {
+  if (require_issuer && !saw_issuer) {
+    return absl::PermissionDeniedError("OAuth callback missing issuer");
+  }
+  if (saw_issuer && !expected_issuer.empty() && issuer != expected_issuer) {
     return absl::PermissionDeniedError("OAuth callback issuer mismatch");
   }
   if (!error.empty()) {
@@ -237,8 +257,10 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                              {"code_verifier", code_verifier}};
   if (!config.resource.empty()) fields.push_back({"resource", config.resource});
   if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
+  auto body = FormBody(fields);
+  if (!body.ok()) return body.status();
   auto response = http_client->PostOnceWithResponse(
-      config.token_endpoint, FormBody(fields),
+      config.token_endpoint, *body,
       {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
@@ -263,8 +285,10 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
       {"grant_type", "refresh_token"}, {"refresh_token", refresh_token}, {"client_id", config.client_id}};
   if (!config.resource.empty()) fields.push_back({"resource", config.resource});
   if (!config.client_secret.empty()) fields.push_back({"client_secret", config.client_secret});
+  auto body = FormBody(fields);
+  if (!body.ok()) return body.status();
   auto response = http_client->PostOnceWithResponse(
-      config.token_endpoint, FormBody(fields),
+      config.token_endpoint, *body,
       {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {

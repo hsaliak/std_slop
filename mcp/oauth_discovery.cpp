@@ -115,6 +115,8 @@ absl::StatusOr<OAuthDiscoveryResult> DiscoverOAuthEndpoints(HttpClient* http_cli
   result.authorization_endpoint = server_metadata->authorization_endpoint;
   result.token_endpoint = server_metadata->token_endpoint;
   result.scopes_supported = server_metadata->scopes_supported;
+  result.authorization_response_iss_parameter_supported =
+      server_metadata->authorization_response_iss_parameter_supported;
   return result;
 }
 

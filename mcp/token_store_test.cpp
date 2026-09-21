@@ -1,6 +1,11 @@
 #include "mcp/token_store.h"
 
+#include <algorithm>
+#include <cerrno>
 #include <filesystem>
+#include <string>
+
+#include "mcp/token_store_internal.h"
 
 #include "gtest/gtest.h"
 
@@ -50,6 +55,49 @@ TEST(TokenStoreTest, RejectsInsecureTokenFilePermissions) {
   ASSERT_EQ(chmod(path.c_str(), 0644), 0);
   EXPECT_EQ(LoadOAuthTokens(path).status().code(), absl::StatusCode::kPermissionDenied);
   std::filesystem::remove(path);
+}
+
+TEST(TokenStoreTest, RejectsSymlinkWithoutFollowingIt) {
+  const std::string target = TestTokenPath() + ".target";
+  const std::string link = TestTokenPath() + ".link";
+  std::filesystem::remove(target);
+  std::filesystem::remove(link);
+  OAuthTokenSet tokens;
+  tokens.access_token = "access";
+  ASSERT_TRUE(SaveOAuthTokens(target, tokens).ok());
+  std::error_code error;
+  std::filesystem::create_symlink(target, link, error);
+  ASSERT_FALSE(error) << error.message();
+  EXPECT_EQ(LoadOAuthTokens(link).status().code(),
+            absl::StatusCode::kPermissionDenied);
+  std::filesystem::remove(link);
+  std::filesystem::remove(target);
+}
+
+TEST(TokenStoreTest, WriteAllRetriesInterruptsAndPartialWrites) {
+  std::string written;
+  int call = 0;
+  const absl::Status status = token_store_internal::WriteAll(
+      7, "abcdef", [&](int fd, const void* data, size_t size) -> ssize_t {
+        EXPECT_EQ(fd, 7);
+        ++call;
+        if (call == 1) {
+          errno = EINTR;
+          return -1;
+        }
+        const size_t count = std::min(size, size_t{2});
+        written.append(static_cast<const char*>(data), count);
+        return static_cast<ssize_t>(count);
+      });
+  EXPECT_TRUE(status.ok()) << status;
+  EXPECT_EQ(written, "abcdef");
+  EXPECT_EQ(call, 4);
+}
+
+TEST(TokenStoreTest, WriteAllRejectsZeroProgress) {
+  const absl::Status status = token_store_internal::WriteAll(
+      7, "data", [](int, const void*, size_t) -> ssize_t { return 0; });
+  EXPECT_EQ(status.code(), absl::StatusCode::kUnavailable);
 }
 
 TEST(TokenStoreTest, RejectsAccessTokenHeaderControlCharacters) {

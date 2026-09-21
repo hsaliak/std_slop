@@ -151,6 +151,15 @@ absl::StatusOr<AuthorizationServerMetadata> ParseAuthorizationServerMetadata(con
     }
     parsed.client_id_metadata_document_supported = cimd->get<bool>();
   }
+  if (const auto* response_issuer =
+          json_at(metadata, "authorization_response_iss_parameter_supported")) {
+    if (!response_issuer->is_boolean()) {
+      return absl::InvalidArgumentError(
+          "authorization_response_iss_parameter_supported must be boolean");
+    }
+    parsed.authorization_response_iss_parameter_supported =
+        response_issuer->get<bool>();
+  }
   return parsed;
 }
 

@@ -63,6 +63,14 @@ TEST(OAuthClientTest, ValidatesCallbackIssuerAndPkceAdvertisement) {
       "http://127.0.0.1/callback?code=abc&state=expected&iss=https%3A%2F%2Fauth.example", "expected",
       "https://auth.example");
   ASSERT_TRUE(code.ok()) << code.status();
+  auto absent = ExtractAuthorizationCodeFromCallback(
+      "http://127.0.0.1/callback?code=abc&state=expected", "expected",
+      "https://auth.example");
+  ASSERT_TRUE(absent.ok()) << absent.status();
+  auto required_absent = ExtractAuthorizationCodeFromCallback(
+      "http://127.0.0.1/callback?code=abc&state=expected", "expected",
+      "https://auth.example", "http://127.0.0.1/callback", true);
+  EXPECT_EQ(required_absent.status().code(), absl::StatusCode::kPermissionDenied);
   auto mismatch = ExtractAuthorizationCodeFromCallback(
       "http://127.0.0.1/callback?code=abc&state=expected&iss=https%3A%2F%2Fevil.example", "expected",
       "https://auth.example");
@@ -86,6 +94,25 @@ TEST(OAuthClientTest, ValidatesCallbackIssuerAndPkceAdvertisement) {
 TEST(OAuthClientTest, RejectsStateMismatch) {
   auto code = ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=abc&state=bad", "expected");
   EXPECT_FALSE(code.ok());
+}
+
+TEST(OAuthClientTest, RejectsMalformedAndEncodedDuplicateParameters) {
+  EXPECT_EQ(ExtractAuthorizationCodeFromCallback(
+                "http://127.0.0.1/callback?code=%GG&state=expected", "expected")
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(ExtractAuthorizationCodeFromCallback(
+                "http://127.0.0.1/callback?state=expected&st%61te=expected&code=abc",
+                "expected")
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(ExtractAuthorizationCodeFromCallback(
+                "http://127.0.0.1/callback?code=%00&state=expected", "expected")
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
 }
 
 TEST(OAuthClientTest, ReportsCallbackOAuthError) {

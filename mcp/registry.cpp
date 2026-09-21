@@ -129,6 +129,12 @@ absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::s
     if (const auto value = section.find("authorization_server_url"); value != section.end()) entry.authorization_server_url = value->second;
     if (const auto value = section.find("authorization_endpoint"); value != section.end()) entry.authorization_endpoint = value->second;
     if (const auto value = section.find("token_endpoint"); value != section.end()) entry.token_endpoint = value->second;
+    if (const auto value = section.find("authorization_response_iss_parameter_supported");
+        value != section.end()) {
+      auto supported = ParseBool(absl::StripAsciiWhitespace(value->second));
+      if (!supported.ok()) return supported.status();
+      entry.authorization_response_iss_parameter_supported = *supported;
+    }
     if (entry.token_path.empty()) entry.token_path = DefaultTokenPath(entry.name);
     const absl::Status status = ValidateServerRegistryEntry(entry);
     if (!status.ok()) return status;
@@ -165,6 +171,9 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
     if (!entry.authorization_server_url.empty()) absl::StrAppend(&content, "authorization_server_url = ", entry.authorization_server_url, "\n");
     if (!entry.authorization_endpoint.empty()) absl::StrAppend(&content, "authorization_endpoint = ", entry.authorization_endpoint, "\n");
     if (!entry.token_endpoint.empty()) absl::StrAppend(&content, "token_endpoint = ", entry.token_endpoint, "\n");
+    if (entry.authorization_response_iss_parameter_supported) {
+      absl::StrAppend(&content, "authorization_response_iss_parameter_supported = true\n");
+    }
     content.push_back('\n');
   }
   std::string template_path = absl::StrCat(registry_path.string(), ".tmp.XXXXXX");

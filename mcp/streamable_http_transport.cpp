@@ -8,6 +8,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "core/json_utils.h"
+#include "mcp/http_headers.h"
 #include "mcp/json_rpc.h"
 #include "mcp/protocol.h"
 #include "mcp/sse_decoder.h"
@@ -47,7 +48,9 @@ absl::Status StreamableHttpTransport::Send(const nlohmann::json& message) {
   auto outbound_or = ParseJsonRpcMessage(json_dump(message));
   if (!outbound_or.ok()) return outbound_or.status();
 
-  auto response_or = http_client_->PostOnceStreamWithResponse(config_.endpoint_url, json_dump(message), BuildHeaders(),
+  auto headers_or = BuildHeaders();
+  if (!headers_or.ok()) return headers_or.status();
+  auto response_or = http_client_->PostOnceStreamWithResponse(config_.endpoint_url, json_dump(message), *headers_or,
                                                               config_.request_timeout, 4 * 1024 * 1024,
                                                               [](absl::string_view) { return absl::OkStatus(); });
   if (!response_or.ok()) return response_or.status();
@@ -69,7 +72,9 @@ absl::Status StreamableHttpTransport::Close() {
   return absl::OkStatus();
 }
 
-std::vector<std::string> StreamableHttpTransport::BuildHeaders() const {
+absl::StatusOr<std::vector<std::string>> StreamableHttpTransport::BuildHeaders() const {
+  const absl::Status extra_headers_status = ValidateExtraHeaders(config_.extra_headers);
+  if (!extra_headers_status.ok()) return extra_headers_status;
   std::vector<std::string> headers = {"Content-Type: application/json", "Accept: application/json, text/event-stream"};
   if (!protocol_version_.empty()) headers.push_back(absl::StrCat(kProtocolVersionHeader, ": ", protocol_version_));
   if (!session_id_.empty()) headers.push_back(absl::StrCat(kSessionIdHeader, ": ", session_id_));

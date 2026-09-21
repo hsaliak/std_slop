@@ -1,6 +1,5 @@
 #include "mcp/runtime.h"
 
-#include <cctype>
 #include <ctime>
 #include <memory>
 #include <string>
@@ -10,6 +9,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 
 #include "core/json_utils.h"
@@ -25,7 +25,7 @@ std::string SanitizeNamePart(const std::string& value) {
   sanitized.reserve(value.size());
   for (char c : value) {
     const unsigned char ch = static_cast<unsigned char>(c);
-    if (std::isalnum(ch) || c == '_' || c == '-') {
+    if (absl::ascii_isalnum(ch) || c == '_' || c == '-') {
       sanitized.push_back(c);
     } else {
       sanitized.push_back('_');

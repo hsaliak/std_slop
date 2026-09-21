@@ -30,7 +30,7 @@ class StreamableHttpTransport : public Transport {
   }
 
  private:
-  std::vector<std::string> BuildHeaders() const;
+  absl::StatusOr<std::vector<std::string>> BuildHeaders() const;
   absl::Status EnqueueResponseMessages(const HttpResponse& response);
 
   StreamableHttpConfig config_;

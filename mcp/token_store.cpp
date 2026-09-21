@@ -1,11 +1,17 @@
 #include "mcp/token_store.h"
 
+#include "mcp/token_store_internal.h"
+
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
-#include <fstream>
+#include <string>
 #include <vector>
+
+#include <fcntl.h>
 
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
@@ -16,7 +22,63 @@
 #include <sys/stat.h>
 
 namespace slop::mcp {
+
+absl::Status token_store_internal::WriteAll(
+    int fd, absl::string_view content, WriteFunction write_function) {
+  size_t offset = 0;
+  while (offset < content.size()) {
+    const ssize_t written =
+        write_function(fd, content.data() + offset, content.size() - offset);
+    if (written < 0) {
+      if (errno == EINTR) continue;
+      return absl::UnavailableError(
+          absl::StrCat("Failed to write token file: ", std::strerror(errno)));
+    }
+    if (written == 0) {
+      return absl::UnavailableError("Failed to write token file: no progress");
+    }
+    offset += static_cast<size_t>(written);
+  }
+  return absl::OkStatus();
+}
+
 namespace {
+
+constexpr size_t kMaxTokenFileBytes = 4 * 1024 * 1024;
+
+absl::Status ErrnoStatus(absl::string_view operation) {
+  return absl::UnavailableError(absl::StrCat(operation, ": ", std::strerror(errno)));
+}
+
+absl::StatusOr<std::string> ReadAll(int fd) {
+  std::string content;
+  char buffer[8192];
+  while (true) {
+    const ssize_t count = read(fd, buffer, sizeof(buffer));
+    if (count < 0) {
+      if (errno == EINTR) continue;
+      return ErrnoStatus("Failed to read OAuth token file");
+    }
+    if (count == 0) return content;
+    if (static_cast<size_t>(count) > kMaxTokenFileBytes - content.size()) {
+      return absl::ResourceExhaustedError("OAuth token file exceeds size limit");
+    }
+    content.append(buffer, static_cast<size_t>(count));
+  }
+}
+
+absl::Status SyncParentDirectory(const std::filesystem::path& path) {
+  const std::filesystem::path parent = path.parent_path().empty() ? "." : path.parent_path();
+  const int directory_fd = open(parent.c_str(), O_RDONLY | O_CLOEXEC | O_DIRECTORY);
+  if (directory_fd < 0) return ErrnoStatus("Failed to open token directory");
+  if (fsync(directory_fd) != 0) {
+    const absl::Status status = ErrnoStatus("Failed to sync token directory");
+    close(directory_fd);
+    return status;
+  }
+  if (close(directory_fd) != 0) return ErrnoStatus("Failed to close token directory");
+  return absl::OkStatus();
+}
 
 bool ContainsHttpHeaderControlCharacter(const std::string& value) {
   for (const char c : value) {
@@ -67,35 +129,50 @@ absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& token
     std::filesystem::remove(buffer.data(), error);
     return absl::PermissionDeniedError("Failed to restrict temporary token file permissions");
   }
-  const ssize_t written = write(fd, content.data(), content.size());
-  const int close_status = close(fd);
-  if (written != static_cast<ssize_t>(content.size()) || close_status != 0) {
+  const absl::Status write_status = token_store_internal::WriteAll(
+      fd, content, [](int output_fd, const void* data, size_t size) {
+        return write(output_fd, data, size);
+      });
+  const absl::Status sync_status =
+      write_status.ok() && fsync(fd) != 0 ? ErrnoStatus("Failed to sync token file") : absl::OkStatus();
+  const absl::Status close_status = close(fd) != 0 ? ErrnoStatus("Failed to close token file") : absl::OkStatus();
+  if (!write_status.ok() || !sync_status.ok() || !close_status.ok()) {
     std::filesystem::remove(buffer.data(), error);
-    return absl::UnavailableError("Failed to write token file");
+    if (!write_status.ok()) return write_status;
+    if (!sync_status.ok()) return sync_status;
+    return close_status;
   }
   std::filesystem::rename(buffer.data(), token_path, error);
   if (error) {
     std::filesystem::remove(buffer.data(), error);
     return absl::UnavailableError(absl::StrCat("Failed to replace token file: ", error.message()));
   }
-  if (chmod(path.c_str(), 0600) != 0) {
-    return absl::UnavailableError("Failed to restrict token file permissions");
-  }
-  return absl::OkStatus();
+  return SyncParentDirectory(token_path);
 }
 
 absl::StatusOr<OAuthTokenSet> LoadOAuthTokens(const std::string& path) {
+  const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0) {
+    if (errno == ENOENT) return absl::NotFoundError("OAuth token file not found");
+    if (errno == ELOOP) return absl::PermissionDeniedError("OAuth token file must not be a symlink");
+    return ErrnoStatus("OAuth token file could not be opened");
+  }
   struct stat file_stat;
-  if (lstat(path.c_str(), &file_stat) != 0) {
-    return absl::NotFoundError("OAuth token file not found");
+  if (fstat(fd, &file_stat) != 0) {
+    const absl::Status status = ErrnoStatus("OAuth token file could not be inspected");
+    close(fd);
+    return status;
   }
   if (!S_ISREG(file_stat.st_mode) || (file_stat.st_mode & 0777) != 0600) {
+    close(fd);
     return absl::PermissionDeniedError("OAuth token file must be a regular 0600 file");
   }
-  std::ifstream file(path);
-  if (!file.is_open()) return absl::UnavailableError("OAuth token file could not be opened");
-  const std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-  auto parsed = json_parse(content);
+  auto content = ReadAll(fd);
+  const absl::Status close_status = close(fd) != 0 ? ErrnoStatus("OAuth token file could not be closed")
+                                                   : absl::OkStatus();
+  if (!content.ok()) return content.status();
+  if (!close_status.ok()) return close_status;
+  auto parsed = json_parse(*content);
   if (!parsed || !parsed->is_object()) return absl::InvalidArgumentError("OAuth token file is invalid");
   OAuthTokenSet tokens;
   tokens.access_token = json_get_or(*parsed, "access_token", std::string{});
