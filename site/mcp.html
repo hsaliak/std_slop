@@ -12,7 +12,7 @@
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><a href="agent.html">Agent</a><a class="active" aria-current="page" href="mcp.html">MCP</a><a href="markdown.html">Markdown</a><a href="docs.html">Docs</a><a href="https://github.com/hsaliak/std_slop">GitHub</a></nav></div></header>
   <main id="main-content">
 <section class="page-hero shell"><p class="eyebrow">Source: docs/mcp-api.md + docs/mcp-slop-userguide.md</p><h1>MCP library and runtime</h1></section>
-    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#scope">Scope</a></li><li class="toc-level-2"><a href="#protocol-surface">Protocol surface</a></li><li class="toc-level-2"><a href="#connect-to-a-streamable-http-server">Connect to a Streamable HTTP server</a></li><li class="toc-level-2"><a href="#session-api">Session API</a></li><li class="toc-level-2"><a href="#transport-behavior">Transport behavior</a></li><li class="toc-level-2"><a href="#bearer-token-clients">Bearer token clients</a></li><li class="toc-level-2"><a href="#oauth-clients">OAuth clients</a></li><li class="toc-level-3"><a href="#oauth-endpoint-discovery">OAuth endpoint discovery</a></li><li class="toc-level-3"><a href="#oauth-discovery-metadata">OAuth discovery metadata</a></li><li class="toc-level-3"><a href="#pkce-browser-flow">PKCE browser flow</a></li><li class="toc-level-2"><a href="#token-persistence">Token persistence</a></li><li class="toc-level-2"><a href="#error-model">Error model</a></li><li class="toc-level-2"><a href="#security-notes">Security notes</a></li><li class="toc-level-2"><a href="#what-mcp-adds-to-std-slop">What MCP adds to std_slop</a></li><li class="toc-level-2"><a href="#command-overview">Command overview</a></li><li class="toc-level-2"><a href="#registry-and-token-files">Registry and token files</a></li><li class="toc-level-2"><a href="#unauthenticated-servers">Unauthenticated servers</a></li><li class="toc-level-2"><a href="#bearer-token-servers">Bearer-token servers</a></li><li class="toc-level-2"><a href="#oauth-servers">OAuth servers</a></li><li class="toc-level-3"><a href="#register-with-discovery">Register with discovery</a></li><li class="toc-level-3"><a href="#register-with-manual-endpoints">Register with manual endpoints</a></li><li class="toc-level-3"><a href="#oauth-login">OAuth login</a></li><li class="toc-level-3"><a href="#oauth-refresh">OAuth refresh</a></li><li class="toc-level-3"><a href="#logout">Logout</a></li><li class="toc-level-2"><a href="#remove-a-server">Remove a server</a></li><li class="toc-level-2"><a href="#runtime-tool-names">Runtime tool names</a></li><li class="toc-level-2"><a href="#diagnostics">Diagnostics</a></li><li class="toc-level-3"><a href="#bearer-token-missing-or-invalid">Bearer token missing or invalid</a></li><li class="toc-level-3"><a href="#oauth-token-missing-or-invalid">OAuth token missing or invalid</a></li><li class="toc-level-3"><a href="#permission-denied">Permission denied</a></li><li class="toc-level-2"><a href="#security-notes-2">Security notes</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="mcp-api-and-c-client-library">MCP API and C++ client library</h1>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#scope">Scope</a></li><li class="toc-level-2"><a href="#protocol-surface">Protocol surface</a></li><li class="toc-level-2"><a href="#connect-with-automatic-protocol-selection">Connect with automatic protocol selection</a></li><li class="toc-level-2"><a href="#connect-directly-to-a-classic-session">Connect directly to a classic session</a></li><li class="toc-level-2"><a href="#classic-session-api">Classic session API</a></li><li class="toc-level-2"><a href="#streamable-http-behavior">Streamable HTTP behavior</a></li><li class="toc-level-2"><a href="#bearer-token-clients">Bearer token clients</a></li><li class="toc-level-2"><a href="#oauth-clients">OAuth clients</a></li><li class="toc-level-3"><a href="#oauth-endpoint-discovery">OAuth endpoint discovery</a></li><li class="toc-level-3"><a href="#oauth-discovery-metadata">OAuth discovery metadata</a></li><li class="toc-level-3"><a href="#pkce-browser-flow">PKCE browser flow</a></li><li class="toc-level-2"><a href="#token-persistence">Token persistence</a></li><li class="toc-level-2"><a href="#error-model">Error model</a></li><li class="toc-level-2"><a href="#security-notes">Security notes</a></li><li class="toc-level-2"><a href="#what-mcp-adds-to-std-slop">What MCP adds to std_slop</a></li><li class="toc-level-2"><a href="#command-overview">Command overview</a></li><li class="toc-level-2"><a href="#registry-and-token-files">Registry and token files</a></li><li class="toc-level-2"><a href="#unauthenticated-servers">Unauthenticated servers</a></li><li class="toc-level-2"><a href="#bearer-token-servers">Bearer-token servers</a></li><li class="toc-level-2"><a href="#oauth-servers">OAuth servers</a></li><li class="toc-level-3"><a href="#register-with-discovery">Register with discovery</a></li><li class="toc-level-3"><a href="#register-with-manual-endpoints">Register with manual endpoints</a></li><li class="toc-level-3"><a href="#oauth-login">OAuth login</a></li><li class="toc-level-3"><a href="#oauth-refresh">OAuth refresh</a></li><li class="toc-level-3"><a href="#logout">Logout</a></li><li class="toc-level-2"><a href="#remove-a-server">Remove a server</a></li><li class="toc-level-2"><a href="#runtime-tool-names">Runtime tool names</a></li><li class="toc-level-2"><a href="#diagnostics">Diagnostics</a></li><li class="toc-level-3"><a href="#bearer-token-missing-or-invalid">Bearer token missing or invalid</a></li><li class="toc-level-3"><a href="#oauth-token-missing-or-invalid">OAuth token missing or invalid</a></li><li class="toc-level-3"><a href="#permission-denied">Permission denied</a></li><li class="toc-level-2"><a href="#security-notes-2">Security notes</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="mcp-api-and-c-client-library">MCP API and C++ client library</h1>
 <p>This document describes the reusable C++ Model Context Protocol (MCP) client library in this repository. It is for C++ callers that want to connect to Streamable HTTP MCP servers directly.</p>
 <p>For the <code>std_slop mcp ...</code> command-line workflow, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">mcp-slop-userguide.md</a>.</p></div>
 <section class="doc-section"><h2 id="scope">Scope</h2>
@@ -31,43 +31,64 @@
   registry.h                   server registry data model</code></pre>
 <p>The public API uses <code>absl::Status</code> and <code>absl::StatusOr&lt;T&gt;</code> for fallible operations.</p></section>
 <section class="doc-section"><h2 id="protocol-surface">Protocol surface</h2>
-<p>The client speaks JSON-RPC 2.0 over Streamable HTTP and targets MCP protocol version <code>2025-11-25</code>.</p>
-<p>Implemented lifecycle support:</p>
-<ul><li><code>initialize</code></li><li>initialize result validation</li><li><code>notifications/initialized</code></li><li>negotiated protocol version tracking</li><li>server capability parsing</li></ul>
-<p>Implemented methods:</p>
+<p>The library speaks JSON-RPC 2.0 over Streamable HTTP and supports two MCP protocol revisions:</p>
+<ul><li>Classic: <code>2025-11-25</code></li><li>Modern: <code>2026-07-28</code></li></ul>
+<p>Use <code>ConnectMcp()</code> for automatic revision selection. <code>ClientOptions::selection</code> accepts:</p>
+<ul><li><code>kPreferLatest</code> (default): probe modern MCP with <code>server/discover</code>; use modern if supported and fall back to classic only when discovery indicates that modern MCP is unsupported.</li><li><code>kLatestOnly</code>: require modern MCP; do not fall back.</li><li><code>kClassicOnly</code>: skip modern discovery and connect using classic MCP.</li></ul>
+<p>The modern client supports <code>server/discover</code>, <code>tools/list</code>, and <code>tools/call</code>, including bounded tool pagination, supported-schema validation, structured tool results, and resumable tool calls. The classic <code>v2025_11_25::Session</code> supports the lifecycle and methods listed below.</p>
+<p>Classic lifecycle support:</p>
+<ul><li><code>initialize</code> and initialize-result validation</li><li><code>notifications/initialized</code></li><li>negotiated protocol-version tracking</li><li>server capability parsing</li></ul>
+<p>Classic methods:</p>
 <ul><li><code>ping</code></li><li><code>tools/list</code></li><li><code>tools/call</code></li><li><code>resources/list</code></li><li><code>resources/read</code></li><li><code>prompts/list</code></li><li><code>prompts/get</code></li></ul>
-<p>Implemented server notification parsing:</p>
+<p>Classic server notification parsing:</p>
 <ul><li>progress notifications</li><li>logging notifications</li><li>tools/resources/prompts list-change notifications</li></ul>
 <p>Unsupported or host-policy dependent features:</p>
-<ul><li>stdio transport</li><li>deprecated HTTP+SSE transport</li><li>automatic sampling approval</li><li>automatic roots approval</li><li>automatic elicitation approval</li><li>full JSON Schema validation</li></ul></section>
-<section class="doc-section"><h2 id="connect-to-a-streamable-http-server">Connect to a Streamable HTTP server</h2>
-<p>Use <code>ConnectStreamableHttp()</code> for the common case. It creates the transport, sends <code>initialize</code>, validates the response, and returns an initialized <code>Session</code>.</p>
+<ul><li>stdio transport</li><li>deprecated HTTP+SSE transport</li><li>automatic sampling approval</li><li>automatic roots approval</li><li>automatic elicitation approval</li><li>complete validation of every JSON Schema feature (the modern client validates its supported subset)</li></ul></section>
+<section class="doc-section"><h2 id="connect-with-automatic-protocol-selection">Connect with automatic protocol selection</h2>
+<p>Use <code>ConnectMcp()</code> for normal operation. It returns a common <code>Client</code> interface and applies the selection policy described above.</p>
 <pre><code class="language-c++">#include &quot;core/http_client.h&quot;
 #include &quot;mcp/client.h&quot;
+#include &quot;mcp/types.h&quot;
 
 slop::mcp::StreamableHttpConfig config;
 config.endpoint_url = &quot;https://example.com/mcp&quot;;
 
-slop::mcp::InitializeOptions options;
+slop::mcp::ClientOptions options;
+options.selection = slop::mcp::SelectionPolicy::kPreferLatest;
 options.client_info.name = &quot;my-client&quot;;
 options.client_info.version = &quot;1.0&quot;;
 
 slop::HttpClient http_client;
-absl::StatusOr&lt;std::unique_ptr&lt;slop::mcp::Session&gt;&gt; session =
-    slop::mcp::ConnectStreamableHttp(config, options, &amp;http_client);
-if (!session.ok()) return session.status();</code></pre>
-<p>After connection, use the typed session methods:</p>
-<pre><code class="language-c++">RETURN_IF_ERROR((*session)-&gt;Ping());
+auto client = slop::mcp::ConnectMcp(config, options, &amp;http_client);
+if (!client.ok()) return client.status();
 
-absl::StatusOr&lt;std::vector&lt;slop::mcp::Tool&gt;&gt; tools = (*session)-&gt;ListTools();
-if (!tools.ok()) return tools.status();
+auto tools = (*client)-&gt;ListTools();
+if (!tools.ok()) return tools.status();</code></pre>
+<p>Call <code>(*client)-&gt;revision()</code> to check which protocol revision was selected. <code>Client</code> also exposes <code>CallTool()</code> and <code>ContinueToolCall()</code>; continuations require modern MCP.</p></section>
+<section class="doc-section"><h2 id="connect-directly-to-a-classic-session">Connect directly to a classic session</h2>
+<p>For the typed classic session API, call <code>ConnectClassicStreamableHttp()</code> with <code>v2025_11_25::InitializeOptions</code>:</p>
+<pre><code class="language-c++">#include &quot;core/http_client.h&quot;
+#include &quot;core/status_macros.h&quot;
+#include &quot;mcp/client.h&quot;
+#include &quot;mcp/types.h&quot;
 
-absl::StatusOr&lt;slop::mcp::ToolCallResult&gt; result =
-    (*session)-&gt;CallTool(&quot;search&quot;, nlohmann::json{{&quot;query&quot;, &quot;mcp&quot;}});
-if (!result.ok()) return result.status();</code></pre>
+slop::mcp::StreamableHttpConfig config;
+config.endpoint_url = &quot;https://example.com/mcp&quot;;
+
+slop::mcp::v2025_11_25::InitializeOptions options;
+options.client_info.name = &quot;my-client&quot;;
+options.client_info.version = &quot;1.0&quot;;
+
+slop::HttpClient http_client;
+auto session = slop::mcp::ConnectClassicStreamableHttp(config, options, &amp;http_client);
+if (!session.ok()) return session.status();
+
+RETURN_IF_ERROR((*session)-&gt;Ping());
+auto tools = (*session)-&gt;ListTools();
+if (!tools.ok()) return tools.status();</code></pre>
 <p><code>ToolCallResult::is_error</code> represents an MCP tool-level error. It is not the same as a transport failure.</p></section>
-<section class="doc-section"><h2 id="session-api">Session API</h2>
-<p><code>mcp/session.h</code> exposes:</p>
+<section class="doc-section"><h2 id="classic-session-api">Classic session API</h2>
+<p><code>mcp/session.h</code> exposes the typed API for the classic <code>2025-11-25</code> revision:</p>
 <pre><code class="language-c++">absl::Status Close();
 absl::Status Ping();
 std::vector&lt;ServerNotification&gt; DrainNotifications();
@@ -78,11 +99,9 @@ absl::StatusOr&lt;ResourceReadResult&gt; ReadResource(absl::string_view uri);
 absl::StatusOr&lt;std::vector&lt;Prompt&gt;&gt; ListPrompts();
 absl::StatusOr&lt;PromptGetResult&gt; GetPrompt(absl::string_view name, const nlohmann::json&amp; arguments);</code></pre>
 <p>Notifications received during requests are queued and returned by <code>DrainNotifications()</code>.</p></section>
-<section class="doc-section"><h2 id="transport-behavior">Transport behavior</h2>
-<p><code>StreamableHttpTransport</code> sends JSON-RPC messages to one MCP endpoint.</p>
-<p>Request headers include:</p>
-<ul><li><code>Content-Type: application/json</code></li><li><code>Accept: application/json, text/event-stream</code></li><li><code>MCP-Protocol-Version: &lt;version&gt;</code> after initialization</li><li><code>Mcp-Session-Id: &lt;id&gt;</code> when the server provides one</li><li><code>Authorization: Bearer &lt;token&gt;</code> when <code>bearer_token</code> is configured</li><li>any caller-supplied <code>extra_headers</code></li></ul>
-<p>Responses can be direct JSON or <code>text/event-stream</code>. SSE event <code>data:</code> payloads are parsed as JSON-RPC messages.</p></section>
+<section class="doc-section"><h2 id="streamable-http-behavior">Streamable HTTP behavior</h2>
+<p>Both protocol revisions use Streamable HTTP at one MCP endpoint. Requests use <code>Content-Type: application/json</code> and <code>Accept: application/json, text/event-stream</code>; responses can be direct JSON or <code>text/event-stream</code>, whose <code>data:</code> payloads are parsed as JSON-RPC messages. Bearer authentication and caller-supplied extra headers are supported.</p>
+<p>The classic <code>StreamableHttpTransport</code> sends <code>MCP-Protocol-Version</code> after initialization and carries <code>Mcp-Session-Id</code> when the server provides one. The modern exchange sends its selected protocol-version header as part of each encoded request.</p></section>
 <section class="doc-section"><h2 id="bearer-token-clients">Bearer token clients</h2>
 <p>For static bearer authentication, put the token into <code>StreamableHttpConfig::bearer_token</code> before connection:</p>
 <pre><code class="language-c++">slop::mcp::StreamableHttpConfig config;
@@ -194,11 +213,11 @@ absl::Status DeleteOAuthTokens(const std::string&amp; path);</code></pre>
 <p>This guide explains how <code>std_slop</code> uses Model Context Protocol (MCP) servers.</p>
 <p>For the reusable C++ MCP library API, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-api.md">mcp-api.md</a>.</p></section>
 <section class="doc-section"><h2 id="what-mcp-adds-to-std-slop">What MCP adds to std_slop</h2>
-<p><code>std_slop</code> can start configured Streamable HTTP MCP servers at application startup, discover their tools, and project those tools into the normal tool catalog.</p>
+<p><code>std_slop</code> connects to configured Streamable HTTP MCP servers at application startup, discovers their tools, and projects those tools into the normal tool catalog. It supports the classic MCP revision <code>2025-11-25</code> and modern revision <code>2026-07-28</code>.</p>
 <p>Runtime behavior:</p>
-<ol><li><code>std_slop</code> reads the MCP registry from <code>~/.config/slop/mcp.ini</code>.</li><li>Each enabled server is started.</li><li>Tools are discovered with <code>tools/list</code>.</li><li>Discovered tools are registered as top-level tools named:</li></ol>
+<ol><li><code>std_slop</code> reads the MCP registry from <code>~/.config/slop/mcp.ini</code>.</li><li>For each enabled server, it prefers modern MCP: it sends <code>server/discover</code> and uses the modern revision if the server advertises support. If modern discovery indicates that the server does not support that revision, <code>std_slop</code> falls back to classic MCP.</li><li>Tools are discovered with <code>tools/list</code> using the selected revision.</li><li>Discovered tools are registered as top-level tools named:</li></ol>
 <pre><code class="language-text">   mcp_&lt;server&gt;_&lt;tool&gt;</code></pre>
-<ol><li>Calls to those tools route back to the matching MCP server.</li><li>Stale <code>mcp_</code> tool rows are removed at startup before discovery.</li></ol>
+<ol><li>Calls to those tools route back to the matching MCP server using the selected revision.</li><li>Stale <code>mcp_</code> tool rows are removed at startup before discovery.</li></ol>
 <p>If a server cannot be started or authenticated, its tools are not exposed to the model.</p></section>
 <section class="doc-section"><h2 id="command-overview">Command overview</h2>
 <pre><code class="language-sh">std_slop mcp &lt;command&gt; [arguments]</code></pre>

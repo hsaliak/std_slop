@@ -4,7 +4,7 @@ This package provides a bounded Model Context Protocol (MCP) client for Streamab
 
 ## Connect and select a revision
 
-Use `ConnectMcp` for normal operation. It probes modern MCP with `server/discover` and, under `kPreferLatest`, falls back to classic MCP only after an HTTP 400 with no JSON-RPC error or an HTTP 200 JSON-RPC `-32601` method-not-found response. Use `kClassicOnly` or `kLatestOnly` when fallback is not wanted.
+Use `ConnectMcp` for normal operation. It probes modern MCP with `server/discover`. Under `kPreferLatest`, it falls back to classic MCP when discovery shows that modern MCP is unsupported: an HTTP 400 without a JSON-RPC error, an HTTP 200 JSON-RPC `-32601` method-not-found response, an HTTP 400 JSON-RPC `-32000` error whose message says `unsupported protocol version`, or a successful discovery response that does not advertise `2026-07-28`. Choose `kClassicOnly` to skip modern discovery or `kLatestOnly` to require modern MCP without fallback.
 
 ```c++
 slop::mcp::StreamableHttpConfig config;

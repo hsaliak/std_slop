@@ -6,20 +6,20 @@ For the reusable C++ MCP library API, see [mcp-api.md](mcp-api.md).
 
 ## What MCP adds to std_slop
 
-`std_slop` can start configured Streamable HTTP MCP servers at application startup, discover their tools, and project those tools into the normal tool catalog.
+`std_slop` connects to configured Streamable HTTP MCP servers at application startup, discovers their tools, and projects those tools into the normal tool catalog. It supports the classic MCP revision `2025-11-25` and modern revision `2026-07-28`.
 
 Runtime behavior:
 
 1. `std_slop` reads the MCP registry from `~/.config/slop/mcp.ini`.
-2. Each enabled server is started.
-3. Tools are discovered with `tools/list`.
+2. For each enabled server, it prefers modern MCP: it sends `server/discover` and uses the modern revision if the server advertises support. If modern discovery indicates that the server does not support that revision, `std_slop` falls back to classic MCP.
+3. Tools are discovered with `tools/list` using the selected revision.
 4. Discovered tools are registered as top-level tools named:
 
    ```text
    mcp_<server>_<tool>
    ```
 
-5. Calls to those tools route back to the matching MCP server.
+5. Calls to those tools route back to the matching MCP server using the selected revision.
 6. Stale `mcp_` tool rows are removed at startup before discovery.
 
 If a server cannot be started or authenticated, its tools are not exposed to the model.

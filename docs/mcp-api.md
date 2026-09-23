@@ -28,17 +28,27 @@ The public API uses `absl::Status` and `absl::StatusOr<T>` for fallible operatio
 
 ## Protocol surface
 
-The client speaks JSON-RPC 2.0 over Streamable HTTP and targets MCP protocol version `2025-11-25`.
+The library speaks JSON-RPC 2.0 over Streamable HTTP and supports two MCP protocol revisions:
 
-Implemented lifecycle support:
+- Classic: `2025-11-25`
+- Modern: `2026-07-28`
 
-- `initialize`
-- initialize result validation
+Use `ConnectMcp()` for automatic revision selection. `ClientOptions::selection` accepts:
+
+- `kPreferLatest` (default): probe modern MCP with `server/discover`; use modern if supported and fall back to classic only when discovery indicates that modern MCP is unsupported.
+- `kLatestOnly`: require modern MCP; do not fall back.
+- `kClassicOnly`: skip modern discovery and connect using classic MCP.
+
+The modern client supports `server/discover`, `tools/list`, and `tools/call`, including bounded tool pagination, supported-schema validation, structured tool results, and resumable tool calls. The classic `v2025_11_25::Session` supports the lifecycle and methods listed below.
+
+Classic lifecycle support:
+
+- `initialize` and initialize-result validation
 - `notifications/initialized`
-- negotiated protocol version tracking
+- negotiated protocol-version tracking
 - server capability parsing
 
-Implemented methods:
+Classic methods:
 
 - `ping`
 - `tools/list`
@@ -48,7 +58,7 @@ Implemented methods:
 - `prompts/list`
 - `prompts/get`
 
-Implemented server notification parsing:
+Classic server notification parsing:
 
 - progress notifications
 - logging notifications
@@ -61,47 +71,66 @@ Unsupported or host-policy dependent features:
 - automatic sampling approval
 - automatic roots approval
 - automatic elicitation approval
-- full JSON Schema validation
+- complete validation of every JSON Schema feature (the modern client validates its supported subset)
 
-## Connect to a Streamable HTTP server
+## Connect with automatic protocol selection
 
-Use `ConnectStreamableHttp()` for the common case. It creates the transport, sends `initialize`, validates the response, and returns an initialized `Session`.
+Use `ConnectMcp()` for normal operation. It returns a common `Client` interface and applies the selection policy described above.
 
 ```c++
 #include "core/http_client.h"
 #include "mcp/client.h"
+#include "mcp/types.h"
 
 slop::mcp::StreamableHttpConfig config;
 config.endpoint_url = "https://example.com/mcp";
 
-slop::mcp::InitializeOptions options;
+slop::mcp::ClientOptions options;
+options.selection = slop::mcp::SelectionPolicy::kPreferLatest;
 options.client_info.name = "my-client";
 options.client_info.version = "1.0";
 
 slop::HttpClient http_client;
-absl::StatusOr<std::unique_ptr<slop::mcp::Session>> session =
-    slop::mcp::ConnectStreamableHttp(config, options, &http_client);
-if (!session.ok()) return session.status();
+auto client = slop::mcp::ConnectMcp(config, options, &http_client);
+if (!client.ok()) return client.status();
+
+auto tools = (*client)->ListTools();
+if (!tools.ok()) return tools.status();
 ```
 
-After connection, use the typed session methods:
+Call `(*client)->revision()` to check which protocol revision was selected. `Client` also exposes `CallTool()` and `ContinueToolCall()`; continuations require modern MCP.
+
+## Connect directly to a classic session
+
+For the typed classic session API, call `ConnectClassicStreamableHttp()` with `v2025_11_25::InitializeOptions`:
 
 ```c++
+#include "core/http_client.h"
+#include "core/status_macros.h"
+#include "mcp/client.h"
+#include "mcp/types.h"
+
+slop::mcp::StreamableHttpConfig config;
+config.endpoint_url = "https://example.com/mcp";
+
+slop::mcp::v2025_11_25::InitializeOptions options;
+options.client_info.name = "my-client";
+options.client_info.version = "1.0";
+
+slop::HttpClient http_client;
+auto session = slop::mcp::ConnectClassicStreamableHttp(config, options, &http_client);
+if (!session.ok()) return session.status();
+
 RETURN_IF_ERROR((*session)->Ping());
-
-absl::StatusOr<std::vector<slop::mcp::Tool>> tools = (*session)->ListTools();
+auto tools = (*session)->ListTools();
 if (!tools.ok()) return tools.status();
-
-absl::StatusOr<slop::mcp::ToolCallResult> result =
-    (*session)->CallTool("search", nlohmann::json{{"query", "mcp"}});
-if (!result.ok()) return result.status();
 ```
 
 `ToolCallResult::is_error` represents an MCP tool-level error. It is not the same as a transport failure.
 
-## Session API
+## Classic session API
 
-`mcp/session.h` exposes:
+`mcp/session.h` exposes the typed API for the classic `2025-11-25` revision:
 
 ```c++
 absl::Status Close();
@@ -117,20 +146,11 @@ absl::StatusOr<PromptGetResult> GetPrompt(absl::string_view name, const nlohmann
 
 Notifications received during requests are queued and returned by `DrainNotifications()`.
 
-## Transport behavior
+## Streamable HTTP behavior
 
-`StreamableHttpTransport` sends JSON-RPC messages to one MCP endpoint.
+Both protocol revisions use Streamable HTTP at one MCP endpoint. Requests use `Content-Type: application/json` and `Accept: application/json, text/event-stream`; responses can be direct JSON or `text/event-stream`, whose `data:` payloads are parsed as JSON-RPC messages. Bearer authentication and caller-supplied extra headers are supported.
 
-Request headers include:
-
-- `Content-Type: application/json`
-- `Accept: application/json, text/event-stream`
-- `MCP-Protocol-Version: <version>` after initialization
-- `Mcp-Session-Id: <id>` when the server provides one
-- `Authorization: Bearer <token>` when `bearer_token` is configured
-- any caller-supplied `extra_headers`
-
-Responses can be direct JSON or `text/event-stream`. SSE event `data:` payloads are parsed as JSON-RPC messages.
+The classic `StreamableHttpTransport` sends `MCP-Protocol-Version` after initialization and carries `Mcp-Session-Id` when the server provides one. The modern exchange sends its selected protocol-version header as part of each encoded request.
 
 ## Bearer token clients
 
