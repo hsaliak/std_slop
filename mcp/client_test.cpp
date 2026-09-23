@@ -205,6 +205,56 @@ TEST(McpClientTest, PreferLatestFallsBackOnDiscoveryMethodNotFound) {
   EXPECT_EQ(http.bodies.size(), 3);
 }
 
+TEST(McpClientTest, PreferLatestFallsBackOnUnsupportedProtocolVersion) {
+  FakeHttpClient http;
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32000,"message":"Unsupported protocol version: 2026-07-28"}})",
+      400));
+  http.responses.push_back(InitializeResponse());
+  http.responses.push_back({202, "", {}});
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+
+  auto client = ConnectMcp(config, MakeClientOptions(), &http);
+
+  ASSERT_TRUE(client.ok()) << client.status();
+  EXPECT_EQ((*client)->revision(), ProtocolRevision::k2025_11_25);
+  EXPECT_EQ(http.modern_calls, 1);
+  EXPECT_EQ(http.bodies.size(), 3);
+}
+
+TEST(McpClientTest, LatestOnlyDoesNotFallbackOnUnsupportedProtocolVersion) {
+  FakeHttpClient http;
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32000,"message":"Unsupported protocol version"}})",
+      400));
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+
+  auto client = ConnectMcp(config, MakeClientOptions(SelectionPolicy::kLatestOnly), &http);
+
+  EXPECT_FALSE(client.ok());
+  EXPECT_EQ(http.modern_calls, 1);
+  EXPECT_EQ(http.bodies.size(), 1);
+}
+
+TEST(McpClientTest, PreferLatestFallsBackWhenDiscoveryListsOnlyClassicVersions) {
+  FakeHttpClient http;
+  http.responses.push_back(JsonResponse(
+      R"({"jsonrpc":"2.0","id":"modern-1","result":{"supportedVersions":["2025-11-25"],"capabilities":{}}})"));
+  http.responses.push_back(InitializeResponse());
+  http.responses.push_back({202, "", {}});
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+
+  auto client = ConnectMcp(config, MakeClientOptions(), &http);
+
+  ASSERT_TRUE(client.ok()) << client.status();
+  EXPECT_EQ((*client)->revision(), ProtocolRevision::k2025_11_25);
+  EXPECT_EQ(http.modern_calls, 1);
+  EXPECT_EQ(http.bodies.size(), 3);
+}
+
 TEST(McpClientTest, DoesNotDowngradeRecognizedModernOrAuthErrors) {
   StreamableHttpConfig config;
   config.endpoint_url = "https://example.com/mcp";

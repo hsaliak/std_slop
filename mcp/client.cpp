@@ -10,6 +10,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 
 #include "core/json_utils.h"
@@ -21,6 +23,11 @@
 
 namespace slop::mcp {
 namespace {
+
+bool IsUnsupportedProtocolVersion(const ProtocolFailure& failure) {
+  return failure.http_status == 400 && failure.json_rpc_code == -32000 &&
+         absl::StrContains(absl::AsciiStrToLower(failure.message), "unsupported protocol version");
+}
 
 absl::Status FailureStatus(const ProtocolFailure& failure) {
   const std::string message = failure.json_rpc_code
@@ -218,7 +225,7 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
     const bool unrecognized_bad_request = failure.http_status == 400 && !failure.json_rpc_code.has_value();
     const bool unrecognized_method = failure.http_status == 200 && failure.json_rpc_code == -32601;
     if (options.selection == SelectionPolicy::kPreferLatest &&
-        (unrecognized_bad_request || unrecognized_method)) {
+        (unrecognized_bad_request || unrecognized_method || IsUnsupportedProtocolVersion(failure))) {
       return ConnectClassic(config, options, http_client);
     }
     return FailureStatus(failure);
@@ -233,6 +240,7 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
     supports_modern = supports_modern || version == kModernProtocolVersion;
   }
   if (!supports_modern) {
+    if (options.selection == SelectionPolicy::kPreferLatest) return ConnectClassic(config, options, http_client);
     return absl::UnimplementedError("server/discover did not select MCP 2026-07-28");
   }
   return std::unique_ptr<Client>(
