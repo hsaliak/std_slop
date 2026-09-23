@@ -177,15 +177,21 @@ absl::Status RuntimeManager::Start() {
     return entries.status();
   }
 
+  size_t enabled_server_count = 0;
+  size_t failed_server_count = 0;
+  size_t registered_tool_count = 0;
   for (const auto& entry : *entries) {
     if (!entry.enabled) continue;
+    ++enabled_server_count;
     auto session = session_factory_(entry, http_client_, options_);
     if (!session.ok()) {
+      ++failed_server_count;
       LOG(WARNING) << "MCP server startup failed for " << entry.name << ": " << session.status();
       continue;
     }
     auto tools = (*session)->ListTools();
     if (!tools.ok()) {
+      ++failed_server_count;
       LOG(WARNING) << "MCP tool discovery failed for " << entry.name << ": " << WithAuthContext(entry, tools.status());
       continue;
     }
@@ -194,7 +200,11 @@ absl::Status RuntimeManager::Start() {
     RuntimeSession* session_ptr = owned_session.get();
     RETURN_IF_ERROR(RegisterServerTools(entry, session_ptr, *tools));
     sessions_.push_back(ActiveSession{entry, std::move(owned_session)});
+    registered_tool_count += tools->size();
   }
+  LOG(INFO) << "MCP runtime startup complete: enabled_servers=" << enabled_server_count
+            << " started_servers=" << sessions_.size() << " failed_servers=" << failed_server_count
+            << " registered_tools=" << registered_tool_count;
   return absl::OkStatus();
 }
 
@@ -329,9 +339,21 @@ absl::StatusOr<std::string> RuntimeManager::ExecuteRuntimeTool(const std::string
     entry.name = it->second.server_name;
     entry.url = it->second.server_url;
     entry.auth = it->second.auth_mode;
-    return WithAuthContext(entry, result.status());
+    const absl::Status status = WithAuthContext(entry, result.status());
+    LOG(WARNING) << "MCP tool call failed for server " << it->second.server_name << " (tool "
+                 << it->second.remote_tool_name << "): " << status;
+    return status;
   }
-  return NormalizeToolCallResult(*result);
+  if (result->is_error) {
+    LOG(WARNING) << "MCP server reported a tool error for server " << it->second.server_name << " (tool "
+                 << it->second.remote_tool_name << ")";
+  }
+  auto normalized = NormalizeToolCallResult(*result);
+  if (!normalized.ok()) {
+    LOG(WARNING) << "MCP tool result normalization failed for server " << it->second.server_name << " (tool "
+                 << it->second.remote_tool_name << "): " << normalized.status();
+  }
+  return normalized;
 }
 
 absl::StatusOr<std::unique_ptr<RuntimeManager>> StartMcpRuntime(Database* db, ToolExecutor* tool_executor,
