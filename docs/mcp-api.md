@@ -12,16 +12,15 @@ Core package:
 
 ```text
 mcp/
-  client.h                     high-level connection helper
-  session.h                    typed MCP session API
-  streamable_http_transport.h  HTTP transport implementation
-  json_rpc.h                   JSON-RPC build/parse helpers
-  types.h                      public MCP data types
-  authorization.h              OAuth discovery metadata parsers
-  oauth_discovery.h            OAuth endpoint discovery helper
-  oauth_client.h               PKCE OAuth helpers
-  token_store.h                token file persistence helpers
-  registry.h                   server registry data model
+  protocol.h, types.h          shared protocol definitions and public data types
+  json_rpc.*                   shared JSON-RPC build/parse helpers
+  json_schema.*                JSON Schema validation
+  client/
+    client.h                   high-level client connection helper
+    session.h                  typed MCP client session API
+    streamable_http_transport.h
+    oauth_discovery.h, authorization.h, oauth_client.h
+    token_store.h, registry.h, runtime.h
 ```
 
 The public API uses `absl::Status` and `absl::StatusOr<T>` for fallible operations.
@@ -79,7 +78,7 @@ Use `ConnectMcp()` for normal operation. It returns a common `Client` interface 
 
 ```c++
 #include "core/http_client.h"
-#include "mcp/client.h"
+#include "mcp/client/client.h"
 #include "mcp/types.h"
 
 slop::mcp::StreamableHttpConfig config;
@@ -107,7 +106,7 @@ For the typed classic session API, call `ConnectClassicStreamableHttp()` with `v
 ```c++
 #include "core/http_client.h"
 #include "core/status_macros.h"
-#include "mcp/client.h"
+#include "mcp/client/client.h"
 #include "mcp/types.h"
 
 slop::mcp::StreamableHttpConfig config;
@@ -130,7 +129,7 @@ if (!tools.ok()) return tools.status();
 
 ## Classic session API
 
-`mcp/session.h` exposes the typed API for the classic `2025-11-25` revision:
+`mcp/client/session.h` exposes the typed API for the classic `2025-11-25` revision:
 
 ```c++
 absl::Status Close();
@@ -174,16 +173,16 @@ Do not log token values. If you persist tokens with `SaveOAuthTokens()`, the tok
 
 The library has three OAuth pieces:
 
-1. Endpoint discovery in `mcp/oauth_discovery.h`.
-2. Discovery parsers in `mcp/authorization.h`.
-3. PKCE authorization-code helpers in `mcp/oauth_client.h`.
+1. Endpoint discovery in `mcp/client/oauth_discovery.h`.
+2. Discovery parsers in `mcp/client/authorization.h`.
+3. PKCE authorization-code helpers in `mcp/client/oauth_client.h`.
 
 ### OAuth endpoint discovery
 
 Use `DiscoverOAuthEndpoints()` when a host wants the library to do the full MCP OAuth discovery sequence from an MCP endpoint URL:
 
 ```c++
-#include "mcp/oauth_discovery.h"
+#include "mcp/client/oauth_discovery.h"
 
 absl::StatusOr<slop::mcp::OAuthDiscoveryResult> discovery =
     slop::mcp::DiscoverOAuthEndpoints(&http_client, "https://example.com/mcp");
@@ -284,7 +283,7 @@ The endpoints are not guessed from the MCP endpoint URL. They come from two meta
 
 `ParseAuthorizationServerMetadata()` reads those `authorization_endpoint` and `token_endpoint` values. `DiscoverOAuthEndpoints()` performs all four steps and returns both endpoints in `OAuthDiscoveryResult`.
 
-The generic MCP client keeps MCP-specific discovery parsing in `mcp/authorization.*`. It does not put provider-specific OAuth policy into the transport.
+The generic MCP client keeps MCP-specific discovery parsing in `mcp/client/authorization.*`. It does not put provider-specific OAuth policy into the transport.
 
 ### PKCE browser flow
 
@@ -321,7 +320,7 @@ Use the returned `OAuthTokenSet::access_token` as `StreamableHttpConfig::bearer_
 
 ## Token persistence
 
-`mcp/token_store.h` provides:
+`mcp/client/token_store.h` provides:
 
 ```c++
 absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& tokens);

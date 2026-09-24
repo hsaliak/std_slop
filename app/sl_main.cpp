@@ -34,7 +34,7 @@
 #include "core/orchestrator.h"
 #include "interface/command_handler.h"
 #include "interface/interaction_engine.h"
-#include "mcp/runtime.h"
+#include "mcp/client/runtime.h"
 #include "nlohmann/json.hpp"
 #include "tools/tool_dispatcher.h"
 #include "tools/tool_executor.h"

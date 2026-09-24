@@ -12,8 +12,8 @@
 #include "absl/time/clock.h"
 
 #include "core/http_client.h"
-#include "mcp/registry.h"
-#include "mcp/token_store.h"
+#include "mcp/client/registry.h"
+#include "mcp/client/token_store.h"
 
 #include <gtest/gtest.h>
 

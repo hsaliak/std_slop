@@ -11,10 +11,10 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 
-#include "mcp/oauth_client.h"
-#include "mcp/oauth_discovery.h"
-#include "mcp/registry.h"
-#include "mcp/token_store.h"
+#include "mcp/client/oauth_client.h"
+#include "mcp/client/oauth_discovery.h"
+#include "mcp/client/registry.h"
+#include "mcp/client/token_store.h"
 
 namespace slop {
 namespace {

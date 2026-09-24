@@ -1,0 +1,432 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+cc_library(
+    name = "http_headers",
+    srcs = ["http_headers.cpp"],
+    hdrs = ["http_headers.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "modern",
+    srcs = ["modern.cpp"],
+    hdrs = ["modern.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//mcp:json_rpc",
+        "//mcp:json_schema",
+        "//mcp:protocol",
+        "//core:json_utils",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "sse_decoder",
+    srcs = ["sse_decoder.cpp"],
+    hdrs = ["sse_decoder.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "modern_http",
+    srcs = ["modern_http.cpp"],
+    hdrs = ["modern_http.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":http_headers",
+        ":modern",
+        ":sse_decoder",
+        "//mcp:json_rpc",
+        "//mcp:protocol",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "authorization",
+    srcs = ["authorization.cpp"],
+    hdrs = ["authorization.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "token_store",
+    srcs = ["token_store.cpp"],
+    hdrs = ["token_store.h", "token_store_internal.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "oauth_client",
+    srcs = ["oauth_client.cpp"],
+    hdrs = ["oauth_client.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":authorization",
+        ":token_store",
+        "//core:json_utils",
+        "//core:sha256",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@curl//:curl",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "oauth_discovery",
+    srcs = ["oauth_discovery.cpp"],
+    hdrs = ["oauth_discovery.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":authorization",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "registry",
+    srcs = ["registry.cpp"],
+    hdrs = ["registry.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//ini:ini_parser",
+        "//core:shell_lib",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "session",
+    srcs = ["session.cpp"],
+    hdrs = ["session.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":transport",
+        "//mcp:json_rpc",
+        "//mcp:protocol",
+        "//core:json_utils",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "transport",
+    hdrs = ["transport.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "streamable_http_transport",
+    srcs = ["streamable_http_transport.cpp"],
+    hdrs = ["streamable_http_transport.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":http_headers",
+        ":sse_decoder",
+        ":transport",
+        "//mcp:json_rpc",
+        "//mcp:protocol",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "client",
+    srcs = ["client.cpp"],
+    hdrs = ["client.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":modern",
+        ":modern_http",
+        ":session",
+        ":streamable_http_transport",
+        "//mcp:protocol",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "runtime",
+    srcs = ["runtime.cpp"],
+    hdrs = ["runtime.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":client",
+        ":registry",
+        ":token_store",
+        "//core:data",
+        "//core:json_utils",
+        "//core:transport",
+        "//tools:runtime",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_test",
+    srcs = ["modern_test.cpp"],
+    deps = [
+        ":modern",
+        "//mcp:protocol",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_fuzz_test",
+    srcs = ["modern_fuzz_test.cpp"],
+    copts = ["-Wno-deprecated-declarations", "-Wno-unused-parameter"],
+    deps = [
+        ":modern",
+        "//core:json_utils",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_http_test",
+    srcs = ["modern_http_test.cpp"],
+    deps = [
+        ":modern_http",
+        "//mcp:protocol",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_http_fuzz_test",
+    srcs = ["modern_http_fuzz_test.cpp"],
+    copts = ["-Wno-deprecated-declarations", "-Wno-unused-parameter"],
+    deps = [
+        ":modern_http",
+        "//core:transport",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "authorization_test",
+    srcs = ["authorization_test.cpp"],
+    deps = [
+        ":authorization",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "authorization_fuzz_test",
+    srcs = ["authorization_fuzz_test.cpp"],
+    copts = ["-Wno-unused-parameter", "-Wno-deprecated-declarations"],
+    deps = [
+        ":authorization",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "oauth_client_test",
+    srcs = ["oauth_client_test.cpp"],
+    deps = [":oauth_client", "//core:transport", "@googletest//:gtest_main"],
+)
+
+cc_test(
+    name = "oauth_discovery_test",
+    srcs = ["oauth_discovery_test.cpp"],
+    deps = [
+        ":oauth_discovery",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "token_store_test",
+    srcs = ["token_store_test.cpp"],
+    deps = [":token_store", "@googletest//:gtest_main"],
+)
+
+cc_test(
+    name = "registry_test",
+    srcs = ["registry_test.cpp"],
+    deps = [":registry", "@googletest//:gtest_main"],
+)
+
+cc_test(
+    name = "client_test",
+    srcs = ["client_test.cpp"],
+    deps = [
+        ":client",
+        "//mcp:protocol",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "runtime_test",
+    srcs = ["runtime_test.cpp"],
+    deps = [
+        ":runtime",
+        "//core:json_utils",
+        "//core:transport",
+        "//tools:runtime",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "session_test",
+    srcs = ["session_test.cpp"],
+    deps = [
+        "//mcp:json_rpc",
+        ":session",
+        ":transport",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "streamable_http_transport_test",
+    srcs = ["streamable_http_transport_test.cpp"],
+    deps = [
+        ":streamable_http_transport",
+        "//core:json_utils",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "sse_decoder_test",
+    srcs = ["sse_decoder_test.cpp"],
+    deps = [":sse_decoder", "@abseil-cpp//absl/status", "@googletest//:gtest_main"],
+)
+
+cc_binary(
+    name = "list_tools_example",
+    srcs = ["list_tools_example.cpp"],
+    deps = [":client", "//core:json_utils", "//core:transport", "@abseil-cpp//absl/status", "@nlohmann_json//:json"],
+)
+
+cc_binary(
+    name = "call_tool_example",
+    srcs = ["call_tool_example.cpp"],
+    deps = [":client", "//core:json_utils", "//core:transport", "@abseil-cpp//absl/status", "@nlohmann_json//:json"],
+)

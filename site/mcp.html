@@ -19,16 +19,15 @@
 <p>The library supports MCP Streamable HTTP servers. It does not implement stdio transport or the deprecated HTTP+SSE transport.</p>
 <p>Core package:</p>
 <pre><code class="language-text">mcp/
-  client.h                     high-level connection helper
-  session.h                    typed MCP session API
-  streamable_http_transport.h  HTTP transport implementation
-  json_rpc.h                   JSON-RPC build/parse helpers
-  types.h                      public MCP data types
-  authorization.h              OAuth discovery metadata parsers
-  oauth_discovery.h            OAuth endpoint discovery helper
-  oauth_client.h               PKCE OAuth helpers
-  token_store.h                token file persistence helpers
-  registry.h                   server registry data model</code></pre>
+  protocol.h, types.h          shared protocol definitions and public data types
+  json_rpc.*                   shared JSON-RPC build/parse helpers
+  json_schema.*                JSON Schema validation
+  client/
+    client.h                   high-level client connection helper
+    session.h                  typed MCP client session API
+    streamable_http_transport.h
+    oauth_discovery.h, authorization.h, oauth_client.h
+    token_store.h, registry.h, runtime.h</code></pre>
 <p>The public API uses <code>absl::Status</code> and <code>absl::StatusOr&lt;T&gt;</code> for fallible operations.</p></section>
 <section class="doc-section"><h2 id="protocol-surface">Protocol surface</h2>
 <p>The library speaks JSON-RPC 2.0 over Streamable HTTP and supports two MCP protocol revisions:</p>
@@ -47,7 +46,7 @@
 <section class="doc-section"><h2 id="connect-with-automatic-protocol-selection">Connect with automatic protocol selection</h2>
 <p>Use <code>ConnectMcp()</code> for normal operation. It returns a common <code>Client</code> interface and applies the selection policy described above.</p>
 <pre><code class="language-c++">#include &quot;core/http_client.h&quot;
-#include &quot;mcp/client.h&quot;
+#include &quot;mcp/client/client.h&quot;
 #include &quot;mcp/types.h&quot;
 
 slop::mcp::StreamableHttpConfig config;
@@ -69,7 +68,7 @@ if (!tools.ok()) return tools.status();</code></pre>
 <p>For the typed classic session API, call <code>ConnectClassicStreamableHttp()</code> with <code>v2025_11_25::InitializeOptions</code>:</p>
 <pre><code class="language-c++">#include &quot;core/http_client.h&quot;
 #include &quot;core/status_macros.h&quot;
-#include &quot;mcp/client.h&quot;
+#include &quot;mcp/client/client.h&quot;
 #include &quot;mcp/types.h&quot;
 
 slop::mcp::StreamableHttpConfig config;
@@ -88,7 +87,7 @@ auto tools = (*session)-&gt;ListTools();
 if (!tools.ok()) return tools.status();</code></pre>
 <p><code>ToolCallResult::is_error</code> represents an MCP tool-level error. It is not the same as a transport failure.</p></section>
 <section class="doc-section"><h2 id="classic-session-api">Classic session API</h2>
-<p><code>mcp/session.h</code> exposes the typed API for the classic <code>2025-11-25</code> revision:</p>
+<p><code>mcp/client/session.h</code> exposes the typed API for the classic <code>2025-11-25</code> revision:</p>
 <pre><code class="language-c++">absl::Status Close();
 absl::Status Ping();
 std::vector&lt;ServerNotification&gt; DrainNotifications();
@@ -112,10 +111,10 @@ config.bearer_token = &quot;YOUR_TOKEN&quot;;</code></pre>
 <p>Do not log token values. If you persist tokens with <code>SaveOAuthTokens()</code>, the token store rejects access tokens with HTTP header control characters so they cannot create malformed Authorization headers.</p></section>
 <section class="doc-section"><h2 id="oauth-clients">OAuth clients</h2>
 <p>The library has three OAuth pieces:</p>
-<ol><li>Endpoint discovery in <code>mcp/oauth_discovery.h</code>.</li><li>Discovery parsers in <code>mcp/authorization.h</code>.</li><li>PKCE authorization-code helpers in <code>mcp/oauth_client.h</code>.</li></ol>
+<ol><li>Endpoint discovery in <code>mcp/client/oauth_discovery.h</code>.</li><li>Discovery parsers in <code>mcp/client/authorization.h</code>.</li><li>PKCE authorization-code helpers in <code>mcp/client/oauth_client.h</code>.</li></ol>
 <h3 id="oauth-endpoint-discovery">OAuth endpoint discovery</h3>
 <p>Use <code>DiscoverOAuthEndpoints()</code> when a host wants the library to do the full MCP OAuth discovery sequence from an MCP endpoint URL:</p>
-<pre><code class="language-c++">#include &quot;mcp/oauth_discovery.h&quot;
+<pre><code class="language-c++">#include &quot;mcp/client/oauth_discovery.h&quot;
 
 absl::StatusOr&lt;slop::mcp::OAuthDiscoveryResult&gt; discovery =
     slop::mcp::DiscoverOAuthEndpoints(&amp;http_client, &quot;https://example.com/mcp&quot;);
@@ -168,7 +167,7 @@ absl::StatusOr&lt;slop::mcp::AuthorizationServerMetadata&gt; auth_server =
      &quot;token_endpoint&quot;: &quot;https://auth.example.com/token&quot;
    }</code></pre>
 <p><code>ParseAuthorizationServerMetadata()</code> reads those <code>authorization_endpoint</code> and <code>token_endpoint</code> values. <code>DiscoverOAuthEndpoints()</code> performs all four steps and returns both endpoints in <code>OAuthDiscoveryResult</code>.</p>
-<p>The generic MCP client keeps MCP-specific discovery parsing in <code>mcp/authorization.*</code>. It does not put provider-specific OAuth policy into the transport.</p>
+<p>The generic MCP client keeps MCP-specific discovery parsing in <code>mcp/client/authorization.*</code>. It does not put provider-specific OAuth policy into the transport.</p>
 <h3 id="pkce-browser-flow">PKCE browser flow</h3>
 <p>Use <code>OAuthClientConfig</code> and <code>StartPkceAuthorization()</code> to start an authorization-code + PKCE flow:</p>
 <pre><code class="language-c++">slop::mcp::OAuthClientConfig oauth;
@@ -192,7 +191,7 @@ if (!tokens.ok()) return tokens.status();</code></pre>
 <pre><code class="language-c++">auto refreshed = slop::mcp::RefreshOAuthToken(&amp;http_client, oauth, old_refresh_token);</code></pre>
 <p>Use the returned <code>OAuthTokenSet::access_token</code> as <code>StreamableHttpConfig::bearer_token</code>.</p></section>
 <section class="doc-section"><h2 id="token-persistence">Token persistence</h2>
-<p><code>mcp/token_store.h</code> provides:</p>
+<p><code>mcp/client/token_store.h</code> provides:</p>
 <pre><code class="language-c++">absl::Status SaveOAuthTokens(const std::string&amp; path, const OAuthTokenSet&amp; tokens);
 absl::StatusOr&lt;OAuthTokenSet&gt; LoadOAuthTokens(const std::string&amp; path);
 absl::Status DeleteOAuthTokens(const std::string&amp; path);</code></pre>

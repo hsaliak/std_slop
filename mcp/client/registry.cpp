@@ -1,0 +1,225 @@
+#include "mcp/client/registry.h"
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <unistd.h>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
+#include "core/shell_util.h"
+#include "ini/ini_parser.h"
+
+namespace slop::mcp {
+namespace {
+
+constexpr absl::string_view kServerSectionPrefix = "server.";
+
+bool IsValidServerName(absl::string_view name) {
+  if (name.empty()) return false;
+  for (const char c : name) {
+    if (!(absl::ascii_isalnum(c) || c == '_' || c == '-')) return false;
+  }
+  return true;
+}
+
+bool HasIniControlCharacter(absl::string_view value) {
+  for (const char c : value) {
+    if (c == '\n' || c == '\r' || c == '[' || c == ']' || c == ';' || c == '#') return true;
+  }
+  return false;
+}
+
+absl::StatusOr<bool> ParseBool(absl::string_view value) {
+  if (value == "true") return true;
+  if (value == "false") return false;
+  return absl::InvalidArgumentError("MCP server enabled must be true or false");
+}
+
+std::vector<std::string> ParseScopes(absl::string_view value) {
+  std::vector<std::string> scopes;
+  for (const absl::string_view part : absl::StrSplit(value, ' ', absl::SkipEmpty())) {
+    scopes.emplace_back(part);
+  }
+  return scopes;
+}
+
+}  // namespace
+
+std::string DefaultRegistryPath() {
+  const std::string home = slop::GetHomeDir();
+  return home.empty() ? std::string("mcp.ini") : absl::StrCat(home, "/.config/slop/mcp.ini");
+}
+
+std::string DefaultTokenPath(const std::string& server_name) {
+  const std::string home = slop::GetHomeDir();
+  const std::string base = home.empty() ? std::string(".slop/mcp/tokens") : absl::StrCat(home, "/.config/slop/mcp/tokens");
+  return absl::StrCat(base, "/", server_name, ".json");
+}
+
+absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
+  if (!IsValidServerName(entry.name)) {
+    return absl::InvalidArgumentError("MCP server name must contain only letters, digits, hyphens, or underscores");
+  }
+  if (!(absl::StartsWith(entry.url, "https://") || absl::StartsWith(entry.url, "http://"))) {
+    return absl::InvalidArgumentError("MCP server URL must use http or https");
+  }
+  if (entry.auth != kAuthNone && entry.auth != kAuthBearer && entry.auth != kAuthOAuth) {
+    return absl::InvalidArgumentError("MCP server auth must be none, bearer, or oauth");
+  }
+  if (entry.auth == kAuthBearer && entry.token_path.empty()) {
+    return absl::InvalidArgumentError("MCP bearer server requires token_path");
+  }
+  if (entry.auth == kAuthOAuth && entry.client_id.empty()) {
+    return absl::InvalidArgumentError("MCP OAuth server requires client_id");
+  }
+  if (entry.auth == kAuthOAuth &&
+      !(absl::StartsWith(entry.authorization_endpoint, "https://") && absl::StartsWith(entry.token_endpoint, "https://"))) {
+    return absl::InvalidArgumentError("MCP OAuth server requires https authorization_endpoint and token_endpoint");
+  }
+  if (HasIniControlCharacter(entry.url) || HasIniControlCharacter(entry.token_path) ||
+      HasIniControlCharacter(entry.client_id) || HasIniControlCharacter(entry.resource_metadata_url) ||
+      HasIniControlCharacter(entry.authorization_server_url) || HasIniControlCharacter(entry.authorization_endpoint) ||
+      HasIniControlCharacter(entry.token_endpoint)) {
+    return absl::InvalidArgumentError("MCP server fields contain unsafe INI control characters");
+  }
+  for (const std::string& scope : entry.scopes) {
+    if (scope.empty() || HasIniControlCharacter(scope) || absl::StrContains(scope, " ")) {
+      return absl::InvalidArgumentError("MCP scopes must be non-empty single INI-safe tokens");
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::string& path) {
+  std::error_code error;
+  if (!std::filesystem::exists(path, error)) {
+    if (error) return absl::UnavailableError(absl::StrCat("Failed to access MCP registry: ", error.message()));
+    return std::vector<ServerRegistryEntry>{};
+  }
+  std::ifstream file(path);
+  if (!file.is_open()) return absl::UnavailableError(absl::StrCat("Failed to open MCP registry: ", path));
+  const std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+  const IniConfig config = ParseIni(content);
+  std::vector<ServerRegistryEntry> entries;
+  for (const auto& [section_name, section] : config) {
+    if (!absl::StartsWith(section_name, kServerSectionPrefix)) continue;
+    ServerRegistryEntry entry;
+    entry.name = section_name.substr(kServerSectionPrefix.size());
+    const auto url = section.find("url");
+    if (url == section.end()) return absl::InvalidArgumentError(absl::StrCat("MCP server ", entry.name, " missing url"));
+    entry.url = std::string(absl::StripAsciiWhitespace(url->second));
+    if (const auto auth = section.find("auth"); auth != section.end()) entry.auth = std::string(absl::StripAsciiWhitespace(auth->second));
+    if (const auto enabled = section.find("enabled"); enabled != section.end()) {
+      auto enabled_or = ParseBool(absl::StripAsciiWhitespace(enabled->second));
+      if (!enabled_or.ok()) return enabled_or.status();
+      entry.enabled = *enabled_or;
+    }
+    if (const auto scopes = section.find("scopes"); scopes != section.end()) entry.scopes = ParseScopes(scopes->second);
+    if (const auto token_path = section.find("token_path"); token_path != section.end()) entry.token_path = token_path->second;
+    if (const auto client_id = section.find("client_id"); client_id != section.end()) entry.client_id = client_id->second;
+    if (const auto value = section.find("resource_metadata_url"); value != section.end()) entry.resource_metadata_url = value->second;
+    if (const auto value = section.find("authorization_server_url"); value != section.end()) entry.authorization_server_url = value->second;
+    if (const auto value = section.find("authorization_endpoint"); value != section.end()) entry.authorization_endpoint = value->second;
+    if (const auto value = section.find("token_endpoint"); value != section.end()) entry.token_endpoint = value->second;
+    if (const auto value = section.find("authorization_response_iss_parameter_supported");
+        value != section.end()) {
+      auto supported = ParseBool(absl::StripAsciiWhitespace(value->second));
+      if (!supported.ok()) return supported.status();
+      entry.authorization_response_iss_parameter_supported = *supported;
+    }
+    if (entry.token_path.empty()) entry.token_path = DefaultTokenPath(entry.name);
+    const absl::Status status = ValidateServerRegistryEntry(entry);
+    if (!status.ok()) return status;
+    entries.push_back(std::move(entry));
+  }
+  std::sort(entries.begin(), entries.end(), [](const auto& left, const auto& right) { return left.name < right.name; });
+  return entries;
+}
+
+absl::Status SaveServerRegistry(const std::string& path, const std::vector<ServerRegistryEntry>& entries) {
+  for (size_t i = 0; i < entries.size(); ++i) {
+    const absl::Status status = ValidateServerRegistryEntry(entries[i]);
+    if (!status.ok()) return status;
+    for (size_t j = i + 1; j < entries.size(); ++j) {
+      if (entries[i].name == entries[j].name) {
+        return absl::InvalidArgumentError(absl::StrCat("Duplicate MCP server name: ", entries[i].name));
+      }
+    }
+  }
+  const std::filesystem::path registry_path(path);
+  std::error_code error;
+  if (!registry_path.parent_path().empty()) {
+    std::filesystem::create_directories(registry_path.parent_path(), error);
+    if (error) return absl::UnavailableError(absl::StrCat("Failed to create MCP registry directory: ", error.message()));
+  }
+  std::string content;
+  for (const ServerRegistryEntry& entry : entries) {
+    absl::StrAppend(&content, "[server.", entry.name, "]\nurl = ", entry.url, "\nauth = ", entry.auth,
+                    "\nenabled = ", entry.enabled ? "true" : "false", "\n");
+    if (!entry.scopes.empty()) absl::StrAppend(&content, "scopes = ", absl::StrJoin(entry.scopes, " "), "\n");
+    if (!entry.token_path.empty()) absl::StrAppend(&content, "token_path = ", entry.token_path, "\n");
+    if (!entry.client_id.empty()) absl::StrAppend(&content, "client_id = ", entry.client_id, "\n");
+    if (!entry.resource_metadata_url.empty()) absl::StrAppend(&content, "resource_metadata_url = ", entry.resource_metadata_url, "\n");
+    if (!entry.authorization_server_url.empty()) absl::StrAppend(&content, "authorization_server_url = ", entry.authorization_server_url, "\n");
+    if (!entry.authorization_endpoint.empty()) absl::StrAppend(&content, "authorization_endpoint = ", entry.authorization_endpoint, "\n");
+    if (!entry.token_endpoint.empty()) absl::StrAppend(&content, "token_endpoint = ", entry.token_endpoint, "\n");
+    if (entry.authorization_response_iss_parameter_supported) {
+      absl::StrAppend(&content, "authorization_response_iss_parameter_supported = true\n");
+    }
+    content.push_back('\n');
+  }
+  std::string template_path = absl::StrCat(registry_path.string(), ".tmp.XXXXXX");
+  std::vector<char> template_buffer(template_path.begin(), template_path.end());
+  template_buffer.push_back('\0');
+  const int temporary_fd = mkstemp(template_buffer.data());
+  if (temporary_fd < 0) return absl::UnavailableError(absl::StrCat("Failed to create MCP registry temporary file: ", path));
+  const std::filesystem::path temporary_path(template_buffer.data());
+  const ssize_t written = write(temporary_fd, content.data(), content.size());
+  const int close_result = close(temporary_fd);
+  if (written != static_cast<ssize_t>(content.size()) || close_result != 0) {
+    std::filesystem::remove(temporary_path, error);
+    return absl::UnavailableError(absl::StrCat("Failed to write MCP registry: ", path));
+  }
+  std::filesystem::rename(temporary_path, registry_path, error);
+  if (error) {
+    std::filesystem::remove(temporary_path, error);
+    return absl::UnavailableError(absl::StrCat("Failed to replace MCP registry: ", error.message()));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status UpsertServerRegistryEntry(const std::string& path, const ServerRegistryEntry& entry) {
+  auto entries_or = LoadServerRegistry(path);
+  if (!entries_or.ok()) return entries_or.status();
+  bool replaced = false;
+  for (ServerRegistryEntry& existing : *entries_or) {
+    if (existing.name == entry.name) {
+      existing = entry;
+      replaced = true;
+      break;
+    }
+  }
+  if (!replaced) entries_or->push_back(entry);
+  std::sort(entries_or->begin(), entries_or->end(), [](const auto& left, const auto& right) { return left.name < right.name; });
+  return SaveServerRegistry(path, *entries_or);
+}
+
+absl::Status RemoveServerRegistryEntry(const std::string& path, const std::string& name) {
+  auto entries_or = LoadServerRegistry(path);
+  if (!entries_or.ok()) return entries_or.status();
+  const size_t old_size = entries_or->size();
+  entries_or->erase(std::remove_if(entries_or->begin(), entries_or->end(), [&](const auto& entry) { return entry.name == name; }),
+                    entries_or->end());
+  if (entries_or->size() == old_size) return absl::NotFoundError(absl::StrCat("MCP server not found: ", name));
+  return SaveServerRegistry(path, *entries_or);
+}
+
+}  // namespace slop::mcp

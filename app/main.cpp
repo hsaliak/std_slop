@@ -47,7 +47,7 @@
 #include "app/llm_tool_specializations.h"
 #include "app/mcp_commands.h"
 #include "interface/command_handler.h"
-#include "mcp/runtime.h"
+#include "mcp/client/runtime.h"
 #include "interface/completer.h"
 #include "interface/interaction_engine.h"
 #include "interface/terminal.h"
