@@ -54,7 +54,7 @@ TEST(ServerTest, DiscoveryIsUsableByExistingModernCodec) {
   auto discovery = v2026_07_28::ParseDiscovery((*reply)["result"]);
   ASSERT_TRUE(discovery.ok()) << discovery.status();
   EXPECT_EQ(discovery->supported_versions, std::vector<std::string>{std::string(kModernProtocolVersion)});
-  EXPECT_TRUE(discovery->capabilities.empty());
+  EXPECT_EQ(discovery->capabilities, nlohmann::json({{"tools", nlohmann::json::object()}}));
   ASSERT_TRUE(discovery->server_info);
   EXPECT_EQ(discovery->server_info->name, "example");
   EXPECT_EQ(discovery->server_info->title, "Example server");
@@ -167,7 +167,7 @@ TEST(ServerTest, RejectsMalformedOptionalClientMetadata) {
 
 TEST(ServerTest, UnknownMethodsAndNotifications) {
   const Server server = MakeServer();
-  for (const std::string method : {"initialize", "tools/list", "tools/call", "unknown"}) {
+  for (const std::string method : {"initialize", "unknown"}) {
     auto request = Request();
     request["method"] = method;
     EXPECT_EQ(ErrorCode(server, request), -32601);

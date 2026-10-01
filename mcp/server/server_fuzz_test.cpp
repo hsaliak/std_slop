@@ -23,7 +23,8 @@ void DispatchNeverCrashes(const std::string& raw) {
   if (json_at(*reply, "result") == nullptr) return;
   const auto input = json_parse(raw);
   ASSERT_TRUE(input);
-  EXPECT_EQ(json_get_or(*input, "method", std::string{}), "server/discover");
+  const auto method = json_get_or(*input, "method", std::string{});
+  EXPECT_TRUE(method == "server/discover" || method == "tools/list");
   EXPECT_EQ(json_get_or(*input, "jsonrpc", std::string{}), "2.0");
   EXPECT_NE(json_at(*input, "id"), nullptr);
 }

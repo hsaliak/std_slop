@@ -42,6 +42,8 @@ mcp/server/
   server.h / server.cpp                 # public server API, registration, dispatch
   stdio.h / stdio.cpp                   # line-oriented stdio loop
   server_test.cpp                       # in-process protocol and dispatch tests
+  tools_test.cpp                        # registry, call and output validation tests
+  tools_fuzz_test.cpp                   # malformed tool inputs and handler gating
   stdio_test.cpp                        # stream-level framing and I/O tests
   server_fuzz_test.cpp                  # malformed JSON-RPC / dispatch inputs
   echo_server.cpp                       # runnable stdio example
@@ -53,7 +55,7 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 ### Bundle 1: Latest-only request dispatch and discovery
 
-**Status:** Implemented and verified. `bazel test //mcp/server:all //mcp:all //mcp/client:all` passes. Tool registration and stdio execution remain in later bundles.
+**Status:** Implemented and verified. `bazel test //mcp/server:all //mcp:all //mcp/client:all` passes. Tool registration is added in Bundle 2; stdio execution remains in Bundle 3.
 
 **Implementation**
 
@@ -61,7 +63,7 @@ The server API should be transport-independent at the dispatch boundary. The std
 - Validate the JSON-RPC envelope, ID, method, parameters and version metadata before dispatch. Reject client response messages at the inbound boundary.
 - Implement `server/discover` with `resultType: complete`, `supportedVersions`, implemented capabilities and `_meta.io.modelcontextprotocol/serverInfo`.
 - Support only `2026-07-28`. Unsupported string versions produce error `-32022` with `data.supported` and `data.requested`; absent or malformed version metadata produces invalid-params errors.
-- Initially advertise no capabilities: tools are not implemented until Bundle 2. Unknown methods return method-not-found; valid notifications produce no response.
+- Bundle 1 starts with no capabilities. Bundle 2 adds the tools capability. Unknown methods return method-not-found; valid notifications produce no response.
 - Keep protocol errors as JSON-RPC messages for stdout once a transport exists. Operational diagnostics belong on stderr.
 - Do not add I/O, client dependencies, SQLite, ToolExecutor, UI or orchestrator dependencies. Server response construction stays local until another production consumer requires a shared helper.
 
@@ -74,15 +76,19 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 ### Bundle 2: Tool registration and execution
 
+**Status:** Implemented and verified with `bazel test //mcp/server:all //mcp:all //mcp/client:all`. Tool registration uses an immutable registry; stdio remains out of scope for this bundle.
+
 **Implementation**
 
-- Extend the dispatcher with `tools/list` and `tools/call`. Register tool definitions and handlers; reject duplicate names, malformed schemas and empty handlers. Freeze the registry before serving requests.
+- Extend the dispatcher with `tools/list` and `tools/call`. `Server::Create(identity, vector<ToolRegistration>)` validates all definitions and handlers and freezes the registry by construction. Invalid or duplicate names, malformed schemas and empty handlers fail creation without an observable partial registry.
 - Parse and validate the JSON-RPC envelope and request metadata before dispatch. Use `json_parse`, `json_get`, `json_get_or`, and `json_dump` from `core/json_utils.h` in production code.
 - Make `server/discover` advertise the exact supported version (`2026-07-28`), server identity, and the tools capability. Do not advertise resources, prompts, subscriptions, or other unimplemented capabilities.
 - Keep Bundle 1 version and envelope validation. No legacy interpretation or fallback is allowed.
 - `tools/list` returns registered tools in a stable order. A small fixed catalog does not need pagination initially.
-- `tools/call` validates method parameters, tool name, arguments object, and arguments against the registered input schema before invoking the handler. Invalid input must not reach the handler.
-- Return tool execution results in the current protocol's tool-result shape. Distinguish protocol/dispatch errors from tool-level errors; validate structured results against any declared output schema.
+- `tools/call` validates method parameters, tool name and object arguments before invoking the handler. Missing optional arguments default to an empty object. Schema-invalid arguments return actionable `isError` results without invoking the handler. Malformed call shapes and unknown tools return JSON-RPC `-32602` errors; unsupported versions keep Bundle 1 behavior.
+- Return complete tool results with validated content block shapes and object metadata. Successful structured results must satisfy the declared output schema. The shared `Tool` type's empty output-schema object means no declared schema. Explicit tool failures may omit structured content; any provided structured error content is still schema-checked. Handler Status failures or malformed results return JSON-RPC `-32603` without exposing internal status details.
+- Only synchronous complete results are supported. Reject supplied cursors, `inputResponses` and `requestState`; do not execute resumable calls. Handlers must report errors through Status/result fields, consistent with exception-disabled C++ builds.
+- Harden shared `CheckJsonSchema` keyword shape checks at registration rather than duplicating generic schema validation in server code. Unit/fuzz tests cover invalid type names and supported keyword shapes.
 - Handle notifications without sending a JSON-RPC response when required by JSON-RPC. Do not emit server-initiated requests or notifications in this first version.
 
 **Tests and acceptance checks**

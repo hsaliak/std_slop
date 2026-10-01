@@ -14,6 +14,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//core:json_utils",
+        "//mcp:json_schema",
         "//mcp:protocol",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -32,6 +33,36 @@ cc_test(
         "//mcp:protocol",
         "//mcp/client:modern",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "tools_test",
+    srcs = ["tools_test.cpp"],
+    deps = [
+        ":server",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "//mcp/client:modern",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "tools_fuzz_test",
+    srcs = ["tools_fuzz_test.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-parameter",
+    ],
+    deps = [
+        ":server",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
     ],
 )
 
