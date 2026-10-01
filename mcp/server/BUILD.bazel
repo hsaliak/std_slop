@@ -1,0 +1,53 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@aspect_rules_lint//format:defs.bzl", "format_test")
+
+format_test(
+    name = "format_test",
+    cc = "//:clang_format_hermetic",
+    srcs = glob(["*.cpp", "*.h"]),
+)
+
+cc_library(
+    name = "server",
+    srcs = ["server.cpp"],
+    hdrs = ["server.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "//mcp:protocol",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "server_test",
+    srcs = ["server_test.cpp"],
+    deps = [
+        ":server",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "//mcp:protocol",
+        "//mcp/client:modern",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "server_fuzz_test",
+    srcs = ["server_fuzz_test.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-parameter",
+    ],
+    deps = [
+        ":server",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)

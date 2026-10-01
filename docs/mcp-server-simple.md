@@ -8,12 +8,12 @@ The current revision is listed as `2026-07-28` in the official MCP versioning do
 
 ## Existing code and constraints
 
-- `mcp/client.*`, `mcp/session.*`, and `mcp/streamable_http_transport.*` implement outbound MCP client behavior.
-- `mcp/modern.*` implements modern client-side request encoding and response parsing. It can inform wire formats, but it is not a server dispatcher.
+- `mcp/client/client.*`, `mcp/client/session.*`, and `mcp/client/streamable_http_transport.*` implement outbound MCP client behavior.
+- `mcp/client/modern.*` implements modern client-side request encoding and response parsing. It can inform wire formats, but it is not a server dispatcher.
 - `mcp/json_rpc.*` has shared JSON-RPC helpers.
 - `mcp/types.h` contains existing protocol data types. Reuse types only where their meaning is shared; do not expose client-session abstractions as server APIs.
 - `mcp/json_schema.*` validates a bounded JSON Schema 2020-12 subset and may be used to check tool schemas and arguments.
-- `mcp/runtime.*` is an outbound client runtime that registers remote tools in `std_slop`. It is not the new server runtime.
+- `mcp/client/runtime.*` is an outbound client runtime that registers remote tools in `std_slop`. It is not the new server runtime.
 - Production JSON parsing, access, and dumping must use `core/json_utils.h` helpers.
 - Add or update Bazel targets for each new source, test, or example.
 
@@ -51,34 +51,38 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 ## Implementation bundles
 
-### Bundle 1: Server API and tool registry
+### Bundle 1: Latest-only request dispatch and discovery
+
+**Status:** Implemented and verified. `bazel test //mcp/server:all //mcp:all //mcp/client:all` passes. Tool registration and stdio execution remain in later bundles.
 
 **Implementation**
 
-- Define a small `Server` type that owns server identity and a registry of registered tools.
-- Provide a registration operation with a tool definition and a C++ handler. A handler receives validated arguments and returns a typed tool result or an `absl::Status` that the dispatcher can map to a protocol error.
-- Keep registration and dispatch separate from input/output. Do not add a generic plugin system, network abstraction, async task system, or client dependency.
-- Reject invalid or duplicate tool names, malformed tool schemas, empty handlers, and invalid identity data at registration time.
-- Use shared MCP types and JSON Schema helpers only where they fit their existing contracts.
+- Define `slop::mcp::server::Server` with validated identity and transport-independent `Dispatch(raw)` returning an optional JSON-RPC response.
+- Validate the JSON-RPC envelope, ID, method, parameters and version metadata before dispatch. Reject client response messages at the inbound boundary.
+- Implement `server/discover` with `resultType: complete`, `supportedVersions`, implemented capabilities and `_meta.io.modelcontextprotocol/serverInfo`.
+- Support only `2026-07-28`. Unsupported string versions produce error `-32022` with `data.supported` and `data.requested`; absent or malformed version metadata produces invalid-params errors.
+- Initially advertise no capabilities: tools are not implemented until Bundle 2. Unknown methods return method-not-found; valid notifications produce no response.
+- Keep protocol errors as JSON-RPC messages for stdout once a transport exists. Operational diagnostics belong on stderr.
+- Do not add I/O, client dependencies, SQLite, ToolExecutor, UI or orchestrator dependencies. Server response construction stays local until another production consumer requires a shared helper.
 
 **Tests and acceptance checks**
 
-- Test registering one valid tool and listing its public definition.
-- Test invalid names, duplicate names, invalid schemas, and missing handlers.
-- Test that one bad registration does not leave a partial registry entry.
-- Validate the package and test target with Bazel.
+- Unit tests cover discovery, IDs and numeric bounds, metadata, parse errors, malformed envelopes, unsupported versions, unknown methods and notifications.
+- Check discovery against the existing modern client codec in tests only.
+- Add deterministic, side-effect-free fuzz coverage for raw input and structured malformed metadata. Assert rejected inputs cannot produce successful discovery results.
+- Update the package BUILD and run server tests plus shared/client regression tests.
 
-### Bundle 2: Latest-version protocol dispatch
+### Bundle 2: Tool registration and execution
 
 **Implementation**
 
-- Add a JSON-RPC dispatcher for `server/discover`, `tools/list`, and `tools/call`.
+- Extend the dispatcher with `tools/list` and `tools/call`. Register tool definitions and handlers; reject duplicate names, malformed schemas and empty handlers. Freeze the registry before serving requests.
 - Parse and validate the JSON-RPC envelope and request metadata before dispatch. Use `json_parse`, `json_get`, `json_get_or`, and `json_dump` from `core/json_utils.h` in production code.
 - Make `server/discover` advertise the exact supported version (`2026-07-28`), server identity, and the tools capability. Do not advertise resources, prompts, subscriptions, or other unimplemented capabilities.
-- Require the current protocol version in request metadata and reject unsupported or missing versions with the protocol-defined version error. No legacy interpretation or fallback is allowed.
-- `tools/list` returns the registered tools in the current protocol's response shape.
+- Keep Bundle 1 version and envelope validation. No legacy interpretation or fallback is allowed.
+- `tools/list` returns registered tools in a stable order. A small fixed catalog does not need pagination initially.
 - `tools/call` validates method parameters, tool name, arguments object, and arguments against the registered input schema before invoking the handler. Invalid input must not reach the handler.
-- Return tool execution results in the current protocol's tool-result shape. Distinguish protocol/dispatch errors from tool-level errors using the current protocol's rules.
+- Return tool execution results in the current protocol's tool-result shape. Distinguish protocol/dispatch errors from tool-level errors; validate structured results against any declared output schema.
 - Handle notifications without sending a JSON-RPC response when required by JSON-RPC. Do not emit server-initiated requests or notifications in this first version.
 
 **Tests and acceptance checks**
@@ -95,8 +99,8 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 - Implement a blocking stream loop that reads one line, dispatches one message, and writes the resulting message as one JSON line.
 - Make stream objects injectable for tests. The production example wires stdin/stdout/stderr to the loop.
-- Keep stdout protocol-only. Write parse errors, operational diagnostics, and startup failures to stderr.
-- Define and enforce a reasonable maximum input-line size to prevent unbounded memory growth. Treat an over-limit line as a clean protocol/input failure and do not invoke a tool.
+- Keep stdout protocol-only. Send protocol parse/request errors as JSON-RPC responses; write diagnostic logs, operational failures and startup failures to stderr.
+- Enforce a maximum line size while reading, not after unbounded `std::getline`. Terminate on oversized input with a stderr diagnostic and no tool execution. Test failed input/output streams and escaped newline characters.
 - Flush each response so a host does not wait for buffered output.
 - Exit cleanly on EOF. Do not add background threads or asynchronous I/O for this MVP.
 
@@ -119,7 +123,7 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 - Build the example target with Bazel.
 - Add a process-level test or scripted smoke test that starts the binary, writes `server/discover`, `tools/list`, and `tools/call` requests to stdin, and parses the corresponding stdout responses.
-- Verify stderr output does not contaminate the protocol stream.
+- Verify stderr output does not contaminate the protocol stream. Use raw subprocess pipes: the current outbound MCP client is HTTP-only.
 
 ### Bundle 5: Public docs and scope guard
 
@@ -134,6 +138,10 @@ The server API should be transport-independent at the dispatch boundary. The std
 - Run the relevant server unit tests, fuzz target smoke test, and example build.
 - Run formatting checks for all new C++ files and documentation review for consistency.
 - Search the new server package for accidental stdout logging and for legacy protocol/version fallback paths.
+
+## Application integration boundary
+
+Do not embed `ToolExecutor` in the reusable server library or automatically export all agent tools. A follow-up app adapter must explicitly allowlist tools, define workspace/session ownership, preserve argument validation and mail protections, and avoid stdout contamination. Shell execution, unrestricted SQL and Git mutation require separate policy decisions. Stdio needs no MCP OAuth flow but does not remove local permission requirements.
 
 ## Definition of done
 
