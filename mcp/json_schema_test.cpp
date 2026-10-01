@@ -56,6 +56,24 @@ TEST(JsonSchemaTest, RejectsUnsupportedKeywordsAndMalformedShapes) {
   EXPECT_EQ(CheckJsonSchema({{"allOf", nlohmann::json::object()}}).code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(JsonSchemaTest, ChecksKeywordShapesWithoutAnInstance) {
+  for (const auto& schema :
+       {nlohmann::json{{"type", "invalid"}}, nlohmann::json{{"type", 4}},
+        nlohmann::json{{"type", nlohmann::json::array()}}, nlohmann::json{{"type", {"string", "string"}}},
+        nlohmann::json{{"type", {"string", "invalid"}}}, nlohmann::json{{"required", "name"}},
+        nlohmann::json{{"required", {"name", 4}}}, nlohmann::json{{"required", {"name", "name"}}},
+        nlohmann::json{{"enum", nlohmann::json::array()}}, nlohmann::json{{"enum", 4}},
+        nlohmann::json{{"minLength", -1}}, nlohmann::json{{"maxItems", "4"}}, nlohmann::json{{"minimum", "1"}},
+        nlohmann::json{{"$schema", false}}, nlohmann::json{{"properties", {{"value", {{"type", "invalid"}}}}}},
+        nlohmann::json{{"$defs", {{"value", {{"type", 4}}}}}, {"$ref", "#/$defs/value"}}}) {
+    EXPECT_EQ(CheckJsonSchema(schema).code(), absl::StatusCode::kInvalidArgument) << schema;
+    EXPECT_EQ(ValidateJsonSchema(schema, nullptr).code(), absl::StatusCode::kInvalidArgument) << schema;
+  }
+  EXPECT_TRUE(CheckJsonSchema({{"type", {"string", "null"}}, {"required", nlohmann::json::array()}}).ok());
+  EXPECT_TRUE(CheckJsonSchema({{"type", "integer"}, {"minimum", -4}, {"exclusiveMaximum", 5.5}}).ok());
+  EXPECT_TRUE(CheckJsonSchema({{"type", "array"}, {"minItems", 0}, {"maxItems", 4}}).ok());
+}
+
 TEST(JsonSchemaTest, EnforcesWorkAndDepthLimits) {
   const nlohmann::json schema = {
       {"allOf", {{{"type", "integer"}}, {{"minimum", 0}}, {{"maximum", 10}}}},

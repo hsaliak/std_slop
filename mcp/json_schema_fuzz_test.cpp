@@ -21,11 +21,22 @@ void JsonSchemaNeverCrashes(const std::string& schema_text, const std::string& i
 }
 FUZZ_TEST(JsonSchemaFuzzTest, JsonSchemaNeverCrashes);
 
+void TypeNamesCheckedBeforeValidation(const std::string& name) {
+  const bool valid = name == "null" || name == "boolean" || name == "object" || name == "array" || name == "number" ||
+                     name == "integer" || name == "string";
+  EXPECT_EQ(CheckJsonSchema({{"type", name}}).ok(), valid);
+  EXPECT_EQ(CheckJsonSchema({{"properties", {{"value", {{"type", name}}}}}}).ok(), valid);
+}
+FUZZ_TEST(JsonSchemaFuzzTest, TypeNamesCheckedBeforeValidation);
+
 TEST(JsonSchemaFuzzTest, RegressionSeeds) {
   JsonSchemaNeverCrashes(R"({"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"})",
                          R"({"name":"tool"})");
   JsonSchemaNeverCrashes(R"({"$ref":"#/$defs/node","$defs":{"node":{"$ref":"#/$defs/node"}}})", "null");
   JsonSchemaNeverCrashes(R"({"oneOf":[false,{"type":"integer"}]})", "4");
+  JsonSchemaNeverCrashes(R"({"type":"invalid","required":false})", "{}");
+  TypeNamesCheckedBeforeValidation("invalid");
+  TypeNamesCheckedBeforeValidation("object");
 }
 
 }  // namespace

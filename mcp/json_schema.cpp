@@ -301,6 +301,57 @@ absl::Status Validate(const nlohmann::json& schema, const nlohmann::json& instan
   return absl::OkStatus();
 }
 
+bool IsTypeName(const nlohmann::json& value) {
+  if (!value.is_string()) return false;
+  const auto& name = value.get_ref<const std::string&>();
+  return name == "null" || name == "boolean" || name == "object" || name == "array" || name == "number" ||
+         name == "integer" || name == "string";
+}
+
+absl::Status CheckKeywords(const nlohmann::json& schema) {
+  if (const auto* type = json_at(schema, "type")) {
+    if (type->is_array()) {
+      if (type->empty()) return absl::InvalidArgumentError("JSON Schema type array must not be empty");
+      absl::flat_hash_set<std::string> names;
+      for (const auto& candidate : *type) {
+        if (!IsTypeName(candidate) || !names.insert(candidate.get<std::string>()).second) {
+          return absl::InvalidArgumentError("JSON Schema type array must contain unique valid type names");
+        }
+      }
+    } else if (!IsTypeName(*type)) {
+      return absl::InvalidArgumentError("JSON Schema type must be a valid type name or array");
+    }
+  }
+  if (const auto* required = json_at(schema, "required")) {
+    if (!required->is_array()) return absl::InvalidArgumentError("required must be an array");
+    absl::flat_hash_set<std::string> names;
+    for (const auto& name : *required) {
+      if (!name.is_string() || !names.insert(name.get<std::string>()).second) {
+        return absl::InvalidArgumentError("required entries must be unique strings");
+      }
+    }
+  }
+  if (const auto* values = json_at(schema, "enum"); values != nullptr && (!values->is_array() || values->empty())) {
+    return absl::InvalidArgumentError("JSON Schema enum must be a nonempty array");
+  }
+  for (const char* keyword : {"minLength", "maxLength", "minItems", "maxItems"}) {
+    if (const auto* value = json_at(schema, keyword);
+        value != nullptr &&
+        (!value->is_number_integer() || (!value->is_number_unsigned() && value->get<int64_t>() < 0))) {
+      return absl::InvalidArgumentError(absl::StrCat(keyword, " must be a nonnegative integer"));
+    }
+  }
+  for (const char* keyword : {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"}) {
+    if (const auto* value = json_at(schema, keyword); value != nullptr && !value->is_number()) {
+      return absl::InvalidArgumentError(absl::StrCat(keyword, " must be a number"));
+    }
+  }
+  if (json_at(schema, "$schema") != nullptr && !json_get<std::string>(schema, "$schema")) {
+    return absl::InvalidArgumentError("JSON Schema dialect must be a string");
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Check(const nlohmann::json& schema, EvaluationContext* context, size_t depth,
                    absl::flat_hash_set<const nlohmann::json*>* active) {
   absl::Status consumed = Consume(context, depth);
@@ -315,6 +366,9 @@ absl::Status Check(const nlohmann::json& schema, EvaluationContext* context, siz
     const nlohmann::json* schema;
     ~Guard() { active->erase(schema); }
   } guard{active, &schema};
+
+  const auto shape_status = CheckKeywords(schema);
+  if (!shape_status.ok()) return shape_status;
 
   if (const auto dialect = json_get<std::string>(schema, "$schema")) {
     if (*dialect != kDraft202012) {
