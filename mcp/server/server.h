@@ -25,7 +25,7 @@ struct ToolRegistration {
 
 // Transport-independent, latest-only MCP dispatcher. Registrations are validated
 // and frozen at creation. Dispatch does not perform I/O; handlers own their side
-// effects and must not write to a future stdio transport's protocol stream.
+// effects and must not write directly to a stdio transport's protocol stream.
 class Server {
  public:
   // A non-OK handler status is a server error. Actionable tool errors should

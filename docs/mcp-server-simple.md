@@ -45,6 +45,7 @@ mcp/server/
   tools_test.cpp                        # registry, call and output validation tests
   tools_fuzz_test.cpp                   # malformed tool inputs and handler gating
   stdio_test.cpp                        # stream-level framing and I/O tests
+  stdio_fuzz_test.cpp                   # framing limits and execution gating
   server_fuzz_test.cpp                  # malformed JSON-RPC / dispatch inputs
   echo_server.cpp                       # runnable stdio example
 ```
@@ -101,20 +102,23 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 ### Bundle 3: stdio transport loop
 
+**Status:** Implemented and verified. `bazel test //mcp/server:all //mcp:all //mcp/client:all` covers the transport, dispatch, client regressions and formatting. The runnable server remains in Bundle 4.
+
 **Implementation**
 
 - Implement a blocking stream loop that reads one line, dispatches one message, and writes the resulting message as one JSON line.
-- Make stream objects injectable for tests. The production example wires stdin/stdout/stderr to the loop.
+- `RunStdio(server, input, output, diagnostics, options)` uses borrowed streams and returns `absl::Status`; no global stream manipulation, TTY checks, process launch or stream closing is performed. The production example will supply stdin/stdout/stderr in Bundle 4. Streams must use separate buffers and have exception masks disabled; unsafe configurations fail before I/O.
 - Keep stdout protocol-only. Send protocol parse/request errors as JSON-RPC responses; write diagnostic logs, operational failures and startup failures to stderr.
-- Enforce a maximum line size while reading, not after unbounded `std::getline`. Terminate on oversized input with a stderr diagnostic and no tool execution. Test failed input/output streams and escaped newline characters.
-- Flush each response so a host does not wait for buffered output.
-- Exit cleanly on EOF. Do not add background threads or asynchronous I/O for this MVP.
+- Enforce `StdioOptions::max_input_bytes` while reading, not after unbounded `std::getline`. The default is 1 MiB per line excluding LF; CR is counted, so CRLF is accepted when it fits the limit. Zero is invalid. Oversized input stops with `ResourceExhausted` and a best-effort diagnostic, without dispatching that line or draining further input. Handler-produced response sizes are not limited by this transport.
+- Flush each response before reading the next request. Read/write/flush failures stop the loop with an `Internal` status. Failed diagnostics never mask the primary status. Output failure may occur after handler side effects; callers must not automatically replay requests.
+- EOF with no pending bytes is normal shutdown. EOF before LF terminates with `DataLoss`, logs a diagnostic and never dispatches the unterminated line, even if its JSON is otherwise complete. Do not add background threads or asynchronous I/O.
 
 **Tests and acceptance checks**
 
 - Test multiple request lines in one stream, response line framing, output JSON parsing, EOF, blank/malformed lines, and the input-line limit.
 - Verify logs go only to the supplied error stream and response output contains no non-protocol text.
-- Run tests with piped input to prove there is no TTY dependency.
+- Unit coverage includes a real OS pipe redirected to stdin to prove there is no TTY dependency. Process-level example tests remain in Bundle 4.
+- Fuzz a deterministic framing reference model and assert oversized/truncated calls never reach handlers.
 
 ### Bundle 4: runnable echo server
 

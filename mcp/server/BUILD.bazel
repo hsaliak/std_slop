@@ -23,6 +23,46 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "stdio",
+    srcs = ["stdio.cpp"],
+    hdrs = ["stdio.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":server",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "stdio_test",
+    srcs = ["stdio_test.cpp"],
+    deps = [
+        ":stdio",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "stdio_fuzz_test",
+    srcs = ["stdio_fuzz_test.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-parameter",
+    ],
+    deps = [
+        ":stdio",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "server_test",
     srcs = ["server_test.cpp"],
