@@ -55,26 +55,33 @@ PAGES = (
     ),
     PageSpec(
         "agent.html",
-        "README.md + docs/",
-        "Coding-agent interfaces",
-        (
-            SourceSpec("README.md", ("Agent features", "Agent quick start")),
-            SourceSpec("docs/WALKTHROUGH.md"),
-            SourceSpec("docs/sl.md"),
-            SourceSpec("docs/SESSIONS.md"),
-            SourceSpec("docs/CONTEXT_MANAGEMENT.md"),
-            SourceSpec("docs/mail_mode.md"),
-        ),
+        "docs/WALKTHROUGH.md",
+        "std::slop coding agent",
+        (SourceSpec("docs/WALKTHROUGH.md"),),
+    ),
+    PageSpec(
+        "sl.html",
+        "docs/sl.md",
+        "sl command-line tool",
+        (SourceSpec("docs/sl.md"),),
     ),
     PageSpec(
         "mcp.html",
-        "docs/mcp-api.md + docs/mcp-server.md + docs/mcp-slop-userguide.md",
-        "MCP client and server",
-        (
-            SourceSpec("docs/mcp-slop-userguide.md"),
-            SourceSpec("docs/mcp-api.md"),
-            SourceSpec("docs/mcp-server.md"),
-        ),
+        "docs/mcp-api.md",
+        "MCP client API",
+        (SourceSpec("docs/mcp-api.md", (
+            "Scope",
+            "Connect with automatic protocol selection",
+            "Bearer token clients",
+            "Error model",
+            "Security notes",
+        ), True),),
+    ),
+    PageSpec(
+        "mcp-server.html",
+        "docs/mcp-server.md",
+        "MCP server API",
+        (SourceSpec("docs/mcp-server.md"),),
     ),
     PageSpec(
         "markdown.html",
@@ -91,11 +98,10 @@ PAGES = (
 )
 
 NAVIGATION = (
+    ("Coding Agents", "agent.html"),
+    ("MCP Client", "mcp.html"),
+    ("MCP Server", "mcp-server.html"),
     ("Markdown", "markdown.html"),
-    ("MCP", "mcp.html"),
-    ("Coding agents", "agent.html"),
-    ("Docs", "docs.html"),
-    ("GitHub", f"{REPOSITORY_URL}"),
 )
 
 
@@ -333,6 +339,17 @@ def render_markdown(lines: list[str], source_path: str, used_heading_ids: set[st
 def navigation(active: str) -> str:
     links = []
     for label, target in NAVIGATION:
+        if label == "Coding Agents":
+            items = []
+            for name, page in (("std::slop", "agent.html"), ("sl", "sl.html")):
+                current = ' class="active" aria-current="page"' if page == active else ""
+                items.append(f'<a{current} href="{page}">{name}</a>')
+            selected = ' class="active"' if active in ("agent.html", "sl.html") else ""
+            links.append(
+                f'<details class="agent-menu"><summary{selected}>{label}</summary>'
+                f'<div class="agent-menu-links">{"".join(items)}</div></details>'
+            )
+            continue
         current = ' class="active" aria-current="page"' if target == active else ""
         links.append(f'<a{current} href="{target}">{label}</a>')
     return "".join(links)
@@ -385,7 +402,7 @@ def page_document(spec: PageSpec, content: str) -> str:
     <div class="shell {layout_class}">{toc}<article class="markdown-content">{structure_content(content)}<p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
     </div>
   </main>
-  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="{REPOSITORY_URL}">Source on GitHub</a></div></footer>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="{REPOSITORY_URL}">Source on GitHub</a></div></footer>
 </body>
 </html>
 '''

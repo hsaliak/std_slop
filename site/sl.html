@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
+  <title>sl command-line tool — std::slop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="agent-menu"><summary class="active">Coding Agents</summary><div class="agent-menu-links"><a href="agent.html">std::slop</a><a class="active" aria-current="page" href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server</a><a href="markdown.html">Markdown</a></nav></div></header>
+  <main id="main-content">
+<section class="page-hero shell"><p class="eyebrow">Source: docs/sl.md</p><h1>sl command-line tool</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#build">Build</a></li><li class="toc-level-2"><a href="#prompts-and-input">Prompts and input</a></li><li class="toc-level-2"><a href="#database-selection">Database selection</a></li><li class="toc-level-2"><a href="#json-and-schema-output">JSON and schema output</a></li><li class="toc-level-2"><a href="#state-subcommands">State subcommands</a></li><li class="toc-level-2"><a href="#mcp-commands-and-configuration">MCP commands and configuration</a></li><li class="toc-level-3"><a href="#register-a-server">Register a server</a></li><li class="toc-level-3"><a href="#files-and-output">Files and output</a></li><li class="toc-level-2"><a href="#related-guides">Related guides</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="sl-command-line-guide">sl command-line guide</h1>
+<p><code>sl</code> is the non-interactive coding-agent interface in the <code>std::slop</code> monorepo. Use it for prompts in scripts and for commands that inspect or change agent state. Use <code>std_slop</code> for the interactive terminal UI.</p>
+<p>Both interfaces use the shared agent runtime, model configuration, and tools. See the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/WALKTHROUGH.md">agent walkthrough</a> for authentication and <code>config.ini</code> setup. The <a href="https://github.com/hsaliak/std_slop/blob/main/README.md">monorepo README</a> also covers <code>std_slop</code> batch mode.</p></div>
+<section class="doc-section"><h2 id="build">Build</h2>
+<pre><code class="language-sh">bazel build //:sl</code></pre>
+<p>The binary is <code>bazel-bin/app/sl</code>. Add it to your PATH if needed:</p>
+<pre><code class="language-sh">mkdir -p &quot;$HOME/bin&quot;
+cp bazel-bin/app/sl &quot;$HOME/bin/sl&quot;</code></pre></section>
+<section class="doc-section"><h2 id="prompts-and-input">Prompts and input</h2>
+<p>Use one instruction source: <code>--prompt</code> or <code>--prompt_file</code>. Piped stdin is optional context, not a replacement for the instruction source.</p>
+<pre><code class="language-sh">sl --prompt &quot;Review the authentication flow&quot;
+sl --prompt_file task.md --session incident
+cat build.log | sl --prompt &quot;Explain this failure&quot;
+sl --db /tmp/project.db --prompt &quot;Inspect the database&quot;
+sl --ephemeral --prompt &quot;Try this without changing the ledger&quot;</code></pre>
+<p>Live prompts need model configuration and credentials. Use the same setup described in the walkthrough.</p></section>
+<section class="doc-section"><h2 id="database-selection">Database selection</h2>
+<p>Without <code>--db</code> or <code>--ephemeral</code>, <code>sl</code> uses the configured database or <code>slop.db</code>. <code>--db</code> and <code>--ephemeral</code> are mutually exclusive.</p>
+<div class="table-wrap"><table><thead><tr><th>Interface</th><th>Default database</th><th>Override</th></tr></thead><tbody><tr><td>Interactive <code>std_slop</code></td><td>Configured database or <code>slop.db</code></td><td>Agent configuration and flags.</td></tr><tr><td><code>std_slop</code> batch mode</td><td>In-memory database</td><td><code>--prompt_db</code>.</td></tr><tr><td><code>sl</code></td><td>Configured database or <code>slop.db</code></td><td><code>--db</code> for a path; <code>--ephemeral</code> for an in-memory run.</td></tr></tbody></table></div>
+<p>Keep the database and SQLite sidecar files outside the repository, or ignore them in Git. The ledger can contain sensitive prompt and tool data.</p></section>
+<section class="doc-section"><h2 id="json-and-schema-output">JSON and schema output</h2>
+<p>Every JSON-producing command must explicitly use <code>--json</code>. <code>--schema</code> requires <code>--json</code> and emits the validated structured value directly.</p>
+<pre><code class="language-sh">sl --prompt &quot;Extract the issue&quot; --json
+sl --prompt &quot;Extract the issue&quot; --json --schema issue.schema.json
+sl context show --json
+sl session list --json</code></pre>
+<p>The flag names differ from <code>std_slop</code> batch mode:</p>
+<div class="table-wrap"><table><thead><tr><th>Output</th><th><code>sl</code></th><th><code>std_slop</code> batch mode</th></tr></thead><tbody><tr><td>Run metadata</td><td><code>--json</code></td><td><code>--output=json</code></td></tr><tr><td>Schema-constrained value</td><td><code>--json --schema schema.json</code></td><td><code>--format_file schema.json</code> or inline <code>--format</code></td></tr></tbody></table></div>
+<p>For <code>std_slop</code> batch output fields and the supported schema subset, see <a href="https://github.com/hsaliak/std_slop/blob/main/README.md#interactive-and-batch-usage">interactive and batch usage</a>. Structured batch output cannot be combined with <code>--output=json</code>.</p></section>
+<section class="doc-section"><h2 id="state-subcommands">State subcommands</h2>
+<p>Database and agent state are available through shell-friendly subcommands. Slash commands are available only in the interactive <code>std_slop</code> TUI.</p>
+<pre><code class="language-sh">sl context show
+sl context set --retain_groups=2 --watermark_tokens=350000
+sl session list
+sl message list
+sl scratchpad show
+sl skill list
+sl stats
+sl tool list
+sl mcp list</code></pre>
+<p>These examples cover context, sessions, messages, scratchpad state, skills, statistics, tools, and registered MCP endpoints. The outbound MCP client supports HTTP endpoints; <code>sl mcp</code> does not launch the repository's stdio echo server.</p></section>
+<section class="doc-section"><h2 id="mcp-commands-and-configuration">MCP commands and configuration</h2>
+<p><code>sl mcp</code> uses the same HTTP server registry and command handler as <code>std_slop mcp</code>. These commands manage registrations and token files, not the agent session database.</p>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody><tr><td><code>sl mcp add NAME --url URL [options]</code></td><td>Add a server, or replace the entry with the same name.</td></tr><tr><td><code>sl mcp list</code></td><td>List saved servers, auth modes, enabled state, and URLs.</td></tr><tr><td><code>sl mcp oauth-login NAME [--client-secret SECRET]</code></td><td>Run browser-paste OAuth login; see the prompt limitation below.</td></tr><tr><td><code>sl mcp oauth-refresh NAME [--client-secret SECRET]</code></td><td>Refresh a saved OAuth token.</td></tr><tr><td><code>sl mcp logout NAME</code></td><td>Delete the token but keep the registration.</td></tr><tr><td><code>sl mcp remove NAME</code></td><td>Remove the registration and attempt to delete its token.</td></tr><tr><td><code>sl mcp help</code></td><td>Show the shared MCP command help.</td></tr></tbody></table></div>
+<p>The command names are <code>oauth-login</code> and <code>oauth-refresh</code>, not <code>login</code> and <code>refresh</code>. Options use separate arguments, such as <code>--auth bearer</code>, not <code>--auth=bearer</code>.</p>
+<h3 id="register-a-server">Register a server</h3>
+<pre><code class="language-sh"># No authentication (--auth none is the default).
+sl mcp add public --url https://example.com/mcp
+
+# Static bearer token; do not paste secrets into shared shell history.
+sl mcp add private --url https://example.com/mcp \
+  --auth bearer --token &quot;$TOKEN&quot;
+
+# OAuth endpoint discovery; the provider must supply a registered client ID.
+sl mcp add work --url https://example.com/mcp \
+  --auth oauth --client-id &quot;$CLIENT_ID&quot; --scope read --scope write</code></pre>
+<p><code>--auth</code> accepts <code>none</code>, <code>bearer</code>, or <code>oauth</code>. Bearer mode requires <code>--token</code>; OAuth mode requires <code>--client-id</code>. <code>--scope</code> may be repeated. <code>--token-path PATH</code> overrides the default token location. Server names use letters, digits, hyphens, or underscores.</p>
+<p>If OAuth discovery is unavailable, supply both HTTPS endpoints and the issuer:</p>
+<pre><code class="language-sh">sl mcp add work --url https://example.com/mcp \
+  --auth oauth --client-id &quot;$CLIENT_ID&quot; \
+  --authorization-endpoint https://auth.example.com/authorize \
+  --token-endpoint https://auth.example.com/token \
+  --issuer https://auth.example.com</code></pre>
+<h3 id="files-and-output">Files and output</h3>
+<ul><li>Registrations are stored in <code>~/.config/slop/mcp.ini</code>, in <code>[server.NAME]</code> sections. Repeating <code>add</code> replaces an entry; omitted fields are not merged with the old entry.</li><li>Tokens default to <code>~/.config/slop/mcp/tokens/NAME.json</code> and are saved with mode <code>0600</code>. Tokens are not stored in the registry or SQLite. Client secrets are not saved.</li><li>MCP management uses the default registry path. Agent flags such as <code>--config</code>, <code>--db</code>, <code>--ephemeral</code>, and <code>--session</code> do not select a different MCP registry or make registration changes temporary.</li><li><code>sl mcp list --json</code> returns the command's text under <code>result.output</code>, not a structured array of servers.</li><li>To disable a server without removing it, set <code>enabled = false</code> in its registry section. There is no enable/disable CLI command.</li></ul>
+<p>For example:</p>
+<pre><code class="language-sh">sl mcp list --json
+sl mcp oauth-refresh work
+sl mcp logout work
+sl mcp remove work</code></pre>
+<p>OAuth login needs interactive input. <code>sl</code> currently buffers the shared handler's output, so its URL and prompt are not displayed before the callback read. Use <code>std_slop mcp oauth-login work</code> for browser-paste login. Refresh can use <code>sl</code>; pass <code>--client-secret</code> if the provider requires it.</p>
+<p>For registry examples, discovery requirements, and the full login flow, see the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">MCP integration guide</a>. These commands cannot register or launch a stdio server.</p></section>
+<section class="doc-section"><h2 id="related-guides">Related guides</h2>
+<ul><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/SESSIONS.md">Sessions</a>: session state and ownership.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/CONTEXT_MANAGEMENT.md">Context management</a>: retained history and token watermarks.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/CONTEXT.md">Personas and skills</a>: shared instructions and modular skills.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mail_mode.md">Mail workflows</a>: staging, review, approval, and finalization protections.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">MCP agent integration</a>: external HTTP tools and authorization.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/SCHEMA.md">Agent database and schema</a>: the runtime data model.</li></ul></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+</body>
+</html>

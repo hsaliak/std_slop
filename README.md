@@ -7,26 +7,37 @@
 
 ![std::slop logo](docs/slop.png)
 
-`std::slop` is a C++ monorepo for agentic tooling. It contains Markdown and MCP libraries, runnable examples, and two coding-agent interfaces: the interactive `std_slop` terminal UI and the script-oriented `sl` command-line tool.
+`std::slop` is a C++ monorepo for agentic tooling. It provides the `std_slop` interactive coding agent, the `sl` command-line tool, MCP client and server libraries with examples, and a Markdown parser and terminal renderer.
 
 ## Components
 
 | Component | Purpose | Guide |
 | --- | --- | --- |
-| Markdown library | Parse Markdown and render styled terminal output using Tree-sitter. | [Parser and renderer](markdown/README.md) |
+| std::slop coding agent (`std_slop`) | Run interactive terminal sessions or batch prompts. | [Agent walkthrough](docs/WALKTHROUGH.md) |
+| `sl` command-line tool | Run prompts and inspect agent state from scripts. | [CLI guide](docs/sl.md) |
 | MCP client library and examples | Connect C++ applications to Streamable HTTP MCP servers. | [Client API](docs/mcp-api.md) |
 | MCP server library and example | Expose explicitly registered tools over stdio. | [Server API](docs/mcp-server.md) |
-| `std_slop` terminal UI | Run interactive coding-agent sessions. It also supports batch prompts. | [Agent walkthrough](docs/WALKTHROUGH.md) |
-| `sl` command-line tool | Run prompts and inspect agent state from scripts. | [CLI guide](docs/sl.md) |
-| Shared agent runtime and tools | Manage model calls, sessions, repository tools, and patch review workflows. | [Agent database and schema](docs/SCHEMA.md) |
+| Agent database and schema | Manage sessions, tools, model calls, and patch review state. | [Runtime data model](docs/SCHEMA.md) |
+| Markdown library | Parse Markdown and render styled terminal output using Tree-sitter. | [Parser and renderer](markdown/README.md) |
 
-## Library quick starts
+## Agent entry points
 
-Build the Markdown parser and terminal renderer:
+Build both interfaces:
 
 ```sh
-bazel build //markdown:parser //markdown:renderer
+bazel build //:std_slop //:sl
 ```
+
+After [model authentication and configuration](docs/WALKTHROUGH.md), start the terminal UI or run a scripted prompt:
+
+```sh
+bazel-bin/app/std_slop
+bazel-bin/app/sl --prompt "Summarize the repository structure"
+```
+
+Use the [walkthrough](docs/WALKTHROUGH.md) for interactive sessions and the [sl guide](docs/sl.md) for scripts. Batch mode, configuration, and workflow details follow below.
+
+## Library quick starts
 
 Build the MCP client examples:
 
@@ -45,6 +56,14 @@ bazel test //mcp/server:echo_server_test
 
 See the [server guide](docs/mcp-server.md) for requests, framing limits, and tool registration.
 
+Build the Markdown parser and terminal renderer:
+
+```sh
+bazel build //markdown:parser //markdown:renderer
+```
+
+See the [Markdown guide](markdown/README.md) for parser and terminal renderer APIs.
+
 ## Component boundaries
 
 - The Markdown library and echo server do not need a model, API key, or agent database. The echo integration test needs Python 3.
@@ -52,23 +71,6 @@ See the [server guide](docs/mcp-server.md) for requests, framing limits, and too
 - The server does not automatically expose agent tools. Applications must register tools and enforce their own access policy.
 - SQLite sessions, model authentication, personas, and mail workflows belong to the coding-agent runtime. They are not requirements for every library.
 - The Markdown renderer produces terminal output with ANSI styling. It is not an HTML renderer.
-
-## Agent entry points
-
-Build both interfaces:
-
-```sh
-bazel build //:std_slop //:sl
-```
-
-After [model authentication and configuration](docs/WALKTHROUGH.md), start the terminal UI or run a scripted prompt:
-
-```sh
-bazel-bin/app/std_slop
-bazel-bin/app/sl --prompt "Summarize the repository structure"
-```
-
-Use the [walkthrough](docs/WALKTHROUGH.md) for interactive sessions and the [sl guide](docs/sl.md) for scripts. Batch mode, configuration, and workflow details follow below.
 
 ## Agent features
 
@@ -230,16 +232,17 @@ The library quick starts above build selected components. Model credentials are 
 
 ## Documentation
 
+- **[std::slop Coding Agent](docs/WALKTHROUGH.md)**: Interactive setup, configuration, and first sessions.
+- **[sl Command-line Tool](docs/sl.md)**: Scripted prompts, state commands, and MCP configuration.
+- **[MCP Client API](docs/mcp-api.md)**: C++ HTTP client, bearer tokens, and OAuth helpers.
+- **[MCP Server API](docs/mcp-server.md)**: Stdio server, inline echo example, limits, and security scope.
+- **[Agent Database and Schema](docs/SCHEMA.md)**: The SQLite-backed agent runtime and its data model.
+- **[Markdown](markdown/README.md)**: Parser and terminal renderer APIs and examples.
+
 - **[Personas & Skills](docs/CONTEXT.md)**: Understanding global context injection and modular skills.
 - **[Documentation Guide](docs/README.md)**: Entry point and reading order for the documentation set.
-- **[Agent Database & Schema](docs/SCHEMA.md)**: The SQLite-backed agent runtime and its data model.
 - **[Sessions](docs/SESSIONS.md)**: How context isolation and management work.
 - **[Context Management](docs/CONTEXT_MANAGEMENT.md)**: The history and strategy for managing model memory.
-- **[Walkthrough](docs/WALKTHROUGH.md)**: A step-by-step example of using the agent.
-- **[MCP API](docs/mcp-api.md)**: Reusable C++ MCP client library surface, bearer token support, and OAuth helper APIs.
-- **[Markdown Library](markdown/README.md)**: Parser and terminal renderer APIs, supported syntax, and examples.
-- **[MCP Server](docs/mcp-server.md)**: Inbound stdio server API, echo example, limits, and security scope.
-- **[sl CLI](docs/sl.md)**: Scripted prompts, persistent state, JSON output, and state subcommands.
 - **[MCP User Guide](docs/mcp-slop-userguide.md)**: How `std_slop` registers, authenticates, discovers, and exposes MCP tools.
 - **[Subquery Implementation Notes](docs/impl/subqueries.md)**: Design and policy notes for INI-configured `llm_query` specializations.
 - **[Fuzzing](docs/fuzzing.md)**: FuzzTest targets, invariants, and how to run/extend the fuzz suite.

@@ -1,3 +1,9 @@
+.agent-menu { position: relative; }
+.agent-menu summary { cursor: pointer; color: var(--muted); font-weight: 700; }
+.agent-menu summary.active, .agent-menu summary:hover { color: var(--accent); }
+.agent-menu-links { position: absolute; z-index: 50; min-width: 9rem; padding: .5rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--paper); box-shadow: var(--shadow); }
+.agent-menu-links a { display: block; padding: .35rem .5rem; }
+
 :root {
   --ink: #e7f5f7;
   --muted: #9ab0bd;

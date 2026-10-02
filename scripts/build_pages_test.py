@@ -64,7 +64,14 @@ SOURCES = {
     "docs/SESSIONS.md": "# Sessions\n\nAgent sessions.\n",
     "docs/CONTEXT_MANAGEMENT.md": "# Context management\n\nAgent context.\n",
     "docs/mail_mode.md": "# Mail mode\n\nPatch review.\n",
-    "docs/mcp-api.md": "# MCP client API\n\nOutbound HTTP client.\n",
+    "docs/mcp-api.md": (
+        "# MCP client API\n\nOutbound HTTP client.\n\n"
+        "## Scope\n\nHTTP scope.\n\n"
+        "## Connect with automatic protocol selection\n\nConnect example.\n\n"
+        "## Bearer token clients\n\nBearer example.\n\n"
+        "## Error model\n\nClient errors.\n\n"
+        "## Security notes\n\nClient security.\n"
+    ),
     "docs/mcp-server.md": (
         "# MCP stdio server\n\n"
         "Inbound stdio server, protocol `2026-07-28`.\n\n"
@@ -107,20 +114,51 @@ class BuildPagesTest(unittest.TestCase):
         self.assertNotIn("Agent workflow details", home)
         self.assertNotIn("Agent setup details", home)
 
-    def test_agent_page_keeps_both_interfaces_and_runtime_details(self):
+    def test_agent_interfaces_have_separate_concise_pages(self):
         agent = self.page("agent.html")
-        for text in ("Coding-agent interfaces", "Agent workflow details",
-                     "Agent setup details", "Interactive setup",
-                     "Scripted prompts and state commands", "Agent sessions",
-                     "Agent context", "Patch review"):
-            self.assertIn(text, agent)
+        self.assertIn("Interactive setup", agent)
+        for text in ("Agent workflow details", "Agent sessions",
+                     "Agent context", "Patch review",
+                     "Scripted prompts and state commands"):
+            self.assertNotIn(text, agent)
+        self.assertIn("Scripted prompts and state commands",
+                      self.page("sl.html"))
 
-    def test_mcp_page_includes_client_server_and_agent_integration(self):
-        mcp = self.page("mcp.html")
-        for text in ("MCP client and server", "Outbound HTTP client",
-                     "Inbound stdio server", "2026-07-28",
-                     "//mcp/server:echo_server", "Remote tools"):
-            self.assertIn(text, mcp)
+    def test_client_and_server_have_separate_pages(self):
+        client = self.page("mcp.html")
+        self.assertIn("Outbound HTTP client", client)
+        self.assertIn("Connect example", client)
+        self.assertNotIn("Inbound stdio server", client)
+        self.assertNotIn("Remote tools", client)
+        server = self.page("mcp-server.html")
+        for text in ("Inbound stdio server", "2026-07-28",
+                     "//mcp/server:echo_server"):
+            self.assertIn(text, server)
+        self.assertNotIn("Outbound HTTP client", server)
+
+    def test_each_component_has_exactly_one_markdown_source(self):
+        expected = {
+            "agent.html": "docs/WALKTHROUGH.md",
+            "sl.html": "docs/sl.md",
+            "mcp.html": "docs/mcp-api.md",
+            "mcp-server.html": "docs/mcp-server.md",
+            "markdown.html": "markdown/README.md",
+        }
+        for page in build_pages.PAGES:
+            if page.output in expected:
+                self.assertEqual(len(page.sources), 1)
+                self.assertEqual(page.sources[0].path, expected[page.output])
+
+    def test_navigation_order_and_agent_dropdown(self):
+        self.assertEqual(
+            [name for name, _ in build_pages.NAVIGATION],
+            ["Coding Agents", "MCP Client", "MCP Server", "Markdown"],
+        )
+        for name in ("agent.html", "sl.html"):
+            navigation = build_pages.navigation(name)
+            self.assertIn('<summary class="active">Coding Agents', navigation)
+            self.assertIn(f'aria-current="page" href="{name}"', navigation)
+            self.assertEqual(navigation.count('aria-current="page"'), 1)
 
     def test_selected_sections_exist_in_repository_sources(self):
         runfiles = os.environ.get("TEST_SRCDIR")
@@ -153,7 +191,9 @@ class BuildPagesTest(unittest.TestCase):
                 )
                 self.assertIn('href="markdown.html"', page)
                 self.assertIn('href="mcp.html"', page)
-                self.assertIn('href="agent.html">Coding agents', page)
+                self.assertIn('href="agent.html">std::slop', page)
+                self.assertIn('href="sl.html">sl', page)
+                self.assertIn('href="mcp-server.html"', page)
                 self.assertNotIn("C++ coding agent and integrated", page)
 
     def test_relative_guide_links_keep_the_correct_source_path(self):

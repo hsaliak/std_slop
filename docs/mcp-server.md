@@ -50,6 +50,77 @@ To build an application:
 
 `Dispatch` returns an optional JSON-RPC response. A valid notification returns no response and does not execute a tool. The server library has no client, UI, orchestrator, `ToolExecutor`, or SQLite dependency.
 
+### Complete echo server example
+
+This is the source of [`echo_server.cpp`](https://github.com/hsaliak/std_slop/blob/main/mcp/server/echo_server.cpp). It registers one tool and runs the server on stdin/stdout. Use the build and request commands in the quick start above to try it.
+
+```cpp
+#include <csignal>
+#include <iostream>
+#include <string>
+
+#include "core/json_utils.h"
+#include "mcp/server/stdio.h"
+
+int main(int argc, char** argv) {
+  if (argc != 1) {
+    std::cerr << "usage: echo_server\n";
+    return argc == 2 && std::string(argv[1]) == "--help" ? 0 : 2;
+  }
+  // Let the transport report a closed stdout pipe as an I/O failure.
+  std::signal(SIGPIPE, SIG_IGN);
+  std::ios::sync_with_stdio(false);
+  // Responses must be flushed by RunStdio, not implicitly by reads from cin.
+  std::cin.tie(nullptr);
+
+  slop::mcp::ImplementationInfo identity;
+  identity.name = "slop-echo-server";
+  identity.version = "1.0";
+  slop::mcp::server::ToolRegistration echo;
+  echo.definition.name = "echo";
+  echo.definition.description = "Return the supplied text without side effects";
+  echo.definition.input_schema = {{"type", "object"},
+                                  {"properties", {{"text", {{"type", "string"}}}}},
+                                  {"required", {"text"}},
+                                  {"additionalProperties", false}};
+  echo.definition.output_schema = echo.definition.input_schema;
+  echo.definition.annotations = {{"readOnlyHint", true}};
+  echo.handler = [](const nlohmann::json& arguments) -> absl::StatusOr<slop::mcp::ToolCallResult> {
+    slop::mcp::ToolCallResult result;
+    result.content.push_back({{"type", "text"}, {"text", slop::json_get_or(arguments, "text", std::string{})}});
+    result.structured_content = arguments;
+    return result;
+  };
+  const auto server = slop::mcp::server::Server::Create(identity, {echo});
+  if (!server.ok()) {
+    std::cerr << "echo server: " << server.status().message() << '\n';
+    return 1;
+  }
+  const auto status = slop::mcp::server::RunStdio(*server, std::cin, std::cout, std::cerr);
+  return status.ok() ? 0 : 1;
+}
+```
+
+- `ToolRegistration::definition` describes the tool. The input schema requires a string `text` field and rejects extra fields.
+- `output_schema` uses the same shape. The handler supplies both text content for display and `structured_content` for callers that need JSON data.
+- `Server::Create` checks the registration before exposing the server. Each call's arguments are schema-checked before the handler runs.
+- `RunStdio` reads requests from stdin, writes and flushes replies to stdout, and sends diagnostics to stderr. Do not write logs to stdout.
+
+To build a similar executable in another Bazel package, add its source and the two dependencies used by the example:
+
+```starlark
+cc_binary(
+    name = "echo_server",
+    srcs = ["echo_server.cpp"],
+    deps = [
+        "//core:json_utils",
+        "//mcp/server:stdio",
+    ],
+)
+```
+
+Load `cc_binary` from `@rules_cc//cc:defs.bzl` in that package's `BUILD.bazel`. The signal and stream setup belongs to the executable; the reusable server library does not change global streams or install signal handlers.
+
 ### Tool registration and handler contract
 
 - Tool names contain 1–128 ASCII letters, digits, `_`, `-`, or `.`. Names are case-sensitive and must be unique. Catalogs are sorted by name.

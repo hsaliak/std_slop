@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
+  <title>MCP server API — std::slop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="agent-menu"><summary>Coding Agents</summary><div class="agent-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a class="active" aria-current="page" href="mcp-server.html">MCP Server</a><a href="markdown.html">Markdown</a></nav></div></header>
+  <main id="main-content">
+<section class="page-hero shell"><p class="eyebrow">Source: docs/mcp-server.md</p><h1>MCP server API</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#server-quick-start">Server quick start</a></li><li class="toc-level-2"><a href="#server-package-and-api">Server package and API</a></li><li class="toc-level-3"><a href="#complete-echo-server-example">Complete echo server example</a></li><li class="toc-level-3"><a href="#tool-registration-and-handler-contract">Tool registration and handler contract</a></li><li class="toc-level-2"><a href="#supported-server-protocol">Supported server protocol</a></li><li class="toc-level-2"><a href="#stdio-framing-and-operational-limits">Stdio framing and operational limits</a></li><li class="toc-level-2"><a href="#server-scope-and-security">Server scope and security</a></li><li class="toc-level-2"><a href="#server-validation-commands">Server validation commands</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="c-mcp-stdio-server">C++ MCP stdio server</h1>
+<p>The <code>mcp/server/</code> package implements an inbound MCP server. It is separate from the outbound client in <code>mcp/client/</code> and the client runtime that imports remote tools into <code>std_slop</code>.</p>
+<p>The server supports <strong>protocol version <code>2026-07-28</code> only</strong>, over newline-delimited JSON-RPC 2.0 on stdin/stdout. It has no HTTP listener, TLS configuration, OAuth flow, database requirement, or model dependency.</p>
+<p>For the outbound client, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-api.md">mcp-api.md</a>. For implementation history and acceptance checks, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-server-simple.md">mcp-server-simple.md</a>.</p></div>
+<section class="doc-section"><h2 id="server-quick-start">Server quick start</h2>
+<p>Build the deterministic echo example and run its subprocess integration tests:</p>
+<pre><code class="language-sh">bazel build //mcp/server:echo_server
+bazel test --nocache_test_results //mcp/server:echo_server_test</code></pre>
+<p>Send one tool call to the example:</p>
+<pre><code class="language-sh">printf &#x27;%s\n&#x27; &#x27;{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:1,&quot;method&quot;:&quot;tools/call&quot;,&quot;params&quot;:{&quot;name&quot;:&quot;echo&quot;,&quot;arguments&quot;:{&quot;text&quot;:&quot;hello&quot;},&quot;_meta&quot;:{&quot;io.modelcontextprotocol/protocolVersion&quot;:&quot;2026-07-28&quot;}}}&#x27; | bazel-bin/mcp/server/echo_server</code></pre>
+<p>The reply contains <code>resultType: "complete"</code>, text content, and <code>structuredContent: {"text":"hello"}</code>. Each request must end with LF, including the last request before closing stdin. The example accepts no configuration arguments; <code>--help</code> writes usage to stderr. Its exit codes are:</p>
+<div class="table-wrap"><table><thead><tr><th>Exit code</th><th>Meaning</th></tr></thead><tbody><tr><td><code>0</code></td><td>Clean EOF, or <code>--help</code>. Protocol/tool errors can still have been returned.</td></tr><tr><td><code>1</code></td><td>Startup or transport failure; diagnostics go to stderr.</td></tr><tr><td><code>2</code></td><td>Invalid command-line arguments; usage goes to stderr.</td></tr></tbody></table></div>
+<p>Use the built binary as a host-launched subprocess. <strong>Do not register it with <code>std_slop mcp add</code>: that client currently supports HTTP endpoints, not stdio commands.</strong> The integration test uses an independent Python standard-library client and real pipes; it is not a <code>std_slop</code> runtime integration. Python 3 is needed for that test, not for the C++ server binary.</p></section>
+<section class="doc-section"><h2 id="server-package-and-api">Server package and API</h2>
+<div class="table-wrap"><table><thead><tr><th>Component</th><th>Purpose</th></tr></thead><tbody><tr><td><code>mcp/server/server.h</code>, <code>//mcp/server:server</code></td><td>Immutable tool registry and transport-independent request dispatch.</td></tr><tr><td><code>mcp/server/stdio.h</code>, <code>//mcp/server:stdio</code></td><td>Blocking stream runner with bounded input framing.</td></tr><tr><td><code>mcp/protocol.h</code>, <code>mcp/types.h</code></td><td>Shared protocol definitions and data types.</td></tr><tr><td><code>mcp/json_schema.*</code></td><td>Shared bounded JSON Schema validation.</td></tr><tr><td><code>mcp/server/echo_server.cpp</code></td><td>Complete executable example using these APIs.</td></tr></tbody></table></div>
+<p>To build an application:</p>
+<ol><li>Set nonempty <code>ImplementationInfo::name</code> and <code>version</code>.</li><li>Assemble a vector of <code>ToolRegistration</code> entries. Each entry holds a <code>Tool</code> definition and a <code>ToolHandler</code>.</li><li>Call <code>Server::Create(identity, registrations)</code>. This validates all registrations and freezes the registry. Failure returns an <code>absl::Status</code>; no partially registered server is exposed.</li><li>Either call <code>Server::Dispatch(raw)</code> directly, or pass the server and borrowed streams to <code>RunStdio(server, input, output, diagnostics, options)</code>.</li></ol>
+<p><code>Dispatch</code> returns an optional JSON-RPC response. A valid notification returns no response and does not execute a tool. The server library has no client, UI, orchestrator, <code>ToolExecutor</code>, or SQLite dependency.</p>
+<h3 id="complete-echo-server-example">Complete echo server example</h3>
+<p>This is the source of <a href="https://github.com/hsaliak/std_slop/blob/main/mcp/server/echo_server.cpp">`echo_server.cpp`</a>. It registers one tool and runs the server on stdin/stdout. Use the build and request commands in the quick start above to try it.</p>
+<pre><code class="language-cpp">#include &lt;csignal&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+#include &quot;core/json_utils.h&quot;
+#include &quot;mcp/server/stdio.h&quot;
+
+int main(int argc, char** argv) {
+  if (argc != 1) {
+    std::cerr &lt;&lt; &quot;usage: echo_server\n&quot;;
+    return argc == 2 &amp;&amp; std::string(argv[1]) == &quot;--help&quot; ? 0 : 2;
+  }
+  // Let the transport report a closed stdout pipe as an I/O failure.
+  std::signal(SIGPIPE, SIG_IGN);
+  std::ios::sync_with_stdio(false);
+  // Responses must be flushed by RunStdio, not implicitly by reads from cin.
+  std::cin.tie(nullptr);
+
+  slop::mcp::ImplementationInfo identity;
+  identity.name = &quot;slop-echo-server&quot;;
+  identity.version = &quot;1.0&quot;;
+  slop::mcp::server::ToolRegistration echo;
+  echo.definition.name = &quot;echo&quot;;
+  echo.definition.description = &quot;Return the supplied text without side effects&quot;;
+  echo.definition.input_schema = {{&quot;type&quot;, &quot;object&quot;},
+                                  {&quot;properties&quot;, {{&quot;text&quot;, {{&quot;type&quot;, &quot;string&quot;}}}}},
+                                  {&quot;required&quot;, {&quot;text&quot;}},
+                                  {&quot;additionalProperties&quot;, false}};
+  echo.definition.output_schema = echo.definition.input_schema;
+  echo.definition.annotations = {{&quot;readOnlyHint&quot;, true}};
+  echo.handler = [](const nlohmann::json&amp; arguments) -&gt; absl::StatusOr&lt;slop::mcp::ToolCallResult&gt; {
+    slop::mcp::ToolCallResult result;
+    result.content.push_back({{&quot;type&quot;, &quot;text&quot;}, {&quot;text&quot;, slop::json_get_or(arguments, &quot;text&quot;, std::string{})}});
+    result.structured_content = arguments;
+    return result;
+  };
+  const auto server = slop::mcp::server::Server::Create(identity, {echo});
+  if (!server.ok()) {
+    std::cerr &lt;&lt; &quot;echo server: &quot; &lt;&lt; server.status().message() &lt;&lt; &#x27;\n&#x27;;
+    return 1;
+  }
+  const auto status = slop::mcp::server::RunStdio(*server, std::cin, std::cout, std::cerr);
+  return status.ok() ? 0 : 1;
+}</code></pre>
+<ul><li><code>ToolRegistration::definition</code> describes the tool. The input schema requires a string <code>text</code> field and rejects extra fields.</li><li><code>output_schema</code> uses the same shape. The handler supplies both text content for display and <code>structured_content</code> for callers that need JSON data.</li><li><code>Server::Create</code> checks the registration before exposing the server. Each call's arguments are schema-checked before the handler runs.</li><li><code>RunStdio</code> reads requests from stdin, writes and flushes replies to stdout, and sends diagnostics to stderr. Do not write logs to stdout.</li></ul>
+<p>To build a similar executable in another Bazel package, add its source and the two dependencies used by the example:</p>
+<pre><code class="language-starlark">cc_binary(
+    name = &quot;echo_server&quot;,
+    srcs = [&quot;echo_server.cpp&quot;],
+    deps = [
+        &quot;//core:json_utils&quot;,
+        &quot;//mcp/server:stdio&quot;,
+    ],
+)</code></pre>
+<p>Load <code>cc_binary</code> from <code>@rules_cc//cc:defs.bzl</code> in that package's <code>BUILD.bazel</code>. The signal and stream setup belongs to the executable; the reusable server library does not change global streams or install signal handlers.</p>
+<h3 id="tool-registration-and-handler-contract">Tool registration and handler contract</h3>
+<ul><li>Tool names contain 1–128 ASCII letters, digits, <code>_</code>, <code>-</code>, or <code>.</code>. Names are case-sensitive and must be unique. Catalogs are sorted by name.</li><li>Handlers must be nonempty. They accept a const JSON argument object and return <code>absl::StatusOr&lt;ToolCallResult&gt;</code>.</li><li>Input schemas must be objects describing object arguments. Schemas, annotations, and metadata are checked during creation. Validation uses the supported JSON Schema 2020-12 subset with bounded work/depth and local references only; it is not a complete JSON Schema implementation.</li><li>The shared <code>Tool</code> type uses an empty <code>output_schema</code> object to mean no declared output schema. A nonempty output schema requires conforming structured content on successful results.</li><li>A handler must return a complete result. Basic text, image, audio, resource-link and embedded-resource content shapes and object metadata are checked. Structured content may be an object, array, scalar, or JSON null when its schema permits it.</li><li>Use <code>ToolCallResult::is_error</code> for actionable tool failures. Such failures may omit structured output; any supplied structured error output is still checked against the declared schema.</li><li>A non-OK handler Status or malformed result becomes a JSON-RPC server error without exposing internal status details. Report errors through Status/result fields; the project builds C++ with exceptions disabled.</li><li>Handlers own their side effects and must not print directly to the protocol output stream. Applications must enforce their own access policy, resource budgets, and execution limits.</li></ul></section>
+<section class="doc-section"><h2 id="supported-server-protocol">Supported server protocol</h2>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>Behavior</th></tr></thead><tbody><tr><td><code>server/discover</code></td><td>Reports only <code>2026-07-28</code>, server identity, and the tools capability.</td></tr><tr><td><code>tools/list</code></td><td>Returns the fixed tool catalog; supplied cursors are rejected.</td></tr><tr><td><code>tools/call</code></td><td>Validates the request and arguments before handler invocation. Missing arguments default to <code>{}</code>.</td></tr></tbody></table></div>
+<p>Every request declares the version in <code>params._meta["io.modelcontextprotocol/protocolVersion"]</code>. Request IDs must be non-null strings or integers within the JSON safe-integer range, from <code>-9007199254740991</code> to <code>9007199254740991</code>. There is no legacy <code>initialize</code> / <code>notifications/initialized</code> handshake and no version fallback. Discovery is useful but is not required before a tool call.</p>
+<p>Protocol and tool errors are ordinary responses; they do not stop the stdio loop:</p>
+<div class="table-wrap"><table><thead><tr><th>Error</th><th>Result</th></tr></thead><tbody><tr><td>Malformed JSON, including a blank line</td><td>JSON-RPC <code>-32700</code>.</td></tr><tr><td>Invalid request envelope or ID</td><td>JSON-RPC <code>-32600</code>.</td></tr><tr><td>Unknown method</td><td>JSON-RPC <code>-32601</code>.</td></tr><tr><td>Malformed/missing metadata, malformed call, unknown tool, cursor or resumption fields</td><td>JSON-RPC <code>-32602</code>.</td></tr><tr><td>Unsupported nonempty string protocol version</td><td>JSON-RPC <code>-32022</code>, with <code>data.supported</code> and <code>data.requested</code>.</td></tr><tr><td>Schema-invalid arguments</td><td>Complete tool result with <code>isError: true</code>; handler is not called.</td></tr><tr><td>Handler Status failure or invalid result</td><td>JSON-RPC <code>-32603</code>.</td></tr></tbody></table></div></section>
+<section class="doc-section"><h2 id="stdio-framing-and-operational-limits">Stdio framing and operational limits</h2>
+<p><code>RunStdio</code> uses borrowed streams; it does not launch processes, inspect a TTY, change global streams, or close the supplied streams. Input, output and diagnostic streams must have separate buffers and exception masks disabled.</p>
+<div class="table-wrap"><table><thead><tr><th>Condition</th><th>Runner behavior</th></tr></thead><tbody><tr><td>Complete LF-delimited line</td><td>Dispatch it and flush any response before reading the next line.</td></tr><tr><td>CRLF</td><td>Accepted; CR counts toward the input limit.</td></tr><tr><td>Input limit</td><td><code>StdioOptions::max_input_bytes</code> defaults to 1 MiB per line, excluding LF. Zero is invalid. The bound is enforced while reading.</td></tr><tr><td>Oversized line</td><td>Stop with <code>ResourceExhausted</code>; do not dispatch that line or drain later input.</td></tr><tr><td>EOF with no pending bytes</td><td>Return OK.</td></tr><tr><td>EOF before LF</td><td>Stop with <code>DataLoss</code>; do not dispatch the unterminated line, even if the JSON is complete.</td></tr><tr><td>Read/write/flush failure</td><td>Stop with an <code>Internal</code> status.</td></tr><tr><td>Operational diagnostic failure</td><td>Preserve the primary status; diagnostic logging is best-effort.</td></tr><tr><td>Unsafe stream configuration</td><td>Return <code>InvalidArgument</code> before I/O.</td></tr></tbody></table></div>
+<p>Protocol messages go only to output; operational diagnostics go to the diagnostic stream. Diagnostics do not contain the rejected input payload. Handler-produced response sizes are not bounded by this transport.</p>
+<p>An output failure may occur after a tool has run. <strong>Do not automatically replay a request after transport failure.</strong> The echo executable ignores SIGPIPE to let closed stdout become an I/O status; the reusable library does not install signal handlers.</p></section>
+<section class="doc-section"><h2 id="server-scope-and-security">Server scope and security</h2>
+<p>This implementation has no HTTP transport, authentication endpoints, resources/prompts APIs, subscriptions, pagination, resumable calls, background execution, built-in handler timeouts, or cancellation.</p>
+<p>Stdio needs no MCP OAuth flow, but it is not a permission boundary. The host launches a local process with local permissions and environment. Treat incoming arguments as untrusted and define tool access policy explicitly.</p>
+<p>The example exposes only <code>echo</code>. It does not automatically expose agent tools. A future application adapter must allowlist tools, define workspace/session ownership, preserve existing argument validation and mail-mode protections, and keep stdout clean. Shell execution, unrestricted SQL, and Git mutation require separate policy decisions.</p></section>
+<section class="doc-section"><h2 id="server-validation-commands">Server validation commands</h2>
+<pre><code class="language-sh">bazel test --nocache_test_results //mcp:all //mcp/client:all //mcp/server:all</code></pre>
+<p>The server package includes exact unit tests, deterministic fuzz smoke tests, formatting checks, an OS-pipe unit test and independent subprocess integration tests. The process tests cover live discovery/catalog/calls, explicit flushing while stdin is open, notifications, error recovery, EOF, input limits, usage and closed stdout. They require no network service, model access, API key or database.</p></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+</body>
+</html>

@@ -4,90 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
-  <title>Coding-agent interfaces — std::slop</title>
+  <title>std::slop coding agent — std::slop</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
-  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><a href="markdown.html">Markdown</a><a href="mcp.html">MCP</a><a class="active" aria-current="page" href="agent.html">Coding agents</a><a href="docs.html">Docs</a><a href="https://github.com/hsaliak/std_slop">GitHub</a></nav></div></header>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="agent-menu"><summary class="active">Coding Agents</summary><div class="agent-menu-links"><a class="active" aria-current="page" href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server</a><a href="markdown.html">Markdown</a></nav></div></header>
   <main id="main-content">
-<section class="page-hero shell"><p class="eyebrow">Source: README.md + docs/</p><h1>Coding-agent interfaces</h1></section>
-    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#agent-features">Agent features</a></li><li class="toc-level-2"><a href="#agent-quick-start">Agent quick start</a></li><li class="toc-level-3"><a href="#download">Download</a></li><li class="toc-level-3"><a href="#prerequisites">Prerequisites</a></li><li class="toc-level-3"><a href="#build-and-install">Build and install</a></li><li class="toc-level-3"><a href="#interactive-and-batch-usage">Interactive and batch usage</a></li><li class="toc-level-3"><a href="#scripted-usage-with-sl">Scripted usage with sl</a></li><li class="toc-level-3"><a href="#agent-authentication">Agent authentication</a></li><li class="toc-level-3"><a href="#agent-configuration">Agent configuration</a></li><li class="toc-level-2"><a href="#build">Build</a></li><li class="toc-level-2"><a href="#authentication">Authentication</a></li><li class="toc-level-2"><a href="#first-run">First Run</a></li><li class="toc-level-2"><a href="#subquery-tools">Subquery Tools</a></li><li class="toc-level-2"><a href="#next-steps">Next Steps</a></li><li class="toc-level-2"><a href="#build-2">Build</a></li><li class="toc-level-2"><a href="#prompts-and-input">Prompts and input</a></li><li class="toc-level-2"><a href="#database-selection">Database selection</a></li><li class="toc-level-2"><a href="#json-and-schema-output">JSON and schema output</a></li><li class="toc-level-2"><a href="#state-subcommands">State subcommands</a></li><li class="toc-level-2"><a href="#related-guides">Related guides</a></li><li class="toc-level-2"><a href="#conversation-isolation">Conversation Isolation</a></li><li class="toc-level-2"><a href="#model-changes">Model Changes</a></li><li class="toc-level-2"><a href="#shared-preserved-state">Shared &amp; Preserved State</a></li><li class="toc-level-3"><a href="#persistence-comparison">Persistence Comparison</a></li><li class="toc-level-2"><a href="#mechanics">Mechanics</a></li><li class="toc-level-3"><a href="#switching-sessions">Switching Sessions</a></li><li class="toc-level-3"><a href="#listing-sessions">Listing Sessions</a></li><li class="toc-level-3"><a href="#starting-fresh">Starting fresh</a></li><li class="toc-level-3"><a href="#removing-sessions">Removing Sessions</a></li><li class="toc-level-3"><a href="#cloning-sessions">Cloning Sessions</a></li><li class="toc-level-3"><a href="#clearing-current-session">Clearing current Session</a></li><li class="toc-level-3"><a href="#persistence">Persistence</a></li><li class="toc-level-3"><a href="#sessions-in-batch-mode">Sessions in Batch Mode</a></li><li class="toc-level-2"><a href="#summary">Summary</a></li><li class="toc-level-2"><a href="#1-assistant-history-state">1. Assistant History State</a></li><li class="toc-level-3"><a href="#centralized-message-parsing">Centralized Message Parsing</a></li><li class="toc-level-3"><a href="#dynamic-tool-truncation">Dynamic Tool Truncation</a></li><li class="toc-level-2"><a href="#3-assistant-managed-state-tracking">3. Assistant-Managed State Tracking</a></li><li class="toc-level-3"><a href="#the-context-layers-approach">The &quot;Context Layers&quot; Approach</a></li><li class="toc-level-3"><a href="#optional-state-summaries">Optional State Summaries</a></li><li class="toc-level-3"><a href="#optional-state-format">Optional State Format</a></li><li class="toc-level-2"><a href="#5-historical-context-retrieval-sql-based-retrieval">5. Historical Context Retrieval (SQL-based Retrieval)</a></li><li class="toc-level-3"><a href="#mechanism">Mechanism</a></li><li class="toc-level-3"><a href="#guidelines-for-the-agent">Guidelines for the Agent</a></li><li class="toc-level-2"><a href="#6-manual-context-intervention">6. Manual Context Intervention</a></li><li class="toc-level-3"><a href="#the-undo-command">The /undo Command</a></li><li class="toc-level-3"><a href="#the-message-remove-gid-command">The /message remove &lt;GID&gt; Command</a></li><li class="toc-level-2"><a href="#evolution-why-we-removed-fts-ranked-mode">Evolution: Why we removed FTS-Ranked Mode</a></li><li class="toc-level-2"><a href="#token-accounting">Token Accounting</a></li><li class="toc-level-3"><a href="#the-snapshot-principle">The Snapshot Principle</a></li><li class="toc-level-3"><a href="#behavioral-characteristics">Behavioral Characteristics</a></li><li class="toc-level-2"><a href="#commands-reference">Commands Reference</a></li><li class="toc-level-2"><a href="#1-core-philosophy">1. Core Philosophy</a></li><li class="toc-level-2"><a href="#2-high-level-flow">2. High-Level Flow</a></li><li class="toc-level-2"><a href="#3-staging-branch-workflow">3. Staging Branch Workflow</a></li><li class="toc-level-2"><a href="#4-review-and-reroll">4. Review and Reroll</a></li><li class="toc-level-3"><a href="#review">Review</a></li><li class="toc-level-3"><a href="#reroll">Reroll</a></li><li class="toc-level-2"><a href="#5-verification-and-finalization">5. Verification and Finalization</a></li><li class="toc-level-2"><a href="#6-tool-summary">6. Tool Summary</a></li><li class="toc-level-2"><a href="#7-practical-tips">7. Practical Tips</a></li></ul></aside><article class="markdown-content"><section class="doc-section"><h2 id="agent-features">Agent features</h2>
-<p>The agents provide schema-validated tools for repository inspection, exact edits, unified patches, shell validation, database access, and scratchpad state. Tool operations are explicit and individually reviewable. Mail workflow tools enforce staging, review, approval, and finalization protections server-side. Small patches keep their rationale and can be checked independently or used for git bisection.</p>
-<ul><li><strong>Personas and skills</strong>: Define global agent instructions via <code>AGENTS.md</code> and extend capabilities using modular, on-demand <code>SKILL.md</code> files.</li><li><strong>SQLite ledger</strong>: Interactions and tool calls are stored in SQLite. Interactive sessions and <code>sl</code> use persistent storage; batch mode can use an in-memory database.</li><li><strong>Session scratchpad</strong>: Maintain a per-session planning buffer with <code>/scratchpad edit</code>, <code>/scratchpad save</code>, and <code>read_scratchpad</code>/<code>write_scratchpad</code> tools.</li><li><strong>Context control</strong>: SQL-backed, per-session accordion history preserves an append-only prompt prefix between resets, so sessions can grow independently while retaining cache-friendly context.</li><li><strong>Accordion context</strong>: Use <code>/context &lt;retain_groups&gt; [watermark_tokens]</code> to grow a cache-friendly prompt prefix, then reset to complete recent groups after the latest actual prompt usage reaches the watermark (defaults: <code>2</code>, <code>350000</code>). Tool results remain full fidelity up to their configured per-result limit.</li><li><strong>Mail workflows</strong>: Use <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mail_mode.md">docs/mail_mode.md</a> for a review-first patch workflow. Careful code review remains the authority while each small, discrete patch stays independently reviewable, verifiable, and suitable for git bisection.</li><li><strong>Models</strong>: Supports OpenAI-compatible Responses endpoints and ChatGPT Plus/Pro OAuth. Routers such as OpenRouter can provide access to other models through compatible endpoints.</li><li><strong>Hotwords</strong>: Activate a skill for one turn with <code>hey &lt;skill&gt; &lt;query&gt;</code>.</li></ul></section>
-<section class="doc-section"><h2 id="agent-quick-start">Agent quick start</h2>
-<h3 id="download">Download</h3>
-<p>The project ships Linux x86-64 and macOS binaries every <a href="https://github.com/hsaliak/std_slop/releases">release</a>. You can directly use them.</p>
-<h3 id="prerequisites">Prerequisites</h3>
-<ul><li>C++17 compiler (Clang/GCC)</li><li><a href="https://bazel.build/install">Bazel</a> (Bazelisk recommended)</li><li>Git is needed for repository and mail workflows. Initialize the target repository and create an initial commit before using Git mutation tools; it is not needed to use the Markdown library or echo server.</li></ul>
-<h3 id="build-and-install">Build and install</h3>
-<pre><code class="language-bash"># Build both agent interfaces
-bazel build //:std_slop //:sl
-
-# Optional: add them to your PATH
-cp ./bazel-bin/app/std_slop ./bazel-bin/app/sl /usr/local/bin/</code></pre>
-<h3 id="interactive-and-batch-usage">Interactive and batch usage</h3>
-<p><code>std::slop</code> works best when it can track a specific project. Initialize a git repository and run it from the root:</p>
-<pre><code class="language-bash">mkdir my-project &amp;&amp; cd my-project
-git init
-std_slop</code></pre>
-<p>For quick one-off tasks, you can use <strong>Batch Mode</strong>:</p>
-<pre><code class="language-bash">std_slop --prompt &quot;Refactor main.cpp to remove all unused includes&quot;</code></pre>
-<p>Batch mode accepts exactly one instruction source, and optional piped stdin is prepended as context:</p>
-<pre><code class="language-bash">std_slop --prompt_file task.md
-ls *.cc | std_slop --prompt &quot;sort these files in alphabetical order&quot;</code></pre>
-<p>Use exactly one instruction source: <code>--prompt</code> or <code>--prompt_file</code>. Piped stdin is optional context. Batch mode uses an in-memory database unless <code>--prompt_db</code> is set.</p>
-<p>For scripts, <code>--output=json</code> writes run metadata:</p>
-<pre><code class="language-bash">std_slop --prompt_file task.md --output=json | jq -r .assistant_message</code></pre>
-<p>The JSON object contains <code>ok</code>, <code>session</code>, <code>model</code>, <code>active_skills</code>, <code>assistant_message</code>, <code>structured_output</code>, <code>error</code>, and <code>duration_ms</code>.</p>
-<p>Use <code>--format</code> or <code>--format_file</code> to require a JSON Schema-constrained final value. The raw validated value is the only stdout payload, so structured output cannot be combined with <code>--output=json</code>:</p>
-<pre><code class="language-bash">std_slop --prompt &quot;Extract the name&quot; \
-  --format &#x27;{&quot;type&quot;:&quot;object&quot;,&quot;properties&quot;:{&quot;name&quot;:{&quot;type&quot;:&quot;string&quot;}},&quot;required&quot;:[&quot;name&quot;],&quot;additionalProperties&quot;:false}&#x27;
-
-cat incident.log | std_slop \
-  --prompt_file summarize_incident.md \
-  --format_file incident_summary.schema.json \
-  --model gpt-5.4-mini:high \
-  --session incident-2026-07-19 \
-  --prompt_db /tmp/slop-incident.db</code></pre>
-<p>The supported schema subset is a root object plus nested object, array, string, number, integer, boolean, and null types; <code>properties</code>, <code>required</code>, boolean <code>additionalProperties</code>, <code>items</code>, and non-empty <code>enum</code> arrays.</p>
-<h3 id="scripted-usage-with-sl">Scripted usage with <code>sl</code></h3>
-<p><code>sl</code> runs non-interactive prompts and state subcommands. It keeps a persistent database by default; use <code>--ephemeral</code> for an in-memory run.</p>
-<pre><code class="language-sh">sl --prompt &quot;Review the authentication flow&quot;
-cat build.log | sl --prompt &quot;Explain this failure&quot;
-sl session list --json</code></pre>
-<p>See the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/sl.md">CLI guide</a> for database selection, JSON and schema output, and state subcommands. <code>sl</code> uses <code>--json</code> and <code>--schema</code>; <code>std_slop</code> batch mode uses <code>--output=json</code> and <code>--format</code> or <code>--format_file</code>.</p>
-<p>Read the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/WALKTHROUGH.md">Walkthrough</a> first for the recommended getting-started flow, authentication setup paths, <code>config.ini</code> setup, docs-folder navigation, and <code>llm_query</code> subquery/persona configuration. Then use <a href="https://github.com/hsaliak/std_slop/blob/main/docs/README.md">docs/README.md</a> as the docs index for deeper reference material.</p>
-<h3 id="agent-authentication">Agent authentication</h3>
-<ul><li>OpenAI-compatible API key: set <code>OPENAI_API_KEY</code>, optionally combine with <code>--openai_base_url</code>, or put both in <code>config.ini</code></li><li>OpenAI OAuth (Responses API): run <code>std_slop --fetch_openai_oauth_token</code> or <code>std_slop --fetch_openai_oauth_device_token</code>, then start with <code>--openai_oauth</code></li></ul>
-<h3 id="agent-configuration">Agent configuration</h3>
-<p>Both agent interfaces use environment variables or a configuration file.</p>
-<h4 id="configuration-file">Configuration File</h4>
-<p>The agent looks for a configuration file at <code>~/.config/slop/config.ini</code>. You can also specify a custom path using the <code>--config</code> flag. Keep <code>slop.db</code> outside the codebase, or ignore it and its SQLite sidecars (<code>slop.db-wal</code> and <code>slop.db-shm</code>) in Git. The database stores the context ledger and can contain sensitive data from prompts, tool output, or environment variables.</p>
-<p>For a getting-started walkthrough that covers config methods end-to-end, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/WALKTHROUGH.md">docs/WALKTHROUGH.md</a>.</p>
-<pre><code class="language-ini">[slop]
-model = your-model-name
-# OR
-openai_api_key = sk-...
-openai_base_url = https://api.openai.com/v1
-
-# openai_oauth = true    # optional: use OpenAI OAuth token + Responses API
-# openai_oauth_token_path = /custom/path/chatgpt_plus_token.json</code></pre>
-<p>See <a href="https://github.com/hsaliak/std_slop/blob/main/docs/example_config.ini">docs/example_config.ini</a> for a full list of options.</p>
-<h4 id="configure-llm-sub-agents-specialized-llm-query-tools">Configure LLM sub-agents (specialized <code>llm_query</code> tools)</h4>
-<p>You can define config-based <code>llm_query</code> specializations as first-class tools. This is useful for role-focused delegation (for example: code review, repo exploration) without rewriting prompts each time.</p>
-<p>Add one INI section per specialization using the <code>llm_tool_</code> prefix:</p>
-<pre><code class="language-ini">[llm_tool_code_review_llm]
-system_prompt_patch = You are a strict code reviewer focused on correctness and regressions.
-session_id = code_review
-skill = code_reviewer
-context_window = 8</code></pre>
-<p>After startup, call the specialized tool directly by name (for example <code>llm_tool_code_review_llm</code>) with a <code>query</code> argument.</p>
-<p>For a complete multi-specialization example, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/example_subqueries.ini">docs/example_subqueries.ini</a>. Detailed behavior and policy constraints are documented in <a href="https://github.com/hsaliak/std_slop/blob/main/docs/impl/subqueries.md">docs/impl/subqueries.md</a>.</p>
-<h4 id="environment-variables">Environment Variables</h4>
-<ul><li><code>SLOP_DEBUG_HTTP=1</code>: Log HTTP headers and bodies for debugging. These logs can contain credentials and other sensitive data.</li></ul>
-<h1 id="coding-agent-walkthrough">Coding-agent walkthrough</h1>
-<p>This guide covers the <code>std_slop</code> terminal UI and the shared agent setup used by <code>sl</code>. For Markdown and MCP library entry points, use the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/README.md">documentation index</a>. For scripted prompts and state commands, see the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/sl.md">sl CLI guide</a>.</p></section>
+<section class="page-hero shell"><p class="eyebrow">Source: docs/WALKTHROUGH.md</p><h1>std::slop coding agent</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#build">Build</a></li><li class="toc-level-2"><a href="#authentication">Authentication</a></li><li class="toc-level-2"><a href="#first-run">First Run</a></li><li class="toc-level-2"><a href="#subquery-tools">Subquery Tools</a></li><li class="toc-level-2"><a href="#next-steps">Next Steps</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="coding-agent-walkthrough">Coding-agent walkthrough</h1>
+<p>This guide covers the <code>std_slop</code> terminal UI and the shared agent setup used by <code>sl</code>. For Markdown and MCP library entry points, use the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/README.md">documentation index</a>. For scripted prompts and state commands, see the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/sl.md">sl CLI guide</a>.</p></div>
 <section class="doc-section"><h2 id="build">Build</h2>
 <pre><code class="language-bash">git clone https://github.com/hsaliak/std_slop.git
 cd std_slop
@@ -118,169 +44,9 @@ std_slop</code></pre>
 <section class="doc-section"><h2 id="subquery-tools">Subquery Tools</h2>
 <p>INI sections named <code>[llm_tool_&lt;name&gt;]</code> register specialized <code>llm_query</code> tools. See <a href="https://github.com/hsaliak/std_slop/blob/main/docs/example_subqueries.ini">example_subqueries.ini</a> and <a href="https://github.com/hsaliak/std_slop/blob/main/docs/impl/subqueries.md">impl/subqueries.md</a>.</p></section>
 <section class="doc-section"><h2 id="next-steps">Next Steps</h2>
-<ul><li><a href="https://github.com/hsaliak/std_slop/blob/main/README.md">README.md</a>: monorepo components and agent batch mode.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/sl.md">sl.md</a>: scripted prompts, JSON output, and state commands.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/OAUTH.md">OAUTH.md</a>: OAuth details.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mail_mode.md">mail_mode.md</a>: patch-based workflow.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/README.md">README.md</a>: documentation index.</li></ul>
-<h1 id="sl-command-line-guide">sl command-line guide</h1>
-<p><code>sl</code> is the non-interactive coding-agent interface in the <code>std::slop</code> monorepo. Use it for prompts in scripts and for commands that inspect or change agent state. Use <code>std_slop</code> for the interactive terminal UI.</p>
-<p>Both interfaces use the shared agent runtime, model configuration, and tools. See the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/WALKTHROUGH.md">agent walkthrough</a> for authentication and <code>config.ini</code> setup. The <a href="https://github.com/hsaliak/std_slop/blob/main/README.md">monorepo README</a> also covers <code>std_slop</code> batch mode.</p></section>
-<section class="doc-section"><h2 id="build-2">Build</h2>
-<pre><code class="language-sh">bazel build //:sl</code></pre>
-<p>The binary is <code>bazel-bin/app/sl</code>. Add it to your PATH if needed:</p>
-<pre><code class="language-sh">mkdir -p &quot;$HOME/bin&quot;
-cp bazel-bin/app/sl &quot;$HOME/bin/sl&quot;</code></pre></section>
-<section class="doc-section"><h2 id="prompts-and-input">Prompts and input</h2>
-<p>Use one instruction source: <code>--prompt</code> or <code>--prompt_file</code>. Piped stdin is optional context, not a replacement for the instruction source.</p>
-<pre><code class="language-sh">sl --prompt &quot;Review the authentication flow&quot;
-sl --prompt_file task.md --session incident
-cat build.log | sl --prompt &quot;Explain this failure&quot;
-sl --db /tmp/project.db --prompt &quot;Inspect the database&quot;
-sl --ephemeral --prompt &quot;Try this without changing the ledger&quot;</code></pre>
-<p>Live prompts need model configuration and credentials. Use the same setup described in the walkthrough.</p></section>
-<section class="doc-section"><h2 id="database-selection">Database selection</h2>
-<p>Without <code>--db</code> or <code>--ephemeral</code>, <code>sl</code> uses the configured database or <code>slop.db</code>. <code>--db</code> and <code>--ephemeral</code> are mutually exclusive.</p>
-<div class="table-wrap"><table><thead><tr><th>Interface</th><th>Default database</th><th>Override</th></tr></thead><tbody><tr><td>Interactive <code>std_slop</code></td><td>Configured database or <code>slop.db</code></td><td>Agent configuration and flags.</td></tr><tr><td><code>std_slop</code> batch mode</td><td>In-memory database</td><td><code>--prompt_db</code>.</td></tr><tr><td><code>sl</code></td><td>Configured database or <code>slop.db</code></td><td><code>--db</code> for a path; <code>--ephemeral</code> for an in-memory run.</td></tr></tbody></table></div>
-<p>Keep the database and SQLite sidecar files outside the repository, or ignore them in Git. The ledger can contain sensitive prompt and tool data.</p></section>
-<section class="doc-section"><h2 id="json-and-schema-output">JSON and schema output</h2>
-<p>Every JSON-producing command must explicitly use <code>--json</code>. <code>--schema</code> requires <code>--json</code> and emits the validated structured value directly.</p>
-<pre><code class="language-sh">sl --prompt &quot;Extract the issue&quot; --json
-sl --prompt &quot;Extract the issue&quot; --json --schema issue.schema.json
-sl context show --json
-sl session list --json</code></pre>
-<p>The flag names differ from <code>std_slop</code> batch mode:</p>
-<div class="table-wrap"><table><thead><tr><th>Output</th><th><code>sl</code></th><th><code>std_slop</code> batch mode</th></tr></thead><tbody><tr><td>Run metadata</td><td><code>--json</code></td><td><code>--output=json</code></td></tr><tr><td>Schema-constrained value</td><td><code>--json --schema schema.json</code></td><td><code>--format_file schema.json</code> or inline <code>--format</code></td></tr></tbody></table></div>
-<p>For <code>std_slop</code> batch output fields and the supported schema subset, see <a href="https://github.com/hsaliak/std_slop/blob/main/README.md#interactive-and-batch-usage">interactive and batch usage</a>. Structured batch output cannot be combined with <code>--output=json</code>.</p></section>
-<section class="doc-section"><h2 id="state-subcommands">State subcommands</h2>
-<p>Database and agent state are available through shell-friendly subcommands. Slash commands are available only in the interactive <code>std_slop</code> TUI.</p>
-<pre><code class="language-sh">sl context show
-sl context set --retain_groups=2 --watermark_tokens=350000
-sl session list
-sl message list
-sl scratchpad show
-sl skill list
-sl stats
-sl tool list
-sl mcp list</code></pre>
-<p>These examples cover context, sessions, messages, scratchpad state, skills, statistics, tools, and registered MCP endpoints. The outbound MCP client supports HTTP endpoints; <code>sl mcp</code> does not launch the repository's stdio echo server.</p></section>
-<section class="doc-section"><h2 id="related-guides">Related guides</h2>
-<ul><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/SESSIONS.md">Sessions</a>: session state and ownership.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/CONTEXT_MANAGEMENT.md">Context management</a>: retained history and token watermarks.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/CONTEXT.md">Personas and skills</a>: shared instructions and modular skills.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mail_mode.md">Mail workflows</a>: staging, review, approval, and finalization protections.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">MCP agent integration</a>: external HTTP tools and authorization.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/SCHEMA.md">Agent database and schema</a>: the runtime data model.</li></ul>
-<h1 id="std-slop-session-architecture">std::slop Session Architecture</h1>
-<p>Sessions are implemented as a partitioned ledger in SQLite. Every interaction is tagged with a session_id.</p></section>
-<section class="doc-section"><h2 id="conversation-isolation">Conversation Isolation</h2>
-<p>Sessions provide isolation of history.</p>
-<ul><li><strong>Mechanism</strong>: The <code>messages</code> table includes a <code>session_id</code> for every entry.</li><li><strong>Prompt Construction</strong>: The <code>Orchestrator</code> queries only messages associated with the active <code>session_id</code> where status is not 'dropped'.</li><li><strong>Result</strong>: The LLM has no visibility into other sessions.</li></ul></section>
-<section class="doc-section"><h2 id="model-changes">Model Changes</h2>
-<p>Session history is retained when the configured model changes. Provider response normalization is handled by the Responses orchestrator.</p></section>
-<section class="doc-section"><h2 id="shared-preserved-state">Shared &amp; Preserved State</h2>
-<p>While history is isolated, certain configurations are global or preserved in memory when switching.</p>
-<h3 id="persistence-comparison">Persistence Comparison</h3>
-<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Scope</th><th>Persistence</th></tr></thead><tbody><tr><td><strong>Message History</strong></td><td>Session</td><td>SQLite (<code>messages</code> table)</td></tr><tr><td><strong>Context Window Size</strong></td><td>Session</td><td>SQLite (<code>sessions</code> table)</td></tr><tr><td><strong>Active Skills</strong></td><td>Process</td><td>In-memory (Preserved on <code>/session</code>)</td></tr><tr><td><strong>Request Throttle</strong></td><td>Process</td><td>In-memory (Preserved on <code>/session</code>)</td></tr><tr><td><strong>Tool Registry</strong></td><td>Global</td><td>SQLite (<code>tools</code> table)</td></tr><tr><td><strong>Skills Registry</strong></td><td>Global</td><td>SQLite (<code>skills</code> table)</td></tr></tbody></table></div></section>
-<section class="doc-section"><h2 id="mechanics">Mechanics</h2>
-<h3 id="switching-sessions">Switching Sessions</h3>
-<p>The <code>/session switch &lt;name&gt;</code> command updates the internal session pointer.</p>
-<ul><li><strong>Creation</strong>: If the session name does not exist, it will be implicitly created upon the first message sent to the LLM (when the first record is written to the ledger).</li><li><strong>What Changes</strong>: The history retrieved for prompt assembly.</li><li><strong>What Stays</strong>: Your currently activated skills and any <code>/throttle</code> settings. This allows you to quickly pivot to a new "thread" or project without re-configuring your preferred persona or agentic behavior.</li></ul>
-<h3 id="listing-sessions">Listing Sessions</h3>
-<p>Use <code>/session list</code> to see all sessions that have stored history.</p>
-<h3 id="starting-fresh">Starting fresh</h3>
-<p>To completely clear your context for a new task, simply <code>/session switch</code> to a new name (e.g., <code>/session switch project_part_2</code>). This is the recommended way to start fresh. Alternatively, you can use <code>/session clear</code> to wipe the current session's history while remaining in that session.</p>
-<h3 id="removing-sessions">Removing Sessions</h3>
-<p>The <code>/session remove &lt;name&gt;</code> command permanently deletes a session and all its associated data (history, token usage stats, and context settings).</p>
-<ul><li>If the current active session is removed, the system automatically switches to <code>default_session</code>.</li></ul>
-<h3 id="cloning-sessions">Cloning Sessions</h3>
-<p>The <code>/session clone &lt;name&gt;</code> command creates a complete "branch" of the current session.</p>
-<ul><li><strong>What is copied</strong>: All message history and token usage history.</li><li><strong>Uniqueness</strong>: The target name must not already exist.</li><li><strong>Use Case</strong>: This is suitable for exploring different "branches" of a task or saving a stable state before a complex change. After cloning, you are automatically switched to the new session.</li></ul>
-<h3 id="clearing-current-session">Clearing current Session</h3>
-<p>The <code>/session clear</code> command deletes all data (history and token usage stats) for the current session. This is useful if you want to restart a task without changing the session name.</p>
-<h3 id="persistence">Persistence</h3>
-<p>The ledger is stored in <code>slop.db</code> and persists across restarts. Resume a session by providing its name at startup or via <code>/session</code>.</p>
-<h3 id="sessions-in-batch-mode">Sessions in Batch Mode</h3>
-<p>Batch mode accepts <code>--prompt</code> or <code>--prompt_file</code> and uses <code>--session</code> or <code>default_session</code>. It uses an in-memory database unless <code>--prompt_db</code> is set.</p>
-<p><code>--output=json</code> writes run metadata. <code>--format</code> or <code>--format_file</code> requests schema-constrained output and writes the validated JSON value to stdout; it cannot be combined with <code>--output=json</code>. See the root <a href="https://github.com/hsaliak/std_slop/blob/main/README.md#interactive-and-batch-usage">README</a> for examples and the supported schema subset.</p></section>
-<section class="doc-section"><h2 id="summary">Summary</h2>
-<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Isolated per Session?</th></tr></thead><tbody><tr><td>Message History</td><td>Yes</td></tr><tr><td>LLM Context Window</td><td>Yes</td></tr><tr><td>Tool Registry</td><td>No</td></tr><tr><td>Skills Registry</td><td>No</td></tr><tr><td>Active Skills</td><td>No (Preserved on switch)</td></tr><tr><td>Request Throttle</td><td>No (Preserved on switch)</td></tr><tr><td>FTS5 Search Index</td><td>No</td></tr></tbody></table></div>
-<h1 id="context-management-in-std-slop">Context Management in std::slop</h1>
-<p><code>std::slop</code> uses append-only accordion history. Messages are grouped by <code>group_id</code>, so a user request, its tool calls, and its final assistant response remain together.</p></section>
-<section class="doc-section"><h2 id="1-assistant-history-state">1. Assistant History State</h2>
-<p>The system prompt asks the assistant to include a <code>### STATE</code> summary in its responses. That summary remains in the corresponding assistant message in conversation history and is the only state supplied to later model requests. std::slop does not extract, validate, or duplicate the summary into a separate system-prompt anchor; if the assistant omits it, the history simply has no such summary for that turn.</p>
-<ol><li><strong>Text Messages</strong>: User and Assistant messages containing only text are preserved across model switches. They are automatically re-parsed into the target model's format.</li><li><strong>Tool Isolation</strong>: Messages with a <code>role</code> of <code>tool</code> or a <code>status</code> of <code>tool_call</code> are only included if their <code>parsing_strategy</code> matches the currently active one.</li><li><strong>Rationale</strong>: Providers (like Google and OpenAI) use vastly different JSON schemas and sequences for tool interactions. Attempting to "translate" a complex tool chain from one provider to another often leads to hallucinations or API errors. Isolation ensures that the LLM only sees tool interactions it is capable of understanding and continuing.</li></ol>
-<p>This approach balances cross-model conversational continuity with the strict technical requirements of tool-calling APIs.</p>
-<h3 id="centralized-message-parsing">Centralized Message Parsing</h3>
-<p>To handle the divergent JSON schemas between providers, <code>std::slop</code> uses a centralized <code>MessageParser</code> class (<code>core/message_parser.h</code>). This utility:</p>
-<ul><li><strong>Extracts Tool Calls</strong>: Parses tool call JSON from the OpenAI Responses API format.</li><li><strong>Extracts Assistant Text</strong>: Retrieves the text content from tool_call messages for display purposes.</li><li><strong>Strategy-Aware</strong>: Uses the <code>parsing_strategy</code> field to determine the correct parsing logic.</li></ul>
-<p>This centralization eliminates heuristic JSON sniffing and ensures consistent tool call extraction across the UI and orchestrator components.</p>
-<h3 id="dynamic-tool-truncation">Dynamic Tool Truncation</h3>
-<p>To maximize context efficiency, the system applies differential truncation limits to tool results based on their recency and group status. These limits are configurable via the <code>TruncationSettings</code> struct.</p>
-<ul><li><strong>Active Group (Recent - Full Fidelity)</strong>: The <strong>5 most recent</strong> tool results in the current conversation group are kept at up to <strong>5000 characters</strong>. This ensures the LLM has full context for immediate, iterative tool loops.</li><li><strong>Active Group (Degraded)</strong>: Any tool results in the active group beyond the 5 most recent are truncated to <strong>1000 characters</strong>. This prevents a single long-running turn with many tool calls from consuming the entire context window.</li><li><strong>Inactive Groups (Compression)</strong>: Once a conversation group becomes inactive (the turn has finished and a new user prompt has started), all tool results in that group are truncated to <strong>300 characters</strong>.</li><li><strong>Retrieval Hints</strong>: All truncated results are appended with a hint: <code>... [TRUNCATED. Use query_db(sql="SELECT content FROM messages WHERE id=&lt;ID&gt;") to see full output]</code>. This allows the model to retrieve full technical detail on-demand via SQL.del to surgically retrieve full technical detail from its own history if a previous task needs re-investigation.</li></ul>
-<p><strong>Rationale</strong>: The specific details of a tool's output are essential <em>while</em> the task is being performed. However, once the task is complete, the <em>essence</em> of the result is usually sufficient. Reducing the limit to 300 characters while providing an explicit recovery path (via <code>query_db</code>) offers the optimal trade-off of context efficiency and technical depth.</p></section>
-<section class="doc-section"><h2 id="3-assistant-managed-state-tracking">3. Assistant-Managed State Tracking</h2>
-<p>The system prompt allows the assistant to summarize technical progress in its response history. The current accordion epoch determines how long those summaries remain available to later requests.</p>
-<h3 id="the-context-layers-approach">The "Context Layers" Approach</h3>
-<p>When building the prompt, the Orchestrator assembles multiple layers of context:</p>
-<ol><li><strong>System Prompt</strong>: The hard-coded base instructions for the assistant.</li><li><strong>History Guidelines</strong>: Instructions for the LLM on how to interpret optional state blocks in history.</li><li><strong>Assistant State (<code>### STATE</code>)</strong>: A summary retained in the assistant message that produced it.</li><li><strong>Conversation History</strong>: The sequential messages retrieved via the rolling window.</li></ol>
-<h3 id="optional-state-summaries">Optional State Summaries</h3>
-<p>The assistant may manage state summaries autonomously:</p>
-<ul><li><strong>History</strong>: The system prompt allows the assistant to include a <code>### STATE</code> block. When present, it remains in the assistant response in conversation history.</li></ul>
-<p>The assistant-managed summary is not extracted or injected separately. It is available only while the assistant message containing it remains in the selected accordion history.</p>
-<h3 id="optional-state-format">Optional State Format</h3>
-<pre><code class="language-markdown">### STATE
-Goal: [Short description of current task]
-Context: [Active files/classes being edited]
-Resolved: [List of things finished this session]
-Technical Anchors: [Ports, IPs, constant values]</code></pre></section>
-<section class="doc-section"><h2 id="5-historical-context-retrieval-sql-based-retrieval">5. Historical Context Retrieval (SQL-based Retrieval)</h2>
-<p>Unique to <code>std::slop</code>, the agent has the capability to query its own message history directly via SQL when the rolling window is insufficient.</p>
-<h3 id="mechanism">Mechanism</h3>
-<p>The agent is instructed to use the <code>query_db</code> tool to search the <code>messages</code> table. This allows for precision retrieval of old information that has fallen out of the rolling window without bloating the context with irrelevant data.</p>
-<h3 id="guidelines-for-the-agent">Guidelines for the Agent</h3>
-<ul><li><strong>Recency Bias</strong>: Queries should generally use <code>ORDER BY id DESC</code> to find the most relevant recent information.</li><li><strong>Data Integrity</strong>: The agent must ignore records where <code>status = 'dropped'</code> to avoid retrieving "undone" or invalid history.</li><li><strong>Selective Retrieval</strong>: The agent can search by <code>role</code>, <code>content</code> keywords, or <code>group_id</code>.</li></ul>
-<p>Example query the agent might use:</p>
-<pre><code class="language-sql">SELECT role, content FROM messages
-WHERE status != &#x27;dropped&#x27; AND content LIKE &#x27;%refactor plan%&#x27;
-ORDER BY id DESC LIMIT 5;</code></pre></section>
-<section class="doc-section"><h2 id="6-manual-context-intervention">6. Manual Context Intervention</h2>
-<p>Users have several tools to manually prune or repair the context:</p>
-<h3 id="the-undo-command">The <code>/undo</code> Command</h3>
-<p>The <code>/undo</code> command is a high-level shortcut for:</p>
-<ol><li>Identifying the most recent message group (<code>group_id</code>).</li><li>Deleting all messages in that group from the database.</li><li>Rebuilding the next prompt from the remaining history.</li></ol>
-<p>This is the primary way to "roll back" an interaction that went wrong or to retry a prompt with different instructions.</p>
-<h3 id="the-message-remove-gid-command">The <code>/message remove &lt;GID&gt;</code> Command</h3>
-<p>For more granular control, users can remove any specific message group by its ID.</p></section>
-<section class="doc-section"><h2 id="evolution-why-we-removed-fts-ranked-mode">Evolution: Why we removed FTS-Ranked Mode</h2>
-<p>Earlier versions of <code>std::slop</code> included a <code>FTS_RANKED</code> mode that used hybrid retrieval (BM25 + Recency) via SQLite FTS5. While theoretically robust for long sessions, it was removed for the following reasons:</p>
-<ol><li><strong>Stop-Word Pollution</strong>: Common conversational phrases like "continue," "next," or "go on" acted as high-relevance search terms. This caused the system to pull in random historical fragments where those words appeared, filling the context window with irrelevant noise.</li><li><strong>Narrative Fragmentation</strong>: Non-sequential retrieval often confused the LLM. If the "middle" of a technical implementation was missing because it didn't match the current keyword, the LLM would hallucinate missing details or repeat work.</li><li><strong>Complexity vs. Value</strong>: Addressing the noise would have required complex stop-word filtering and query expansion logic. Instead, we chose to <strong>simplify</strong>. By focusing on a sequential window and a robust, LLM-managed <code>### STATE</code> block, we ensure that critical "technical anchors" are preserved without the unpredictability of keyword-based retrieval.</li></ol>
-<p>The current strategy prioritizes <strong>coherence</strong> (sequential history) and <strong>authoritative summary</strong> (the state block) while allowing for <strong>agent-driven precision retrieval</strong> via SQL.</p></section>
-<section class="doc-section"><h2 id="token-accounting">Token Accounting</h2>
-<p>Token counts in <code>std::slop</code> (displayed as <code>· NNN tokens</code>) do not represent the isolated cost of a single message, but rather a <strong>snapshot of the session's total weight</strong> in the LLM's memory at that specific moment.</p>
-<h3 id="the-snapshot-principle">The Snapshot Principle</h3>
-<p>Every interaction is stateless. The orchestrator sends the selected accordion history with each request. The reported token count is the sum of:</p>
-<ol><li><strong>Prompt Tokens</strong>: The "Input" (System Instructions + Conversation History + New User Message).</li><li><strong>Completion Tokens</strong>: The "Output" (The LLM's new reasoning text and/or tool calls).</li></ol>
-<h3 id="behavioral-characteristics">Behavioral Characteristics</h3>
-<ul><li><strong>Growth</strong>: As long as the session history is preserved, the token count will strictly increase turn-by-turn as the history "Prompt Tokens" grows.</li><li><strong>Intra-Turn Consistency</strong>: In a single turn containing multiple tool calls (Parallel Tool Calling), every tool call and assistant message will display the <strong>same</strong> token count. This represents the weight of the <em>entire interaction</em> that produced those calls.</li><li><strong>Accordion Reset</strong>: Context is append-only within an epoch. When the latest successful provider prompt reaches the high watermark, the next generation resets history to the configured complete-group suffix and begins a new epoch.</li></ul></section>
-<section class="doc-section"><h2 id="commands-reference">Commands Reference</h2>
-<ul><li><code>/context &lt;N&gt; [watermark]</code>: Enable accordion context. <code>N</code> is the number of most-recent interaction groups retained at reset; the watermark defaults to 350000 actual prompt tokens.</li><li><code>/context show</code>: Display accordion settings and the exact assembled context that will be sent to the LLM. The output is human-readable and will automatically open in your <code>$EDITOR</code> (e.g., <code>vim</code>, <code>nano</code>) if it exceeds terminal height.</li><li>If a provider still rejects context length, std::slop resets once and retries generation once. Set the watermark near 80% of known model capacity or reduce <code>N</code> if that retry also fails.</li><li><code>/undo</code>: Shortcut to remove the last interaction.</li><li><code>/message list [N]</code>: List the last <code>N</code> interaction groups with token usage information.</li><li><code>/message show &lt;GID&gt;</code>: View the full content of a specific interaction group.</li><li><code>/message remove &lt;GID&gt;</code>: Permanently <strong>deletes</strong> a specific message group from the database.</li><li><code>/messages</code>: Alias for the <code>/message</code> command.</li></ul>
-<h1 id="the-mail-mode-patch-based-development-workflow">The Mail Mode: Patch-Based Development Workflow</h1>
-<p>This document describes the manual Mail Mode workflow for <code>std::slop</code>.</p>
-<p><strong>Audience:</strong> users who want explicit control over staging branches, patch commits, review, and finalize. <strong>Related docs:</strong> <a href="https://github.com/hsaliak/std_slop/blob/main/docs/README.md">README.md</a>, <a href="https://github.com/hsaliak/std_slop/blob/main/README.md">../README.md</a></p>
-<p>The <code>automated-mail-mode</code> skill can execute this workflow with minimal interruption. Finalization still requires explicit human approval.</p></section>
-<section class="doc-section"><h2 id="1-core-philosophy">1. Core Philosophy</h2>
-<p>Mail Mode treats the agent as a remote contributor. Instead of making ad hoc changes directly on <code>main</code>, the agent builds a reviewable patch series on a staging branch. It is ideal when manual code review still happens: the human reviewer remains responsible for correctness and approval, while the agent keeps the implementation in small, discrete, reviewable patch sets.</p>
-<p>Each patch should represent one logical change, carry a clear rationale, pass the relevant checks on its own, and leave the repository in a usable state. This keeps the series easy to review, safe to reroll, and useful for <code>git bisect</code> when a regression is found. Mail Mode automates staging, patch metadata, verification, rerolls, and finalization; it does not replace manual code review.</p></section>
-<section class="doc-section"><h2 id="2-high-level-flow">2. High-Level Flow</h2>
-<p><img src="assets/mail_model.png" alt="Mail Mode"></p>
-<ol><li>Create or switch to a staging branch under <code>slop/staging/*</code>.</li><li>Implement a logical change.</li><li>Commit it with <code>git_commit_patch(...)</code>.</li><li>Repeat until the series is complete.</li><li>Run <code>git_format_patch_series(...)</code> to review the series.</li><li>Review, reroll, and verify until the series is ready.</li><li>Finalize with <code>git_finalize_series(...)</code> after explicit approval of the reviewed HEAD.</li></ol></section>
-<section class="doc-section"><h2 id="3-staging-branch-workflow">3. Staging Branch Workflow</h2>
-<ul><li><strong>Branching</strong>: Use <code>git_create_staging_branch(base_branch, name)</code> to create or switch to a staging branch.</li><li><strong>Small patch sets</strong>: Keep each commit focused on one logical change, independently reviewable and bisect-safe.</li><li><strong>Manual review</strong>: Review every patch for correctness, regressions, and design fit before approval; Mail Mode does not substitute for that judgment.</li><li><strong>Rationale</strong>: Use <code>git_commit_patch(summary, rationale)</code> so each patch records why it exists, not just what changed.</li><li><strong>Verification</strong>: Run a deterministic validation command for each patch before asking for review.</li></ul></section>
-<section class="doc-section"><h2 id="4-review-and-reroll">4. Review and Reroll</h2>
-<h3 id="review">Review</h3>
-<ul><li>Use <code>/review mail</code> to inspect the current series.</li><li>Use <code>/review mail &lt;index&gt;</code> to inspect a specific patch.</li><li>Add <code>R:</code> comments in the review buffer to request changes.</li></ul>
-<h3 id="reroll">Reroll</h3>
-<ul><li>Use <code>git_reroll_patch(base_branch, index)</code> to update a specific patch while preserving series structure.</li><li>Re-run validation after each reroll.</li><li>Re-review the updated series before finalization.</li></ul></section>
-<section class="doc-section"><h2 id="5-verification-and-finalization">5. Verification and Finalization</h2>
-<ul><li>Use <code>git_verify_series(base_branch, command)</code> to validate every commit in the series.</li><li><code>git_finalize_series(target_branch)</code> merges the reviewed series and cleans up staging metadata.</li><li>Approval must match the current staging HEAD. If the series changes after approval, it must be approved again.</li></ul></section>
-<section class="doc-section"><h2 id="6-tool-summary">6. Tool Summary</h2>
-<ul><li><code>git_create_staging_branch(base_branch, name)</code></li><li><code>git_commit_patch(summary, rationale)</code></li><li><code>git_format_patch_series(base_branch)</code></li><li><code>git_reroll_patch(base_branch, index)</code></li><li><code>git_verify_series(base_branch, command)</code></li><li><code>git_finalize_series(target_branch)</code></li></ul></section>
-<section class="doc-section"><h2 id="7-practical-tips">7. Practical Tips</h2>
-<ul><li>Start with a clean working tree.</li><li>Keep <code>slop.db</code> and related SQLite artifacts outside the repository or in <code>.gitignore</code>.</li><li>Prefer several small, discrete patches over one large patch; each patch should be easy to review, verify, revert, and locate with <code>git bisect</code>.</li><li>Use the same deterministic validation command for local verification and <code>git_verify_series(...)</code>.</li></ul></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+<ul><li><a href="https://github.com/hsaliak/std_slop/blob/main/README.md">README.md</a>: monorepo components and agent batch mode.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/sl.md">sl.md</a>: scripted prompts, JSON output, and state commands.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/OAUTH.md">OAUTH.md</a>: OAuth details.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mail_mode.md">mail_mode.md</a>: patch-based workflow.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/README.md">README.md</a>: documentation index.</li></ul></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
     </div>
   </main>
-  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
 </body>
 </html>

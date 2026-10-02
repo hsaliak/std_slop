@@ -1,6 +1,6 @@
 # std::slop MCP user guide
 
-This guide explains how `std_slop` uses Model Context Protocol (MCP) servers.
+This guide explains how the shared agent runtime uses Model Context Protocol (MCP) servers. `std_slop mcp` and `sl mcp` use the same registrations and token files; see the [sl guide](sl.md) for its output and routing rules.
 
 For the reusable C++ MCP library API, see [mcp-api.md](mcp-api.md).
 
@@ -37,8 +37,8 @@ Commands:
 ```text
 add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--token-path <path>] [--client-id <id>] [--scope <scope>...]
 list
-login <name> [--client-secret <secret>]
-refresh <name> [--client-secret <secret>]
+oauth-login <name> [--client-secret <secret>]
+oauth-refresh <name> [--client-secret <secret>]
 logout <name>
 remove <name>
 help
@@ -72,7 +72,7 @@ token_path = /Users/example/.config/slop/mcp/tokens/github.json
 
 Tokens are not written to `mcp.ini`. They are saved in the token file.
 
-Token JSON shape:
+Token JSON (selected fields):
 
 ```json
 {
@@ -163,11 +163,11 @@ What `std_slop` does during discovery:
 7. Fetches authorization-server metadata.
 8. Stores `authorization_endpoint`, `token_endpoint`, `resource_metadata_url`, and `authorization_server_url` in `mcp.ini`.
 
-Discovery requires HTTPS metadata and endpoint URLs, and it requires exactly one advertised authorization server. If discovery fails, pass both endpoints manually.
+Discovery requires HTTPS metadata and endpoint URLs, and it requires exactly one advertised authorization server. If discovery fails, pass both endpoints and the issuer manually.
 
 ### Register with manual endpoints
 
-If discovery is not available, pass both endpoints:
+If discovery is not available, pass both HTTPS endpoints and the issuer:
 
 ```sh
 std_slop mcp add github \
@@ -175,10 +175,11 @@ std_slop mcp add github \
   --auth oauth \
   --client-id CLIENT_ID \
   --authorization-endpoint https://auth.example.com/authorize \
-  --token-endpoint https://auth.example.com/token
+  --token-endpoint https://auth.example.com/token \
+  --issuer https://auth.example.com
 ```
 
-Do not pass only one endpoint. Manual fallback requires both.
+Do not pass only one endpoint. Manual configuration requires both endpoints and `--issuer`.
 
 ### OAuth login
 

@@ -103,7 +103,8 @@ bazel run //app:std_slop -- mcp add github \
   --auth oauth \
   --client-id CLIENT_ID \
   --authorization-endpoint https://auth.example.com/authorize \
-  --token-endpoint https://auth.example.com/token
+  --token-endpoint https://auth.example.com/token \
+  --issuer https://auth.example.com
 ```
 
 Bearer-token server:
