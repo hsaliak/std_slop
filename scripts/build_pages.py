@@ -71,9 +71,9 @@ PAGES = (
         "docs/mcp-api.md + docs/mcp-server.md + docs/mcp-slop-userguide.md",
         "MCP client and server",
         (
+            SourceSpec("docs/mcp-slop-userguide.md"),
             SourceSpec("docs/mcp-api.md"),
             SourceSpec("docs/mcp-server.md"),
-            SourceSpec("docs/mcp-slop-userguide.md"),
         ),
     ),
     PageSpec(
