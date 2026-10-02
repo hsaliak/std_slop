@@ -1,3 +1,12 @@
+## v0.27 - 2026-10-02
+
+- **MCP client and runtime**: Added modern MCP `2026-07-28` discovery and revision selection alongside the classic client. Added bounded pagination, resumable tool calls, resource subscriptions, and atomic catalog refresh.
+- **MCP authentication and validation**: Hardened OAuth discovery, PKCE and token handling. Schema evaluation now fails closed on resource limits, checks UTF-8 code-point lengths, and rejects malformed embedded-resource results.
+- **MCP stdio server**: Added a C++ server library for registering schema-validated tools, a bounded newline-delimited stdio transport, an echo server, and subprocess tests.
+- **`sl` command-line tool**: Added persistent, non-interactive prompts, database selection, JSON and schema-constrained output, agent-state commands, and MCP server management.
+- **Documentation site**: Reframed the repository docs around its C++ agent, Markdown and MCP components. Added component guides and generated site pages.
+- **Responses errors**: Report provider error details returned by the OpenAI Responses API.
+
 ## v0.26 - 2026-07-31
 
 - **MCP client library**: Added a reusable Streamable HTTP MCP client with JSON-RPC framing, SSE response decoding, session lifecycle management, initialization, ping, tool discovery and calls, resource listing/reading, prompt listing/getting, notifications, cancellation, and protocol validation.
