@@ -48,6 +48,7 @@ mcp/server/
   stdio_fuzz_test.cpp                   # framing limits and execution gating
   server_fuzz_test.cpp                  # malformed JSON-RPC / dispatch inputs
   echo_server.cpp                       # runnable stdio example
+  echo_server_test.py / .sh              # subprocess RPC integration harness
 ```
 
 The server API should be transport-independent at the dispatch boundary. The stdio runner should accept input and output streams so unit tests can exercise the real framing and dispatch path without launching a child process. The example executable supplies `std::cin`, `std::cout`, and `std::cerr`.
@@ -102,12 +103,12 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 ### Bundle 3: stdio transport loop
 
-**Status:** Implemented and verified. `bazel test //mcp/server:all //mcp:all //mcp/client:all` covers the transport, dispatch, client regressions and formatting. The runnable server remains in Bundle 4.
+**Status:** Implemented and verified. `bazel test //mcp/server:all //mcp:all //mcp/client:all` covers the transport, dispatch, client regressions and formatting. The runnable server and subprocess tests are supplied by Bundle 4.
 
 **Implementation**
 
 - Implement a blocking stream loop that reads one line, dispatches one message, and writes the resulting message as one JSON line.
-- `RunStdio(server, input, output, diagnostics, options)` uses borrowed streams and returns `absl::Status`; no global stream manipulation, TTY checks, process launch or stream closing is performed. The production example will supply stdin/stdout/stderr in Bundle 4. Streams must use separate buffers and have exception masks disabled; unsafe configurations fail before I/O.
+- `RunStdio(server, input, output, diagnostics, options)` uses borrowed streams and returns `absl::Status`; no global stream manipulation, TTY checks, process launch or stream closing is performed. The Bundle 4 example supplies stdin/stdout/stderr. Streams must use separate buffers and have exception masks disabled; unsafe configurations fail before I/O.
 - Keep stdout protocol-only. Send protocol parse/request errors as JSON-RPC responses; write diagnostic logs, operational failures and startup failures to stderr.
 - Enforce `StdioOptions::max_input_bytes` while reading, not after unbounded `std::getline`. The default is 1 MiB per line excluding LF; CR is counted, so CRLF is accepted when it fits the limit. Zero is invalid. Oversized input stops with `ResourceExhausted` and a best-effort diagnostic, without dispatching that line or draining further input. Handler-produced response sizes are not limited by this transport.
 - Flush each response before reading the next request. Read/write/flush failures stop the loop with an `Internal` status. Failed diagnostics never mask the primary status. Output failure may occur after handler side effects; callers must not automatically replay requests.
@@ -117,15 +118,18 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 - Test multiple request lines in one stream, response line framing, output JSON parsing, EOF, blank/malformed lines, and the input-line limit.
 - Verify logs go only to the supplied error stream and response output contains no non-protocol text.
-- Unit coverage includes a real OS pipe redirected to stdin to prove there is no TTY dependency. Process-level example tests remain in Bundle 4.
+- Unit coverage includes a real OS pipe redirected to stdin to prove there is no TTY dependency. Bundle 4 provides process-level example tests.
 - Fuzz a deterministic framing reference model and assert oversized/truncated calls never reach handlers.
 
 ### Bundle 4: runnable echo server
+
+**Status:** Implemented as a subsequent patch to Bundle 3. `//mcp/server:echo_server` is a deterministic fixture and reusable example using the real dispatcher and transport. `//mcp/server:echo_server_test` launches it over real subprocess pipes with an independent Python standard-library client.
 
 **Implementation**
 
 - Add a small executable that registers an `echo` tool with a simple JSON input schema and returns its input as a result.
 - Keep the example deterministic and side-effect free.
+- Untie stdin from stdout so the integration test verifies explicit transport flushes while stdin remains open. Ignore SIGPIPE in the executable so closed stdout is reported as an I/O status/diagnostic rather than terminating by signal.
 - The executable must write no banner to stdout; usage or fatal-error text goes to stderr.
 - Document the build and run commands in this plan or the MCP documentation once the executable exists.
 
@@ -134,6 +138,18 @@ The server API should be transport-independent at the dispatch boundary. The std
 - Build the example target with Bazel.
 - Add a process-level test or scripted smoke test that starts the binary, writes `server/discover`, `tools/list`, and `tools/call` requests to stdin, and parses the corresponding stdout responses.
 - Verify stderr output does not contaminate the protocol stream. Use raw subprocess pipes: the current outbound MCP client is HTTP-only.
+- The black-box test covers live discovery/list/call, escaped text, silent notifications, protocol errors and recovery, quiet EOF, usage, truncated/oversized input, and closed stdout. Reply reads have deadlines and size bounds; child processes are killed/reaped on test failure. Requires Python 3 and standard library only.
+- This is end-to-end coverage of the server executable, not `std_slop` runtime connectivity: the existing client and registry support HTTP endpoints only. Launching this fixture through `std_slop` needs a separate outbound stdio-client feature.
+
+**Build and run**
+
+```sh
+bazel build //mcp/server:echo_server
+bazel test --nocache_test_results //mcp/server:echo_server_test
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"echo","arguments":{"text":"hello"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}' | bazel-bin/mcp/server/echo_server
+```
+
+The example accepts no configuration arguments. `--help` prints usage to stderr. No API keys, model calls, database, or network services are needed.
 
 ### Bundle 5: Public docs and scope guard
 

@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@aspect_rules_lint//format:defs.bzl", "format_test")
 
 format_test(
@@ -33,6 +33,26 @@ cc_library(
         "//core:json_utils",
         "@abseil-cpp//absl/status",
     ],
+)
+
+cc_binary(
+    name = "echo_server",
+    srcs = ["echo_server.cpp"],
+    deps = [
+        ":stdio",
+        "//core:json_utils",
+    ],
+)
+
+sh_test(
+    name = "echo_server_test",
+    size = "small",
+    srcs = ["echo_server_test.sh"],
+    data = [
+        ":echo_server",
+        "echo_server_test.py",
+    ],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
 )
 
 cc_test(
