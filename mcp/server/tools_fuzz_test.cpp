@@ -158,8 +158,47 @@ void HandlerContentNeverCrashes(const std::string& raw_content) {
 }
 FUZZ_TEST(ServerToolsFuzzTest, HandlerContentNeverCrashes);
 
+void ResourceVariantsAreValidatedByPresence(const std::string& raw_resource) {
+  const auto resource = json_parse(raw_resource);
+  if (!resource) return;
+  int calls = 0;
+  auto tool = Echo(&calls);
+  tool.handler = [resource](const nlohmann::json&) -> absl::StatusOr<ToolCallResult> {
+    ToolCallResult result;
+    result.content.push_back({{"type", "resource"}, {"resource", *resource}});
+    return result;
+  };
+  auto server = Server::Create(Identity(), {tool});
+  ASSERT_TRUE(server.ok());
+  const auto reply = server->Dispatch(json_dump(Call()));
+  ASSERT_TRUE(reply);
+  EXPECT_TRUE(ParseJsonRpcResponse(*reply).ok());
+  const auto* text = json_at(*resource, "text");
+  const auto* blob = json_at(*resource, "blob");
+  const bool valid = resource->is_object() && json_get<std::string>(*resource, "uri") &&
+                     ((text != nullptr && text->is_string() && blob == nullptr) ||
+                      (blob != nullptr && blob->is_string() && text == nullptr));
+  if (valid) {
+    const auto* result = json_at(*reply, "result");
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(json_get_or(*result, "isError", true), false);
+  } else {
+    const auto* error = json_at(*reply, "error");
+    ASSERT_NE(error, nullptr);
+    EXPECT_EQ(json_get_or(*error, "code", 0), -32603);
+  }
+}
+FUZZ_TEST(ServerToolsFuzzTest, ResourceVariantsAreValidatedByPresence);
+
 TEST(ServerToolsFuzzTest, RegressionSeeds) {
   for (unsigned int depth : {0u, 4u, 40u, 80u}) NegatedRecursiveArgumentsNeverExecute(depth);
+  for (const std::string resource :
+       {"null", "{}", R"({"uri":"file:///example","text":""})", R"({"uri":"file:///example","blob":""})",
+        R"({"uri":"file:///example","text":"ok","blob":7})", R"({"uri":"file:///example","blob":"aA==","text":7})",
+        R"({"uri":"file:///example","text":"ok","blob":null})",
+        R"({"uri":"file:///example","blob":"aA==","text":null})"}) {
+    ResourceVariantsAreValidatedByPresence(resource);
+  }
   for (const std::string args :
        {"null", "[]", "{}", R"({"text":1})", R"({"text":"ok"})", R"({"text":"ok","extra":true})"}) {
     InvalidArgumentsNeverExecute(args);

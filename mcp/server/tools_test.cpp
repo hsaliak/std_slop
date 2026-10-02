@@ -369,7 +369,9 @@ TEST(ServerToolsTest, ValidatesContentBlockShapes) {
       {{"type", "audio"}, {"data", "aGVsbG8="}, {"mimeType", "audio/wav"}},
       {{"type", "resource_link"}, {"uri", "file:///example"}, {"name", "example"}},
       {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"text", "hello"}}}},
-      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"blob", "aGVsbG8="}}}}};
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"blob", "aGVsbG8="}}}},
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"text", ""}}}},
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"blob", ""}}}}};
   const std::vector<nlohmann::json> invalid = {
       {{"type", "unknown"}},
       {{"type", "image"}, {"data", "aGVsbG8="}},
@@ -377,6 +379,11 @@ TEST(ServerToolsTest, ValidatesContentBlockShapes) {
       {{"type", "resource_link"}, {"uri", "file:///example"}},
       {{"type", "resource"}, {"resource", nullptr}},
       {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"text", "hello"}, {"blob", "aA=="}}}},
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}}}},
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"text", "hello"}, {"blob", 7}}}},
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"blob", "aA=="}, {"text", 7}}}},
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"text", "hello"}, {"blob", nullptr}}}},
+      {{"type", "resource"}, {"resource", {{"uri", "file:///example"}, {"blob", "aA=="}, {"text", nullptr}}}},
       {{"type", "text"}, {"text", "hello"}, {"_meta", nullptr}},
       {{"type", "text"}, {"text", "hello"}, {"annotations", nullptr}}};
   for (const auto& block : valid) {

@@ -99,8 +99,11 @@ bool ValidContent(const nlohmann::json& block) {
   if (type == "resource_link") return HasString(block, "uri") && HasString(block, "name");
   if (type == "resource") {
     const auto* resource = json_at(block, "resource");
-    return resource != nullptr && resource->is_object() && HasString(*resource, "uri") &&
-           (HasString(*resource, "text") != HasString(*resource, "blob"));
+    if (resource == nullptr || !resource->is_object() || !HasString(*resource, "uri")) return false;
+    const auto* text = json_at(*resource, "text");
+    const auto* blob = json_at(*resource, "blob");
+    return (text != nullptr && text->is_string() && blob == nullptr) ||
+           (blob != nullptr && blob->is_string() && text == nullptr);
   }
   return false;
 }
