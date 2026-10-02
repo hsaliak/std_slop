@@ -93,6 +93,45 @@ absl::StatusOr<const nlohmann::json*> ResolveLocalReference(const nlohmann::json
   return current;
 }
 
+absl::StatusOr<size_t> CountUtf8CodePoints(absl::string_view text) {
+  size_t count = 0;
+  for (size_t offset = 0; offset < text.size();) {
+    const auto lead = static_cast<unsigned char>(text[offset]);
+    size_t width = 1;
+    uint32_t code_point = lead;
+    uint32_t minimum = 0;
+    if (lead <= 0x7f) {
+      // ASCII, including an embedded NUL, is one code point.
+    } else if ((lead & 0xe0) == 0xc0) {
+      width = 2;
+      code_point = lead & 0x1f;
+      minimum = 0x80;
+    } else if ((lead & 0xf0) == 0xe0) {
+      width = 3;
+      code_point = lead & 0x0f;
+      minimum = 0x800;
+    } else if ((lead & 0xf8) == 0xf0) {
+      width = 4;
+      code_point = lead & 0x07;
+      minimum = 0x10000;
+    } else {
+      return absl::InvalidArgumentError("string contains invalid UTF-8");
+    }
+    if (text.size() - offset < width) return absl::InvalidArgumentError("string contains invalid UTF-8");
+    for (size_t i = 1; i < width; ++i) {
+      const auto byte = static_cast<unsigned char>(text[offset + i]);
+      if ((byte & 0xc0) != 0x80) return absl::InvalidArgumentError("string contains invalid UTF-8");
+      code_point = (code_point << 6) | (byte & 0x3f);
+    }
+    if (code_point < minimum || code_point > 0x10ffff || (code_point >= 0xd800 && code_point <= 0xdfff)) {
+      return absl::InvalidArgumentError("string contains invalid UTF-8");
+    }
+    offset += width;
+    ++count;
+  }
+  return count;
+}
+
 bool MatchesType(absl::string_view type, const nlohmann::json& instance) {
   if (type == "null") return instance.is_null();
   if (type == "boolean") return instance.is_boolean();
@@ -112,12 +151,14 @@ absl::Status Validate(const nlohmann::json& schema, const nlohmann::json& instan
 
 absl::Status ValidateSubschemas(const nlohmann::json& schemas, const nlohmann::json& instance,
                                 EvaluationContext* context, size_t depth, absl::string_view keyword) {
-  if (!schemas.is_array()) {
-    return absl::InvalidArgumentError(absl::StrCat(keyword, " must be an array"));
+  if (!schemas.is_array() || schemas.empty()) {
+    return absl::InvalidArgumentError(absl::StrCat(keyword, " must be a nonempty array"));
   }
   size_t matches = 0;
   for (const auto& subschema : schemas) {
     const absl::Status status = Validate(subschema, instance, context, depth + 1);
+    // An incomplete evaluation is not a nonmatching branch.
+    if (!status.ok() && !absl::IsInvalidArgument(status)) return status;
     if (status.ok()) ++matches;
     if (keyword == "allOf" && !status.ok()) return status;
   }
@@ -201,9 +242,9 @@ absl::Status Validate(const nlohmann::json& schema, const nlohmann::json& instan
     }
   }
   if (const auto* subschema = json_at(schema, "not")) {
-    if (Validate(*subschema, instance, context, depth + 1).ok()) {
-      return absl::InvalidArgumentError("instance matches prohibited not schema");
-    }
+    const absl::Status status = Validate(*subschema, instance, context, depth + 1);
+    if (status.ok()) return absl::InvalidArgumentError("instance matches prohibited not schema");
+    if (!absl::IsInvalidArgument(status)) return status;
   }
 
   if (instance.is_object()) {
@@ -271,11 +312,12 @@ absl::Status Validate(const nlohmann::json& schema, const nlohmann::json& instan
   }
 
   if (instance.is_string()) {
-    const size_t length = instance.get_ref<const std::string&>().size();
-    if (const auto maximum = json_get<size_t>(schema, "maxLength"); maximum && length > *maximum) {
+    const auto length = CountUtf8CodePoints(instance.get_ref<const std::string&>());
+    if (!length.ok()) return length.status();
+    if (const auto maximum = json_get<size_t>(schema, "maxLength"); maximum && *length > *maximum) {
       return absl::InvalidArgumentError("string exceeds maxLength");
     }
-    if (const auto minimum = json_get<size_t>(schema, "minLength"); minimum && length < *minimum) {
+    if (const auto minimum = json_get<size_t>(schema, "minLength"); minimum && *length < *minimum) {
       return absl::InvalidArgumentError("string is shorter than minLength");
     }
     if (json_at(schema, "pattern") != nullptr) {
@@ -389,8 +431,8 @@ absl::Status Check(const nlohmann::json& schema, EvaluationContext* context, siz
   }
   for (absl::string_view keyword : {"allOf", "anyOf", "oneOf", "prefixItems"}) {
     if (const auto* children = json_at(schema, std::string(keyword))) {
-      if (!children->is_array()) {
-        return absl::InvalidArgumentError(absl::StrCat(keyword, " must be an array"));
+      if (!children->is_array() || children->empty()) {
+        return absl::InvalidArgumentError(absl::StrCat(keyword, " must be a nonempty array"));
       }
       for (const auto& child : *children) {
         const absl::Status status = Check(child, context, depth + 1, active);

@@ -146,6 +146,78 @@ TEST(ServerToolsTest, ValidatesSchemasAndMetadataAtCreation) {
   EXPECT_EQ(calls, 0);
 }
 
+TEST(ServerToolsTest, RejectsEmptySchemaArraysAtRegistration) {
+  int calls = 0;
+  for (const std::string keyword : {"allOf", "anyOf", "oneOf", "prefixItems"}) {
+    const nlohmann::json empty = {{keyword, nlohmann::json::array()}};
+    for (const auto& schema : {empty, nlohmann::json{{"properties", {{"value", empty}}}}}) {
+      auto tool = Echo(&calls);
+      tool.definition.input_schema = schema;
+      EXPECT_FALSE(Server::Create(Identity(), {tool}).ok());
+      tool = Echo(&calls);
+      tool.definition.output_schema = schema;
+      EXPECT_FALSE(Server::Create(Identity(), {tool}).ok());
+    }
+  }
+  EXPECT_EQ(calls, 0);
+}
+
+TEST(ServerToolsTest, ExhaustedNegatedSchemaCannotExecuteOrProduceSuccess) {
+  const nlohmann::json schema = {
+      {"type", "object"},
+      {"not", {{"$ref", "#/$defs/node"}}},
+      {"$defs", {{"node", {{"type", "object"}, {"properties", {{"next", {{"$ref", "#/$defs/node"}}}}}}}}}};
+  nlohmann::json deep = nlohmann::json::object();
+  for (int i = 0; i < 40; ++i) deep = {{"next", std::move(deep)}};
+  int calls = 0;
+  auto input_tool = Echo(&calls);
+  input_tool.definition.input_schema = schema;
+  input_tool.definition.output_schema = nlohmann::json::object();
+  auto input_server = Server::Create(Identity(), {input_tool});
+  ASSERT_TRUE(input_server.ok());
+  for (const auto& arguments : {nlohmann::json::object(), deep}) {
+    auto request = Call();
+    request["params"]["arguments"] = arguments;
+    EXPECT_EQ(Reply(*input_server, request)["result"]["isError"], true);
+    EXPECT_EQ(calls, 0);
+  }
+
+  calls = 0;
+  auto output_tool = Echo(&calls);
+  output_tool.definition.output_schema = schema;
+  output_tool.handler = [&calls, &deep](const nlohmann::json&) -> absl::StatusOr<ToolCallResult> {
+    ++calls;
+    ToolCallResult result;
+    result.structured_content = deep;
+    return result;
+  };
+  auto output_server = Server::Create(Identity(), {output_tool});
+  ASSERT_TRUE(output_server.ok());
+  EXPECT_EQ(Reply(*output_server, Call())["error"]["code"], -32603);
+  EXPECT_EQ(calls, 1);
+}
+
+TEST(ServerToolsTest, UnicodeLengthLimitsGateCallsAndResults) {
+  int calls = 0;
+  auto tool = Echo(&calls);
+  tool.definition.input_schema["properties"]["text"] = {{"type", "string"}, {"minLength", 1}, {"maxLength", 1}};
+  tool.definition.output_schema = tool.definition.input_schema;
+  auto server = Server::Create(Identity(), {tool});
+  ASSERT_TRUE(server.ok());
+  for (const std::string text : {"a", "\xc3\xa9", "\xe2\x98\x83", "\xf0\x9f\x98\x80"}) {
+    auto request = Call();
+    request["params"]["arguments"]["text"] = text;
+    const auto reply = Reply(*server, request);
+    ASSERT_EQ(reply["result"]["isError"], false);
+    EXPECT_EQ(reply["result"]["structuredContent"]["text"], text);
+  }
+  EXPECT_EQ(calls, 4);
+  auto request = Call();
+  request["params"]["arguments"]["text"] = "e\xcc\x81";
+  EXPECT_EQ(Reply(*server, request)["result"]["isError"], true);
+  EXPECT_EQ(calls, 4);
+}
+
 TEST(ServerToolsTest, CallsToolAndValidatesStructuredResult) {
   int calls = 0;
   auto tool = Echo(&calls);

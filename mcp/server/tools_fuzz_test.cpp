@@ -1,4 +1,5 @@
 #include <string>
+#include <utility>
 
 #include "gtest/gtest.h"
 
@@ -116,6 +117,26 @@ void UnsupportedMetadataCannotExecute(const std::string& raw_meta) {
 }
 FUZZ_TEST(ServerToolsFuzzTest, UnsupportedMetadataCannotExecute);
 
+void NegatedRecursiveArgumentsNeverExecute(unsigned int depth) {
+  int calls = 0;
+  auto tool = Echo(&calls);
+  tool.definition.input_schema = {
+      {"type", "object"},
+      {"not", {{"$ref", "#/$defs/node"}}},
+      {"$defs", {{"node", {{"type", "object"}, {"properties", {{"next", {{"$ref", "#/$defs/node"}}}}}}}}}};
+  auto server = Server::Create(Identity(), {tool});
+  ASSERT_TRUE(server.ok());
+  nlohmann::json arguments = nlohmann::json::object();
+  for (unsigned int i = 0; i < depth % 81; ++i) arguments = {{"next", std::move(arguments)}};
+  auto request = Call();
+  request["params"]["arguments"] = arguments;
+  const auto reply = server->Dispatch(json_dump(request));
+  ASSERT_TRUE(reply);
+  EXPECT_EQ(calls, 0);
+  EXPECT_EQ((*reply)["result"]["isError"], true);
+}
+FUZZ_TEST(ServerToolsFuzzTest, NegatedRecursiveArgumentsNeverExecute);
+
 void HandlerContentNeverCrashes(const std::string& raw_content) {
   const auto content = json_parse(raw_content);
   if (!content) return;
@@ -138,6 +159,7 @@ void HandlerContentNeverCrashes(const std::string& raw_content) {
 FUZZ_TEST(ServerToolsFuzzTest, HandlerContentNeverCrashes);
 
 TEST(ServerToolsFuzzTest, RegressionSeeds) {
+  for (unsigned int depth : {0u, 4u, 40u, 80u}) NegatedRecursiveArgumentsNeverExecute(depth);
   for (const std::string args :
        {"null", "[]", "{}", R"({"text":1})", R"({"text":"ok"})", R"({"text":"ok","extra":true})"}) {
     InvalidArgumentsNeverExecute(args);

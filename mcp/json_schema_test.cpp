@@ -1,5 +1,7 @@
 #include "mcp/json_schema.h"
 
+#include <string>
+
 #include "absl/status/status.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
@@ -72,6 +74,52 @@ TEST(JsonSchemaTest, ChecksKeywordShapesWithoutAnInstance) {
   EXPECT_TRUE(CheckJsonSchema({{"type", {"string", "null"}}, {"required", nlohmann::json::array()}}).ok());
   EXPECT_TRUE(CheckJsonSchema({{"type", "integer"}, {"minimum", -4}, {"exclusiveMaximum", 5.5}}).ok());
   EXPECT_TRUE(CheckJsonSchema({{"type", "array"}, {"minItems", 0}, {"maxItems", 4}}).ok());
+}
+
+TEST(JsonSchemaTest, CombinatorsPreserveEvaluationFailures) {
+  const nlohmann::json branch = {{"type", "array"}, {"items", {{"type", "integer"}}}};
+  const nlohmann::json instance = nlohmann::json::array({1, 2, 3, 4});
+  JsonSchemaLimits limits;
+  limits.max_evaluations = 4;
+  for (const std::string keyword : {"not", "allOf", "anyOf", "oneOf"}) {
+    const nlohmann::json schema = {{keyword, keyword == "not" ? branch : nlohmann::json::array({true, branch})}};
+    ASSERT_TRUE(CheckJsonSchema(schema, limits).ok()) << keyword;
+    EXPECT_EQ(ValidateJsonSchema(schema, instance, limits).code(), absl::StatusCode::kResourceExhausted) << keyword;
+  }
+}
+
+TEST(JsonSchemaTest, RejectsEmptySchemaArraysIncludingNestedSchemas) {
+  for (const std::string keyword : {"allOf", "anyOf", "oneOf", "prefixItems"}) {
+    const nlohmann::json empty = {{keyword, nlohmann::json::array()}};
+    for (const auto& schema : {empty, nlohmann::json{{"properties", {{"value", empty}}}}}) {
+      EXPECT_EQ(CheckJsonSchema(schema).code(), absl::StatusCode::kInvalidArgument) << schema;
+      EXPECT_EQ(ValidateJsonSchema(schema, nlohmann::json::object()).code(), absl::StatusCode::kInvalidArgument)
+          << schema;
+    }
+    EXPECT_TRUE(CheckJsonSchema({{keyword, nlohmann::json::array({true})}}).ok()) << keyword;
+  }
+}
+
+TEST(JsonSchemaTest, StringLimitsCountUnicodeCodePoints) {
+  const nlohmann::json one_character = {{"type", "string"}, {"minLength", 1}, {"maxLength", 1}};
+  for (const std::string text :
+       {"a", "\x7f", "\xc2\x80", "\xc3\xa9", "\xdf\xbf", "\xe0\xa0\x80", "\xe2\x98\x83", "\xed\x9f\xbf", "\xee\x80\x80",
+        "\xef\xbf\xbf", "\xf0\x90\x80\x80", "\xf0\x9f\x98\x80", "\xf4\x8f\xbf\xbf"}) {
+    EXPECT_TRUE(ValidateJsonSchema(one_character, text).ok());
+    EXPECT_EQ(ValidateJsonSchema({{"minLength", 2}}, text).code(), absl::StatusCode::kInvalidArgument);
+  }
+  EXPECT_TRUE(ValidateJsonSchema(one_character, std::string(1, '\0')).ok());
+  EXPECT_TRUE(ValidateJsonSchema({{"minLength", 2}, {"maxLength", 2}}, "e\xcc\x81").ok());
+  EXPECT_EQ(ValidateJsonSchema(one_character, "e\xcc\x81").code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_TRUE(ValidateJsonSchema({{"maxLength", 0}}, "").ok());
+  EXPECT_EQ(ValidateJsonSchema(one_character, "").code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(JsonSchemaTest, RejectsMalformedUtf8Strings) {
+  for (const std::string text : {"\x80", "\xff", "\xc0\xaf", "\xc2", "\xc2!", "\xe2\x98", "\xe2(\xa1", "\xe0\x80\xaf",
+                                 "\xed\xa0\x80", "\xf0\x80\x80\xaf", "\xf4\x90\x80\x80"}) {
+    EXPECT_EQ(ValidateJsonSchema({{"type", "string"}}, text).code(), absl::StatusCode::kInvalidArgument);
+  }
 }
 
 TEST(JsonSchemaTest, EnforcesWorkAndDepthLimits) {
