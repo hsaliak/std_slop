@@ -1,5 +1,5 @@
 ## v0.27 - 2026-10-02
-
+This release pivots the codebase into a single coding agent to a monorepo for agentic work in decent C++. We added mcp client and server support, client supports modern and classic, server supports only modern `2026-07-28` spec. We also added the `sl` tool to make things easy to script. This refactored the runtime into a single core. 
 - **MCP client and runtime**: Added modern MCP `2026-07-28` discovery and revision selection alongside the classic client. Added bounded pagination, resumable tool calls, resource subscriptions, and atomic catalog refresh.
 - **MCP authentication and validation**: Hardened OAuth discovery, PKCE and token handling. Schema evaluation now fails closed on resource limits, checks UTF-8 code-point lengths, and rejects malformed embedded-resource results.
 - **MCP stdio server**: Added a C++ server library for registering schema-validated tools, a bounded newline-delimited stdio transport, an echo server, and subprocess tests.
