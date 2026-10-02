@@ -153,6 +153,8 @@ The example accepts no configuration arguments. `--help` prints usage to stderr.
 
 ### Bundle 5: Public docs and scope guard
 
+**Status:** Implemented and verified. [mcp-server.md](mcp-server.md) is the public server guide; the client API/user guide and documentation index link it and explicitly preserve the inbound/outbound boundary. All five implementation bundles are complete.
+
 **Implementation**
 
 - Add a short server section to the MCP documentation that distinguishes the inbound server package from the existing outbound client and runtime.
@@ -184,6 +186,7 @@ Do not embed `ToolExecutor` in the reusable server library or automatically expo
 - [MCP stdio transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio.md)
 - [MCP tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools.md)
 - Repository client API notes: [`mcp-api.md`](mcp-api.md)
+- Public server API and usage: [`mcp-server.md`](mcp-server.md)
 
 > Protocol URLs above use the current revision listed by the official MCP docs when this plan was written. If the official current revision changes before implementation, update the version scope and fixtures deliberately before coding; do not silently add multi-version compatibility.
 

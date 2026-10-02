@@ -6,7 +6,7 @@ For the `std_slop mcp ...` command-line workflow, see [mcp-slop-userguide.md](mc
 
 ## Scope
 
-The library supports MCP Streamable HTTP servers. It does not implement stdio transport or the deprecated HTTP+SSE transport.
+The outbound client library supports MCP Streamable HTTP servers. The client does not implement stdio transport or the deprecated HTTP+SSE transport; inbound stdio server support is a separate package.
 
 Core package:
 
@@ -25,9 +25,17 @@ mcp/
 
 The public API uses `absl::Status` and `absl::StatusOr<T>` for fallible operations.
 
-## Protocol surface
+## Inbound stdio server
 
-The library speaks JSON-RPC 2.0 over Streamable HTTP and supports two MCP protocol revisions:
+The separate `mcp/server/` library supports MCP `2026-07-28` only over stdin/stdout, with `server/discover`, `tools/list`, and synchronous `tools/call`. It has no HTTP listener or MCP OAuth flow and does not automatically expose agent tools.
+
+For server registration, framing limits, error policies, build/run commands and security scope, see [mcp-server.md](mcp-server.md). A runnable echo server and real subprocess integration test are available as `//mcp/server:echo_server` and `//mcp/server:echo_server_test`.
+
+This does not add stdio connectivity to `std_slop`: its outbound client and remote-tool runtime still support HTTP endpoints only.
+
+## Client protocol surface
+
+The outbound client library speaks JSON-RPC 2.0 over Streamable HTTP and supports two MCP protocol revisions:
 
 - Classic: `2025-11-25`
 - Modern: `2026-07-28`

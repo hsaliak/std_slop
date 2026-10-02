@@ -4,6 +4,8 @@ This guide explains how `std_slop` uses Model Context Protocol (MCP) servers.
 
 For the reusable C++ MCP library API, see [mcp-api.md](mcp-api.md).
 
+This guide covers the outbound HTTP client. The repository also has a separate inbound stdio server and echo example; see [mcp-server.md](mcp-server.md). `std_slop mcp add` cannot launch stdio server commands.
+
 ## What MCP adds to std_slop
 
 `std_slop` connects to configured Streamable HTTP MCP servers at application startup, discovers their tools, and projects those tools into the normal tool catalog. It supports the classic MCP revision `2025-11-25` and modern revision `2026-07-28`.

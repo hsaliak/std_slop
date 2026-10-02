@@ -24,6 +24,7 @@ Use this index to find the right `std::slop` doc for your task.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — code style, formatting, and contribution guidance.
 - [fuzzing.md](fuzzing.md) — fuzz targets, invariants, and maintenance guidance.
 - [mcp-api.md](mcp-api.md) — reusable C++ MCP client library surface, Streamable HTTP behavior, bearer tokens, and OAuth helpers.
+- [mcp-server.md](mcp-server.md) — inbound C++ stdio server API, echo example, framing limits, tests, and security scope.
 
 ## Example Config Files
 
@@ -33,6 +34,7 @@ Use this index to find the right `std::slop` doc for your task.
 ## Implementation Reference
 
 - [impl/subqueries.md](impl/subqueries.md) — INI-defined `llm_query` tool contract.
+- [mcp-server-simple.md](mcp-server-simple.md) — completed MCP server implementation bundles and acceptance checks.
 
 ## Reading Order
 
