@@ -1,4 +1,15 @@
 
+sh_test(
+    name = "build_pages_test",
+    size = "small",
+    srcs = ["build_pages_test.sh"],
+    data = [
+        "build_pages.py",
+        "build_pages_test.py",
+        "//:README.md",
+    ],
+)
+
 exports_files([
     "clang_format_wrapper.sh",
     "clang_tidy_wrapper.sh",

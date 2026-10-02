@@ -44,7 +44,7 @@ The ledger is stored in `slop.db` and persists across restarts. Resume a session
 ### Sessions in Batch Mode
 Batch mode accepts `--prompt` or `--prompt_file` and uses `--session` or `default_session`. It uses an in-memory database unless `--prompt_db` is set.
 
-`--output=json` writes run metadata. `--format` or `--format_file` requests schema-constrained output and writes the validated JSON value to stdout; it cannot be combined with `--output=json`. See the root [README](../README.md#batch-mode) for examples and the supported schema subset.
+`--output=json` writes run metadata. `--format` or `--format_file` requests schema-constrained output and writes the validated JSON value to stdout; it cannot be combined with `--output=json`. See the root [README](../README.md#interactive-and-batch-usage) for examples and the supported schema subset.
 ## Summary
 | Feature | Isolated per Session? |
 | :--- | :--- |

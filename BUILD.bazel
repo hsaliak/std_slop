@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
 load("//:linters.bzl", "clang_tidy_test")
 
-exports_files([".clang-tidy", "system_prompt.md"])
+exports_files([".clang-tidy", "README.md", "system_prompt.md"])
 
 alias(
     name = "std_slop",

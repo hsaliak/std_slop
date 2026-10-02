@@ -1,4 +1,6 @@
-# std::slop Database Schema
+# Agent runtime database schema
+
+This schema belongs to the shared coding-agent runtime used by `std_slop` and `sl`. It does not describe the standalone Markdown or reusable MCP libraries.
 
 `core/database.cpp` is the canonical schema definition. The database persists conversation state, tool and skill definitions, usage, scratchpads, project context, and mail-workflow metadata.
 

@@ -42,23 +42,25 @@ PAGES = (
         "README.md",
         "std::slop",
         (SourceSpec("README.md", (
-            "Key Features",
-            "🚀 Quick Start",
-            "Authentication Quick Notes",
-            "⚙️ Configuration",
-            "💻 Code",
-            "📚 Documentation",
-            "🏗️ Architecture & Codebase Layout",
+            "Components",
+            "Library quick starts",
+            "Component boundaries",
+            "Agent entry points",
+            "Build and test",
+            "Code conventions",
+            "Documentation",
+            "Repository layout",
         ), True),),
         False,
     ),
     PageSpec(
         "agent.html",
         "README.md + docs/",
-        "Agent runtime",
+        "Coding-agent interfaces",
         (
-            SourceSpec("README.md", ("Key Features", "🚀 Quick Start", "Authentication Quick Notes", "⚙️ Configuration")),
+            SourceSpec("README.md", ("Agent features", "Agent quick start")),
             SourceSpec("docs/WALKTHROUGH.md"),
+            SourceSpec("docs/sl.md"),
             SourceSpec("docs/SESSIONS.md"),
             SourceSpec("docs/CONTEXT_MANAGEMENT.md"),
             SourceSpec("docs/mail_mode.md"),
@@ -66,9 +68,13 @@ PAGES = (
     ),
     PageSpec(
         "mcp.html",
-        "docs/mcp-api.md + docs/mcp-slop-userguide.md",
-        "MCP library and runtime",
-        (SourceSpec("docs/mcp-api.md"), SourceSpec("docs/mcp-slop-userguide.md")),
+        "docs/mcp-api.md + docs/mcp-server.md + docs/mcp-slop-userguide.md",
+        "MCP client and server",
+        (
+            SourceSpec("docs/mcp-api.md"),
+            SourceSpec("docs/mcp-server.md"),
+            SourceSpec("docs/mcp-slop-userguide.md"),
+        ),
     ),
     PageSpec(
         "markdown.html",
@@ -85,9 +91,9 @@ PAGES = (
 )
 
 NAVIGATION = (
-    ("Agent", "agent.html"),
-    ("MCP", "mcp.html"),
     ("Markdown", "markdown.html"),
+    ("MCP", "mcp.html"),
+    ("Coding agents", "agent.html"),
     ("Docs", "docs.html"),
     ("GitHub", f"{REPOSITORY_URL}"),
 )
@@ -367,7 +373,7 @@ def page_document(spec: PageSpec, content: str) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Technical documentation for std::slop: a C++ coding agent and integrated MCP and Markdown libraries.">
+  <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
   <title>{html.escape(spec.title)} — std::slop</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -379,7 +385,7 @@ def page_document(spec: PageSpec, content: str) -> str:
     <div class="shell {layout_class}">{toc}<article class="markdown-content">{structure_content(content)}<p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
     </div>
   </main>
-  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ coding agent · MCP and Markdown libraries</span><a href="{REPOSITORY_URL}">Source on GitHub</a></div></footer>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="{REPOSITORY_URL}">Source on GitHub</a></div></footer>
 </body>
 </html>
 '''

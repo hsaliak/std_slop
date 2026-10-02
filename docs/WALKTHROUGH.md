@@ -1,4 +1,6 @@
-# Walkthrough
+# Coding-agent walkthrough
+
+This guide covers the `std_slop` terminal UI and the shared agent setup used by `sl`. For Markdown and MCP library entry points, use the [documentation index](README.md). For scripted prompts and state commands, see the [sl CLI guide](sl.md).
 
 ## Build
 
@@ -7,7 +9,8 @@ git clone https://github.com/hsaliak/std_slop.git
 cd std_slop
 bazel test //...
 bazel build //...
-cp bazel-bin/app/std_slop "$HOME/bin/std_slop"
+mkdir -p "$HOME/bin"
+cp bazel-bin/app/std_slop bazel-bin/app/sl "$HOME/bin/"
 ```
 
 Prebuilt macOS and Linux x86-64 binaries are available from the [releases page](https://github.com/hsaliak/std_slop/releases).
@@ -37,6 +40,12 @@ Run one prompt:
 std_slop --prompt "Summarize the repository structure"
 ```
 
+For a scripted run with a persistent database:
+
+```bash
+sl --prompt "Summarize the repository structure"
+```
+
 Or launch the interactive UI:
 
 ```bash
@@ -57,7 +66,8 @@ INI sections named `[llm_tool_<name>]` register specialized `llm_query` tools. S
 
 ## Next Steps
 
-- [README.md](../README.md): command overview and batch mode.
+- [README.md](../README.md): monorepo components and agent batch mode.
+- [sl.md](sl.md): scripted prompts, JSON output, and state commands.
 - [OAUTH.md](OAUTH.md): OAuth details.
 - [mail_mode.md](mail_mode.md): patch-based workflow.
 - [README.md](README.md): documentation index.
