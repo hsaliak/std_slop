@@ -5,7 +5,6 @@
 #include <pthread.h>
 #include <signal.h>
 #include <spawn.h>
-#include <time.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -83,13 +82,11 @@ absl::Status WaitForWritable(int fd, int64_t timeout_ms, std::chrono::steady_clo
 }
 
 void ConsumeGeneratedSigpipe(const sigset_t& sigpipe_set) {
-  const timespec no_wait{0, 0};
-  while (true) {
-    const int result = sigtimedwait(&sigpipe_set, nullptr, &no_wait);
-    if (result == SIGPIPE || (result == -1 && errno == EAGAIN)) return;
-    if (result == -1 && errno == EINTR) continue;
-    return;
-  }
+  int received_signal = 0;
+  int wait_status;
+  do {
+    wait_status = sigwait(&sigpipe_set, &received_signal);
+  } while (wait_status == EINTR);
 }
 
 int64_t DurationToTimeoutMs(absl::Duration timeout) {

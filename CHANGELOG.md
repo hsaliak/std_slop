@@ -1,3 +1,6 @@
+## v0.27.2 - 2026-10-04
+- **Portable MCP stdio signal handling**: Use `sigwait` to consume write-generated `SIGPIPE` on platforms without `sigtimedwait`, including macOS. This restores the macOS build and keeps the stdio transport's broken-pipe behavior consistent.
+
 ## v0.27.1 - 2026-10-04
 - **Local stdio MCP client mode**: Added process-backed MCP client support to `std_slop` and `sl`. Enabled local servers are launched as child processes with literal argv (no shell), bounded newline-delimited JSON-RPC, timeout handling, and child cleanup. Stdio uses modern MCP `2026-07-28` only; HTTP behavior is unchanged.
 - **Stdio registry and CLI**: Added `mcp add --transport stdio` and persisted command/argv configuration. `--args-json` is optional and defaults to `[]`; list output omits argv.
