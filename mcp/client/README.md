@@ -1,6 +1,6 @@
 # MCP client
 
-This package provides a bounded Model Context Protocol (MCP) client for Streamable HTTP servers. It supports the classic `2025-11-25` revision and the modern `2026-07-28` revision.
+This package provides a bounded Model Context Protocol (MCP) client for Streamable HTTP servers and local stdio subprocesses. HTTP supports classic `2025-11-25` and modern `2026-07-28`; stdio supports modern `2026-07-28` only.
 
 ## Connect and select a revision
 
@@ -19,7 +19,23 @@ slop::HttpClient http_client;
 auto client = slop::mcp::ConnectMcp(config, options, &http_client);
 ```
 
-For direct classic use, call `ConnectClassicStreamableHttp` with `v2025_11_25::InitializeOptions`.
+For direct classic use, call `ConnectClassicStreamableHttp` with `v2025_11_25::InitializeOptions`.For direct classic use, call `ConnectClassicStreamableHttp` with `v2025_11_25::InitializeOptions`.
+
+### Local stdio
+
+Use `ConnectStdioMcp` for an explicitly configured local executable. It does not need an `HttpClient`, never invokes a shell, and never falls back to classic MCP:
+
+```c++
+slop::mcp::StdioTransportOptions process;
+process.command = "/absolute/path/to/mcp-server";
+process.args = {"--root", "/work/project"};
+slop::mcp::ClientOptions options;
+options.client_info.name = "my-client";
+options.client_info.version = "1.0";
+auto client = slop::mcp::ConnectStdioMcp(std::move(process), options);
+```
+
+The command and argv strings are literal. The child inherits the host's working directory, environment, permissions, and local file access. Use only trusted programs. For `std_slop` and `sl` registrations, see the [runtime guide](../../docs/mcp-slop-userguide.md).
 
 ## Supported operations
 
@@ -136,7 +152,8 @@ The token file uses the shared token-store JSON shape. Bearer-only entries leave
 
 | Area | Behavior |
 | --- | --- |
-| HTTP | HTTPS is required for OAuth metadata and token endpoints. HTTP responses and bodies are bounded. |
+| HTTP | HTTP responses and bodies are bounded. OAuth metadata and token endpoints require HTTPS. |
+| Stdio | Modern `2026-07-28` only; argv is passed directly without a shell. Frames and messages are bounded, and timed-out children are closed and reaped. |
 | Revision selection | Modern discovery is attempted first; under `kPreferLatest`, fallback occurs only for an HTTP 400 with no JSON-RPC error or an HTTP 200 JSON-RPC `-32601` method-not-found response. |
 | Tool catalogs | Pagination is bounded, cursors must not cycle, and duplicate runtime names are rejected. |
 | Tool calls | Input arguments and structured output are schema-validated. Modern `input_required` results can be resumed with `ContinueToolCall`. |
@@ -164,4 +181,4 @@ Call a tool with JSON object arguments:
 bazel run //mcp/client:call_tool_example -- https://example.com/mcp search '{"query":"mcp"}'
 ```
 
-The examples create a real `HttpClient`, connect, initialize a session, and then run the requested MCP method. They require a live MCP Streamable HTTP endpoint at runtime.
+The examples create a real `HttpClient`, connect, initialize a session, and then run the requested MCP method. They require a live MCP Streamable HTTP endpoint at runtime. The stdio client is available through `ConnectStdioMcp`.

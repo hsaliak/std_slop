@@ -4,25 +4,21 @@ This guide explains how the shared agent runtime uses Model Context Protocol (MC
 
 For the reusable C++ MCP library API, see [mcp-api.md](mcp-api.md).
 
-This guide covers the outbound HTTP client. The repository also has a separate inbound stdio server and echo example; see [mcp-server.md](mcp-server.md). `std_slop mcp add` cannot launch stdio server commands.
+This guide covers outbound HTTP MCP servers and local stdio MCP subprocesses. The repository also has a separate inbound stdio server API and echo example; see [mcp-server.md](mcp-server.md).
 
 ## What MCP adds to std_slop
 
-`std_slop` connects to configured Streamable HTTP MCP servers at application startup, discovers their tools, and projects those tools into the normal tool catalog. It supports the classic MCP revision `2025-11-25` and modern revision `2026-07-28`.
+`std_slop` reads the shared registry at application startup, connects to configured HTTP servers, starts enabled stdio subprocesses, discovers their tools, and projects those tools into the normal tool catalog. HTTP supports classic MCP `2025-11-25` and modern MCP `2026-07-28`; stdio supports modern `2026-07-28` only.
 
 Runtime behavior:
 
 1. `std_slop` reads the MCP registry from `~/.config/slop/mcp.ini`.
-2. For each enabled server, it prefers modern MCP: it sends `server/discover` and uses the modern revision if the server advertises support. If modern discovery indicates that the server does not support that revision, `std_slop` falls back to classic MCP.
-3. Tools are discovered with `tools/list` using the selected revision.
-4. Discovered tools are registered as top-level tools named:
-
-   ```text
-   mcp_<server>_<tool>
-   ```
-
-5. Calls to those tools route back to the matching MCP server using the selected revision.
+2. For each enabled HTTP server, it prefers modern MCP and falls back to classic only when modern discovery shows it is unsupported. For each enabled stdio server, it starts the configured executable directly and requires modern MCP; it never falls back to classic.
+3. Tools are discovered with `tools/list`.
+4. Discovered tools are registered as top-level tools named `mcp_<server>_<tool>`.
+5. Calls route back to the matching HTTP server or live stdio process.
 6. Stale `mcp_` tool rows are removed at startup before discovery.
+7. Stdio children stay alive for the agent runtime and are stopped when it ends. `sl` starts them for each prompt invocation; `std_slop` keeps them for its session.
 
 If a server cannot be started or authenticated, its tools are not exposed to the model.
 
@@ -36,6 +32,7 @@ Commands:
 
 ```text
 add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--token-path <path>] [--client-id <id>] [--scope <scope>...]
+add <name> --transport stdio --command <executable> [--args-json '<string-array>']
 list
 oauth-login <name> [--client-secret <secret>]
 oauth-refresh <name> [--client-secret <secret>]
@@ -64,6 +61,7 @@ A registry entry looks like:
 
 ```ini
 [server.github]
+transport = http
 url = https://api.githubcopilot.com/mcp
 auth = bearer
 enabled = true
@@ -99,8 +97,38 @@ std_slop mcp list
 Example output:
 
 ```text
-local   none    enabled https://example.com/mcp
+local       http    none    enabled https://example.com/mcp
+local-files stdio   none    enabled /absolute/path/to/mcp-server
 ```
+
+## Local stdio servers
+
+Register a trusted local executable with a JSON array of arguments:
+
+```sh
+std_slop mcp add local-files \
+  --transport stdio \
+  --command /absolute/path/to/mcp-server \
+  --args-json '["--root", "/work/project"]'
+```
+
+`--args-json` is optional; if omitted, the server receives no extra arguments. If provided, it must be a JSON array of strings. The host passes `command` and each array item as literal argv values; it does not invoke a shell or expand `$VAR`/`~`. The executable may be an absolute path or a program found on `PATH`.
+
+The registry form stores the argument array in `args_json`; if the field is omitted, it defaults to `[]`.
+
+The registry form is:
+
+```ini
+[server.local-files]
+transport = stdio
+command = /absolute/path/to/mcp-server
+args_json = ["--root", "/work/project"]
+enabled = true
+```
+
+`mcp add` and `mcp list` do not start the process. The runtime starts each enabled entry at startup and keeps it for that runtime's lifetime. Stdio servers must support modern MCP `2026-07-28`; classic stdio, OAuth, and bearer authentication are not supported. Child stderr goes to the agent's stderr, while stdout is reserved for MCP messages.
+
+A stdio child runs as the same user as the agent and inherits its environment and working directory. It can access the same local files and environment variables. Register only programs you trust. `mcp list` displays the transport and command, but does not display argv values.
 
 ## Bearer-token servers
 

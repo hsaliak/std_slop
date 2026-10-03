@@ -79,16 +79,17 @@ sl tool list
 sl mcp list
 ```
 
-These examples cover context, sessions, messages, scratchpad state, skills, statistics, tools, and registered MCP endpoints. The outbound MCP client supports HTTP endpoints; `sl mcp` does not launch the repository's stdio echo server.
+These examples cover context, sessions, messages, scratchpad state, skills, statistics, tools, and registered MCP endpoints. The outbound client supports HTTP servers and modern-only stdio subprocesses.
 
 ## MCP commands and configuration
 
-`sl mcp` uses the same HTTP server registry and command handler as `std_slop mcp`. These commands manage registrations and token files, not the agent session database.
+`sl mcp` uses the same HTTP/stdio registry and command handler as `std_slop mcp`. These commands manage registrations and token files, not the agent session database. Registration does not start a configured process.
 
 | Command | Purpose |
 | --- | --- |
-| `sl mcp add NAME --url URL [options]` | Add a server, or replace the entry with the same name. |
-| `sl mcp list` | List saved servers, auth modes, enabled state, and URLs. |
+| `sl mcp add NAME --url URL [options]` | Add or replace an HTTP server. |
+| `sl mcp add NAME --transport stdio --command EXE [--args-json JSON]` | Add or replace a modern stdio server. Arguments are a JSON string array. |
+| `sl mcp list` | List saved server transport, auth mode, enabled state, and URL or command. It does not show argv. |
 | `sl mcp oauth-login NAME [--client-secret SECRET]` | Run browser-paste OAuth login; see the prompt limitation below. |
 | `sl mcp oauth-refresh NAME [--client-secret SECRET]` | Refresh a saved OAuth token. |
 | `sl mcp logout NAME` | Delete the token but keep the registration. |
@@ -110,9 +111,16 @@ sl mcp add private --url https://example.com/mcp \
 # OAuth endpoint discovery; the provider must supply a registered client ID.
 sl mcp add work --url https://example.com/mcp \
   --auth oauth --client-id "$CLIENT_ID" --scope read --scope write
+
+# Local stdio server; command and argv are passed without a shell.
+sl mcp add local-files --transport stdio \
+  --command /absolute/path/to/mcp-server \
+  --args-json '["--root", "/work/project"]'
 ```
 
-`--auth` accepts `none`, `bearer`, or `oauth`. Bearer mode requires `--token`; OAuth mode requires `--client-id`. `--scope` may be repeated. `--token-path PATH` overrides the default token location. Server names use letters, digits, hyphens, or underscores.
+For HTTP servers, `--auth` accepts `none`, `bearer`, or `oauth`. Bearer mode requires `--token`; OAuth mode requires `--client-id`. `--scope` may be repeated. `--token-path PATH` overrides the default token location. Server names use letters, digits, hyphens, or underscores.
+
+For stdio servers, `--args-json` is optional and defaults to an empty array; when supplied, it must be a JSON array of strings. Arguments are literal argv values; no shell is started and `$VAR` or `~` is not expanded. The executable inherits the agent's environment, working directory, user permissions, and local file access. Configure only trusted executables. Stdio supports modern MCP `2026-07-28` only and has no HTTP/OAuth authentication.
 
 If OAuth discovery is unavailable, supply both HTTPS endpoints and the issuer:
 
@@ -143,7 +151,7 @@ sl mcp remove work
 
 OAuth login needs interactive input. `sl` currently buffers the shared handler's output, so its URL and prompt are not displayed before the callback read. Use `std_slop mcp oauth-login work` for browser-paste login. Refresh can use `sl`; pass `--client-secret` if the provider requires it.
 
-For registry examples, discovery requirements, and the full login flow, see the [MCP integration guide](mcp-slop-userguide.md). These commands cannot register or launch a stdio server.
+For registry examples, process lifetime, discovery requirements, and the full login flow, see the [MCP integration guide](mcp-slop-userguide.md). The runtime starts enabled stdio children at startup; each `sl` prompt invocation has its own processes.
 
 ## Related guides
 

@@ -137,9 +137,9 @@ The server API should be transport-independent at the dispatch boundary. The std
 
 - Build the example target with Bazel.
 - Add a process-level test or scripted smoke test that starts the binary, writes `server/discover`, `tools/list`, and `tools/call` requests to stdin, and parses the corresponding stdout responses.
-- Verify stderr output does not contaminate the protocol stream. Use raw subprocess pipes: the current outbound MCP client is HTTP-only.
+- Verify stderr output does not contaminate the protocol stream. This server black-box test uses raw subprocess pipes and an independent Python client.
 - The black-box test covers live discovery/list/call, escaped text, silent notifications, protocol errors and recovery, quiet EOF, usage, truncated/oversized input, and closed stdout. Reply reads have deadlines and size bounds; child processes are killed/reaped on test failure. Requires Python 3 and standard library only.
-- This is end-to-end coverage of the server executable, not `std_slop` runtime connectivity: the existing client and registry support HTTP endpoints only. Launching this fixture through `std_slop` needs a separate outbound stdio-client feature.
+- The server test validates the executable independently. `//mcp/client:runtime_test` also exercises the echo server through the modern stdio client and agent runtime.
 
 **Build and run**
 

@@ -12,10 +12,10 @@
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="agent-menu"><summary>Coding Agents</summary><div class="agent-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a class="active" aria-current="page" href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server</a><a href="markdown.html">Markdown</a></nav></div></header>
   <main id="main-content">
 <section class="page-hero shell"><p class="eyebrow">Source: docs/mcp-api.md</p><h1>MCP client API</h1></section>
-    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#scope">Scope</a></li><li class="toc-level-2"><a href="#connect-with-automatic-protocol-selection">Connect with automatic protocol selection</a></li><li class="toc-level-2"><a href="#bearer-token-clients">Bearer token clients</a></li><li class="toc-level-2"><a href="#error-model">Error model</a></li><li class="toc-level-2"><a href="#security-notes">Security notes</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><p>This document describes the reusable C++ Model Context Protocol (MCP) client library in this repository. It is for C++ callers that want to connect to Streamable HTTP MCP servers directly.</p>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#scope">Scope</a></li><li class="toc-level-3"><a href="#local-stdio-client">Local stdio client</a></li><li class="toc-level-2"><a href="#connect-with-automatic-protocol-selection">Connect with automatic protocol selection</a></li><li class="toc-level-2"><a href="#bearer-token-clients">Bearer token clients</a></li><li class="toc-level-2"><a href="#error-model">Error model</a></li><li class="toc-level-2"><a href="#security-notes">Security notes</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><p>This document describes the reusable C++ Model Context Protocol (MCP) client library in this repository. It covers Streamable HTTP clients and the modern-only local stdio client.</p>
 <p>For the <code>std_slop mcp ...</code> command-line workflow, see <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">mcp-slop-userguide.md</a>.</p></div>
 <section class="doc-section"><h2 id="scope">Scope</h2>
-<p>The outbound client library supports MCP Streamable HTTP servers. The client does not implement stdio transport or the deprecated HTTP+SSE transport; inbound stdio server support is a separate package.</p>
+<p>The outbound client supports Streamable HTTP servers and local stdio subprocesses. Stdio supports modern MCP <code>2026-07-28</code> only; classic revision selection remains available over HTTP. The deprecated HTTP+SSE transport is not supported. Inbound stdio server support is a separate package.</p>
 <p>Core package:</p>
 <pre><code class="language-text">mcp/
   protocol.h, types.h          shared protocol definitions and public data types
@@ -25,9 +25,29 @@
     client.h                   high-level client connection helper
     session.h                  typed MCP client session API
     streamable_http_transport.h
+    stdio_transport.h, modern_stdio.h
     oauth_discovery.h, authorization.h, oauth_client.h
     token_store.h, registry.h, runtime.h</code></pre>
-<p>The public API uses <code>absl::Status</code> and <code>absl::StatusOr&lt;T&gt;</code> for fallible operations.</p></section>
+<p>The public API uses <code>absl::Status</code> and <code>absl::StatusOr&lt;T&gt;</code> for fallible operations.</p>
+<h3 id="local-stdio-client">Local stdio client</h3>
+<p><code>ConnectStdioMcp(StdioTransportOptions, ClientOptions)</code> starts the configured executable with a direct argument vector, then uses modern discovery and the modern client. It does not start a shell, expand command or argument strings, use HTTP authentication, or fall back to the classic revision. The child inherits the agent's current directory, environment, and operating-system permissions. Use only trusted executables. No <code>HttpClient</code> is required.</p>
+<pre><code class="language-c++">#include &lt;utility&gt;
+
+slop::mcp::StdioTransportOptions process;
+process.command = &quot;/absolute/path/to/mcp-server&quot;;
+process.args = {&quot;--root&quot;, &quot;/work/project&quot;};
+
+slop::mcp::ClientOptions options;
+options.client_info.name = &quot;my-client&quot;;
+options.client_info.version = &quot;1.0&quot;;
+auto client = slop::mcp::ConnectStdioMcp(std::move(process), options);</code></pre>
+<p><code>ConnectStdioMcp</code> rejects <code>SelectionPolicy::kClassicOnly</code>. The stdio exchange validates response IDs, bounds messages, serializes one outstanding request per server, and closes the child on timeout or protocol failure.</p>
+<p>Classic methods:</p>
+<ul><li><code>ping</code></li><li><code>tools/list</code></li><li><code>tools/call</code></li><li><code>resources/list</code></li><li><code>resources/read</code></li><li><code>prompts/list</code></li><li><code>prompts/get</code></li></ul>
+<p>Classic server notification parsing:</p>
+<ul><li>progress notifications</li><li>logging notifications</li><li>tools/resources/prompts list-change notifications</li></ul>
+<p>Unsupported or host-policy dependent features:</p>
+<ul><li>classic stdio transport</li><li>deprecated HTTP+SSE transport</li><li>automatic sampling approval</li><li>automatic roots approval</li><li>automatic elicitation approval</li><li>complete validation of every JSON Schema feature (the modern client validates its supported subset)</li></ul></section>
 <section class="doc-section"><h2 id="connect-with-automatic-protocol-selection">Connect with automatic protocol selection</h2>
 <p>Use <code>ConnectMcp()</code> for normal operation. It returns a common <code>Client</code> interface and applies the selection policy described above.</p>
 <pre><code class="language-c++">#include &quot;core/http_client.h&quot;

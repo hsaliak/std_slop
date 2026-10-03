@@ -16,16 +16,16 @@
 - [WALKTHROUGH.md](WALKTHROUGH.md) — installation, model authentication, configuration, first sessions, and subquery setup for the agent interfaces.
 - [sl.md](sl.md) — scripted prompts, database selection, JSON output, and state subcommands.
 - [mail_mode.md](mail_mode.md) — review-first work with small staging patches, verification, rerolls, and approved finalization.
-- [mcp-slop-userguide.md](mcp-slop-userguide.md) — register and use external HTTP MCP tools in the agent runtime.
+- [mcp-slop-userguide.md](mcp-slop-userguide.md) — register and use external HTTP and modern stdio MCP tools in the agent runtime.
 
 ## Build with the C++ libraries
 
 - [Markdown parser and renderer](../markdown/README.md) — Tree-sitter parsing, ANSI terminal rendering, highlighting, and API examples.
-- [mcp-api.md](mcp-api.md) — outbound C++ MCP client API, Streamable HTTP, bearer tokens, and OAuth helpers.
+- [mcp-api.md](mcp-api.md) — outbound C++ MCP clients, Streamable HTTP, local stdio, bearer tokens, and OAuth helpers.
 - [MCP client package](../mcp/client/README.md) — revision selection and runnable client examples.
 - [mcp-server.md](mcp-server.md) — inbound C++ stdio server API, echo example, framing limits, tests, and security scope.
 
-The reusable server supports stdio only; the outbound client supports HTTP only. The server does not automatically export agent tools. The Markdown library and echo server do not need agent model credentials or a session database.
+The inbound server supports stdio only. The outbound client supports Streamable HTTP and modern MCP `2026-07-28` over local stdio. Configured stdio programs run with the agent user's permissions and environment. The server does not automatically export agent tools. The Markdown library and echo server do not need agent model credentials or a session database.
 
 ## Agent runtime reference
 

@@ -71,6 +71,7 @@ PAGES = (
         "MCP client API",
         (SourceSpec("docs/mcp-api.md", (
             "Scope",
+            "Local stdio client",
             "Connect with automatic protocol selection",
             "Bearer token clients",
             "Error model",

@@ -52,10 +52,10 @@ sl skill list
 sl stats
 sl tool list
 sl mcp list</code></pre>
-<p>These examples cover context, sessions, messages, scratchpad state, skills, statistics, tools, and registered MCP endpoints. The outbound MCP client supports HTTP endpoints; <code>sl mcp</code> does not launch the repository's stdio echo server.</p></section>
+<p>These examples cover context, sessions, messages, scratchpad state, skills, statistics, tools, and registered MCP endpoints. The outbound client supports HTTP servers and modern-only stdio subprocesses.</p></section>
 <section class="doc-section"><h2 id="mcp-commands-and-configuration">MCP commands and configuration</h2>
-<p><code>sl mcp</code> uses the same HTTP server registry and command handler as <code>std_slop mcp</code>. These commands manage registrations and token files, not the agent session database.</p>
-<div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody><tr><td><code>sl mcp add NAME --url URL [options]</code></td><td>Add a server, or replace the entry with the same name.</td></tr><tr><td><code>sl mcp list</code></td><td>List saved servers, auth modes, enabled state, and URLs.</td></tr><tr><td><code>sl mcp oauth-login NAME [--client-secret SECRET]</code></td><td>Run browser-paste OAuth login; see the prompt limitation below.</td></tr><tr><td><code>sl mcp oauth-refresh NAME [--client-secret SECRET]</code></td><td>Refresh a saved OAuth token.</td></tr><tr><td><code>sl mcp logout NAME</code></td><td>Delete the token but keep the registration.</td></tr><tr><td><code>sl mcp remove NAME</code></td><td>Remove the registration and attempt to delete its token.</td></tr><tr><td><code>sl mcp help</code></td><td>Show the shared MCP command help.</td></tr></tbody></table></div>
+<p><code>sl mcp</code> uses the same HTTP/stdio registry and command handler as <code>std_slop mcp</code>. These commands manage registrations and token files, not the agent session database. Registration does not start a configured process.</p>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody><tr><td><code>sl mcp add NAME --url URL [options]</code></td><td>Add or replace an HTTP server.</td></tr><tr><td><code>sl mcp add NAME --transport stdio --command EXE [--args-json JSON]</code></td><td>Add or replace a modern stdio server. Arguments are a JSON string array.</td></tr><tr><td><code>sl mcp list</code></td><td>List saved server transport, auth mode, enabled state, and URL or command. It does not show argv.</td></tr><tr><td><code>sl mcp oauth-login NAME [--client-secret SECRET]</code></td><td>Run browser-paste OAuth login; see the prompt limitation below.</td></tr><tr><td><code>sl mcp oauth-refresh NAME [--client-secret SECRET]</code></td><td>Refresh a saved OAuth token.</td></tr><tr><td><code>sl mcp logout NAME</code></td><td>Delete the token but keep the registration.</td></tr><tr><td><code>sl mcp remove NAME</code></td><td>Remove the registration and attempt to delete its token.</td></tr><tr><td><code>sl mcp help</code></td><td>Show the shared MCP command help.</td></tr></tbody></table></div>
 <p>The command names are <code>oauth-login</code> and <code>oauth-refresh</code>, not <code>login</code> and <code>refresh</code>. Options use separate arguments, such as <code>--auth bearer</code>, not <code>--auth=bearer</code>.</p>
 <h3 id="register-a-server">Register a server</h3>
 <pre><code class="language-sh"># No authentication (--auth none is the default).
@@ -67,8 +67,14 @@ sl mcp add private --url https://example.com/mcp \
 
 # OAuth endpoint discovery; the provider must supply a registered client ID.
 sl mcp add work --url https://example.com/mcp \
-  --auth oauth --client-id &quot;$CLIENT_ID&quot; --scope read --scope write</code></pre>
-<p><code>--auth</code> accepts <code>none</code>, <code>bearer</code>, or <code>oauth</code>. Bearer mode requires <code>--token</code>; OAuth mode requires <code>--client-id</code>. <code>--scope</code> may be repeated. <code>--token-path PATH</code> overrides the default token location. Server names use letters, digits, hyphens, or underscores.</p>
+  --auth oauth --client-id &quot;$CLIENT_ID&quot; --scope read --scope write
+
+# Local stdio server; command and argv are passed without a shell.
+sl mcp add local-files --transport stdio \
+  --command /absolute/path/to/mcp-server \
+  --args-json &#x27;[&quot;--root&quot;, &quot;/work/project&quot;]&#x27;</code></pre>
+<p>For HTTP servers, <code>--auth</code> accepts <code>none</code>, <code>bearer</code>, or <code>oauth</code>. Bearer mode requires <code>--token</code>; OAuth mode requires <code>--client-id</code>. <code>--scope</code> may be repeated. <code>--token-path PATH</code> overrides the default token location. Server names use letters, digits, hyphens, or underscores.</p>
+<p>For stdio servers, <code>--args-json</code> is optional and defaults to an empty array; when supplied, it must be a JSON array of strings. Arguments are literal argv values; no shell is started and <code>$VAR</code> or <code>~</code> is not expanded. The executable inherits the agent's environment, working directory, user permissions, and local file access. Configure only trusted executables. Stdio supports modern MCP <code>2026-07-28</code> only and has no HTTP/OAuth authentication.</p>
 <p>If OAuth discovery is unavailable, supply both HTTPS endpoints and the issuer:</p>
 <pre><code class="language-sh">sl mcp add work --url https://example.com/mcp \
   --auth oauth --client-id &quot;$CLIENT_ID&quot; \
@@ -83,7 +89,7 @@ sl mcp oauth-refresh work
 sl mcp logout work
 sl mcp remove work</code></pre>
 <p>OAuth login needs interactive input. <code>sl</code> currently buffers the shared handler's output, so its URL and prompt are not displayed before the callback read. Use <code>std_slop mcp oauth-login work</code> for browser-paste login. Refresh can use <code>sl</code>; pass <code>--client-secret</code> if the provider requires it.</p>
-<p>For registry examples, discovery requirements, and the full login flow, see the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">MCP integration guide</a>. These commands cannot register or launch a stdio server.</p></section>
+<p>For registry examples, process lifetime, discovery requirements, and the full login flow, see the <a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">MCP integration guide</a>. The runtime starts enabled stdio children at startup; each <code>sl</code> prompt invocation has its own processes.</p></section>
 <section class="doc-section"><h2 id="related-guides">Related guides</h2>
 <ul><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/SESSIONS.md">Sessions</a>: session state and ownership.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/CONTEXT_MANAGEMENT.md">Context management</a>: retained history and token watermarks.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/CONTEXT.md">Personas and skills</a>: shared instructions and modular skills.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mail_mode.md">Mail workflows</a>: staging, review, approval, and finalization protections.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md">MCP agent integration</a>: external HTTP tools and authorization.</li><li><a href="https://github.com/hsaliak/std_slop/blob/main/docs/SCHEMA.md">Agent database and schema</a>: the runtime data model.</li></ul></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
     </div>

@@ -1,12 +1,12 @@
 # MCP API and C++ client library
 
-This document describes the reusable C++ Model Context Protocol (MCP) client library in this repository. It is for C++ callers that want to connect to Streamable HTTP MCP servers directly.
+This document describes the reusable C++ Model Context Protocol (MCP) client library in this repository. It covers Streamable HTTP clients and the modern-only local stdio client.
 
 For the `std_slop mcp ...` command-line workflow, see [mcp-slop-userguide.md](mcp-slop-userguide.md).
 
 ## Scope
 
-The outbound client library supports MCP Streamable HTTP servers. The client does not implement stdio transport or the deprecated HTTP+SSE transport; inbound stdio server support is a separate package.
+The outbound client supports Streamable HTTP servers and local stdio subprocesses. Stdio supports modern MCP `2026-07-28` only; classic revision selection remains available over HTTP. The deprecated HTTP+SSE transport is not supported. Inbound stdio server support is a separate package.
 
 Core package:
 
@@ -19,6 +19,7 @@ mcp/
     client.h                   high-level client connection helper
     session.h                  typed MCP client session API
     streamable_http_transport.h
+    stdio_transport.h, modern_stdio.h
     oauth_discovery.h, authorization.h, oauth_client.h
     token_store.h, registry.h, runtime.h
 ```
@@ -31,11 +32,11 @@ The separate `mcp/server/` library supports MCP `2026-07-28` only over stdin/std
 
 For server registration, framing limits, error policies, build/run commands and security scope, see [mcp-server.md](mcp-server.md). A runnable echo server and real subprocess integration test are available as `//mcp/server:echo_server` and `//mcp/server:echo_server_test`.
 
-This does not add stdio connectivity to `std_slop`: its outbound client and remote-tool runtime still support HTTP endpoints only.
+The outbound client can also start a local stdio server. Register it through `std_slop mcp add` or `sl mcp add`; registration is activated when the agent runtime starts. The separate inbound server API remains independent.
 
 ## Client protocol surface
 
-The outbound client library speaks JSON-RPC 2.0 over Streamable HTTP and supports two MCP protocol revisions:
+The HTTP client speaks JSON-RPC 2.0 over Streamable HTTP and supports two MCP protocol revisions:
 
 - Classic: `2025-11-25`
 - Modern: `2026-07-28`
@@ -55,6 +56,25 @@ Classic lifecycle support:
 - negotiated protocol-version tracking
 - server capability parsing
 
+### Local stdio client
+
+`ConnectStdioMcp(StdioTransportOptions, ClientOptions)` starts the configured executable with a direct argument vector, then uses modern discovery and the modern client. It does not start a shell, expand command or argument strings, use HTTP authentication, or fall back to the classic revision. The child inherits the agent's current directory, environment, and operating-system permissions. Use only trusted executables. No `HttpClient` is required.
+
+```c++
+#include <utility>
+
+slop::mcp::StdioTransportOptions process;
+process.command = "/absolute/path/to/mcp-server";
+process.args = {"--root", "/work/project"};
+
+slop::mcp::ClientOptions options;
+options.client_info.name = "my-client";
+options.client_info.version = "1.0";
+auto client = slop::mcp::ConnectStdioMcp(std::move(process), options);
+```
+
+`ConnectStdioMcp` rejects `SelectionPolicy::kClassicOnly`. The stdio exchange validates response IDs, bounds messages, serializes one outstanding request per server, and closes the child on timeout or protocol failure.
+
 Classic methods:
 
 - `ping`
@@ -73,7 +93,7 @@ Classic server notification parsing:
 
 Unsupported or host-policy dependent features:
 
-- stdio transport
+- classic stdio transport
 - deprecated HTTP+SSE transport
 - automatic sampling approval
 - automatic roots approval

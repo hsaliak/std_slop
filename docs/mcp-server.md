@@ -29,7 +29,7 @@ The reply contains `resultType: "complete"`, text content, and `structuredConten
 | `1` | Startup or transport failure; diagnostics go to stderr. |
 | `2` | Invalid command-line arguments; usage goes to stderr. |
 
-Use the built binary as a host-launched subprocess. **Do not register it with `std_slop mcp add`: that client currently supports HTTP endpoints, not stdio commands.** The integration test uses an independent Python standard-library client and real pipes; it is not a `std_slop` runtime integration. Python 3 is needed for that test, not for the C++ server binary.
+Use the built binary as a host-launched subprocess. It can also be registered as a local stdio server with `std_slop mcp add` or `sl mcp add`; see the [MCP user guide](mcp-slop-userguide.md). The outbound stdio client supports modern MCP `2026-07-28` only and passes command arguments directly, without a shell. The server process runs with the agent user's permissions and inherited environment, so register only trusted programs. The integration test also uses an independent Python standard-library client and real pipes. Python 3 is needed for that test, not for the C++ server binary.
 
 ## Server package and API
 

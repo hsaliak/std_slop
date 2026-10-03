@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | std::slop coding agent (`std_slop`) | Run interactive terminal sessions or batch prompts. | [Agent walkthrough](docs/WALKTHROUGH.md) |
 | `sl` command-line tool | Run prompts and inspect agent state from scripts. | [CLI guide](docs/sl.md) |
-| MCP client library and examples | Connect C++ applications to Streamable HTTP MCP servers. | [Client API](docs/mcp-api.md) |
+| MCP client library and examples | Connect C++ applications to Streamable HTTP or modern local stdio MCP servers. | [Client API](docs/mcp-api.md) |
 | MCP server library and example | Expose explicitly registered tools over stdio. | [Server API](docs/mcp-server.md) |
 | Agent database and schema | Manage sessions, tools, model calls, and patch review state. | [Runtime data model](docs/SCHEMA.md) |
 | Markdown library | Parse Markdown and render styled terminal output using Tree-sitter. | [Parser and renderer](markdown/README.md) |
@@ -45,7 +45,7 @@ Build the MCP client examples:
 bazel build //mcp/client:list_tools_example //mcp/client:call_tool_example
 ```
 
-See the [client guide](mcp/client/README.md) for example arguments, HTTP endpoints, and authorization.
+See the [client guide](mcp/client/README.md) for HTTP authorization, modern stdio connections, and argv configuration.
 
 Build and test the stdio echo server:
 
@@ -67,7 +67,7 @@ See the [Markdown guide](markdown/README.md) for parser and terminal renderer AP
 ## Component boundaries
 
 - The Markdown library and echo server do not need a model, API key, or agent database. The echo integration test needs Python 3.
-- MCP clients connect to HTTP endpoints. The server package supports stdio only, with protocol version `2026-07-28`. The agent's outbound client cannot launch stdio servers.
+- MCP clients support Streamable HTTP and modern MCP `2026-07-28` over local stdio. The inbound server package supports stdio only. Agent runtimes start enabled stdio commands as child processes; they do not use an HTTP wrapper or background daemon.
 - The server does not automatically expose agent tools. Applications must register tools and enforce their own access policy.
 - SQLite sessions, model authentication, personas, and mail workflows belong to the coding-agent runtime. They are not requirements for every library.
 - The Markdown renderer produces terminal output with ANSI styling. It is not an HTML renderer.
