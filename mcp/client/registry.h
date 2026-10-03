@@ -36,7 +36,6 @@ struct ServerRegistryEntry {
 
 absl::StatusOr<std::vector<std::string>> ParseServerArgsJson(absl::string_view value);
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry);
-absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry);
 std::string DefaultRegistryPath();
 std::string DefaultTokenPath(const std::string& server_name);
 absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::string& path);

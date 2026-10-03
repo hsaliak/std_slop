@@ -124,6 +124,18 @@ class RealRuntimeSession : public RuntimeSession {
 absl::StatusOr<std::unique_ptr<RuntimeSession>> RealSessionFactory(const ServerRegistryEntry& entry,
                                                                    HttpClient* http_client,
                                                                    const RuntimeOptions& options) {
+  if (entry.transport == kTransportStdio) {
+    StdioTransportOptions transport_options;
+    transport_options.command = entry.command;
+    transport_options.args = entry.args;
+    auto client = ConnectStdioMcp(std::move(transport_options), ClientOptionsForRuntime(options));
+    if (!client.ok()) return client.status();
+    return std::make_unique<RealRuntimeSession>(std::move(*client));
+  }
+  if (entry.transport != kTransportHttp) {
+    return absl::InvalidArgumentError("MCP runtime received an unsupported server transport");
+  }
+  if (http_client == nullptr) return absl::InvalidArgumentError("HTTP MCP server requires an HTTP client");
   auto config = TransportConfigFromEntry(entry);
   if (!config.ok()) return config.status();
   auto client = ConnectMcp(*config, ClientOptionsForRuntime(options), http_client);
@@ -166,7 +178,6 @@ RuntimeManager::RuntimeManager(Database* db, ToolExecutor* tool_executor, HttpCl
 absl::Status RuntimeManager::Start() {
   if (db_ == nullptr) return absl::InvalidArgumentError("Database cannot be null");
   if (tool_executor_ == nullptr) return absl::InvalidArgumentError("ToolExecutor cannot be null");
-  if (http_client_ == nullptr) return absl::InvalidArgumentError("HttpClient cannot be null");
   if (!session_factory_) return absl::InvalidArgumentError("MCP session factory cannot be empty");
 
   RETURN_IF_ERROR(db_->Execute("DELETE FROM tools WHERE name LIKE 'mcp\\_%' ESCAPE '\\';"));

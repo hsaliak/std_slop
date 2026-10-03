@@ -1,6 +1,8 @@
 #include "mcp/client/runtime.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -14,9 +16,9 @@
 
 #include "core/http_client.h"
 #include "core/json_utils.h"
-#include "mcp/protocol.h"
 #include "mcp/client/registry.h"
 #include "mcp/client/token_store.h"
+#include "mcp/protocol.h"
 #include "tools/tool_executor.h"
 
 #include <gtest/gtest.h>
@@ -120,6 +122,24 @@ ServerRegistryEntry MakeEntry(const std::string& name) {
   return entry;
 }
 
+ServerRegistryEntry MakeStdioEntry(const std::string& name, const std::string& command,
+                                   std::vector<std::string> args = {}, bool enabled = true) {
+  ServerRegistryEntry entry;
+  entry.name = name;
+  entry.transport = kTransportStdio;
+  entry.command = command;
+  entry.args = std::move(args);
+  entry.enabled = enabled;
+  return entry;
+}
+
+std::string EchoServerPath() {
+  const char* test_srcdir = std::getenv("TEST_SRCDIR");
+  const char* test_workspace = std::getenv("TEST_WORKSPACE");
+  if (test_srcdir == nullptr || test_workspace == nullptr) return "";
+  return absl::StrCat(test_srcdir, "/", test_workspace, "/mcp/server/echo_server");
+}
+
 std::string TempRegistryPath() {
   return absl::StrCat(::testing::TempDir(), "/std_slop_mcp_runtime_", absl::ToUnixNanos(absl::Now()), ".ini");
 }
@@ -164,6 +184,80 @@ TEST(McpRuntimeTest, DuplicateServerToolNamesDoNotCollide) {
   ASSERT_TRUE(output.ok()) << output.status();
   EXPECT_EQ(sessions[0]->called_tool_name, "search");
   EXPECT_EQ(sessions[0]->called_arguments["query"], "repo");
+}
+
+TEST(McpRuntimeTest, StartsStdioServerWithoutHttpClientAndRoutesCalls) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  const std::string registry_path = TempRegistryPath();
+  const std::string echo_server = EchoServerPath();
+  ASSERT_FALSE(echo_server.empty());
+  ASSERT_TRUE(SaveServerRegistry(registry_path, {MakeStdioEntry("local", echo_server)}).ok());
+
+  RuntimeOptions options;
+  options.registry_path = registry_path;
+  auto manager = StartMcpRuntime(&db, executor->get(), nullptr, options);
+
+  ASSERT_TRUE(manager.ok()) << manager.status();
+  EXPECT_EQ((*manager)->active_server_count(), 1);
+  auto tools = db.GetTopLevelTools();
+  ASSERT_TRUE(tools.ok());
+  EXPECT_NE(std::find_if(tools->begin(), tools->end(),
+                         [](const Database::Tool& tool) { return tool.name == "mcp_local_echo"; }),
+            tools->end());
+
+  auto output = (*executor)->Execute("mcp_local_echo", nlohmann::json{{"text", "stdio runtime"}});
+  ASSERT_TRUE(output.ok()) << output.status();
+  auto parsed = json_parse(*output);
+  ASSERT_TRUE(parsed.has_value());
+  EXPECT_EQ(json_get_or(*parsed, "structured_content", nlohmann::json::object()),
+            nlohmann::json({{"text", "stdio runtime"}}));
+  ASSERT_TRUE((*manager)->RefreshCatalogs().ok());
+  manager->reset();
+}
+
+TEST(McpRuntimeTest, DisabledStdioServerIsNeverStarted) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  const std::string marker =
+      absl::StrCat(::testing::TempDir(), "/disabled_mcp_server_", absl::ToUnixNanos(absl::Now()));
+  std::filesystem::remove(marker);
+  const std::string registry_path = TempRegistryPath();
+  ASSERT_TRUE(SaveServerRegistry(registry_path, {MakeStdioEntry("disabled", "/usr/bin/touch", {marker}, false)}).ok());
+
+  RuntimeOptions options;
+  options.registry_path = registry_path;
+  auto manager = StartMcpRuntime(&db, executor->get(), nullptr, options);
+
+  ASSERT_TRUE(manager.ok()) << manager.status();
+  EXPECT_EQ((*manager)->active_server_count(), 0);
+  EXPECT_FALSE(std::filesystem::exists(marker));
+  std::filesystem::remove(marker);
+}
+
+TEST(McpRuntimeTest, FailedStdioStartupDoesNotExposeTools) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  const std::string registry_path = TempRegistryPath();
+  ASSERT_TRUE(SaveServerRegistry(registry_path, {MakeStdioEntry("broken", "/path/that/does/not/exist/server")}).ok());
+
+  RuntimeOptions options;
+  options.registry_path = registry_path;
+  auto manager = StartMcpRuntime(&db, executor->get(), nullptr, options);
+
+  ASSERT_TRUE(manager.ok()) << manager.status();
+  EXPECT_EQ((*manager)->active_server_count(), 0);
+  auto tools = db.GetTopLevelTools();
+  ASSERT_TRUE(tools.ok());
+  EXPECT_EQ(std::find_if(tools->begin(), tools->end(),
+                         [](const Database::Tool& tool) { return tool.name == "mcp_broken_echo"; }),
+            tools->end());
 }
 
 TEST(McpRuntimeTest, RefreshReplacesCatalogAtomicallyAndKeepsLastSnapshotOnFailure) {

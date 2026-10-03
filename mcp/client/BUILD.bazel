@@ -463,6 +463,7 @@ cc_test(
 cc_test(
     name = "runtime_test",
     srcs = ["runtime_test.cpp"],
+    data = ["//mcp/server:echo_server"],
     deps = [
         ":runtime",
         "//core:json_utils",
