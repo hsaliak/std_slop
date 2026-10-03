@@ -175,6 +175,24 @@ cc_library(
 )
 
 cc_library(
+    name = "stdio_transport",
+    srcs = ["stdio_transport.cpp"],
+    hdrs = ["stdio_transport.h", "stdio_transport_internal.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":transport",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "streamable_http_transport",
     srcs = ["streamable_http_transport.cpp"],
     hdrs = ["streamable_http_transport.h"],
@@ -395,6 +413,32 @@ cc_test(
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "stdio_transport_test",
+    srcs = ["stdio_transport_test.cpp"],
+    deps = [
+        ":stdio_transport",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "stdio_transport_fuzz_test",
+    srcs = ["stdio_transport_fuzz_test.cpp"],
+    copts = ["-Wno-deprecated-declarations", "-Wno-unused-parameter"],
+    deps = [
+        ":stdio_transport",
+        "@abseil-cpp//absl/status",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
     ],
 )
 
