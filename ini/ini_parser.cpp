@@ -7,7 +7,7 @@
 
 namespace slop {
 
-IniConfig ParseIni(std::string_view content) {
+IniConfig ParseIni(std::string_view content, bool expand_env_vars) {
   IniConfig config;
   std::string current_section;
 
@@ -27,13 +27,32 @@ IniConfig ParseIni(std::string_view content) {
       std::string key = std::string(absl::StripAsciiWhitespace(line.substr(0, eq_pos)));
       std::string_view value_view = line.substr(eq_pos + 1);
 
-      // Handle inline comments
-      size_t comment_pos = value_view.find_first_of("#;");
-      if (comment_pos != std::string_view::npos) {
-        value_view = value_view.substr(0, comment_pos);
+      bool in_quotes = false;
+      bool escaped = false;
+      for (size_t i = 0; i < value_view.size(); ++i) {
+        const char c = value_view[i];
+        if (in_quotes) {
+          if (escaped) {
+            escaped = false;
+          } else if (c == '\\') {
+            escaped = true;
+          } else if (c == '"') {
+            in_quotes = false;
+          }
+          continue;
+        }
+        if (c == '"') {
+          in_quotes = true;
+          continue;
+        }
+        if ((c == '#' || c == ';') && (i == 0 || absl::ascii_isspace(value_view[i - 1]))) {
+          value_view = value_view.substr(0, i);
+          break;
+        }
       }
 
-      std::string value = ExpandEnvVars(std::string(absl::StripAsciiWhitespace(value_view)));
+      std::string value(absl::StripAsciiWhitespace(value_view));
+      if (expand_env_vars) value = ExpandEnvVars(value);
       if (!key.empty()) {
         config[current_section][key] = value;
       }

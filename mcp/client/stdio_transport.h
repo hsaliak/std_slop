@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 
 #include "mcp/client/transport.h"
@@ -23,6 +24,10 @@ struct StdioTransportOptions {
   absl::Duration send_timeout = absl::Seconds(60);
 };
 
+// Validates command and argv bounds shared by registry loading and process start.
+absl::Status ValidateStdioProcessSpec(absl::string_view command, const std::vector<std::string>& args);
+
+// Owns one child process and exchanges newline-delimited JSON-RPC over its
 // Owns one child process and exchanges newline-delimited JSON-RPC over its
 // stdin/stdout. The command and arguments are passed directly to the process
 // API; no shell is started. Child stderr inherits the parent's stderr.

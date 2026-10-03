@@ -152,7 +152,9 @@ cc_library(
     hdrs = ["registry.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":stdio_transport",
         "//ini:ini_parser",
+        "//core:json_utils",
         "//core:shell_lib",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -423,6 +425,21 @@ cc_test(
     srcs = ["token_store_test.cpp"],
     deps = [":token_store", "@googletest//:gtest_main"],
 )
+
+cc_test(
+    name = "registry_fuzz_test",
+    srcs = ["registry_fuzz_test.cpp"],
+    copts = ["-Wno-deprecated-declarations", "-Wno-unused-parameter"],
+    deps = [
+        ":registry",
+        ":stdio_transport",
+        "@abseil-cpp//absl/status",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
 
 cc_test(
     name = "registry_test",

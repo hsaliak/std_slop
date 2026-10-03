@@ -24,10 +24,11 @@ std::string McpUsageText() {
 
 Commands:
   add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--token-path <path>] [--client-id <id>] [--scope <scope>...]
-      Register or update a Streamable HTTP MCP server. For --auth bearer, --token saves the bearer token
-      to the per-server token file and does not write it to mcp.ini. For --auth oauth, --client-id must be
-      a real client ID from a registered OAuth/GitHub App. OAuth endpoints are discovered when both are
-      omitted. Use --authorization-endpoint, --token-endpoint, and --issuer together only for manual fallback.
+      Register or update an HTTP MCP server. For --auth bearer, --token saves the bearer token outside mcp.ini.
+      For --auth oauth, --client-id must be a real client ID. OAuth endpoints are discovered if omitted.
+  add <name> --transport stdio --command <executable> [--args-json '<string-array>']
+      Register a trusted local MCP process. Arguments are passed literally, without a shell. The enabled server
+      starts with the agent runtime; this command only saves its configuration.
   list
       List configured MCP servers.
   oauth-login <name> [--client-secret <secret>]
@@ -42,6 +43,7 @@ Commands:
 
 Examples:
   std_slop mcp add private --url https://example.com/mcp --auth bearer --token <token>
+  std_slop mcp add local-files --transport stdio --command /absolute/path/to/server --args-json '["--root", "/work"]'
   std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id <real_client_id>
   std_slop mcp oauth-login githubcopilot --client-secret <secret>)USAGE";
 }
@@ -61,6 +63,10 @@ std::vector<std::string> ValuesAfter(const std::vector<std::string>& args, const
     if (args[i] == flag) values.push_back(args[i + 1]);
   }
   return values;
+}
+
+bool HasFlag(const std::vector<std::string>& args, const std::string& flag) {
+  return std::find(args.begin(), args.end(), flag) != args.end();
 }
 
 absl::Status ValidateFlags(const std::vector<std::string>& args, const std::vector<std::string>& allowed_repeat,
@@ -98,8 +104,7 @@ mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, co
   config.token_endpoint = entry.token_endpoint;
   config.scopes = entry.scopes;
   config.issuer = entry.authorization_server_url;
-  config.authorization_response_iss_parameter_supported =
-      entry.authorization_response_iss_parameter_supported;
+  config.authorization_response_iss_parameter_supported = entry.authorization_response_iss_parameter_supported;
   config.resource = entry.url;
   return config;
 }
@@ -135,13 +140,57 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
   }
   if (command == "add") {
     if (args.size() < 3) return Usage();
-    const absl::Status flag_status = ValidateFlags(
-        args, {"--scope"},
-        {"--url", "--auth", "--token", "--client-id", "--token-path", "--authorization-endpoint",
-         "--token-endpoint", "--issuer"});
+    const absl::Status flag_status =
+        ValidateFlags(args, {"--scope"},
+                      {"--transport", "--command", "--args-json", "--url", "--auth", "--token", "--client-id",
+                       "--token-path", "--authorization-endpoint", "--token-endpoint", "--issuer"});
     if (!flag_status.ok()) return flag_status;
     mcp::ServerRegistryEntry entry;
     entry.name = args[2];
+    const std::string requested_transport = ValueAfter(args, "--transport");
+    if (HasFlag(args, "--transport") && requested_transport.empty()) {
+      return absl::InvalidArgumentError("MCP --transport must be http or stdio");
+    }
+    entry.transport = HasFlag(args, "--transport") ? requested_transport : mcp::kTransportHttp;
+    if (entry.transport != mcp::kTransportHttp && entry.transport != mcp::kTransportStdio) {
+      return absl::InvalidArgumentError("MCP --transport must be http or stdio");
+    }
+    if (entry.transport == mcp::kTransportStdio) {
+      for (const std::string& flag : {"--url", "--auth", "--token", "--client-id", "--token-path", "--scope",
+                                      "--authorization-endpoint", "--token-endpoint", "--issuer"}) {
+        if (HasFlag(args, flag))
+          return absl::InvalidArgumentError("stdio MCP registration cannot use HTTP or auth flags");
+      }
+      entry.command = ValueAfter(args, "--command");
+      if (HasFlag(args, "--args-json")) {
+        auto parsed_args = mcp::ParseServerArgsJson(ValueAfter(args, "--args-json"));
+        if (!parsed_args.ok()) return parsed_args.status();
+        entry.args = std::move(*parsed_args);
+      }
+      const absl::Status entry_status = mcp::ValidateServerRegistryEntry(entry);
+      if (!entry_status.ok()) return entry_status;
+
+      auto existing_entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+      if (!existing_entries.ok()) return existing_entries.status();
+      std::optional<mcp::ServerRegistryEntry> old_entry;
+      for (const auto& existing_entry : *existing_entries) {
+        if (existing_entry.name == entry.name) {
+          old_entry = existing_entry;
+          break;
+        }
+      }
+      const absl::Status save_status = mcp::UpsertServerRegistryEntry(mcp::DefaultRegistryPath(), entry);
+      if (!save_status.ok()) return save_status;
+      if (ShouldDeleteOldToken(old_entry, entry)) {
+        const absl::Status delete_status = mcp::DeleteOAuthTokens(old_entry->token_path);
+        if (!delete_status.ok() && delete_status.code() != absl::StatusCode::kNotFound) return delete_status;
+      }
+      *out << "MCP server saved: " << entry.name << "\n";
+      return absl::OkStatus();
+    }
+    if (HasFlag(args, "--command") || HasFlag(args, "--args-json")) {
+      return absl::InvalidArgumentError("stdio --command and --args-json require --transport stdio");
+    }
     entry.url = ValueAfter(args, "--url");
     entry.auth = ValueAfter(args, "--auth");
     if (entry.auth.empty()) entry.auth = mcp::kAuthNone;
@@ -174,8 +223,7 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
       entry.token_endpoint = discovery->token_endpoint;
       entry.resource_metadata_url = discovery->resource_metadata_url;
       entry.authorization_server_url = discovery->authorization_server_url;
-      entry.authorization_response_iss_parameter_supported =
-          discovery->authorization_response_iss_parameter_supported;
+      entry.authorization_response_iss_parameter_supported = discovery->authorization_response_iss_parameter_supported;
     }
     if (entry.auth == mcp::kAuthOAuth && entry.authorization_server_url.empty()) {
       return absl::InvalidArgumentError(
@@ -237,8 +285,9 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
     if (!entries.ok()) return entries.status();
     for (const auto& entry : *entries) {
-      *out << entry.name << "\t" << entry.auth << "\t" << (entry.enabled ? "enabled" : "disabled") << "\t" << entry.url
-           << "\n";
+      const std::string& target = entry.transport == mcp::kTransportStdio ? entry.command : entry.url;
+      *out << entry.name << "\t" << entry.transport << "\t" << entry.auth << "\t"
+           << (entry.enabled ? "enabled" : "disabled") << "\t" << target << "\n";
     }
     return absl::OkStatus();
   }
@@ -264,9 +313,8 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     std::string callback;
     std::getline(*in, callback);
     auto code =
-        mcp::ExtractAuthorizationCodeFromCallback(
-            callback, session->state, config.issuer, session->redirect_uri,
-            config.authorization_response_iss_parameter_supported);
+        mcp::ExtractAuthorizationCodeFromCallback(callback, session->state, config.issuer, session->redirect_uri,
+                                                  config.authorization_response_iss_parameter_supported);
     if (!code.ok()) return WithMcpContext("login callback", entry->name, code.status());
     auto tokens = mcp::ExchangeAuthorizationCode(http_client, config, *code, session->code_verifier);
     if (!tokens.ok()) return WithMcpContext("token exchange", entry->name, tokens.status());

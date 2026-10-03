@@ -120,39 +120,41 @@ absl::StatusOr<std::optional<std::string>> PopFrame(std::string* buffer, size_t 
 
 }  // namespace stdio_internal
 
+absl::Status ValidateStdioProcessSpec(absl::string_view command, const std::vector<std::string>& args) {
+  if (command.empty()) return absl::InvalidArgumentError("MCP stdio command must not be empty");
+  if (args.size() + 1 > kMaxArgumentCount) {
+    return absl::ResourceExhaustedError("MCP stdio command has too many arguments");
+  }
+  if (command.size() >= kMaxArgumentBytes) {
+    return absl::ResourceExhaustedError("MCP stdio command arguments exceed the size limit");
+  }
+  size_t argument_bytes = command.size() + 1;
+  if (command.find('\0') != absl::string_view::npos) {
+    return absl::InvalidArgumentError("MCP stdio command contains a null byte");
+  }
+  for (const std::string& arg : args) {
+    if (arg.find('\0') != std::string::npos) {
+      return absl::InvalidArgumentError("MCP stdio argument contains a null byte");
+    }
+    if (argument_bytes >= kMaxArgumentBytes || arg.size() >= kMaxArgumentBytes - argument_bytes) {
+      return absl::ResourceExhaustedError("MCP stdio command arguments exceed the size limit");
+    }
+    argument_bytes += arg.size() + 1;
+  }
+  return absl::OkStatus();
+}
+
 StdioTransport::StdioTransport(StdioTransportOptions options) : options_(std::move(options)) {}
 
 StdioTransport::~StdioTransport() { (void)Close(); }
 
 absl::Status StdioTransport::Start() {
   if (started_ || closed_) return absl::FailedPreconditionError("MCP stdio transport can only be started once");
-  if (options_.command.empty()) return absl::InvalidArgumentError("MCP stdio command must not be empty");
+  const absl::Status process_spec_status = ValidateStdioProcessSpec(options_.command, options_.args);
+  if (!process_spec_status.ok()) return process_spec_status;
   if (options_.max_request_bytes == 0 || options_.max_response_bytes == 0) {
     return absl::InvalidArgumentError("MCP stdio frame limits must be greater than zero");
   }
-  if (options_.args.size() + 1 > kMaxArgumentCount) {
-    return absl::ResourceExhaustedError("MCP stdio command has too many arguments");
-  }
-
-  if (options_.command.size() >= kMaxArgumentBytes) {
-    return absl::ResourceExhaustedError("MCP stdio command arguments exceed the size limit");
-  }
-  size_t argument_bytes = options_.command.size() + 1;
-  if (options_.command.find('\0') != std::string::npos) {
-    return absl::InvalidArgumentError("MCP stdio command contains a null byte");
-  }
-  for (const std::string& arg : options_.args) {
-    if (arg.find('\0') != std::string::npos)
-      return absl::InvalidArgumentError("MCP stdio argument contains a null byte");
-    if (argument_bytes >= kMaxArgumentBytes || arg.size() >= kMaxArgumentBytes - argument_bytes) {
-      return absl::ResourceExhaustedError("MCP stdio command arguments exceed the size limit");
-    }
-    argument_bytes += arg.size() + 1;
-  }
-  if (argument_bytes > kMaxArgumentBytes) {
-    return absl::ResourceExhaustedError("MCP stdio command arguments exceed the size limit");
-  }
-
   int child_input_pipe[2] = {-1, -1};
   int child_output_pipe[2] = {-1, -1};
   absl::Cleanup pipe_cleanup = [&] {

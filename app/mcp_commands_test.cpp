@@ -110,7 +110,7 @@ TEST(McpCommandsTest, AddListAndRemoveRegistryEntry) {
   output.clear();
   status = RunMcpCommand({"mcp", "list"}, &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
-  EXPECT_NE(output.str().find("github\tnone\tenabled\thttps://example.com/mcp"), std::string::npos);
+  EXPECT_NE(output.str().find("github\thttp\tnone\tenabled\thttps://example.com/mcp"), std::string::npos);
 
   output.str("");
   output.clear();
@@ -120,6 +120,65 @@ TEST(McpCommandsTest, AddListAndRemoveRegistryEntry) {
   entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
   ASSERT_TRUE(entries.ok()) << entries.status();
   EXPECT_TRUE(entries->empty());
+}
+
+TEST(McpCommandsTest, AddsAndListsStdioWithoutStartingOrExposingArguments) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+  const std::vector<std::string> args = {"mcp",
+                                         "add",
+                                         "local",
+                                         "--transport",
+                                         "stdio",
+                                         "--command",
+                                         "/path/that/does/not/exist/server",
+                                         "--args-json",
+                                         R"(["two words", "$HOME", "#;", "--literal"] )"};
+
+  const absl::Status status = RunMcpCommand(args, &http_client, &input, &output, &error);
+  ASSERT_TRUE(status.ok()) << status;
+  auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+  ASSERT_TRUE(entries.ok()) << entries.status();
+  ASSERT_EQ(entries->size(), 1);
+  EXPECT_EQ((*entries)[0].transport, mcp::kTransportStdio);
+  EXPECT_EQ((*entries)[0].command, "/path/that/does/not/exist/server");
+  EXPECT_EQ((*entries)[0].args, std::vector<std::string>({"two words", "$HOME", "#;", "--literal"}));
+
+  output.str("");
+  output.clear();
+  ASSERT_TRUE(RunMcpCommand({"mcp", "list"}, &http_client, &input, &output, &error).ok());
+  EXPECT_NE(output.str().find("local\tstdio\tnone\tenabled\t/path/that/does/not/exist/server"), std::string::npos);
+  EXPECT_EQ(output.str().find("two words"), std::string::npos);
+  EXPECT_EQ(output.str().find("$HOME"), std::string::npos);
+
+  EXPECT_TRUE(RunMcpCommand({"mcp", "remove", "local"}, &http_client, &input, &output, &error).ok());
+}
+
+TEST(McpCommandsTest, DefaultsEmptyArgvAndRejectsIncompatibleOptions) {
+  ScopedHome home;
+  HttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  const absl::Status no_args_status =
+      RunMcpCommand({"mcp", "add", "local", "--transport", "stdio", "--command", "/path/server"}, &http_client, &input,
+                    &output, &error);
+  ASSERT_TRUE(no_args_status.ok()) << no_args_status;
+  auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+  ASSERT_TRUE(entries.ok()) << entries.status();
+  ASSERT_EQ(entries->size(), 1);
+  EXPECT_TRUE((*entries)[0].args.empty());
+  EXPECT_FALSE(RunMcpCommand({"mcp", "add", "local", "--transport", "stdio", "--command", "/path/server", "--args-json",
+                              "{", "--url", "https://example.com/mcp"},
+                             &http_client, &input, &output, &error)
+                   .ok());
+  EXPECT_FALSE(RunMcpCommand({"mcp", "add", "local", "--command", "/path/server", "--args-json", "[]"}, &http_client,
+                             &input, &output, &error)
+                   .ok());
 }
 
 TEST(McpCommandsTest, AddRejectsDuplicateFlag) {
@@ -358,9 +417,8 @@ TEST(McpCommandsTest, OAuthManualEndpointsRequireExplicitIssuer) {
   std::ostringstream output;
   std::ostringstream error;
   const auto status = RunMcpCommand(
-      {"mcp", "add", "manual", "--url", "https://api.example/mcp", "--auth", "oauth",
-       "--client-id", "client", "--authorization-endpoint", "https://auth.example/authorize",
-       "--token-endpoint", "https://auth.example/token"},
+      {"mcp", "add", "manual", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id", "client",
+       "--authorization-endpoint", "https://auth.example/authorize", "--token-endpoint", "https://auth.example/token"},
       &http_client, &input, &output, &error);
   EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
   EXPECT_NE(std::string(status.message()).find("--issuer"), std::string::npos);
@@ -420,7 +478,8 @@ TEST(McpCommandsTest, HelpCommandPrintsPrescriptiveUsage) {
   absl::Status status = RunMcpCommand({"mcp", "help"}, &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
   EXPECT_NE(output.str().find("std_slop mcp add githubcopilot"), std::string::npos);
-  EXPECT_NE(output.str().find("registered OAuth/GitHub App"), std::string::npos);
+  EXPECT_NE(output.str().find("--transport stdio --command"), std::string::npos);
+  EXPECT_NE(output.str().find("Arguments are passed literally, without a shell"), std::string::npos);
 }
 
 TEST(McpCommandsTest, WrongArgumentsReturnPrescriptiveUsage) {

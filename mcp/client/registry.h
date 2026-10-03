@@ -6,16 +6,22 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 
 namespace slop::mcp {
 
 inline constexpr char kAuthNone[] = "none";
 inline constexpr char kAuthBearer[] = "bearer";
 inline constexpr char kAuthOAuth[] = "oauth";
+inline constexpr char kTransportHttp[] = "http";
+inline constexpr char kTransportStdio[] = "stdio";
 
 struct ServerRegistryEntry {
   std::string name;
+  std::string transport = kTransportHttp;
   std::string url;
+  std::string command;
+  std::vector<std::string> args;
   std::string auth = kAuthNone;
   bool enabled = true;
   std::vector<std::string> scopes;
@@ -28,6 +34,8 @@ struct ServerRegistryEntry {
   bool authorization_response_iss_parameter_supported = false;
 };
 
+absl::StatusOr<std::vector<std::string>> ParseServerArgsJson(absl::string_view value);
+absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry);
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry);
 std::string DefaultRegistryPath();
 std::string DefaultTokenPath(const std::string& server_name);

@@ -66,4 +66,11 @@ TEST(IniParserTest, MissingEnvironmentVariable) {
   EXPECT_EQ(config[""]["key"], "");
 }
 
+TEST(IniParserTest, PreservesLiteralJsonValuesWhenExpansionIsDisabled) {
+  setenv("MCP_LITERAL_TEST", "expanded", 1);
+  const IniConfig config = ParseIni("[server]\nargs_json = [\"$MCP_LITERAL_TEST #; value\"]\n", false);
+  EXPECT_EQ(config.at("server").at("args_json"), "[\"$MCP_LITERAL_TEST #; value\"]");
+  unsetenv("MCP_LITERAL_TEST");
+}
+
 }  // namespace slop

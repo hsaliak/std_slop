@@ -1,11 +1,12 @@
 #include "mcp/client/registry.h"
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <unistd.h>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -14,8 +15,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+
+#include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "ini/ini_parser.h"
+#include "mcp/client/stdio_transport.h"
 
 namespace slop::mcp {
 namespace {
@@ -60,29 +64,58 @@ std::string DefaultRegistryPath() {
 
 std::string DefaultTokenPath(const std::string& server_name) {
   const std::string home = slop::GetHomeDir();
-  const std::string base = home.empty() ? std::string(".slop/mcp/tokens") : absl::StrCat(home, "/.config/slop/mcp/tokens");
+  const std::string base =
+      home.empty() ? std::string(".slop/mcp/tokens") : absl::StrCat(home, "/.config/slop/mcp/tokens");
   return absl::StrCat(base, "/", server_name, ".json");
+}
+
+absl::StatusOr<std::vector<std::string>> ParseServerArgsJson(absl::string_view value) {
+  const auto parsed = json_parse(value);
+  if (!parsed.has_value()) return absl::InvalidArgumentError("MCP args_json must contain valid JSON");
+  auto args = json_getter<std::vector<std::string>>::get(*parsed);
+  if (!args.has_value()) return absl::InvalidArgumentError("MCP args_json must be an array of strings");
+  return *args;
 }
 
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
   if (!IsValidServerName(entry.name)) {
     return absl::InvalidArgumentError("MCP server name must contain only letters, digits, hyphens, or underscores");
   }
-  if (!(absl::StartsWith(entry.url, "https://") || absl::StartsWith(entry.url, "http://"))) {
-    return absl::InvalidArgumentError("MCP server URL must use http or https");
+  if (entry.transport != kTransportHttp && entry.transport != kTransportStdio) {
+    return absl::InvalidArgumentError("MCP server transport must be http or stdio");
   }
-  if (entry.auth != kAuthNone && entry.auth != kAuthBearer && entry.auth != kAuthOAuth) {
-    return absl::InvalidArgumentError("MCP server auth must be none, bearer, or oauth");
-  }
-  if (entry.auth == kAuthBearer && entry.token_path.empty()) {
-    return absl::InvalidArgumentError("MCP bearer server requires token_path");
-  }
-  if (entry.auth == kAuthOAuth && entry.client_id.empty()) {
-    return absl::InvalidArgumentError("MCP OAuth server requires client_id");
-  }
-  if (entry.auth == kAuthOAuth &&
-      !(absl::StartsWith(entry.authorization_endpoint, "https://") && absl::StartsWith(entry.token_endpoint, "https://"))) {
-    return absl::InvalidArgumentError("MCP OAuth server requires https authorization_endpoint and token_endpoint");
+  if (entry.transport == kTransportStdio) {
+    if (!entry.url.empty() || entry.auth != kAuthNone || !entry.scopes.empty() || !entry.token_path.empty() ||
+        !entry.client_id.empty() || !entry.resource_metadata_url.empty() || !entry.authorization_server_url.empty() ||
+        !entry.authorization_endpoint.empty() || !entry.token_endpoint.empty() ||
+        entry.authorization_response_iss_parameter_supported) {
+      return absl::InvalidArgumentError("stdio MCP servers cannot use HTTP URLs or HTTP authentication fields");
+    }
+    const absl::Status process_spec_status = ValidateStdioProcessSpec(entry.command, entry.args);
+    if (!process_spec_status.ok()) return process_spec_status;
+    if (HasIniControlCharacter(entry.command)) {
+      return absl::InvalidArgumentError("MCP stdio command contains unsafe INI control characters");
+    }
+  } else {
+    if (!entry.command.empty() || !entry.args.empty()) {
+      return absl::InvalidArgumentError("HTTP MCP servers cannot use stdio command or arguments");
+    }
+    if (!(absl::StartsWith(entry.url, "https://") || absl::StartsWith(entry.url, "http://"))) {
+      return absl::InvalidArgumentError("MCP server URL must use http or https");
+    }
+    if (entry.auth != kAuthNone && entry.auth != kAuthBearer && entry.auth != kAuthOAuth) {
+      return absl::InvalidArgumentError("MCP server auth must be none, bearer, or oauth");
+    }
+    if (entry.auth == kAuthBearer && entry.token_path.empty()) {
+      return absl::InvalidArgumentError("MCP bearer server requires token_path");
+    }
+    if (entry.auth == kAuthOAuth && entry.client_id.empty()) {
+      return absl::InvalidArgumentError("MCP OAuth server requires client_id");
+    }
+    if (entry.auth == kAuthOAuth && !(absl::StartsWith(entry.authorization_endpoint, "https://") &&
+                                      absl::StartsWith(entry.token_endpoint, "https://"))) {
+      return absl::InvalidArgumentError("MCP OAuth server requires https authorization_endpoint and token_endpoint");
+    }
   }
   if (HasIniControlCharacter(entry.url) || HasIniControlCharacter(entry.token_path) ||
       HasIniControlCharacter(entry.client_id) || HasIniControlCharacter(entry.resource_metadata_url) ||
@@ -107,35 +140,74 @@ absl::StatusOr<std::vector<ServerRegistryEntry>> LoadServerRegistry(const std::s
   std::ifstream file(path);
   if (!file.is_open()) return absl::UnavailableError(absl::StrCat("Failed to open MCP registry: ", path));
   const std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-  const IniConfig config = ParseIni(content);
+  const IniConfig config = ParseIni(content, false);
   std::vector<ServerRegistryEntry> entries;
   for (const auto& [section_name, section] : config) {
     if (!absl::StartsWith(section_name, kServerSectionPrefix)) continue;
     ServerRegistryEntry entry;
     entry.name = section_name.substr(kServerSectionPrefix.size());
-    const auto url = section.find("url");
-    if (url == section.end()) return absl::InvalidArgumentError(absl::StrCat("MCP server ", entry.name, " missing url"));
-    entry.url = std::string(absl::StripAsciiWhitespace(url->second));
-    if (const auto auth = section.find("auth"); auth != section.end()) entry.auth = std::string(absl::StripAsciiWhitespace(auth->second));
+    if (const auto transport = section.find("transport"); transport != section.end()) {
+      entry.transport = std::string(absl::StripAsciiWhitespace(transport->second));
+    }
     if (const auto enabled = section.find("enabled"); enabled != section.end()) {
       auto enabled_or = ParseBool(absl::StripAsciiWhitespace(enabled->second));
       if (!enabled_or.ok()) return enabled_or.status();
       entry.enabled = *enabled_or;
     }
-    if (const auto scopes = section.find("scopes"); scopes != section.end()) entry.scopes = ParseScopes(scopes->second);
-    if (const auto token_path = section.find("token_path"); token_path != section.end()) entry.token_path = token_path->second;
-    if (const auto client_id = section.find("client_id"); client_id != section.end()) entry.client_id = client_id->second;
-    if (const auto value = section.find("resource_metadata_url"); value != section.end()) entry.resource_metadata_url = value->second;
-    if (const auto value = section.find("authorization_server_url"); value != section.end()) entry.authorization_server_url = value->second;
-    if (const auto value = section.find("authorization_endpoint"); value != section.end()) entry.authorization_endpoint = value->second;
-    if (const auto value = section.find("token_endpoint"); value != section.end()) entry.token_endpoint = value->second;
-    if (const auto value = section.find("authorization_response_iss_parameter_supported");
-        value != section.end()) {
-      auto supported = ParseBool(absl::StripAsciiWhitespace(value->second));
-      if (!supported.ok()) return supported.status();
-      entry.authorization_response_iss_parameter_supported = *supported;
+
+    if (entry.transport == kTransportStdio) {
+      for (const absl::string_view field :
+           {"url", "auth", "scopes", "token_path", "client_id", "resource_metadata_url", "authorization_server_url",
+            "authorization_endpoint", "token_endpoint", "authorization_response_iss_parameter_supported"}) {
+        if (section.find(std::string(field)) != section.end()) {
+          return absl::InvalidArgumentError("stdio MCP server config cannot contain HTTP or auth fields");
+        }
+      }
+      const auto command = section.find("command");
+      if (command == section.end()) return absl::InvalidArgumentError("stdio MCP server missing command");
+      entry.command = std::string(absl::StripAsciiWhitespace(command->second));
+      if (const auto args_json = section.find("args_json"); args_json != section.end()) {
+        auto args_or = ParseServerArgsJson(args_json->second);
+        if (!args_or.ok()) return args_or.status();
+        entry.args = std::move(*args_or);
+      }
+    } else if (entry.transport == kTransportHttp) {
+      if (section.find("command") != section.end() || section.find("args_json") != section.end()) {
+        return absl::InvalidArgumentError("HTTP MCP server config cannot contain stdio command or args_json");
+      }
+      const auto url = section.find("url");
+      if (url == section.end()) {
+        return absl::InvalidArgumentError(absl::StrCat("MCP server ", entry.name, " missing url"));
+      }
+      entry.url = std::string(absl::StripAsciiWhitespace(url->second));
+      if (const auto auth = section.find("auth"); auth != section.end()) {
+        entry.auth = std::string(absl::StripAsciiWhitespace(auth->second));
+      }
+      if (const auto scopes = section.find("scopes"); scopes != section.end())
+        entry.scopes = ParseScopes(scopes->second);
+      if (const auto token_path = section.find("token_path"); token_path != section.end()) {
+        entry.token_path = token_path->second;
+      }
+      if (const auto client_id = section.find("client_id"); client_id != section.end())
+        entry.client_id = client_id->second;
+      if (const auto value = section.find("resource_metadata_url"); value != section.end()) {
+        entry.resource_metadata_url = value->second;
+      }
+      if (const auto value = section.find("authorization_server_url"); value != section.end()) {
+        entry.authorization_server_url = value->second;
+      }
+      if (const auto value = section.find("authorization_endpoint"); value != section.end()) {
+        entry.authorization_endpoint = value->second;
+      }
+      if (const auto value = section.find("token_endpoint"); value != section.end())
+        entry.token_endpoint = value->second;
+      if (const auto value = section.find("authorization_response_iss_parameter_supported"); value != section.end()) {
+        auto supported = ParseBool(absl::StripAsciiWhitespace(value->second));
+        if (!supported.ok()) return supported.status();
+        entry.authorization_response_iss_parameter_supported = *supported;
+      }
+      if (entry.token_path.empty()) entry.token_path = DefaultTokenPath(entry.name);
     }
-    if (entry.token_path.empty()) entry.token_path = DefaultTokenPath(entry.name);
     const absl::Status status = ValidateServerRegistryEntry(entry);
     if (!status.ok()) return status;
     entries.push_back(std::move(entry));
@@ -158,18 +230,28 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
   std::error_code error;
   if (!registry_path.parent_path().empty()) {
     std::filesystem::create_directories(registry_path.parent_path(), error);
-    if (error) return absl::UnavailableError(absl::StrCat("Failed to create MCP registry directory: ", error.message()));
+    if (error)
+      return absl::UnavailableError(absl::StrCat("Failed to create MCP registry directory: ", error.message()));
   }
   std::string content;
   for (const ServerRegistryEntry& entry : entries) {
-    absl::StrAppend(&content, "[server.", entry.name, "]\nurl = ", entry.url, "\nauth = ", entry.auth,
+    absl::StrAppend(&content, "[server.", entry.name, "]\ntransport = ", entry.transport, "\n");
+    if (entry.transport == kTransportStdio) {
+      absl::StrAppend(&content, "command = ", entry.command, "\nargs_json = ", json_dump(nlohmann::json(entry.args)),
+                      "\n", "enabled = ", entry.enabled ? "true" : "false", "\n\n");
+      continue;
+    }
+    absl::StrAppend(&content, "url = ", entry.url, "\nauth = ", entry.auth,
                     "\nenabled = ", entry.enabled ? "true" : "false", "\n");
     if (!entry.scopes.empty()) absl::StrAppend(&content, "scopes = ", absl::StrJoin(entry.scopes, " "), "\n");
     if (!entry.token_path.empty()) absl::StrAppend(&content, "token_path = ", entry.token_path, "\n");
     if (!entry.client_id.empty()) absl::StrAppend(&content, "client_id = ", entry.client_id, "\n");
-    if (!entry.resource_metadata_url.empty()) absl::StrAppend(&content, "resource_metadata_url = ", entry.resource_metadata_url, "\n");
-    if (!entry.authorization_server_url.empty()) absl::StrAppend(&content, "authorization_server_url = ", entry.authorization_server_url, "\n");
-    if (!entry.authorization_endpoint.empty()) absl::StrAppend(&content, "authorization_endpoint = ", entry.authorization_endpoint, "\n");
+    if (!entry.resource_metadata_url.empty())
+      absl::StrAppend(&content, "resource_metadata_url = ", entry.resource_metadata_url, "\n");
+    if (!entry.authorization_server_url.empty())
+      absl::StrAppend(&content, "authorization_server_url = ", entry.authorization_server_url, "\n");
+    if (!entry.authorization_endpoint.empty())
+      absl::StrAppend(&content, "authorization_endpoint = ", entry.authorization_endpoint, "\n");
     if (!entry.token_endpoint.empty()) absl::StrAppend(&content, "token_endpoint = ", entry.token_endpoint, "\n");
     if (entry.authorization_response_iss_parameter_supported) {
       absl::StrAppend(&content, "authorization_response_iss_parameter_supported = true\n");
@@ -180,7 +262,8 @@ absl::Status SaveServerRegistry(const std::string& path, const std::vector<Serve
   std::vector<char> template_buffer(template_path.begin(), template_path.end());
   template_buffer.push_back('\0');
   const int temporary_fd = mkstemp(template_buffer.data());
-  if (temporary_fd < 0) return absl::UnavailableError(absl::StrCat("Failed to create MCP registry temporary file: ", path));
+  if (temporary_fd < 0)
+    return absl::UnavailableError(absl::StrCat("Failed to create MCP registry temporary file: ", path));
   const std::filesystem::path temporary_path(template_buffer.data());
   const ssize_t written = write(temporary_fd, content.data(), content.size());
   const int close_result = close(temporary_fd);
@@ -208,7 +291,8 @@ absl::Status UpsertServerRegistryEntry(const std::string& path, const ServerRegi
     }
   }
   if (!replaced) entries_or->push_back(entry);
-  std::sort(entries_or->begin(), entries_or->end(), [](const auto& left, const auto& right) { return left.name < right.name; });
+  std::sort(entries_or->begin(), entries_or->end(),
+            [](const auto& left, const auto& right) { return left.name < right.name; });
   return SaveServerRegistry(path, *entries_or);
 }
 
@@ -216,8 +300,9 @@ absl::Status RemoveServerRegistryEntry(const std::string& path, const std::strin
   auto entries_or = LoadServerRegistry(path);
   if (!entries_or.ok()) return entries_or.status();
   const size_t old_size = entries_or->size();
-  entries_or->erase(std::remove_if(entries_or->begin(), entries_or->end(), [&](const auto& entry) { return entry.name == name; }),
-                    entries_or->end());
+  entries_or->erase(
+      std::remove_if(entries_or->begin(), entries_or->end(), [&](const auto& entry) { return entry.name == name; }),
+      entries_or->end());
   if (entries_or->size() == old_size) return absl::NotFoundError(absl::StrCat("MCP server not found: ", name));
   return SaveServerRegistry(path, *entries_or);
 }

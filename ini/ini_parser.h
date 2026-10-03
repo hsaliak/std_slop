@@ -12,12 +12,13 @@ namespace slop {
 using IniSection = std::map<std::string, std::string>;
 using IniConfig = std::map<std::string, IniSection>;
 
-// Parses an INI string and returns an IniConfig object.
+// Parses an INI string and returns an IniConfig object. Environment expansion
+// can be disabled for fields that must preserve literal command arguments.
 // Basic format:
 // [section]
 // key = value
 // # comment
-IniConfig ParseIni(std::string_view content);
+IniConfig ParseIni(std::string_view content, bool expand_env_vars = true);
 
 }  // namespace slop
 
