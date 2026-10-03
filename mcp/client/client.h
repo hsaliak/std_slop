@@ -10,8 +10,9 @@
 #include "nlohmann/json.hpp"
 
 #include "core/http_client.h"
-#include "mcp/protocol.h"
 #include "mcp/client/session.h"
+#include "mcp/client/stdio_transport.h"
+#include "mcp/protocol.h"
 #include "mcp/types.h"
 
 namespace slop::mcp {
@@ -41,6 +42,11 @@ absl::StatusOr<std::unique_ptr<v2025_11_25::Session>> ConnectClassicStreamableHt
 
 absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& config, const ClientOptions& options,
                                                    HttpClient* http_client);
+
+// Connects to a modern MCP server started as a local stdio child process. This
+// connector never falls back to the classic protocol.
+absl::StatusOr<std::unique_ptr<Client>> ConnectStdioMcp(StdioTransportOptions transport_options,
+                                                        const ClientOptions& options);
 
 }  // namespace slop::mcp
 

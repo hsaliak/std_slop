@@ -43,6 +43,22 @@ cc_library(
 )
 
 cc_library(
+    name = "modern_exchange",
+    srcs = ["modern_exchange.cpp"],
+    hdrs = ["modern_exchange.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":modern",
+        "//core:json_utils",
+        "//mcp:json_rpc",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "modern_http",
     srcs = ["modern_http.cpp"],
     hdrs = ["modern_http.h"],
@@ -50,6 +66,7 @@ cc_library(
     deps = [
         ":http_headers",
         ":modern",
+        ":modern_exchange",
         ":sse_decoder",
         "//mcp:json_rpc",
         "//mcp:protocol",
@@ -193,6 +210,25 @@ cc_library(
 )
 
 cc_library(
+    name = "modern_stdio",
+    srcs = ["modern_stdio.cpp"],
+    hdrs = ["modern_stdio.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":modern",
+        ":modern_exchange",
+        ":stdio_transport",
+        ":transport",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "streamable_http_transport",
     srcs = ["streamable_http_transport.cpp"],
     hdrs = ["streamable_http_transport.h"],
@@ -222,8 +258,11 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":modern",
+        ":modern_exchange",
         ":modern_http",
+        ":modern_stdio",
         ":session",
+        ":stdio_transport",
         ":streamable_http_transport",
         "//mcp:protocol",
         "//core:json_utils",
@@ -284,6 +323,25 @@ cc_test(
         "@fuzztest//fuzztest",
         "@fuzztest//fuzztest:fuzztest_gtest_main",
         "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "modern_stdio_test",
+    srcs = ["modern_stdio_test.cpp"],
+    data = ["//mcp/server:echo_server"],
+    deps = [
+        ":client",
+        ":modern_stdio",
+        ":stdio_transport",
+        ":transport",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/synchronization",
+        "@googletest//:gtest_main",
         "@nlohmann_json//:json",
     ],
 )

@@ -14,6 +14,7 @@
 
 #include "core/http_client.h"
 #include "mcp/client/modern.h"
+#include "mcp/client/modern_exchange.h"
 #include "mcp/protocol.h"
 #include "mcp/types.h"
 
@@ -28,19 +29,14 @@ struct HttpExchangeOptions {
   size_t max_messages = 1024;
 };
 
-struct HttpExchangeResult {
-  long http_status = 0;
-  std::optional<JsonRpcResponse> response;
-  std::vector<ServerNotification> notifications;
-  std::optional<ProtocolFailure> failure;
-};
+using HttpExchangeResult = ModernExchangeResult;
 
-class HttpExchange {
+class HttpExchange final : public ModernExchange {
  public:
   HttpExchange(HttpExchangeOptions options, HttpClient* http_client);
 
-  absl::StatusOr<HttpExchangeResult> Execute(const Request& request);
-  void Cancel();
+  absl::StatusOr<HttpExchangeResult> Execute(const Request& request) override;
+  void Cancel() override;
 
  private:
   absl::Status ValidateOptions() const;

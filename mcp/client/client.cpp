@@ -1,5 +1,6 @@
 #include "mcp/client/client.h"
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -17,9 +18,10 @@
 #include "core/json_utils.h"
 #include "mcp/client/modern.h"
 #include "mcp/client/modern_http.h"
-#include "mcp/protocol.h"
+#include "mcp/client/modern_stdio.h"
 #include "mcp/client/session.h"
 #include "mcp/client/streamable_http_transport.h"
+#include "mcp/protocol.h"
 
 namespace slop::mcp {
 namespace {
@@ -72,9 +74,8 @@ class ClassicClient final : public Client {
 
 class ModernClient final : public Client {
  public:
-  ModernClient(v2026_07_28::HttpExchangeOptions exchange_options, v2026_07_28::RequestContext request_context,
-               HttpClient* http_client)
-      : exchange_(std::move(exchange_options), http_client), request_context_(std::move(request_context)) {}
+  ModernClient(std::unique_ptr<v2026_07_28::ModernExchange> exchange, v2026_07_28::RequestContext request_context)
+      : exchange_(std::move(exchange)), request_context_(std::move(request_context)) {}
 
   ProtocolRevision revision() const override { return ProtocolRevision::k2026_07_28; }
 
@@ -86,7 +87,7 @@ class ModernClient final : public Client {
     for (size_t page = 0; page < kMaxCatalogPages; ++page) {
       v2026_07_28::Request request = MakeRequest("tools/list");
       if (cursor) request.params["cursor"] = *cursor;
-      auto exchange_or = exchange_.Execute(request);
+      auto exchange_or = exchange_->Execute(request);
       if (!exchange_or.ok()) return exchange_or.status();
       if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
       if (!exchange_or->response || !exchange_or->response->result) {
@@ -144,7 +145,7 @@ class ModernClient final : public Client {
     request.params = {{"name", name}, {"arguments", arguments}};
     if (request_state != nullptr) request.params["requestState"] = *request_state;
     request.tool_schema = tool->second.input_schema;
-    auto exchange_or = exchange_.Execute(request);
+    auto exchange_or = exchange_->Execute(request);
     if (!exchange_or.ok()) return exchange_or.status();
     if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
     if (!exchange_or->response || !exchange_or->response->result) {
@@ -156,15 +157,15 @@ class ModernClient final : public Client {
 
   v2026_07_28::Request MakeRequest(absl::string_view method) {
     v2026_07_28::Request request;
-    request.id = absl::StrCat("modern-", next_request_id_++);
+    request.id = absl::StrCat("modern-", next_request_id_.fetch_add(1, std::memory_order_relaxed));
     request.method = std::string(method);
     request.context = request_context_;
     return request;
   }
 
-  v2026_07_28::HttpExchange exchange_;
+  std::unique_ptr<v2026_07_28::ModernExchange> exchange_;
   v2026_07_28::RequestContext request_context_;
-  int64_t next_request_id_ = 2;
+  std::atomic<int64_t> next_request_id_{2};
   absl::flat_hash_map<std::string, Tool> tools_;
 };
 
@@ -213,12 +214,12 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
   v2026_07_28::RequestContext context;
   context.client_info = options.client_info;
   context.client_capabilities = options.modern_capabilities;
-  v2026_07_28::HttpExchange exchange(ModernHttpOptions(config), http_client);
+  auto exchange = std::make_unique<v2026_07_28::HttpExchange>(ModernHttpOptions(config), http_client);
   v2026_07_28::Request discovery_request;
   discovery_request.id = std::string("modern-1");
   discovery_request.method = "server/discover";
   discovery_request.context = context;
-  auto exchange_or = exchange.Execute(discovery_request);
+  auto exchange_or = exchange->Execute(discovery_request);
   if (!exchange_or.ok()) return exchange_or.status();
   if (exchange_or->failure) {
     const ProtocolFailure& failure = *exchange_or->failure;
@@ -243,8 +244,44 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
     if (options.selection == SelectionPolicy::kPreferLatest) return ConnectClassic(config, options, http_client);
     return absl::UnimplementedError("server/discover did not select MCP 2026-07-28");
   }
-  return std::unique_ptr<Client>(
-      std::make_unique<ModernClient>(ModernHttpOptions(config), std::move(context), http_client));
+  return std::unique_ptr<Client>(std::make_unique<ModernClient>(std::move(exchange), std::move(context)));
+}
+
+absl::StatusOr<std::unique_ptr<Client>> ConnectStdioMcp(StdioTransportOptions transport_options,
+                                                        const ClientOptions& options) {
+  if (options.client_info.name.empty() || options.client_info.version.empty()) {
+    return absl::InvalidArgumentError("client info requires name and version");
+  }
+  if (options.selection == SelectionPolicy::kClassicOnly) {
+    return absl::UnimplementedError("classic MCP is not supported over stdio");
+  }
+
+  v2026_07_28::RequestContext context;
+  context.client_info = options.client_info;
+  context.client_capabilities = options.modern_capabilities;
+  auto exchange =
+      std::make_unique<v2026_07_28::StdioExchange>(std::make_unique<StdioTransport>(std::move(transport_options)));
+  const absl::Status start_status = exchange->Start();
+  if (!start_status.ok()) return start_status;
+
+  v2026_07_28::Request discovery_request;
+  discovery_request.id = std::string("modern-1");
+  discovery_request.method = "server/discover";
+  discovery_request.context = context;
+  auto exchange_or = exchange->Execute(discovery_request);
+  if (!exchange_or.ok()) return exchange_or.status();
+  if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
+  if (!exchange_or->response || !exchange_or->response->result) {
+    return absl::InvalidArgumentError("server/discover missing result");
+  }
+  auto discovery_or = v2026_07_28::ParseDiscovery(*exchange_or->response->result);
+  if (!discovery_or.ok()) return discovery_or.status();
+  for (const std::string& version : discovery_or->supported_versions) {
+    if (version == kModernProtocolVersion) {
+      return std::unique_ptr<Client>(std::make_unique<ModernClient>(std::move(exchange), std::move(context)));
+    }
+  }
+  return absl::UnimplementedError("server/discover did not select MCP 2026-07-28 over stdio");
 }
 
 }  // namespace slop::mcp
