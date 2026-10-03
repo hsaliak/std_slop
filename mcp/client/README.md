@@ -19,13 +19,17 @@ slop::HttpClient http_client;
 auto client = slop::mcp::ConnectMcp(config, options, &http_client);
 ```
 
-For direct classic use, call `ConnectClassicStreamableHttp` with `v2025_11_25::InitializeOptions`.For direct classic use, call `ConnectClassicStreamableHttp` with `v2025_11_25::InitializeOptions`.
+For direct classic use, call `ConnectClassicStreamableHttp` with `v2025_11_25::InitializeOptions`.
 
 ### Local stdio
 
 Use `ConnectStdioMcp` for an explicitly configured local executable. It does not need an `HttpClient`, never invokes a shell, and never falls back to classic MCP:
 
 ```c++
+#include <utility>
+
+#include "mcp/client/client.h"
+
 slop::mcp::StdioTransportOptions process;
 process.command = "/absolute/path/to/mcp-server";
 process.args = {"--root", "/work/project"};
@@ -73,7 +77,24 @@ The token file shape is:
 
 ## Register MCP servers with std_slop
 
-Unauthenticated server:
+Local stdio server (modern MCP `2026-07-28`):
+
+```sh
+# No extra arguments.
+bazel run //app:std_slop -- mcp add local-files \
+  --transport stdio \
+  --command /absolute/path/to/mcp-server
+
+# To pass literal argv values, add --args-json.
+bazel run //app:std_slop -- mcp add local-files \
+  --transport stdio \
+  --command /absolute/path/to/mcp-server \
+  --args-json '["--root", "/work/project"]'
+```
+
+`--args-json` is optional and defaults to `[]`. The runtime passes the command and each JSON array item directly, without a shell or variable expansion. Enabled children inherit the agent's environment, working directory, and permissions and stay alive for the runtime. Register only trusted executables. See the [MCP runtime guide](../../docs/mcp-slop-userguide.md) for registry and lifecycle details.
+
+Unauthenticated HTTP server:
 
 ```sh
 bazel run //app:std_slop -- mcp add local --url https://example.com/mcp --auth none

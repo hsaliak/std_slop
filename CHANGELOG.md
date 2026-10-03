@@ -1,3 +1,7 @@
+## v0.27.1 - 2026-10-04
+- **Local stdio MCP client mode**: Added process-backed MCP client support to `std_slop` and `sl`. Enabled local servers are launched as child processes with literal argv (no shell), bounded newline-delimited JSON-RPC, timeout handling, and child cleanup. Stdio uses modern MCP `2026-07-28` only; HTTP behavior is unchanged.
+- **Stdio registry and CLI**: Added `mcp add --transport stdio` and persisted command/argv configuration. `--args-json` is optional and defaults to `[]`; list output omits argv.
+
 ## v0.27 - 2026-10-02
 This release pivots the codebase into a single coding agent to a monorepo for agentic work in decent C++. We added mcp client and server support, client supports modern and classic, server supports only modern `2026-07-28` spec. We also added the `sl` tool to make things easy to script. This refactored the runtime into a single core. 
 - **MCP client and runtime**: Added modern MCP `2026-07-28` discovery and revision selection alongside the classic client. Added bounded pagination, resumable tool calls, resource subscriptions, and atomic catalog refresh.
