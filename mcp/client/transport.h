@@ -14,7 +14,7 @@ class Transport {
   virtual ~Transport() = default;
 
   virtual absl::Status Start() = 0;
-  virtual absl::Status Send(const nlohmann::json& message) = 0;
+  virtual absl::Status Send(const nlohmann::json& message, absl::Duration timeout) = 0;
   virtual absl::StatusOr<nlohmann::json> Receive(absl::Duration timeout) = 0;
   virtual void SetProtocolVersion(absl::string_view) {}
   virtual absl::Status Close() = 0;

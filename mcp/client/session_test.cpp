@@ -11,9 +11,9 @@
 #include "nlohmann/json.hpp"
 
 #include "core/json_utils.h"
+#include "mcp/client/transport.h"
 #include "mcp/json_rpc.h"
 #include "mcp/protocol.h"
-#include "mcp/client/transport.h"
 
 namespace slop::mcp::v2025_11_25 {
 namespace {
@@ -25,12 +25,14 @@ class FakeTransport : public Transport {
     return start_status;
   }
 
-  absl::Status Send(const nlohmann::json& message) override {
+  absl::Status Send(const nlohmann::json& message, absl::Duration timeout) override {
     sent.push_back(message);
+    send_timeouts.push_back(timeout);
     return send_status;
   }
 
-  absl::StatusOr<nlohmann::json> Receive(absl::Duration /*timeout*/) override {
+  absl::StatusOr<nlohmann::json> Receive(absl::Duration timeout) override {
+    receive_timeouts.push_back(timeout);
     if (!receive_status.ok()) return receive_status;
     if (responses.empty()) return absl::UnavailableError("no response queued");
     nlohmann::json response = responses.front();
@@ -51,6 +53,8 @@ class FakeTransport : public Transport {
   absl::Status close_status = absl::OkStatus();
   std::vector<nlohmann::json> sent;
   std::vector<nlohmann::json> responses;
+  std::vector<absl::Duration> send_timeouts;
+  std::vector<absl::Duration> receive_timeouts;
 };
 
 InitializeOptions MakeOptions() {
@@ -66,6 +70,24 @@ nlohmann::json InitializeResult(nlohmann::json capabilities = {{"tools", {{"list
           {"id", 1},
           {"result",
            {{"protocolVersion", std::string(kClassicProtocolVersion)}, {"capabilities", std::move(capabilities)}}}};
+}
+
+TEST(SessionTest, CallToolUsesOneDeadlineAcrossSendAndReceive) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult());
+  raw->responses.push_back({{"jsonrpc", "2.0"}, {"id", 2}, {"result", {{"content", nlohmann::json::array()}}}});
+  Session session(std::move(fake));
+  ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
+
+  auto result = session.CallTool("search", nlohmann::json::object(), absl::Milliseconds(25));
+  ASSERT_TRUE(result.ok()) << result.status();
+  ASSERT_GE(raw->send_timeouts.size(), 3);
+  ASSERT_GE(raw->receive_timeouts.size(), 2);
+  EXPECT_GT(raw->send_timeouts.back(), absl::ZeroDuration());
+  EXPECT_LE(raw->send_timeouts.back(), absl::Milliseconds(25));
+  EXPECT_GT(raw->receive_timeouts.back(), absl::ZeroDuration());
+  EXPECT_LE(raw->receive_timeouts.back(), absl::Milliseconds(25));
 }
 
 TEST(SessionTest, InitializeStartsTransportAndSendsInitializedNotification) {
@@ -295,7 +317,7 @@ TEST(SessionTest, CallToolParsesSuccessResult) {
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
-  auto result = session.CallTool("search", {{"query", "mcp"}});
+  auto result = session.CallTool("search", {{"query", "mcp"}}, absl::Seconds(5));
 
   ASSERT_TRUE(result.ok()) << result.status();
   EXPECT_FALSE(result->is_error);
@@ -317,7 +339,7 @@ TEST(SessionTest, CallToolPreservesIsError) {
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
-  auto result = session.CallTool("search", nlohmann::json::object());
+  auto result = session.CallTool("search", nlohmann::json::object(), absl::Seconds(5));
 
   ASSERT_TRUE(result.ok()) << result.status();
   EXPECT_TRUE(result->is_error);
@@ -329,7 +351,7 @@ TEST(SessionTest, CallToolRejectsNonObjectArguments) {
   Session session(std::move(fake));
 
   ASSERT_TRUE(session.Initialize(MakeOptions()).ok());
-  auto result = session.CallTool("search", nlohmann::json::array());
+  auto result = session.CallTool("search", nlohmann::json::array(), absl::Seconds(5));
 
   ASSERT_FALSE(result.ok());
   EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);

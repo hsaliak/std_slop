@@ -35,7 +35,8 @@ class HttpExchange final : public ModernExchange {
  public:
   HttpExchange(HttpExchangeOptions options, HttpClient* http_client);
 
-  absl::StatusOr<HttpExchangeResult> Execute(const Request& request) override;
+  absl::StatusOr<HttpExchangeResult> Execute(const Request& request,
+                                             absl::Duration timeout = absl::Seconds(60)) override;
   void Cancel() override;
 
  private:

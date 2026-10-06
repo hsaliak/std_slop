@@ -1,5 +1,6 @@
 #include "mcp/client/client.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -60,11 +61,12 @@ class ClassicClient final : public Client {
 
   ProtocolRevision revision() const override { return ProtocolRevision::k2025_11_25; }
   absl::StatusOr<std::vector<Tool>> ListTools() override { return session_->ListTools(); }
-  absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {
-    return session_->CallTool(name, arguments);
+  absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments,
+                                          absl::Duration timeout) override {
+    return session_->CallTool(name, arguments, timeout);
   }
-  absl::StatusOr<ToolCallResult> ContinueToolCall(const std::string&, const nlohmann::json&,
-                                                  const nlohmann::json&) override {
+  absl::StatusOr<ToolCallResult> ContinueToolCall(const std::string&, const nlohmann::json&, const nlohmann::json&,
+                                                  absl::Duration) override {
     return absl::UnimplementedError("tool continuations require modern MCP");
   }
 
@@ -74,8 +76,11 @@ class ClassicClient final : public Client {
 
 class ModernClient final : public Client {
  public:
-  ModernClient(std::unique_ptr<v2026_07_28::ModernExchange> exchange, v2026_07_28::RequestContext request_context)
-      : exchange_(std::move(exchange)), request_context_(std::move(request_context)) {}
+  ModernClient(std::unique_ptr<v2026_07_28::ModernExchange> exchange, v2026_07_28::RequestContext request_context,
+               absl::Duration default_timeout)
+      : exchange_(std::move(exchange)),
+        request_context_(std::move(request_context)),
+        default_timeout_(default_timeout) {}
 
   ProtocolRevision revision() const override { return ProtocolRevision::k2026_07_28; }
 
@@ -87,7 +92,7 @@ class ModernClient final : public Client {
     for (size_t page = 0; page < kMaxCatalogPages; ++page) {
       v2026_07_28::Request request = MakeRequest("tools/list");
       if (cursor) request.params["cursor"] = *cursor;
-      auto exchange_or = exchange_->Execute(request);
+      auto exchange_or = exchange_->Execute(request, default_timeout_);
       if (!exchange_or.ok()) return exchange_or.status();
       if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
       if (!exchange_or->response || !exchange_or->response->result) {
@@ -123,18 +128,20 @@ class ModernClient final : public Client {
     return absl::ResourceExhaustedError("MCP catalog page limit exceeded");
   }
 
-  absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {
-    return ExecuteToolCall(name, arguments, nullptr);
+  absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments,
+                                          absl::Duration timeout) override {
+    return ExecuteToolCall(name, arguments, nullptr, timeout);
   }
 
   absl::StatusOr<ToolCallResult> ContinueToolCall(const std::string& name, const nlohmann::json& arguments,
-                                                  const nlohmann::json& request_state) override {
-    return ExecuteToolCall(name, arguments, &request_state);
+                                                  const nlohmann::json& request_state,
+                                                  absl::Duration timeout) override {
+    return ExecuteToolCall(name, arguments, &request_state, timeout);
   }
 
  private:
   absl::StatusOr<ToolCallResult> ExecuteToolCall(const std::string& name, const nlohmann::json& arguments,
-                                                 const nlohmann::json* request_state) {
+                                                 const nlohmann::json* request_state, absl::Duration timeout) {
     const auto tool = tools_.find(name);
     if (tool == tools_.end()) {
       return absl::FailedPreconditionError("tools/list must provide a valid tool before tools/call");
@@ -145,7 +152,7 @@ class ModernClient final : public Client {
     request.params = {{"name", name}, {"arguments", arguments}};
     if (request_state != nullptr) request.params["requestState"] = *request_state;
     request.tool_schema = tool->second.input_schema;
-    auto exchange_or = exchange_->Execute(request);
+    auto exchange_or = exchange_->Execute(request, timeout);
     if (!exchange_or.ok()) return exchange_or.status();
     if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
     if (!exchange_or->response || !exchange_or->response->result) {
@@ -165,6 +172,7 @@ class ModernClient final : public Client {
 
   std::unique_ptr<v2026_07_28::ModernExchange> exchange_;
   v2026_07_28::RequestContext request_context_;
+  absl::Duration default_timeout_;
   std::atomic<int64_t> next_request_id_{2};
   absl::flat_hash_map<std::string, Tool> tools_;
 };
@@ -207,6 +215,9 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
   if (options.client_info.name.empty() || options.client_info.version.empty()) {
     return absl::InvalidArgumentError("client info requires name and version");
   }
+  if (options.initialization_timeout <= absl::ZeroDuration() || options.request_timeout <= absl::ZeroDuration()) {
+    return absl::InvalidArgumentError("MCP client timeouts must be positive");
+  }
   if (options.selection == SelectionPolicy::kClassicOnly) {
     return ConnectClassic(config, options, http_client);
   }
@@ -219,7 +230,7 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
   discovery_request.id = std::string("modern-1");
   discovery_request.method = "server/discover";
   discovery_request.context = context;
-  auto exchange_or = exchange->Execute(discovery_request);
+  auto exchange_or = exchange->Execute(discovery_request, options.initialization_timeout);
   if (!exchange_or.ok()) return exchange_or.status();
   if (exchange_or->failure) {
     const ProtocolFailure& failure = *exchange_or->failure;
@@ -244,7 +255,8 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
     if (options.selection == SelectionPolicy::kPreferLatest) return ConnectClassic(config, options, http_client);
     return absl::UnimplementedError("server/discover did not select MCP 2026-07-28");
   }
-  return std::unique_ptr<Client>(std::make_unique<ModernClient>(std::move(exchange), std::move(context)));
+  return std::unique_ptr<Client>(
+      std::make_unique<ModernClient>(std::move(exchange), std::move(context), options.request_timeout));
 }
 
 absl::StatusOr<std::unique_ptr<Client>> ConnectStdioMcp(StdioTransportOptions transport_options,
@@ -255,12 +267,17 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectStdioMcp(StdioTransportOptions tr
   if (options.selection == SelectionPolicy::kClassicOnly) {
     return absl::UnimplementedError("classic MCP is not supported over stdio");
   }
+  if (options.initialization_timeout <= absl::ZeroDuration() || options.request_timeout <= absl::ZeroDuration()) {
+    return absl::InvalidArgumentError("MCP client timeouts must be positive");
+  }
 
   v2026_07_28::RequestContext context;
   context.client_info = options.client_info;
   context.client_capabilities = options.modern_capabilities;
-  auto exchange =
-      std::make_unique<v2026_07_28::StdioExchange>(std::make_unique<StdioTransport>(std::move(transport_options)));
+  v2026_07_28::StdioExchangeOptions exchange_options;
+  exchange_options.deadline = options.request_timeout;
+  auto exchange = std::make_unique<v2026_07_28::StdioExchange>(
+      std::make_unique<StdioTransport>(std::move(transport_options)), exchange_options);
   const absl::Status start_status = exchange->Start();
   if (!start_status.ok()) return start_status;
 
@@ -268,7 +285,7 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectStdioMcp(StdioTransportOptions tr
   discovery_request.id = std::string("modern-1");
   discovery_request.method = "server/discover";
   discovery_request.context = context;
-  auto exchange_or = exchange->Execute(discovery_request);
+  auto exchange_or = exchange->Execute(discovery_request, options.initialization_timeout);
   if (!exchange_or.ok()) return exchange_or.status();
   if (exchange_or->failure) return FailureStatus(*exchange_or->failure);
   if (!exchange_or->response || !exchange_or->response->result) {
@@ -278,7 +295,8 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectStdioMcp(StdioTransportOptions tr
   if (!discovery_or.ok()) return discovery_or.status();
   for (const std::string& version : discovery_or->supported_versions) {
     if (version == kModernProtocolVersion) {
-      return std::unique_ptr<Client>(std::make_unique<ModernClient>(std::move(exchange), std::move(context)));
+      return std::unique_ptr<Client>(
+          std::make_unique<ModernClient>(std::move(exchange), std::move(context), options.request_timeout));
     }
   }
   return absl::UnimplementedError("server/discover did not select MCP 2026-07-28 over stdio");

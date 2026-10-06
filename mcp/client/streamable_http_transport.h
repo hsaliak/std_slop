@@ -20,7 +20,7 @@ class StreamableHttpTransport : public Transport {
   StreamableHttpTransport(StreamableHttpConfig config, HttpClient* http_client);
 
   absl::Status Start() override;
-  absl::Status Send(const nlohmann::json& message) override;
+  absl::Status Send(const nlohmann::json& message, absl::Duration timeout) override;
   absl::StatusOr<nlohmann::json> Receive(absl::Duration timeout) override;
   absl::Status Close() override;
 

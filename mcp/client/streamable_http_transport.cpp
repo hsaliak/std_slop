@@ -1,5 +1,7 @@
 #include "mcp/client/streamable_http_transport.h"
 
+#include <algorithm>
+#include <chrono>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -9,9 +11,9 @@
 
 #include "core/json_utils.h"
 #include "mcp/client/http_headers.h"
+#include "mcp/client/sse_decoder.h"
 #include "mcp/json_rpc.h"
 #include "mcp/protocol.h"
-#include "mcp/client/sse_decoder.h"
 
 namespace slop::mcp::v2025_11_25 {
 namespace {
@@ -40,19 +42,23 @@ absl::Status StreamableHttpTransport::Start() {
   return absl::OkStatus();
 }
 
-absl::Status StreamableHttpTransport::Send(const nlohmann::json& message) {
+absl::Status StreamableHttpTransport::Send(const nlohmann::json& message, absl::Duration timeout) {
+  const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   if (!started_) return absl::FailedPreconditionError("MCP transport is not started");
   if (closed_) return absl::FailedPreconditionError("MCP transport is closed");
   if (!message.is_object()) return absl::InvalidArgumentError("MCP outbound message must be an object");
 
-  auto outbound_or = ParseJsonRpcMessage(json_dump(message));
+  const std::string body = json_dump(message);
+  auto outbound_or = ParseJsonRpcMessage(body);
   if (!outbound_or.ok()) return outbound_or.status();
 
   auto headers_or = BuildHeaders();
   if (!headers_or.ok()) return headers_or.status();
-  auto response_or = http_client_->PostOnceStreamWithResponse(config_.endpoint_url, json_dump(message), *headers_or,
-                                                              config_.request_timeout, 4 * 1024 * 1024,
-                                                              [](absl::string_view) { return absl::OkStatus(); });
+  const absl::Duration remaining = timeout - absl::FromChrono(std::chrono::steady_clock::now() - start);
+  if (remaining <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP HTTP send deadline expired");
+  auto response_or = http_client_->PostOnceStreamWithResponse(
+      config_.endpoint_url, body, *headers_or, std::min(config_.request_timeout, remaining), 4 * 1024 * 1024,
+      [](absl::string_view) { return absl::OkStatus(); });
   if (!response_or.ok()) return response_or.status();
   return EnqueueResponseMessages(*response_or);
 }

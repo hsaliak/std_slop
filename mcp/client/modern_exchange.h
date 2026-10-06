@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "nlohmann/json.hpp"
 
 #include "mcp/client/modern.h"
@@ -22,7 +23,8 @@ struct ModernExchangeResult {
 class ModernExchange {
  public:
   virtual ~ModernExchange() = default;
-  virtual absl::StatusOr<ModernExchangeResult> Execute(const Request& request) = 0;
+  virtual absl::StatusOr<ModernExchangeResult> Execute(const Request& request,
+                                                       absl::Duration timeout = absl::Seconds(60)) = 0;
   virtual void Cancel() {}
 };
 

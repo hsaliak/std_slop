@@ -24,7 +24,8 @@ class StdioExchange final : public ModernExchange {
   StdioExchange(std::unique_ptr<Transport> transport, StdioExchangeOptions options = {});
 
   absl::Status Start();
-  absl::StatusOr<ModernExchangeResult> Execute(const Request& request) override;
+  absl::StatusOr<ModernExchangeResult> Execute(const Request& request,
+                                               absl::Duration timeout = absl::Seconds(60)) override;
   void Cancel() override;
 
  private:

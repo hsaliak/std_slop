@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
@@ -129,11 +130,11 @@ TEST(McpClientTest, SelectsModernAndExecutesTools) {
   auto tools = (*client)->ListTools();
   ASSERT_TRUE(tools.ok()) << tools.status();
   ASSERT_EQ(tools->size(), 1);
-  auto result = (*client)->CallTool("echo", {{"text", "hello"}});
+  auto result = (*client)->CallTool("echo", {{"text", "hello"}}, absl::Seconds(5));
   ASSERT_TRUE(result.ok()) << result.status();
   EXPECT_EQ(result->kind, ToolResultKind::kInputRequired);
   ASSERT_TRUE(result->request_state.has_value());
-  auto continued = (*client)->ContinueToolCall("echo", {{"text", "hello"}}, *result->request_state);
+  auto continued = (*client)->ContinueToolCall("echo", {{"text", "hello"}}, *result->request_state, absl::Seconds(5));
   ASSERT_TRUE(continued.ok()) << continued.status();
   EXPECT_EQ(continued->kind, ToolResultKind::kComplete);
   ASSERT_TRUE(continued->structured_content.has_value());
@@ -190,8 +191,8 @@ TEST(McpClientTest, PreferLatestFallsBackOnUnrecognizedDiscovery400) {
 
 TEST(McpClientTest, PreferLatestFallsBackOnDiscoveryMethodNotFound) {
   FakeHttpClient http;
-  http.responses.push_back(JsonResponse(
-      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"Method not found"}})"));
+  http.responses.push_back(
+      JsonResponse(R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"Method not found"}})"));
   http.responses.push_back(InitializeResponse());
   http.responses.push_back({202, "", {}});
   StreamableHttpConfig config;
@@ -226,8 +227,7 @@ TEST(McpClientTest, PreferLatestFallsBackOnUnsupportedProtocolVersion) {
 TEST(McpClientTest, LatestOnlyDoesNotFallbackOnUnsupportedProtocolVersion) {
   FakeHttpClient http;
   http.responses.push_back(JsonResponse(
-      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32000,"message":"Unsupported protocol version"}})",
-      400));
+      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32000,"message":"Unsupported protocol version"}})", 400));
   StreamableHttpConfig config;
   config.endpoint_url = "https://example.com/mcp";
 
@@ -268,8 +268,8 @@ TEST(McpClientTest, DoesNotDowngradeRecognizedModernOrAuthErrors) {
   EXPECT_EQ(modern_error.bodies.size(), 1);
 
   FakeHttpClient method_not_found_bad_request;
-  method_not_found_bad_request.responses.push_back(JsonResponse(
-      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"Method not found"}})", 400));
+  method_not_found_bad_request.responses.push_back(
+      JsonResponse(R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"Method not found"}})", 400));
   auto bad_request = ConnectMcp(config, MakeClientOptions(), &method_not_found_bad_request);
   EXPECT_FALSE(bad_request.ok());
   EXPECT_EQ(method_not_found_bad_request.modern_calls, 1);
@@ -283,8 +283,8 @@ TEST(McpClientTest, DoesNotDowngradeRecognizedModernOrAuthErrors) {
   EXPECT_EQ(auth_error.bodies.size(), 1);
 
   FakeHttpClient json_auth_error;
-  json_auth_error.responses.push_back(JsonResponse(
-      R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"unauthorized"}})", 401));
+  json_auth_error.responses.push_back(
+      JsonResponse(R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"unauthorized"}})", 401));
   auto json_unauthorized = ConnectMcp(config, MakeClientOptions(), &json_auth_error);
   EXPECT_TRUE(absl::IsUnauthenticated(json_unauthorized.status()));
   EXPECT_EQ(json_auth_error.modern_calls, 1);

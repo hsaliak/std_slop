@@ -1,5 +1,7 @@
 #include "mcp/client/modern_http.h"
 
+#include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -46,9 +48,12 @@ absl::Status HttpExchange::ValidateOptions() const {
   return ValidateExtraHeaders(options_.extra_headers);
 }
 
-absl::StatusOr<HttpExchangeResult> HttpExchange::Execute(const Request& request) {
+absl::StatusOr<HttpExchangeResult> HttpExchange::Execute(const Request& request, absl::Duration timeout) {
   const absl::Status options_status = ValidateOptions();
   if (!options_status.ok()) return options_status;
+  if (timeout <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP request deadline expired");
+  const absl::Duration budget = std::min(options_.deadline, timeout);
+  const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   auto encoded_or = EncodeRequest(request);
   if (!encoded_or.ok()) return encoded_or.status();
 
@@ -59,10 +64,13 @@ absl::StatusOr<HttpExchangeResult> HttpExchange::Execute(const Request& request)
     encoded_or->headers.push_back(absl::StrCat("Authorization: Bearer ", *options_.bearer_token));
   }
 
+  const std::string body = json_dump(encoded_or->body);
+  const absl::Duration remaining = budget - absl::FromChrono(std::chrono::steady_clock::now() - start);
+  if (remaining <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP request deadline expired");
   size_t received = 0;
   auto response_or = http_client_->PostOnceStreamWithResponse(
-      options_.endpoint_url, json_dump(encoded_or->body), encoded_or->headers, options_.deadline,
-      options_.max_response_bytes, [&](absl::string_view chunk) {
+      options_.endpoint_url, body, encoded_or->headers, remaining, options_.max_response_bytes,
+      [&](absl::string_view chunk) {
         if (chunk.size() > options_.max_response_bytes - received) {
           return absl::ResourceExhaustedError("MCP response byte limit exceeded");
         }

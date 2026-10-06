@@ -63,7 +63,7 @@ TEST(StreamableHttpTransportTest, SendsRequiredHeadersAndParsesJsonResponse) {
   transport.SetProtocolVersion("2025-11-25");
 
   ASSERT_TRUE(transport.Start().ok());
-  ASSERT_TRUE(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).ok());
+  ASSERT_TRUE(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5)).ok());
   auto received = transport.Receive(absl::Seconds(1));
 
   ASSERT_TRUE(received.ok()) << received.status();
@@ -86,7 +86,7 @@ TEST(StreamableHttpTransportTest, RejectsInvalidAndReservedExtraHeaders) {
     config.extra_headers[name] = value;
     StreamableHttpTransport transport(config, &http);
     ASSERT_TRUE(transport.Start().ok());
-    EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).code(),
+    EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5)).code(),
               absl::StatusCode::kInvalidArgument);
     EXPECT_TRUE(http.last_url.empty());
   }
@@ -103,7 +103,7 @@ TEST(StreamableHttpTransportTest, ParsesSseMessages) {
   StreamableHttpTransport transport(config, &http);
 
   ASSERT_TRUE(transport.Start().ok());
-  ASSERT_TRUE(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).ok());
+  ASSERT_TRUE(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5)).ok());
 
   auto first = transport.Receive(absl::Seconds(1));
   auto second = transport.Receive(absl::Seconds(1));
@@ -121,7 +121,7 @@ TEST(StreamableHttpTransportTest, MapsUnauthorized) {
   StreamableHttpTransport transport(config, &http);
 
   ASSERT_TRUE(transport.Start().ok());
-  auto status = transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}});
+  auto status = transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5));
 
   ASSERT_FALSE(status.ok());
   EXPECT_EQ(status.code(), absl::StatusCode::kUnauthenticated);
@@ -135,7 +135,7 @@ TEST(StreamableHttpTransportTest, AcceptsEmptyAcceptedResponseWithoutQueuedMessa
   StreamableHttpTransport transport(config, &http);
 
   ASSERT_TRUE(transport.Start().ok());
-  ASSERT_TRUE(transport.Send({{"jsonrpc", "2.0"}, {"method", "notifications/initialized"}}).ok());
+  ASSERT_TRUE(transport.Send({{"jsonrpc", "2.0"}, {"method", "notifications/initialized"}}, absl::Seconds(5)).ok());
   auto received = transport.Receive(absl::Seconds(1));
 
   ASSERT_FALSE(received.ok());
@@ -150,7 +150,7 @@ TEST(StreamableHttpTransportTest, RejectsUnsupportedMediaType) {
   StreamableHttpTransport transport(config, &http);
 
   ASSERT_TRUE(transport.Start().ok());
-  auto status = transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}});
+  auto status = transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5));
 
   ASSERT_FALSE(status.ok());
   EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);

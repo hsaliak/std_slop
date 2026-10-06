@@ -35,21 +35,23 @@ class FakeTransport final : public Transport {
     return absl::OkStatus();
   }
 
-  absl::Status Send(const nlohmann::json& message) override {
+  absl::Status Send(const nlohmann::json& message, absl::Duration timeout) override {
     {
       absl::MutexLock lock(mutex_);
       if (!started_ || closed_) return absl::FailedPreconditionError("fake transport is not running");
       ++in_flight_;
       max_in_flight_ = std::max(max_in_flight_, in_flight_);
       last_request_id_ = json_get<nlohmann::json>(message, "id");
+      send_timeout_ = timeout;
       sent_messages_.push_back(message);
     }
     if (delay_send_) std::this_thread::sleep_for(absl::ToChronoMilliseconds(absl::Milliseconds(10)));
     return absl::OkStatus();
   }
 
-  absl::StatusOr<nlohmann::json> Receive(absl::Duration /*timeout*/) override {
+  absl::StatusOr<nlohmann::json> Receive(absl::Duration timeout) override {
     absl::MutexLock lock(mutex_);
+    receive_timeout_ = timeout;
     if (!receive_status_.ok()) return receive_status_;
     if (!responses_.empty()) {
       nlohmann::json response = std::move(responses_.front());
@@ -84,6 +86,14 @@ class FakeTransport final : public Transport {
     absl::MutexLock lock(mutex_);
     return sent_messages_;
   }
+  absl::Duration send_timeout() const {
+    absl::MutexLock lock(mutex_);
+    return send_timeout_;
+  }
+  absl::Duration receive_timeout() const {
+    absl::MutexLock lock(mutex_);
+    return receive_timeout_;
+  }
 
  private:
   mutable absl::Mutex mutex_;
@@ -95,6 +105,8 @@ class FakeTransport final : public Transport {
   int max_in_flight_ = 0;
   std::optional<nlohmann::json> last_request_id_;
   absl::Status receive_status_;
+  absl::Duration send_timeout_ = absl::ZeroDuration();
+  absl::Duration receive_timeout_ = absl::ZeroDuration();
   std::vector<nlohmann::json> sent_messages_;
 };
 
@@ -104,6 +116,22 @@ Request MakeRequest(std::string id, std::string method = "tools/list") {
   request.method = std::move(method);
   request.context.client_info = {"test-client", "1.0", std::nullopt};
   return request;
+}
+
+TEST(ModernStdioExchangeTest, AppliesOneBudgetToSendAndReceive) {
+  auto transport = std::make_unique<FakeTransport>(std::vector<nlohmann::json>{
+      {{"jsonrpc", "2.0"}, {"id", "deadline-1"}, {"result", nlohmann::json::object()}},
+  });
+  FakeTransport* raw = transport.get();
+  StdioExchange exchange(std::move(transport));
+  ASSERT_TRUE(exchange.Start().ok());
+
+  auto result = exchange.Execute(MakeRequest("deadline-1"), absl::Milliseconds(30));
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_GT(raw->send_timeout(), absl::ZeroDuration());
+  EXPECT_LE(raw->send_timeout(), absl::Milliseconds(30));
+  EXPECT_GT(raw->receive_timeout(), absl::ZeroDuration());
+  EXPECT_LE(raw->receive_timeout(), absl::Milliseconds(30));
 }
 
 TEST(ModernStdioExchangeTest, CollectsNotificationsAndMatchesResponseId) {
@@ -212,7 +240,7 @@ TEST(ModernStdioClientTest, ConnectsToRepositoryEchoServerUsingModernProtocol) {
   ASSERT_EQ(tools->size(), 1);
   EXPECT_EQ(tools->front().name, "echo");
 
-  auto result = (*client)->CallTool("echo", {{"text", "stdio works"}});
+  auto result = (*client)->CallTool("echo", {{"text", "stdio works"}}, absl::Seconds(5));
   ASSERT_TRUE(result.ok()) << result.status();
   ASSERT_TRUE(result->structured_content.has_value());
   EXPECT_EQ(*result->structured_content, nlohmann::json({{"text", "stdio works"}}));

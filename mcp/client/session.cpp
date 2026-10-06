@@ -1,5 +1,6 @@
 #include "mcp/client/session.h"
 
+#include <chrono>
 #include <utility>
 
 #include "absl/container/flat_hash_set.h"
@@ -114,12 +115,13 @@ absl::StatusOr<std::vector<Tool>> Session::ListTools() {
   return tools;
 }
 
-absl::StatusOr<ToolCallResult> Session::CallTool(absl::string_view name, const nlohmann::json& arguments) {
+absl::StatusOr<ToolCallResult> Session::CallTool(absl::string_view name, const nlohmann::json& arguments,
+                                                 absl::Duration timeout) {
   if (state_ != State::kInitialized) return absl::FailedPreconditionError("MCP session is not initialized");
   if (name.empty()) return absl::InvalidArgumentError("tool name must not be empty");
   if (!arguments.is_object()) return absl::InvalidArgumentError("tool arguments must be an object");
   nlohmann::json params = {{"name", std::string(name)}, {"arguments", arguments}};
-  auto result_or = SendRequest("tools/call", params, options_.request_timeout);
+  auto result_or = SendRequest("tools/call", params, timeout);
   if (!result_or.ok()) return result_or.status();
   return ParseToolCallResult(*result_or);
 }
@@ -224,11 +226,20 @@ absl::StatusOr<PromptGetResult> Session::GetPrompt(absl::string_view name, const
 
 absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, const nlohmann::json& params,
                                                     absl::Duration timeout) {
+  if (timeout <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP request deadline expired");
+  const auto start = std::chrono::steady_clock::now();
+  const auto remaining = [&]() { return timeout - absl::FromChrono(std::chrono::steady_clock::now() - start); };
   const JsonRpcId id = NextRequestId();
-  const absl::Status send_status = transport_->Send(BuildJsonRpcRequest(id, method, params));
+  const nlohmann::json request = BuildJsonRpcRequest(id, method, params);
+  const absl::Duration send_timeout = remaining();
+  if (send_timeout <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP request deadline expired");
+  const absl::Status send_status = transport_->Send(request, send_timeout);
   if (!send_status.ok()) return send_status;
   while (true) {
-    auto message_or = transport_->Receive(timeout);
+    const absl::Duration receive_timeout = remaining();
+    if (receive_timeout <= absl::ZeroDuration())
+      return absl::DeadlineExceededError("Timed out waiting for MCP response");
+    auto message_or = transport_->Receive(receive_timeout);
     if (!message_or.ok()) return message_or.status();
     const auto method = json_get<std::string>(*message_or, "method");
     if (method.has_value()) {
@@ -241,7 +252,9 @@ absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, co
             {"jsonrpc", "2.0"},
             {"id", *request_id},
             {"error", {{"code", -32601}, {"message", "MCP server requests are unsupported"}}}};
-        const absl::Status send_status = transport_->Send(error);
+        const absl::Duration send_timeout = remaining();
+        if (send_timeout <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP request deadline expired");
+        const absl::Status send_status = transport_->Send(error, send_timeout);
         if (!send_status.ok()) return send_status;
         continue;
       }
@@ -261,7 +274,7 @@ absl::StatusOr<nlohmann::json> Session::SendRequest(absl::string_view method, co
 }
 
 absl::Status Session::SendNotification(absl::string_view method, const nlohmann::json& params) {
-  return transport_->Send(BuildJsonRpcNotification(method, params));
+  return transport_->Send(BuildJsonRpcNotification(method, params), options_.request_timeout);
 }
 
 absl::Status Session::HandleNotification(const nlohmann::json& message) {

@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  auto result = (*session)->CallTool(argv[2], *arguments);
+  auto result = (*session)->CallTool(argv[2], *arguments, options.request_timeout);
   if (!result.ok()) {
     std::cerr << result.status() << "\n";
     return 1;

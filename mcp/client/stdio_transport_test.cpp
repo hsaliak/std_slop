@@ -86,12 +86,12 @@ TEST(StdioTransportTest, SendsAndReceivesJsonRpcFramesAndPreservesLiteralArgumen
   EXPECT_EQ(*args, nlohmann::json::array({"space ; $() *"}));
 
   const nlohmann::json request = {{"jsonrpc", "2.0"}, {"id", 7}, {"method", "ping"}};
-  ASSERT_TRUE(transport.Send(request).ok());
+  ASSERT_TRUE(transport.Send(request, absl::Seconds(5)).ok());
   auto response = transport.Receive(absl::Seconds(1));
   ASSERT_TRUE(response.ok()) << response.status();
   EXPECT_EQ(*response, request);
   EXPECT_TRUE(transport.Close().ok());
-  EXPECT_EQ(transport.Send(request).code(), absl::StatusCode::kFailedPrecondition);
+  EXPECT_EQ(transport.Send(request, absl::Seconds(5)).code(), absl::StatusCode::kFailedPrecondition);
 }
 
 TEST(StdioTransportTest, KeepsChildStderrOutOfProtocolStream) {
@@ -106,7 +106,7 @@ TEST(StdioTransportTest, KeepsChildStderrOutOfProtocolStream) {
 TEST(StdioTransportTest, RejectsOversizedRequestBeforeWriting) {
   StdioTransport transport = MakeTransport("echo", {}, 16);
   ASSERT_TRUE(transport.Start().ok());
-  const absl::Status status = transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "a-long-method"}});
+  const absl::Status status = transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "a-long-method"}}, absl::Seconds(5));
   EXPECT_EQ(status.code(), absl::StatusCode::kResourceExhausted);
   EXPECT_TRUE(transport.Close().ok());
 }
@@ -117,7 +117,7 @@ TEST(StdioTransportTest, RejectsOversizedResponseAndClosesChild) {
   auto response = transport.Receive(absl::Seconds(1));
   ASSERT_FALSE(response.ok());
   EXPECT_EQ(response.status().code(), absl::StatusCode::kResourceExhausted);
-  EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).code(),
+  EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5)).code(),
             absl::StatusCode::kFailedPrecondition);
 }
 
@@ -127,7 +127,7 @@ TEST(StdioTransportTest, RejectsMalformedResponseAndClosesChild) {
   auto response = transport.Receive(absl::Seconds(1));
   ASSERT_FALSE(response.ok());
   EXPECT_EQ(response.status().code(), absl::StatusCode::kInvalidArgument);
-  EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).code(),
+  EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5)).code(),
             absl::StatusCode::kFailedPrecondition);
 }
 
@@ -137,7 +137,7 @@ TEST(StdioTransportTest, ReturnsDeadlineExceededAndClosesChildOnTimeout) {
   auto response = transport.Receive(absl::Milliseconds(20));
   ASSERT_FALSE(response.ok());
   EXPECT_EQ(response.status().code(), absl::StatusCode::kDeadlineExceeded);
-  EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}).code(),
+  EXPECT_EQ(transport.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5)).code(),
             absl::StatusCode::kFailedPrecondition);
 }
 
@@ -158,7 +158,7 @@ TEST(StdioTransportTest, HandlesChildExitAndBrokenInputWithoutHostSigpipe) {
   ASSERT_TRUE(closed_input.Start().ok());
   auto ready = closed_input.Receive(absl::Seconds(1));
   ASSERT_TRUE(ready.ok()) << ready.status();
-  const absl::Status send_status = closed_input.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}});
+  const absl::Status send_status = closed_input.Send({{"jsonrpc", "2.0"}, {"id", 1}, {"method", "ping"}}, absl::Seconds(5));
   EXPECT_EQ(send_status.code(), absl::StatusCode::kUnavailable);
 }
 
@@ -186,7 +186,7 @@ TEST(StdioTransportTest, RejectsNullArgumentsAndMissingExecutable) {
 TEST(StdioTransportTest, RejectsInvalidOutboundJsonRpc) {
   StdioTransport transport = MakeTransport("echo");
   ASSERT_TRUE(transport.Start().ok());
-  EXPECT_EQ(transport.Send({{"not_jsonrpc", true}}).code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(transport.Send({{"not_jsonrpc", true}}, absl::Seconds(5)).code(), absl::StatusCode::kInvalidArgument);
 }
 
 }  // namespace

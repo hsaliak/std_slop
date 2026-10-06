@@ -1,5 +1,6 @@
 #include "mcp/client/modern_stdio.h"
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -30,14 +31,18 @@ absl::Status StdioExchange::Start() {
   return status;
 }
 
-absl::StatusOr<ModernExchangeResult> StdioExchange::Execute(const Request& request) {
+absl::StatusOr<ModernExchangeResult> StdioExchange::Execute(const Request& request, absl::Duration timeout) {
   absl::MutexLock lock(mutex_);
   if (!started_ || cancelled_) return absl::FailedPreconditionError("MCP stdio exchange is not running");
+  if (timeout <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP request deadline expired");
+  const absl::Duration budget = std::min(options_.deadline, timeout);
+  const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   auto encoded_or = EncodeRequest(request);
   if (!encoded_or.ok()) return encoded_or.status();
 
-  const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-  const absl::Status send_status = transport_->Send(encoded_or->body);
+  const absl::Duration send_timeout = budget - absl::FromChrono(std::chrono::steady_clock::now() - start);
+  if (send_timeout <= absl::ZeroDuration()) return absl::DeadlineExceededError("MCP request deadline expired");
+  const absl::Status send_status = transport_->Send(encoded_or->body, send_timeout);
   if (!send_status.ok()) {
     if (send_status.code() == absl::StatusCode::kUnavailable ||
         send_status.code() == absl::StatusCode::kDeadlineExceeded ||
@@ -51,7 +56,7 @@ absl::StatusOr<ModernExchangeResult> StdioExchange::Execute(const Request& reque
   messages.reserve(options_.max_messages);
   for (size_t i = 0; i < options_.max_messages; ++i) {
     const absl::Duration elapsed = absl::FromChrono(std::chrono::steady_clock::now() - start);
-    const absl::Duration remaining = options_.deadline - elapsed;
+    const absl::Duration remaining = budget - elapsed;
     if (remaining <= absl::ZeroDuration()) {
       (void)transport_->Close();
       return FailedExchange(absl::DeadlineExceededError("Timed out waiting for MCP stdio response"),

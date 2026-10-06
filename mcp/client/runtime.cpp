@@ -11,6 +11,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 
 #include "core/json_utils.h"
 #include "core/status_macros.h"
@@ -114,7 +115,7 @@ class RealRuntimeSession : public RuntimeSession {
   absl::StatusOr<std::vector<Tool>> ListTools() override { return client_->ListTools(); }
 
   absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) override {
-    return client_->CallTool(name, arguments);
+    return client_->CallTool(name, arguments, absl::Seconds(60));
   }
 
  private:

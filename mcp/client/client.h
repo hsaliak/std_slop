@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "nlohmann/json.hpp"
 
 #include "core/http_client.h"
@@ -25,9 +26,11 @@ class Client {
   virtual ~Client() = default;
   virtual ProtocolRevision revision() const = 0;
   virtual absl::StatusOr<std::vector<Tool>> ListTools() = 0;
-  virtual absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments) = 0;
+  virtual absl::StatusOr<ToolCallResult> CallTool(const std::string& name, const nlohmann::json& arguments,
+                                                  absl::Duration timeout) = 0;
   virtual absl::StatusOr<ToolCallResult> ContinueToolCall(const std::string& name, const nlohmann::json& arguments,
-                                                          const nlohmann::json& request_state) = 0;
+                                                          const nlohmann::json& request_state,
+                                                          absl::Duration timeout) = 0;
 };
 
 struct ClientOptions {
@@ -35,6 +38,8 @@ struct ClientOptions {
   ImplementationInfo client_info;
   nlohmann::json modern_capabilities = nlohmann::json::object();
   ClientCapabilities classic_capabilities;
+  absl::Duration initialization_timeout = absl::Seconds(60);
+  absl::Duration request_timeout = absl::Seconds(60);
 };
 
 absl::StatusOr<std::unique_ptr<v2025_11_25::Session>> ConnectClassicStreamableHttp(

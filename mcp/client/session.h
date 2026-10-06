@@ -32,7 +32,8 @@ class Session {
   absl::Status Ping();
   std::vector<ServerNotification> DrainNotifications();
   absl::StatusOr<std::vector<Tool>> ListTools();
-  absl::StatusOr<ToolCallResult> CallTool(absl::string_view name, const nlohmann::json& arguments);
+  absl::StatusOr<ToolCallResult> CallTool(absl::string_view name, const nlohmann::json& arguments,
+                                          absl::Duration timeout);
   absl::StatusOr<std::vector<Resource>> ListResources();
   absl::StatusOr<ResourceReadResult> ReadResource(absl::string_view uri);
   absl::Status SubscribeResource(absl::string_view uri);

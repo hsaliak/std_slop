@@ -223,7 +223,8 @@ absl::Status StdioTransport::Start() {
   return absl::OkStatus();
 }
 
-absl::Status StdioTransport::Send(const nlohmann::json& message) {
+absl::Status StdioTransport::Send(const nlohmann::json& message, absl::Duration timeout) {
+  const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   if (!started_ || closed_) return absl::FailedPreconditionError("MCP stdio transport is not running");
   if (!message.is_object()) return absl::InvalidArgumentError("MCP outbound message must be an object");
   std::string frame = json_dump(message);
@@ -233,7 +234,10 @@ absl::Status StdioTransport::Send(const nlohmann::json& message) {
     return absl::ResourceExhaustedError("MCP stdio request frame exceeds the size limit");
   }
   frame.push_back('\n');
-  const absl::Status status = WriteFrame(frame);
+  const absl::Duration remaining = timeout - absl::FromChrono(std::chrono::steady_clock::now() - start);
+  if (remaining <= absl::ZeroDuration())
+    return FailAndClose(absl::DeadlineExceededError("MCP stdio send deadline expired"));
+  const absl::Status status = WriteFrame(frame, remaining);
   if (!status.ok()) return FailAndClose(status);
   return absl::OkStatus();
 }
@@ -293,7 +297,7 @@ absl::Status StdioTransport::Close() {
   return ReapChild();
 }
 
-absl::Status StdioTransport::WriteFrame(const std::string& frame) {
+absl::Status StdioTransport::WriteFrame(const std::string& frame, absl::Duration timeout) {
   sigset_t sigpipe_set;
   sigset_t original_mask;
   sigset_t pending_signals;
@@ -313,7 +317,7 @@ absl::Status StdioTransport::WriteFrame(const std::string& frame) {
   absl::Status status;
   size_t offset = 0;
   const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-  const int64_t timeout_ms = DurationToTimeoutMs(options_.send_timeout);
+  const int64_t timeout_ms = DurationToTimeoutMs(std::min(options_.send_timeout, timeout));
 
   while (offset < frame.size()) {
     status = WaitForWritable(input_fd_, timeout_ms, start);

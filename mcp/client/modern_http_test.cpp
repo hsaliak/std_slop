@@ -71,6 +71,18 @@ bool HasHeader(const std::vector<std::string>& headers, absl::string_view prefix
   return false;
 }
 
+TEST(ModernHttpTest, AppliesPerCallDeadlineToHttpRequest) {
+  FakeHttpClient http;
+  http.response = {200, R"({"jsonrpc":"2.0","id":"id-1","result":{}})", {{"content-type", "application/json"}}};
+  http.chunks = {http.response.body};
+  HttpExchange exchange(MakeOptions(), &http);
+
+  auto result = exchange.Execute(MakeRequest(), absl::Milliseconds(25));
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_GT(http.last_timeout, absl::ZeroDuration());
+  EXPECT_LE(http.last_timeout, absl::Milliseconds(25));
+}
+
 TEST(ModernHttpTest, DecodesChunkedSseNotificationsAndFinalResponse) {
   FakeHttpClient http;
   http.response = {

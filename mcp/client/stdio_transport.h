@@ -40,12 +40,12 @@ class StdioTransport final : public Transport {
   StdioTransport& operator=(const StdioTransport&) = delete;
 
   absl::Status Start() override;
-  absl::Status Send(const nlohmann::json& message) override;
+  absl::Status Send(const nlohmann::json& message, absl::Duration timeout) override;
   absl::StatusOr<nlohmann::json> Receive(absl::Duration timeout) override;
   absl::Status Close() override;
 
  private:
-  absl::Status WriteFrame(const std::string& frame);
+  absl::Status WriteFrame(const std::string& frame, absl::Duration timeout);
   absl::Status FailAndClose(absl::Status status);
   absl::Status ReapChild();
 
