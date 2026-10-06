@@ -1,3 +1,8 @@
+## v0.27.3 - 2026-10-07
+- **QuickJS MCP composition gateway**: Added bounded `run_js` execution and `run_js_help` for composing tools from configured downstream stdio MCP servers. Each run uses an isolated worker process, bounded IPC, runtime and call limits, and a shared deadline. An omitted or empty `allowTools` list exposes all discovered tools; a non-empty list restricts access.
+- **MCP client deadlines**: Propagated request timeouts through MCP sessions and stdio/Streamable HTTP transports so tool calls respect the gateway run deadline.
+- **Documentation**: Added gateway setup and security guidance and published the generated gateway guide and implementation status pages.
+
 ## v0.27.2 - 2026-10-04
 - **Portable MCP stdio signal handling**: Use `sigwait` to consume write-generated `SIGPIPE` on platforms without `sigtimedwait`, including macOS. This restores the macOS build and keeps the stdio transport's broken-pipe behavior consistent.
 
