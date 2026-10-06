@@ -60,6 +60,31 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Prefetch readline source
+      if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.cache/bazel-distdir"
+        expected_sha256="3feb7171f16a84ee82ca18a36d7b9be109a52c04f492a053331d7d1095007c35"
+        output="$HOME/.cache/bazel-distdir/readline-8.2.tar.gz"
+        tmp="$output.tmp"
+        for url in \
+          "https://mirrors.kernel.org/gnu/readline/readline-8.2.tar.gz" \
+          "https://ftpmirror.gnu.org/gnu/readline/readline-8.2.tar.gz" \
+          "https://ftp.gnu.org/pub/gnu/readline/readline-8.2.tar.gz"; do
+          if curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 "$url" --output "$tmp"; then
+            actual_sha256="$(python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$tmp")"
+            if [[ "$actual_sha256" == "$expected_sha256" ]]; then
+              mv "$tmp" "$output"
+              exit 0
+            fi
+            echo "Checksum mismatch for $url: $actual_sha256" >&2
+          fi
+        done
+        echo "Failed to prefetch readline-8.2.tar.gz from all mirrors" >&2
+        exit 1
+
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
     # or others). This is typically only required for manual builds.
@@ -100,6 +125,7 @@ jobs:
           --noremote_accept_cached \
           --noremote_upload_local_results \
           --disk_cache= \
+          --distdir="$HOME/.cache/bazel-distdir" \
           //:std_slop 
         
         # Clean up Bazel server processes
