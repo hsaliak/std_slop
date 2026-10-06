@@ -8,6 +8,7 @@ sh_test(
         "build_pages_test.py",
         "//:README.md",
         "//:docs/mcp-api.md",
+        "//:docs/echo-server.md",
         "//mcp/gateway:README.md",
         "//mcp/gateway:STATUS.md",
     ],

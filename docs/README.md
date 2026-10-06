@@ -23,11 +23,16 @@
 - [Markdown parser and renderer](../markdown/README.md) — Tree-sitter parsing, ANSI terminal rendering, highlighting, and API examples.
 - [mcp-api.md](mcp-api.md) — outbound C++ MCP clients, Streamable HTTP, local stdio, bearer tokens, and OAuth helpers.
 - [MCP client package](../mcp/client/README.md) — revision selection and runnable client examples.
-- [mcp-server.md](mcp-server.md) — inbound C++ stdio server API, echo example, framing limits, tests, and security scope.
-- [run_js MCP gateway](../mcp/gateway/README.md) — configure the bounded JavaScript gateway as a stdio MCP server and call it from `std_slop`.
-- [run_js implementation status](../mcp/gateway/STATUS.md) — current bundle status, verification, and future work.
+- [mcp-server.md](mcp-server.md) — inbound C++ stdio server API, framing limits, tests, and security scope.
 
-The inbound server supports stdio only. The outbound client supports Streamable HTTP and modern MCP `2026-07-28` over local stdio. Configured stdio programs run with the agent user's permissions and environment. The server does not automatically export agent tools. The Markdown library and echo server do not need agent model credentials or a session database.
+## Implemented MCPs
+
+This repository includes small MCP servers that demonstrate different use cases:
+
+- [Echo MCP server](echo-server.md) — deterministic, side-effect-free `echo` tool; also used by the gateway example.
+- [run_js gateway](../mcp/gateway/README.md) — bounded JavaScript composition over configured downstream stdio MCP servers. See its [implementation status](../mcp/gateway/STATUS.md) for current verification and follow-up work.
+
+The inbound C++ server library supports stdio only. The outbound client supports Streamable HTTP and modern MCP `2026-07-28` over local stdio. Configured stdio programs run with the agent user's permissions and environment. The server does not automatically export agent tools. The Markdown library and echo server do not need agent model credentials or a session database.
 
 ## Agent runtime reference
 

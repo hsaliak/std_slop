@@ -85,6 +85,12 @@ PAGES = (
         (SourceSpec("docs/mcp-server.md"),),
     ),
     PageSpec(
+        "echo-server.html",
+        "docs/echo-server.md",
+        "Echo MCP server",
+        (SourceSpec("docs/echo-server.md"),),
+    ),
+    PageSpec(
         "run-js.html",
         "mcp/gateway/README.md",
         "run_js MCP gateway",
@@ -111,14 +117,24 @@ PAGES = (
 )
 
 NAVIGATION = (
-    ("Coding Agents", "agent.html"),
+    ("Coding Agents", None),
     ("MCP Client", "mcp.html"),
-    ("MCP Server", "mcp-server.html"),
-    ("run_js Gateway", "run-js.html"),
+    ("MCP Server API", "mcp-server.html"),
+    ("Implemented MCPs", None),
     ("Markdown", "markdown.html"),
 )
 
+NAVIGATION_DROPDOWNS = {
+    "Coding Agents": (("std::slop", "agent.html"), ("sl", "sl.html")),
+    "Implemented MCPs": (
+        ("echo_server", "echo-server.html"),
+        ("run_js Gateway", "run-js.html"),
+    ),
+}
+
 SITE_SOURCE_PAGES = {
+    "docs/echo-server.md": "echo-server.html",
+    "docs/mcp-server.md": "mcp-server.html",
     "mcp/gateway/README.md": "run-js.html",
     "mcp/gateway/STATUS.md": "run-js-status.html",
 }
@@ -360,15 +376,16 @@ def render_markdown(lines: list[str], source_path: str, used_heading_ids: set[st
 def navigation(active: str) -> str:
     links = []
     for label, target in NAVIGATION:
-        if label == "Coding Agents":
+        menu_items = NAVIGATION_DROPDOWNS.get(label)
+        if menu_items is not None:
             items = []
-            for name, page in (("std::slop", "agent.html"), ("sl", "sl.html")):
+            for name, page in menu_items:
                 current = ' class="active" aria-current="page"' if page == active else ""
                 items.append(f'<a{current} href="{page}">{name}</a>')
-            selected = ' class="active"' if active in ("agent.html", "sl.html") else ""
+            selected = ' class="active"' if any(page == active for _, page in menu_items) else ""
             links.append(
-                f'<details class="agent-menu"><summary{selected}>{label}</summary>'
-                f'<div class="agent-menu-links">{"".join(items)}</div></details>'
+                f'<details class="nav-menu"><summary{selected}>{label}</summary>'
+                f'<div class="nav-menu-links">{"".join(items)}</div></details>'
             )
             continue
         current = ' class="active" aria-current="page"' if target == active else ""

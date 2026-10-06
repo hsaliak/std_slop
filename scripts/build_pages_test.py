@@ -77,12 +77,18 @@ SOURCES = {
         "Inbound stdio server, protocol `2026-07-28`.\n\n"
         "```sh\nbazel build //mcp/server:echo_server\n```\n"
     ),
+    "docs/echo-server.md": (
+        "# Echo MCP server\n\n"
+        "The deterministic echo implementation.\n\n"
+        "[MCP server guide](mcp-server.md).\n"
+    ),
     "docs/mcp-slop-userguide.md": "# MCP agent integration\n\nRemote tools.\n",
     "mcp/gateway/README.md": "# run_js gateway\n\n[Implementation status](STATUS.md).\n",
     "mcp/gateway/STATUS.md": "# Gateway implementation status\n\nCurrent state.\n",
     "markdown/README.md": "# Markdown library\n\nTerminal renderer.\n",
     "docs/README.md": (
         "# Documentation guide\n\nChoose a component.\n\n"
+        "[Echo MCP server](echo-server.md)\n\n"
         "[run_js gateway](../mcp/gateway/README.md)\n\n"
         "[run_js status](../mcp/gateway/STATUS.md)\n"
     ),
@@ -148,6 +154,7 @@ class BuildPagesTest(unittest.TestCase):
             "sl.html": "docs/sl.md",
             "mcp.html": "docs/mcp-api.md",
             "mcp-server.html": "docs/mcp-server.md",
+            "echo-server.html": "docs/echo-server.md",
             "run-js.html": "mcp/gateway/README.md",
             "run-js-status.html": "mcp/gateway/STATUS.md",
             "markdown.html": "markdown/README.md",
@@ -160,7 +167,7 @@ class BuildPagesTest(unittest.TestCase):
     def test_navigation_order_and_agent_dropdown(self):
         self.assertEqual(
             [name for name, _ in build_pages.NAVIGATION],
-            ["Coding Agents", "MCP Client", "MCP Server", "run_js Gateway", "Markdown"],
+            ["Coding Agents", "MCP Client", "MCP Server API", "Implemented MCPs", "Markdown"],
         )
         for name in ("agent.html", "sl.html"):
             navigation = build_pages.navigation(name)
@@ -168,9 +175,28 @@ class BuildPagesTest(unittest.TestCase):
             self.assertIn(f'aria-current="page" href="{name}"', navigation)
             self.assertEqual(navigation.count('aria-current="page"'), 1)
 
+        echo_navigation = build_pages.navigation("echo-server.html")
+        self.assertIn('<summary class="active">Implemented MCPs', echo_navigation)
+        self.assertIn(
+            '<a class="active" aria-current="page" href="echo-server.html">echo_server', echo_navigation
+        )
+        self.assertEqual(echo_navigation.count('aria-current="page"'), 1)
+
         run_js_navigation = build_pages.navigation("run-js.html")
-        self.assertIn('<a class="active" aria-current="page" href="run-js.html">run_js Gateway', run_js_navigation)
+        self.assertIn('<summary class="active">Implemented MCPs', run_js_navigation)
+        self.assertIn(
+            '<a class="active" aria-current="page" href="run-js.html">run_js Gateway', run_js_navigation
+        )
         self.assertEqual(run_js_navigation.count('aria-current="page"'), 1)
+
+    def test_implemented_mcp_guides_are_listed_and_linked(self):
+        echo_page = self.page("echo-server.html")
+        self.assertIn("deterministic echo implementation", echo_page)
+        self.assertIn("run_js gateway", self.page("docs.html"))
+        self.assertIn('href="echo-server.html"', self.page("docs.html"))
+        navigation = build_pages.navigation("echo-server.html")
+        self.assertIn('href="echo-server.html">echo_server', navigation)
+        self.assertIn('href="run-js.html">run_js Gateway', navigation)
 
     def test_selected_sections_exist_in_repository_sources(self):
         runfiles = os.environ.get("TEST_SRCDIR")
@@ -206,6 +232,7 @@ class BuildPagesTest(unittest.TestCase):
                 self.assertIn('href="agent.html">std::slop', page)
                 self.assertIn('href="sl.html">sl', page)
                 self.assertIn('href="mcp-server.html"', page)
+                self.assertIn('href="echo-server.html"', page)
                 self.assertIn('href="run-js.html"', page)
                 self.assertNotIn("C++ coding agent and integrated", page)
 
@@ -217,6 +244,12 @@ class BuildPagesTest(unittest.TestCase):
         self.assertEqual(
             build_pages.source_url("docs/README.md", "../markdown/README.md"),
             "https://github.com/hsaliak/std_slop/blob/main/markdown/README.md",
+        )
+        self.assertEqual(
+            build_pages.source_url("docs/README.md", "echo-server.md"), "echo-server.html"
+        )
+        self.assertEqual(
+            build_pages.source_url("docs/echo-server.md", "mcp-server.md"), "mcp-server.html"
         )
         self.assertEqual(build_pages.source_url("docs/README.md", "../mcp/gateway/README.md"), "run-js.html")
         self.assertEqual(build_pages.source_url("mcp/gateway/README.md", "STATUS.md"), "run-js-status.html")

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
+  <title>Echo MCP server — std::slop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="nav-menu"><summary>Coding Agents</summary><div class="nav-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server API</a><details class="nav-menu"><summary class="active">Implemented MCPs</summary><div class="nav-menu-links"><a class="active" aria-current="page" href="echo-server.html">echo_server</a><a href="run-js.html">run_js Gateway</a></div></details><a href="markdown.html">Markdown</a></nav></div></header>
+  <main id="main-content">
+<section class="page-hero shell"><p class="eyebrow">Source: docs/echo-server.md</p><h1>Echo MCP server</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#tool">Tool</a></li><li class="toc-level-2"><a href="#build-and-test">Build and test</a></li><li class="toc-level-2"><a href="#use-with-the-run-js-gateway">Use with the run_js gateway</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="echo-mcp-server">Echo MCP server</h1>
+<p><code>echo_server</code> is a small, deterministic MCP server used in examples and tests. It is one of the MCP implementations in this repository. For the C++ server library and its full API, see the <a href="mcp-server.html">MCP server guide</a>.</p></div>
+<section class="doc-section"><h2 id="tool">Tool</h2>
+<p>The server exposes one tool, <code>echo</code>:</p>
+<ul><li>Input: an object with a required string field, <code>text</code>.</li><li>Result: the supplied text as both text content and <code>structuredContent</code>.</li><li>Annotation: read-only; the handler has no side effects.</li></ul>
+<p>The server uses stdio and MCP protocol version <code>2026-07-28</code>. It does not need an HTTP listener, model credentials, or a database.</p></section>
+<section class="doc-section"><h2 id="build-and-test">Build and test</h2>
+<pre><code class="language-sh">bazel build //mcp/server:echo_server
+bazel test //mcp/server:echo_server_test</code></pre></section>
+<section class="doc-section"><h2 id="use-with-the-run-js-gateway">Use with the run_js gateway</h2>
+<p>The echo server is also the example downstream MCP for the <a href="run-js.html">run_js gateway</a>. Configure its executable path as a stdio server and allow the <code>echo</code> tool:</p>
+<pre><code class="language-json">{
+  &quot;servers&quot;: [
+    {
+      &quot;alias&quot;: &quot;echo&quot;,
+      &quot;transport&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;/absolute/path/to/bazel-bin/mcp/server/echo_server&quot;,
+      &quot;args&quot;: [],
+      &quot;allowTools&quot;: [&quot;echo&quot;]
+    }
+  ]
+}</code></pre>
+<p>With that configuration, JavaScript can call <code>await echo.echo({text: "hello"})</code> through the gateway. The gateway's <a href="run-js.html">setup guide</a> covers registration and execution.</p></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+</body>
+</html>
