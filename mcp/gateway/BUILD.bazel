@@ -1,0 +1,259 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@aspect_rules_lint//format:defs.bzl", "format_test")
+
+format_test(
+    name = "format_test",
+    cc = "//:clang_format_hermetic",
+    srcs = glob(["*.cpp", "*.h"]),
+)
+
+exports_files(["README.md", "STATUS.md"])
+
+
+cc_library(
+    name = "config",
+    srcs = ["config.cpp"],
+    hdrs = ["config.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "//mcp/client:stdio_transport",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "catalog",
+    srcs = ["catalog.cpp"],
+    hdrs = ["catalog.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":config",
+        "//core:json_utils",
+        "//mcp:json_schema",
+        "//mcp/client:client",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "catalog_test",
+    srcs = ["catalog_test.cpp"],
+    deps = [
+        ":catalog",
+        "//mcp:protocol",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "gateway_fuzz_test",
+    srcs = ["gateway_fuzz_test.cpp"],
+    copts = ["-Wno-unused-parameter", "-Wno-deprecated-declarations"],
+    deps = [
+        ":config",
+        ":result",
+        "//core:json_utils",
+        "//mcp:protocol",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+sh_test(
+    name = "gateway_subprocess_test",
+    size = "small",
+    srcs = ["gateway_subprocess_test.sh"],
+    data = [
+        ":run_js_server",
+        "//mcp/server:echo_server",
+        "gateway_subprocess_test.py",
+    ],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
+cc_test(
+    name = "scheduler_test",
+    srcs = ["scheduler_test.cpp"],
+    deps = [
+        ":catalog",
+        ":broker",
+        ":scheduler",
+        "//js_runtime:runtime",
+        "//mcp/client:client",
+        "//mcp:protocol",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "gateway_test",
+    srcs = ["gateway_test.cpp"],
+    deps = [
+        ":catalog",
+        ":broker",
+        ":gateway_server",
+        "//core:json_utils",
+        "//mcp/client:client",
+        "//mcp:protocol",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "worker",
+    srcs = ["worker.cpp"],
+    hdrs = ["worker.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "//js_runtime:runtime",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "worker_test",
+    srcs = ["worker_test.cpp"],
+    deps = [
+        ":worker",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "worker_fuzz_test",
+    srcs = ["worker_fuzz_test.cpp"],
+    copts = ["-Wno-unused-parameter", "-Wno-deprecated-declarations"],
+    deps = [
+        ":worker",
+        "//core:json_utils",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "gateway_server",
+    srcs = ["server.cpp"],
+    hdrs = ["server.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":broker",
+        "//core:json_utils",
+        "//mcp:protocol",
+        "//mcp/server:server",
+        "//js_runtime:runtime",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_binary(
+    name = "run_js_server",
+    srcs = ["run_js_server.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":config",
+        ":catalog",
+        ":broker",
+        ":gateway_server",
+        ":worker",
+        "//mcp/client:client",
+        "//mcp/client:stdio_transport",
+        "//mcp/server:stdio",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_library(
+    name = "scheduler",
+    srcs = ["scheduler.cpp"],
+    hdrs = ["scheduler.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":catalog",
+        ":result",
+        "//js_runtime:runtime",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "broker",
+    srcs = ["broker.cpp"],
+    hdrs = ["broker.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":catalog",
+        ":result",
+        ":scheduler",
+        "//js_runtime:runtime",
+        "@abseil-cpp//absl/status",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
+    name = "result",
+    srcs = ["result.cpp"],
+    hdrs = ["result.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "//mcp:protocol",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "result_test",
+    srcs = ["result_test.cpp"],
+    deps = [
+        ":result",
+        "//mcp:protocol",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "config_test",
+    srcs = ["config_test.cpp"],
+    deps = [
+        ":config",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)

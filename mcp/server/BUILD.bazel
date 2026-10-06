@@ -38,7 +38,7 @@ cc_library(
 cc_binary(
     name = "echo_server",
     srcs = ["echo_server.cpp"],
-    visibility = ["//mcp/client:__pkg__", "//mcp/server:__pkg__"],
+    visibility = ["//mcp/client:__pkg__", "//mcp/server:__pkg__", "//mcp/gateway:__pkg__"],
     deps = [
         ":stdio",
         "//core:json_utils",
