@@ -1,0 +1,50 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@aspect_rules_lint//format:defs.bzl", "format_test")
+
+format_test(
+    name = "format_test",
+    cc = "//:clang_format_hermetic",
+    srcs = glob(["*.cpp", "*.h"]),
+)
+
+
+cc_library(
+    name = "runtime",
+    srcs = ["runtime.cpp", "value_conversion.cpp"],
+    hdrs = ["runtime.h", "value_conversion.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:json_utils",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+        "@quickjs-ng//:quickjs",
+    ],
+)
+
+cc_test(
+    name = "runtime_test",
+    srcs = ["runtime_test.cpp"],
+    deps = [
+        ":runtime",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "runtime_fuzz_test",
+    srcs = ["runtime_fuzz_test.cpp"],
+    copts = ["-Wno-unused-parameter", "-Wno-deprecated-declarations"],
+    deps = [
+        ":runtime",
+        "@abseil-cpp//absl/status",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
