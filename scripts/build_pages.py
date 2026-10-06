@@ -85,6 +85,18 @@ PAGES = (
         (SourceSpec("docs/mcp-server.md"),),
     ),
     PageSpec(
+        "run-js.html",
+        "mcp/gateway/README.md",
+        "run_js MCP gateway",
+        (SourceSpec("mcp/gateway/README.md"),),
+    ),
+    PageSpec(
+        "run-js-status.html",
+        "mcp/gateway/STATUS.md",
+        "run_js gateway status",
+        (SourceSpec("mcp/gateway/STATUS.md"),),
+    ),
+    PageSpec(
         "markdown.html",
         "markdown/README.md",
         "Markdown library",
@@ -102,8 +114,14 @@ NAVIGATION = (
     ("Coding Agents", "agent.html"),
     ("MCP Client", "mcp.html"),
     ("MCP Server", "mcp-server.html"),
+    ("run_js Gateway", "run-js.html"),
     ("Markdown", "markdown.html"),
 )
+
+SITE_SOURCE_PAGES = {
+    "mcp/gateway/README.md": "run-js.html",
+    "mcp/gateway/STATUS.md": "run-js-status.html",
+}
 
 
 def heading(line: str) -> tuple[int, str] | None:
@@ -187,6 +205,8 @@ def source_url(source_path: str, target: str) -> str:
     resolved = posixpath.normpath((source_dir / path).as_posix())
     if resolved.startswith("../"):
         resolved = resolved[3:]
+    if resolved in SITE_SOURCE_PAGES:
+        return f"{SITE_SOURCE_PAGES[resolved]}{fragment}"
     if resolved.endswith(".md") or resolved.endswith(".ini"):
         return f"{REPOSITORY_URL}/blob/main/{resolved}{fragment}"
     return target

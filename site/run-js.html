@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
+  <title>run_js MCP gateway — std::slop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="agent-menu"><summary>Coding Agents</summary><div class="agent-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server</a><a class="active" aria-current="page" href="run-js.html">run_js Gateway</a><a href="markdown.html">Markdown</a></nav></div></header>
+  <main id="main-content">
+<section class="page-hero shell"><p class="eyebrow">Source: mcp/gateway/README.md</p><h1>run_js MCP gateway</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#example-use-the-gateway-from-std-slop">Example: use the gateway from std_slop</a></li><li class="toc-level-2"><a href="#configuration-and-limits">Configuration and limits</a></li><li class="toc-level-2"><a href="#testing-without-an-llm">Testing without an LLM</a></li><li class="toc-level-2"><a href="#security-considerations">Security considerations</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="run-js-server-example-gateway"><code>run_js_server</code> example gateway</h1>
+<p><code>run_js_server</code> is a stdio MCP server that runs bounded JavaScript and calls tools from configured downstream stdio MCP servers. It exposes two tools:</p>
+<ul><li><code>run_js</code>: run JavaScript with optional JSON input.</li><li><code>run_js_help</code>: list authorized tools or inspect one tool's schema.</li></ul>
+<p>This file is the user setup guide. Current implementation status and follow-up work are in <a href="run-js-status.html">STATUS.md</a>.</p>
+<p>Inside JavaScript, call an authorized tool with <code>await alias.tool(args)</code> or <code>await mcp.call("alias", "tool", args)</code>. Use <code>help()</code> or <code>mcp.help()</code> to inspect the authorized catalog.</p></div>
+<section class="doc-section"><h2 id="example-use-the-gateway-from-std-slop">Example: use the gateway from <code>std_slop</code></h2>
+<p>This example uses the echo MCP server. Build the gateway, echo server, and <code>std_slop</code>; use absolute executable paths in the files below.</p>
+<p>Create <code>gateway.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;runTimeoutMs&quot;: 30000,
+  &quot;servers&quot;: [
+    {
+      &quot;alias&quot;: &quot;echo&quot;,
+      &quot;transport&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;/absolute/path/to/bazel-bin/mcp/server/echo_server&quot;,
+      &quot;args&quot;: [],
+      &quot;allowTools&quot;: [&quot;echo&quot;]
+    }
+  ]
+}</code></pre>
+<p>Register the gateway in the std_slop MCP registry, normally <code>~/.config/slop/mcp.ini</code>:</p>
+<pre><code class="language-ini">[server.js]
+transport=stdio
+command=/absolute/path/to/bazel-bin/mcp/gateway/run_js_server
+args_json=[&quot;--config&quot;,&quot;/absolute/path/to/gateway.json&quot;]
+enabled=true</code></pre>
+<p>Start <code>std_slop</code> with this registry and your usual model configuration. The registry alias <code>js</code> exposes the tools <code>mcp_js_run_js</code> and <code>mcp_js_run_js_help</code>. Ask the model to call <code>mcp_js_run_js</code> with this code:</p>
+<pre><code class="language-javascript">const result = await echo.echo({text: &quot;hello from std_slop&quot;});
+return result.structuredContent;</code></pre>
+<p>The returned <code>structuredContent.result</code> should be <code>{"text":"hello from std_slop"}</code>. A non-empty <code>allowTools</code> list restricts JavaScript to the listed tools. If <code>allowTools</code> is omitted or empty, all tools discovered from that downstream server are available.</p>
+<p>To check the tools from JavaScript, call:</p>
+<pre><code class="language-javascript">const schema = help(&quot;echo&quot;, &quot;echo&quot;);
+const echoed = await echo.echo({text: &quot;hello&quot;});
+return {schema, result: echoed.structuredContent};</code></pre>
+<p>To check repeated calls and sequential awaits:</p>
+<pre><code class="language-javascript">const messages = [&quot;loop-1&quot;, &quot;loop-2&quot;, &quot;loop-3&quot;];
+const replies = [];
+for (const text of messages) {
+  const response = await echo.echo({text});
+  replies.push(response.structuredContent);
+}
+return {
+  count: replies.length,
+  replies,
+  allMatched: replies.every((reply, index) =&gt; reply.text === messages[index])
+};</code></pre>
+<p>The result should report <code>count: 3</code> and <code>allMatched: true</code>.</p></section>
+<section class="doc-section"><h2 id="configuration-and-limits">Configuration and limits</h2>
+<p><code>runTimeoutMs</code> is optional. Its default is 30000 ms; the allowed range is 1–60000 ms. The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty <code>allowTools</code> list to restrict the exposed tools; omitting it or setting it to <code>[]</code> exposes every discovered tool from that server. It does not accept HTTP servers or secrets.</p>
+<p>Every <code>run_js</code> call runs in a fresh <code>run_js_server --worker-fd</code> child. The parent and worker exchange length-prefixed JSON frames over a private Unix socketpair, with a 4 MiB frame limit. The child receives code, input, the authorized public catalog, limits, and tool results. The parent validates worker requests and performs all downstream MCP calls. Calls to one downstream client run serially; calls to different clients may run concurrently. The remaining run deadline is passed to downstream calls.</p></section>
+<section class="doc-section"><h2 id="testing-without-an-llm">Testing without an LLM</h2>
+<p>Build the example servers and run the subprocess integration test:</p>
+<pre><code class="language-bash">bazel build //mcp/gateway:run_js_server //mcp/server:echo_server
+bazel test //mcp/gateway:gateway_subprocess_test --test_output=all</code></pre>
+<p>The test composes concurrent echo calls through the worker and verifies that a 100 ms run timeout stops an infinite loop. Run <code>bazel test //...</code> for the full repository suite.</p></section>
+<section class="doc-section"><h2 id="security-considerations">Security considerations</h2>
+<p>An empty or omitted <code>allowTools</code> list grants JavaScript access to every tool advertised by that downstream server. Use a non-empty list when you need least-privilege access. Configured downstream commands run with the gateway account's operating-system permissions.</p>
+<p>Each run uses a worker process, but this is not an OS sandbox. A QuickJS or native-library exploit could compromise the worker and access resources available to the gateway account. Do not pass secrets to the gateway. The gateway does not execute application handlers or provide reverse calls into the host agent. To expose application capabilities, use a separate MCP server that preserves their existing authorization checks and configure it as a downstream server.</p></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+</body>
+</html>

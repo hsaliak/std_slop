@@ -24,6 +24,8 @@
 - [mcp-api.md](mcp-api.md) — outbound C++ MCP clients, Streamable HTTP, local stdio, bearer tokens, and OAuth helpers.
 - [MCP client package](../mcp/client/README.md) — revision selection and runnable client examples.
 - [mcp-server.md](mcp-server.md) — inbound C++ stdio server API, echo example, framing limits, tests, and security scope.
+- [run_js MCP gateway](../mcp/gateway/README.md) — configure the bounded JavaScript gateway as a stdio MCP server and call it from `std_slop`.
+- [run_js implementation status](../mcp/gateway/STATUS.md) — current bundle status, verification, and future work.
 
 The inbound server supports stdio only. The outbound client supports Streamable HTTP and modern MCP `2026-07-28` over local stdio. Configured stdio programs run with the agent user's permissions and environment. The server does not automatically export agent tools. The Markdown library and echo server do not need agent model credentials or a session database.
 

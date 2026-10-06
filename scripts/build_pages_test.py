@@ -78,8 +78,14 @@ SOURCES = {
         "```sh\nbazel build //mcp/server:echo_server\n```\n"
     ),
     "docs/mcp-slop-userguide.md": "# MCP agent integration\n\nRemote tools.\n",
+    "mcp/gateway/README.md": "# run_js gateway\n\n[Implementation status](STATUS.md).\n",
+    "mcp/gateway/STATUS.md": "# Gateway implementation status\n\nCurrent state.\n",
     "markdown/README.md": "# Markdown library\n\nTerminal renderer.\n",
-    "docs/README.md": "# Documentation guide\n\nChoose a component.\n",
+    "docs/README.md": (
+        "# Documentation guide\n\nChoose a component.\n\n"
+        "[run_js gateway](../mcp/gateway/README.md)\n\n"
+        "[run_js status](../mcp/gateway/STATUS.md)\n"
+    ),
 }
 
 
@@ -142,6 +148,8 @@ class BuildPagesTest(unittest.TestCase):
             "sl.html": "docs/sl.md",
             "mcp.html": "docs/mcp-api.md",
             "mcp-server.html": "docs/mcp-server.md",
+            "run-js.html": "mcp/gateway/README.md",
+            "run-js-status.html": "mcp/gateway/STATUS.md",
             "markdown.html": "markdown/README.md",
         }
         for page in build_pages.PAGES:
@@ -152,13 +160,17 @@ class BuildPagesTest(unittest.TestCase):
     def test_navigation_order_and_agent_dropdown(self):
         self.assertEqual(
             [name for name, _ in build_pages.NAVIGATION],
-            ["Coding Agents", "MCP Client", "MCP Server", "Markdown"],
+            ["Coding Agents", "MCP Client", "MCP Server", "run_js Gateway", "Markdown"],
         )
         for name in ("agent.html", "sl.html"):
             navigation = build_pages.navigation(name)
             self.assertIn('<summary class="active">Coding Agents', navigation)
             self.assertIn(f'aria-current="page" href="{name}"', navigation)
             self.assertEqual(navigation.count('aria-current="page"'), 1)
+
+        run_js_navigation = build_pages.navigation("run-js.html")
+        self.assertIn('<a class="active" aria-current="page" href="run-js.html">run_js Gateway', run_js_navigation)
+        self.assertEqual(run_js_navigation.count('aria-current="page"'), 1)
 
     def test_selected_sections_exist_in_repository_sources(self):
         runfiles = os.environ.get("TEST_SRCDIR")
@@ -194,6 +206,7 @@ class BuildPagesTest(unittest.TestCase):
                 self.assertIn('href="agent.html">std::slop', page)
                 self.assertIn('href="sl.html">sl', page)
                 self.assertIn('href="mcp-server.html"', page)
+                self.assertIn('href="run-js.html"', page)
                 self.assertNotIn("C++ coding agent and integrated", page)
 
     def test_relative_guide_links_keep_the_correct_source_path(self):
@@ -205,6 +218,10 @@ class BuildPagesTest(unittest.TestCase):
             build_pages.source_url("docs/README.md", "../markdown/README.md"),
             "https://github.com/hsaliak/std_slop/blob/main/markdown/README.md",
         )
+        self.assertEqual(build_pages.source_url("docs/README.md", "../mcp/gateway/README.md"), "run-js.html")
+        self.assertEqual(build_pages.source_url("mcp/gateway/README.md", "STATUS.md"), "run-js-status.html")
+        self.assertIn('href="run-js.html"', self.page("docs.html"))
+        self.assertIn('href="run-js-status.html"', self.page("run-js.html"))
 
 
 if __name__ == "__main__":

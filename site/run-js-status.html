@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
+  <title>run_js gateway status — std::slop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="agent-menu"><summary>Coding Agents</summary><div class="agent-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server</a><a href="run-js.html">run_js Gateway</a><a href="markdown.html">Markdown</a></nav></div></header>
+  <main id="main-content">
+<section class="page-hero shell"><p class="eyebrow">Source: mcp/gateway/STATUS.md</p><h1>run_js gateway status</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#current-state">Current state</a></li><li class="toc-level-2"><a href="#verification">Verification</a></li><li class="toc-level-2"><a href="#follow-up-work">Follow-up work</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="gateway-implementation-status">Gateway implementation status</h1>
+<p>For the user setup example, see the <a href="run-js.html">run_js gateway guide</a>.</p></div>
+<section class="doc-section"><h2 id="current-state">Current state</h2>
+<ul><li>Bundle 1: bounded QuickJS runtime, safe JSON conversion, async MCP calls, unit tests and fuzz targets are implemented.</li><li>Bundle 2: stdio MCP gateway, strict config parsing, catalog/help, normalized results, subprocess test, and config/result fuzz coverage are implemented. An omitted or empty <code>allowTools</code> list exposes all discovered tools; a non-empty list restricts access.</li><li>Bundle 3: one FIFO worker lane per downstream Client, up to four active calls and 64 outstanding calls, per-lane Client ownership, and run/call correlation are implemented.</li><li>Bundle 4: each <code>run_js</code> request starts a fresh <code>run_js_server --worker-fd</code> process. Parent and worker use a bounded, length-prefixed JSON protocol over a private Unix socketpair. The worker receives code, input, the authorized public catalog, limits, and call results. Only the parent performs downstream MCP calls. The parent validates worker requests and matches run/call IDs. Runs have one monotonic deadline; remaining time reaches argument validation, MCP Client, and transport send/receive. Worker shutdown terminates and reaps the child.</li><li>Worker and parent do not share the outer MCP standard streams or the parent environment. Linux uses <code>posix_spawn</code> descriptor close-from support; other POSIX builds use a bounded descriptor scan. The worker process boundary is not an OS sandbox. The operator confirmed no Linux/macOS confinement policy is required for this bundle.</li></ul></section>
+<section class="doc-section"><h2 id="verification">Verification</h2>
+<p>The real subprocess test composes two concurrent <code>run_js -&gt; echo_server</code> calls through separate worker IPC requests, and checks an infinite-loop script returns a budget error under a 100 ms configured run deadline. Worker IPC parsing has unit and fuzz tests. <code>bazel test //...</code> passed all 102 test targets. Targeted TSAN passed worker subprocess, worker unit, scheduler, gateway, and MCP client/session tests. <code>git diff --check</code> passed.</p></section>
+<section class="doc-section"><h2 id="follow-up-work">Follow-up work</h2>
+<ol><li>Verify worker spawn/descriptor behavior on macOS CI; Linux is the current execution platform.</li><li>Add an approved application-tools MCP adapter only after its existing authorization boundary is identified. Do not auto-export application handlers or credentials.</li><li>OS-level confinement is not a Bundle 4 requirement per operator guidance. Do not claim the process worker is a sandbox.</li></ol></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+</body>
+</html>
