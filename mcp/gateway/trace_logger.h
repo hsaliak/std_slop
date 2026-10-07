@@ -37,7 +37,7 @@ class TraceLogger {
   void FailRun(std::uint64_t trace_id, const absl::Status& status);
 
  private:
-  absl::Status AppendRecord(const std::string& record);
+  absl::Status AppendRecord(std::string record);
   std::string EventHeader(const std::string& event, std::uint64_t trace_id) const;
 
   int fd_;

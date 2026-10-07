@@ -86,7 +86,12 @@ The result should report `count: 3` and `allMatched: true`.
 
 ## Configuration and limits
 
-`runTimeoutMs` is optional. Its default is 30000 ms; the allowed range is 1–60000 ms. `traceLogPath` is an optional absolute path in the gateway configuration; omit it to disable trace logging. The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. It does not accept HTTP servers or secrets.
+Optional gateway configuration options:
+
+- `runTimeoutMs`: Run deadline in milliseconds. The default is 30000 ms; the allowed range is 1–60000 ms.
+- `traceLogPath`: Absolute path for the trace log file. Omit this option to disable trace logging.
+
+The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. It does not accept HTTP servers or secrets.
 
 Every `run_js` call runs in a fresh `run_js_server --worker-fd` child. The parent and worker exchange length-prefixed JSON frames over a private Unix socketpair, with a 4 MiB frame limit. The child receives code, input, the authorized public catalog, limits, and tool results. The parent validates worker requests and performs all downstream MCP calls. Calls to one downstream client run serially; calls to different clients may run concurrently. The remaining run deadline is passed to downstream calls.
 

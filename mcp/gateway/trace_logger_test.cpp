@@ -9,6 +9,7 @@
 #include <iterator>
 #include <string>
 
+#include "absl/status/status.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
@@ -105,6 +106,45 @@ TEST(TraceLoggerTest, AppendsNewRunRecords) {
   EXPECT_NE(log.find("return 2;"), std::string::npos);
   EXPECT_EQ(log.find("event=RUN START", log.find("event=RUN START") + 1),
             log.rfind("event=RUN START"));
+}
+
+TEST(TraceLoggerTest, PreservesCodeAndTerminatesEveryRecord) {
+  const std::string separator = std::string(80, '=') + "\n";
+  for (const std::string code : {"", "return 1;", "return 1;\n", "return 1;\n\n"}) {
+    TemporaryLog file;
+    auto logger = TraceLogger::Open(file.path());
+    ASSERT_TRUE(logger.ok()) << logger.status();
+    (*logger)->BeginRun(code, nlohmann::json::object());
+
+    std::string expected = "code (terminal-safe; control bytes escaped):\n" + code;
+    if (expected.back() != '\n') expected.push_back('\n');
+    expected.append(separator);
+    const std::string log = ReadFile(file.path());
+    ASSERT_GE(log.size(), expected.size());
+    EXPECT_EQ(log.substr(log.size() - expected.size()), expected);
+  }
+}
+
+TEST(TraceLoggerTest, FramesFailureEventsAndQuotesToolIdentity) {
+  TemporaryLog file;
+  auto logger = TraceLogger::Open(file.path());
+  ASSERT_TRUE(logger.ok()) << logger.status();
+  const std::string separator = std::string(80, '=') + "\n";
+  const absl::Status error = absl::InvalidArgumentError("invalid result");
+  const std::string expected_error = "{\n  \"code\": 3,\n  \"message\": \"invalid result\"\n}\n" + separator;
+
+  (*logger)->LogToolFailure(1, 2, "server\nname", "tool\"name", error);
+  (*logger)->LogToolResult(1, 2, "server\nname", "tool\"name", ToolCallResult{}, error);
+  (*logger)->FailRun(1, error);
+
+  const std::string log = ReadFile(file.path());
+  EXPECT_NE(log.find("event=TOOL FAILURE 2\nserver: \"server\\nname\"\ntool: \"tool\\\"name\"\nerror:\n" +
+                     expected_error),
+            std::string::npos);
+  EXPECT_NE(log.find("event=TOOL RESULT 2\nserver: \"server\\nname\"\ntool: \"tool\\\"name\"\n"),
+            std::string::npos);
+  EXPECT_NE(log.find("JavaScript-visible result:\n" + expected_error), std::string::npos);
+  EXPECT_NE(log.find("event=RUN FAILURE\nerror:\n" + expected_error), std::string::npos);
 }
 
 TEST(TraceLoggerTest, RejectsSymlinksAndNonAbsolutePaths) {
