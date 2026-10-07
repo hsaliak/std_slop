@@ -18,6 +18,7 @@ Create `gateway.json`:
 ```json
 {
   "runTimeoutMs": 30000,
+  "traceLogPath": "/tmp/run_js_trace.log",
   "servers": [
     {
       "alias": "echo",
@@ -49,6 +50,14 @@ return result.structuredContent;
 
 The returned `structuredContent.result` should be `{"text":"hello from std_slop"}`. A non-empty `allowTools` list restricts JavaScript to the listed tools. If `allowTools` is omitted or empty, all tools discovered from that downstream server are available.
 
+This example enables a full trace log. In another tmux pane, follow it with:
+
+```bash
+tail -F /tmp/run_js_trace.log
+```
+
+The log contains the JavaScript source, run input, downstream tool calls and arguments, raw and JavaScript-visible results, and the final run result or error. Each record includes a timestamp and trace identifier.
+
 To check the tools from JavaScript, call:
 
 ```javascript
@@ -77,7 +86,7 @@ The result should report `count: 3` and `allMatched: true`.
 
 ## Configuration and limits
 
-`runTimeoutMs` is optional. Its default is 30000 ms; the allowed range is 1–60000 ms. The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. It does not accept HTTP servers or secrets.
+`runTimeoutMs` is optional. Its default is 30000 ms; the allowed range is 1–60000 ms. `traceLogPath` is an optional absolute path in the gateway configuration; omit it to disable trace logging. The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. It does not accept HTTP servers or secrets.
 
 Every `run_js` call runs in a fresh `run_js_server --worker-fd` child. The parent and worker exchange length-prefixed JSON frames over a private Unix socketpair, with a 4 MiB frame limit. The child receives code, input, the authorized public catalog, limits, and tool results. The parent validates worker requests and performs all downstream MCP calls. Calls to one downstream client run serially; calls to different clients may run concurrently. The remaining run deadline is passed to downstream calls.
 
@@ -96,4 +105,6 @@ The test composes concurrent echo calls through the worker and verifies that a 1
 
 An empty or omitted `allowTools` list grants JavaScript access to every tool advertised by that downstream server. Use a non-empty list when you need least-privilege access. Configured downstream commands run with the gateway account's operating-system permissions.
 
-Each run uses a worker process, but this is not an OS sandbox. A QuickJS or native-library exploit could compromise the worker and access resources available to the gateway account. Do not pass secrets to the gateway. The gateway does not execute application handlers or provide reverse calls into the host agent. To expose application capabilities, use a separate MCP server that preserves their existing authorization checks and configure it as a downstream server.
+Trace logging is opt-in. When `traceLogPath` is set, the gateway logs code, run input, tool arguments, and raw and normalized tool results. Source code is preserved except that terminal control bytes are escaped for safe display. These values may contain secrets. The log file is created with mode `0600`, but it grows as runs are recorded; protect, rotate, and delete it as needed. Logging is for debugging, not an audit trail.
+
+Each run uses a worker process, but this is not an OS sandbox. A QuickJS or native-library exploit could compromise the worker and access resources available to the gateway account. Do not pass secrets to the gateway unless you accept that they may appear in configured trace logs. The gateway does not execute application handlers or provide reverse calls into the host agent. To expose application capabilities, use a separate MCP server that preserves their existing authorization checks and configure it as a downstream server.

@@ -2,6 +2,7 @@
 #define SLOP_MCP_GATEWAY_CONFIG_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,7 @@ struct ServerConfig {
 struct GatewayConfig {
   std::vector<ServerConfig> servers;
   std::int64_t run_timeout_ms = 30'000;
+  std::optional<std::string> trace_log_path;
 };
 
 inline constexpr std::size_t kMaxServers = 8;

@@ -18,6 +18,7 @@ constexpr std::size_t kMaxCommandBytes = 4096;
 constexpr std::size_t kMaxArgCount = 64;
 constexpr std::size_t kMaxArgBytes = 4096;
 constexpr std::size_t kMaxConfigBytes = 1024 * 1024;
+constexpr std::size_t kMaxTraceLogPathBytes = 4096;
 
 bool IsSafeAlias(const std::string& alias) {
   if (alias.empty() || alias.size() > 64 ||
@@ -183,7 +184,7 @@ absl::StatusOr<std::vector<std::string>> StringArray(const nlohmann::json& value
 bool IsSafeServerAlias(const std::string& alias) { return IsSafeAlias(alias); }
 
 absl::StatusOr<GatewayConfig> ParseConfig(const nlohmann::json& value) {
-  absl::Status root_status = CheckFields(value, {"servers", "runTimeoutMs"}, "config");
+  absl::Status root_status = CheckFields(value, {"servers", "runTimeoutMs", "traceLogPath"}, "config");
   if (!root_status.ok()) return root_status;
   const nlohmann::json* servers = json_at(value, "servers");
   if (servers == nullptr || !servers->is_array() || servers->size() > kMaxServers) {
@@ -197,6 +198,14 @@ absl::StatusOr<GatewayConfig> ParseConfig(const nlohmann::json& value) {
       return absl::InvalidArgumentError("config runTimeoutMs must be between 1 and 60000");
     }
     config.run_timeout_ms = *timeout;
+  }
+  if (json_at(value, "traceLogPath") != nullptr) {
+    const auto trace_log_path = json_get<std::string>(value, "traceLogPath");
+    if (!trace_log_path || trace_log_path->empty() || trace_log_path->size() > kMaxTraceLogPathBytes ||
+        trace_log_path->find('\0') != std::string::npos || !std::filesystem::path(*trace_log_path).is_absolute()) {
+      return absl::InvalidArgumentError("config traceLogPath must be a bounded absolute path");
+    }
+    config.trace_log_path = *trace_log_path;
   }
   config.servers.reserve(servers->size());
   std::unordered_set<std::string> aliases;

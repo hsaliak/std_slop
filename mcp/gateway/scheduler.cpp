@@ -24,8 +24,9 @@ std::string Bounded(std::string text) {
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<Scheduler>> Scheduler::Create(Catalog catalog) {
-  auto scheduler = std::make_unique<Scheduler>(std::move(catalog));
+absl::StatusOr<std::unique_ptr<Scheduler>> Scheduler::Create(Catalog catalog,
+                                                              std::shared_ptr<TraceLogger> trace_logger) {
+  auto scheduler = std::make_unique<Scheduler>(std::move(catalog), std::move(trace_logger));
   absl::Status status = scheduler->Start();
   if (!status.ok()) return status;
   return scheduler;
@@ -149,11 +150,20 @@ js_runtime::ToolCompletion Scheduler::Process(const js_runtime::ToolRequest& req
   if (remaining <= std::chrono::steady_clock::duration::zero()) {
     return {request.run_id, request.id, false, nullptr, "tool deadline expired", "budget"};
   }
+  if (trace_logger_ != nullptr) {
+    trace_logger_->LogToolCall(request.run_id, request.id, request.server, request.tool, request.arguments);
+  }
   auto result = catalog_.Call(request.server, request.tool, request.arguments, request.deadline);
   if (!result.ok()) {
+    if (trace_logger_ != nullptr) {
+      trace_logger_->LogToolFailure(request.run_id, request.id, request.server, request.tool, result.status());
+    }
     return {request.run_id, request.id, false, nullptr, Bounded(std::string(result.status().message())), "downstream"};
   }
   auto normalized = NormalizeToolResult(*result);
+  if (trace_logger_ != nullptr) {
+    trace_logger_->LogToolResult(request.run_id, request.id, request.server, request.tool, *result, normalized);
+  }
   if (!normalized.ok()) {
     return {request.run_id, request.id, false, nullptr, Bounded(std::string(normalized.status().message())),
             "normalization"};

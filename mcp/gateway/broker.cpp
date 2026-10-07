@@ -23,8 +23,9 @@ std::string Bounded(std::string text) {
 
 }  // namespace
 
-absl::StatusOr<std::shared_ptr<ParallelBroker>> ParallelBroker::Create(Catalog catalog) {
-  auto scheduler = Scheduler::Create(std::move(catalog));
+absl::StatusOr<std::shared_ptr<ParallelBroker>> ParallelBroker::Create(Catalog catalog,
+                                                                         std::shared_ptr<TraceLogger> trace_logger) {
+  auto scheduler = Scheduler::Create(std::move(catalog), std::move(trace_logger));
   if (!scheduler.ok()) return scheduler.status();
   return std::make_shared<ParallelBroker>(std::move(*scheduler));
 }

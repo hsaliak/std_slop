@@ -16,7 +16,8 @@ namespace slop::mcp::gateway {
 class ParallelBroker final : public js_runtime::AsyncToolBroker {
  public:
   explicit ParallelBroker(std::unique_ptr<Scheduler> scheduler) : scheduler_(std::move(scheduler)) {}
-  static absl::StatusOr<std::shared_ptr<ParallelBroker>> Create(Catalog catalog);
+  static absl::StatusOr<std::shared_ptr<ParallelBroker>> Create(
+      Catalog catalog, std::shared_ptr<TraceLogger> trace_logger = nullptr);
 
   absl::Status Submit(const js_runtime::ToolRequest& request) override;
   std::vector<js_runtime::ToolCompletion> TakeCompletions() override;

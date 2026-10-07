@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <chrono>
+#include <cstdint>
 #include <csignal>
 #include <cstdlib>
 #include <filesystem>
@@ -22,6 +23,7 @@
 #include "mcp/gateway/catalog.h"
 #include "mcp/gateway/config.h"
 #include "mcp/gateway/server.h"
+#include "mcp/gateway/trace_logger.h"
 #include "mcp/gateway/worker.h"
 #include "mcp/server/stdio.h"
 
@@ -99,6 +101,13 @@ int main(int argc, char** argv) {
   auto config = slop::mcp::gateway::ParseConfigText(*text);
   if (!config.ok()) return Fail(config.status());
 
+  std::shared_ptr<slop::mcp::gateway::TraceLogger> trace_logger;
+  if (config->trace_log_path.has_value()) {
+    auto logger = slop::mcp::gateway::TraceLogger::Open(*config->trace_log_path);
+    if (!logger.ok()) return Fail(logger.status());
+    trace_logger = std::move(*logger);
+  }
+
   std::vector<slop::mcp::gateway::DownstreamClient> downstreams;
   downstreams.reserve(config->servers.size());
   slop::mcp::ClientOptions client_options;
@@ -115,19 +124,20 @@ int main(int argc, char** argv) {
   }
   auto catalog = slop::mcp::gateway::Catalog::Create(std::move(downstreams));
   if (!catalog.ok()) return Fail(catalog.status());
-  auto broker = slop::mcp::gateway::ParallelBroker::Create(std::move(*catalog));
+  auto broker = slop::mcp::gateway::ParallelBroker::Create(std::move(*catalog), trace_logger);
   if (!broker.ok()) return Fail(broker.status());
   auto executable_path = ResolveExecutablePath(argv[0]);
   if (!executable_path.ok()) return Fail(executable_path.status());
   slop::mcp::gateway::RunJsExecutor executor = [path = *executable_path](const std::string& code,
                                                                          const nlohmann::json& input,
                                                                          slop::js_runtime::AsyncToolBroker* tool_broker,
-                                                                         slop::js_runtime::RuntimeOptions options) {
-    return slop::mcp::gateway::ExecuteInWorker(path, code, input, tool_broker, options);
+                                                                         slop::js_runtime::RuntimeOptions options,
+                                                                         std::uint64_t trace_id) {
+    return slop::mcp::gateway::ExecuteInWorker(path, code, input, tool_broker, options, trace_id);
   };
   slop::js_runtime::RuntimeOptions runtime_options;
   runtime_options.timeout = std::chrono::milliseconds(config->run_timeout_ms);
-  auto server = slop::mcp::gateway::CreateServer(*broker, runtime_options, std::move(executor));
+  auto server = slop::mcp::gateway::CreateServer(*broker, runtime_options, std::move(executor), trace_logger);
   if (!server.ok()) return Fail(server.status());
 
   std::signal(SIGPIPE, SIG_IGN);

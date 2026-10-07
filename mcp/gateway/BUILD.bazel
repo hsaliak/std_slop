@@ -157,12 +157,42 @@ cc_test(
 )
 
 cc_library(
+    name = "trace_logger",
+    srcs = ["trace_logger.cpp"],
+    hdrs = ["trace_logger.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":result",
+        "//core:json_utils",
+        "//mcp:protocol",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "trace_logger_test",
+    srcs = ["trace_logger_test.cpp"],
+    deps = [
+        ":trace_logger",
+        "//mcp:protocol",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "gateway_server",
     srcs = ["server.cpp"],
     hdrs = ["server.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":broker",
+        ":trace_logger",
         "//core:json_utils",
         "//mcp:protocol",
         "//mcp/server:server",
@@ -183,6 +213,7 @@ cc_binary(
         ":broker",
         ":gateway_server",
         ":worker",
+        ":trace_logger",
         "//mcp/client:client",
         "//mcp/client:stdio_transport",
         "//mcp/server:stdio",
@@ -198,6 +229,7 @@ cc_library(
     deps = [
         ":catalog",
         ":result",
+        ":trace_logger",
         "//js_runtime:runtime",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",

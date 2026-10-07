@@ -17,13 +17,16 @@
 
 #include "js_runtime/runtime.h"
 #include "mcp/gateway/catalog.h"
+#include "mcp/gateway/trace_logger.h"
 
 namespace slop::mcp::gateway {
 
 class Scheduler {
  public:
-  static absl::StatusOr<std::unique_ptr<Scheduler>> Create(Catalog catalog);
-  explicit Scheduler(Catalog catalog) : catalog_(std::move(catalog)) {}
+  static absl::StatusOr<std::unique_ptr<Scheduler>> Create(Catalog catalog,
+                                                           std::shared_ptr<TraceLogger> trace_logger = nullptr);
+  explicit Scheduler(Catalog catalog, std::shared_ptr<TraceLogger> trace_logger = nullptr)
+      : catalog_(std::move(catalog)), trace_logger_(std::move(trace_logger)) {}
   ~Scheduler();
 
   Scheduler(const Scheduler&) = delete;
@@ -53,6 +56,7 @@ class Scheduler {
   static constexpr std::size_t kMaxOutstandingCalls = 64;
   static constexpr std::size_t kMaxActiveCalls = 4;
   Catalog catalog_;
+  std::shared_ptr<TraceLogger> trace_logger_;
   mutable absl::Mutex mutex_;
   absl::CondVar work_available_;
   absl::CondVar completion_available_;

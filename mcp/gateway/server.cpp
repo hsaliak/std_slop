@@ -49,7 +49,8 @@ mcp::ToolCallResult ActionableError(const absl::Status& status) {
 }  // namespace
 
 absl::StatusOr<server::Server> CreateServer(std::shared_ptr<js_runtime::AsyncToolBroker> broker,
-                                            js_runtime::RuntimeOptions options, RunJsExecutor executor) {
+                                            js_runtime::RuntimeOptions options, RunJsExecutor executor,
+                                            std::shared_ptr<TraceLogger> trace_logger) {
   if (broker == nullptr) return absl::InvalidArgumentError("gateway broker must not be null");
   mcp::ImplementationInfo identity;
   identity.name = "slop-run-js-gateway";
@@ -63,16 +64,21 @@ absl::StatusOr<server::Server> CreateServer(std::shared_ptr<js_runtime::AsyncToo
       {"properties", {{"code", {{"type", "string"}, {"minLength", 1}}}, {"input", {{"type", "object"}}}}},
       {"required", {"code"}},
       {"additionalProperties", false}};
-  run_js.handler = [broker, options, executor = std::move(executor)](
+  run_js.handler = [broker, options, executor = std::move(executor), trace_logger = std::move(trace_logger)](
                        const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
     const auto code = json_get<std::string>(arguments, "code");
     if (!code.has_value()) return absl::InvalidArgumentError("run_js requires string field code");
     const nlohmann::json* input = json_at(arguments, "input");
     const nlohmann::json empty_input = nlohmann::json::object();
     const nlohmann::json& script_input = input == nullptr ? empty_input : *input;
-    auto value = executor ? executor(*code, script_input, broker.get(), options)
+    const std::uint64_t trace_id = trace_logger == nullptr ? 0 : trace_logger->BeginRun(*code, script_input);
+    auto value = executor ? executor(*code, script_input, broker.get(), options, trace_id)
                           : js_runtime::Run(*code, script_input, broker.get(), options);
-    if (!value.ok()) return ActionableError(value.status());
+    if (!value.ok()) {
+      if (trace_logger != nullptr) trace_logger->FailRun(trace_id, value.status());
+      return ActionableError(value.status());
+    }
+    if (trace_logger != nullptr) trace_logger->FinishRun(trace_id, *value);
     mcp::ToolCallResult result;
     result.content.push_back({{"type", "text"}, {"text", "JavaScript completed"}});
     result.structured_content = nlohmann::json::object({{"result", std::move(*value)}});

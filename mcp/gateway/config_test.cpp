@@ -35,6 +35,31 @@ TEST(ConfigTest, BoundsRunTimeout) {
   }
 }
 
+TEST(ConfigTest, ParsesOptionalTraceLogPath) {
+  auto disabled = ParseConfig(Config());
+  ASSERT_TRUE(disabled.ok()) << disabled.status();
+  EXPECT_FALSE(disabled->trace_log_path.has_value());
+
+  nlohmann::json enabled = Config();
+  enabled["traceLogPath"] = "/tmp/run_js_trace.log";
+  auto config = ParseConfig(enabled);
+  ASSERT_TRUE(config.ok()) << config.status();
+  EXPECT_EQ(config->trace_log_path, "/tmp/run_js_trace.log");
+}
+
+TEST(ConfigTest, RejectsInvalidTraceLogPaths) {
+  std::string nul_path = "/tmp/run_js.log";
+  nul_path.push_back('\0');
+  nul_path.append("suffix");
+  for (const nlohmann::json& path : {nlohmann::json("relative.log"), nlohmann::json(""), nlohmann::json(7),
+                                     nlohmann::json(nullptr), nlohmann::json(std::string(4097, 'x')),
+                                     nlohmann::json(nul_path)}) {
+    nlohmann::json value = Config();
+    value["traceLogPath"] = path;
+    EXPECT_FALSE(ParseConfig(value).ok());
+  }
+}
+
 TEST(ConfigTest, EmptyAndOmittedGrantsUseOpenDefault) {
   nlohmann::json empty = Config();
   empty["servers"][0]["allowTools"] = nlohmann::json::array();

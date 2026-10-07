@@ -459,7 +459,7 @@ absl::StatusOr<WorkerCallRequest> ParseWorkerCallRequest(const nlohmann::json& m
 
 absl::StatusOr<nlohmann::json> ExecuteInWorker(const std::string& executable_path, const std::string& code,
                                                const nlohmann::json& input, js_runtime::AsyncToolBroker* broker,
-                                               js_runtime::RuntimeOptions options) {
+                                               js_runtime::RuntimeOptions options, std::uint64_t trace_id) {
   if (broker == nullptr) return absl::InvalidArgumentError("tool broker must not be null");
   if (executable_path.empty() || executable_path[0] != '/')
     return absl::InvalidArgumentError("worker executable path must be absolute");
@@ -474,7 +474,7 @@ absl::StatusOr<nlohmann::json> ExecuteInWorker(const std::string& executable_pat
   if (!worker_or.ok()) return worker_or.status();
   WorkerProcess worker = std::move(*worker_or);
   FrameChannel channel(worker.fd());
-  const std::uint64_t run_id = NextWorkerRunId();
+  const std::uint64_t run_id = trace_id == 0 ? NextWorkerRunId() : trace_id;
   const Clock::time_point deadline = Clock::now() + options.timeout;
   nlohmann::json start = {{"type", "start_run"},
                           {"runId", run_id},

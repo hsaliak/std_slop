@@ -22,6 +22,7 @@
 <p>Create <code>gateway.json</code>:</p>
 <pre><code class="language-json">{
   &quot;runTimeoutMs&quot;: 30000,
+  &quot;traceLogPath&quot;: &quot;/tmp/run_js_trace.log&quot;,
   &quot;servers&quot;: [
     {
       &quot;alias&quot;: &quot;echo&quot;,
@@ -42,6 +43,9 @@ enabled=true</code></pre>
 <pre><code class="language-javascript">const result = await echo.echo({text: &quot;hello from std_slop&quot;});
 return result.structuredContent;</code></pre>
 <p>The returned <code>structuredContent.result</code> should be <code>{"text":"hello from std_slop"}</code>. A non-empty <code>allowTools</code> list restricts JavaScript to the listed tools. If <code>allowTools</code> is omitted or empty, all tools discovered from that downstream server are available.</p>
+<p>This example enables a full trace log. In another tmux pane, follow it with:</p>
+<pre><code class="language-bash">tail -F /tmp/run_js_trace.log</code></pre>
+<p>The log contains the JavaScript source, run input, downstream tool calls and arguments, raw and JavaScript-visible results, and the final run result or error. Each record includes a timestamp and trace identifier.</p>
 <p>To check the tools from JavaScript, call:</p>
 <pre><code class="language-javascript">const schema = help(&quot;echo&quot;, &quot;echo&quot;);
 const echoed = await echo.echo({text: &quot;hello&quot;});
@@ -60,7 +64,7 @@ return {
 };</code></pre>
 <p>The result should report <code>count: 3</code> and <code>allMatched: true</code>.</p></section>
 <section class="doc-section"><h2 id="configuration-and-limits">Configuration and limits</h2>
-<p><code>runTimeoutMs</code> is optional. Its default is 30000 ms; the allowed range is 1–60000 ms. The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty <code>allowTools</code> list to restrict the exposed tools; omitting it or setting it to <code>[]</code> exposes every discovered tool from that server. It does not accept HTTP servers or secrets.</p>
+<p><code>runTimeoutMs</code> is optional. Its default is 30000 ms; the allowed range is 1–60000 ms. <code>traceLogPath</code> is an optional absolute path in the gateway configuration; omit it to disable trace logging. The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty <code>allowTools</code> list to restrict the exposed tools; omitting it or setting it to <code>[]</code> exposes every discovered tool from that server. It does not accept HTTP servers or secrets.</p>
 <p>Every <code>run_js</code> call runs in a fresh <code>run_js_server --worker-fd</code> child. The parent and worker exchange length-prefixed JSON frames over a private Unix socketpair, with a 4 MiB frame limit. The child receives code, input, the authorized public catalog, limits, and tool results. The parent validates worker requests and performs all downstream MCP calls. Calls to one downstream client run serially; calls to different clients may run concurrently. The remaining run deadline is passed to downstream calls.</p></section>
 <section class="doc-section"><h2 id="testing-without-an-llm">Testing without an LLM</h2>
 <p>Build the example servers and run the subprocess integration test:</p>
@@ -69,7 +73,8 @@ bazel test //mcp/gateway:gateway_subprocess_test --test_output=all</code></pre>
 <p>The test composes concurrent echo calls through the worker and verifies that a 100 ms run timeout stops an infinite loop. Run <code>bazel test //...</code> for the full repository suite.</p></section>
 <section class="doc-section"><h2 id="security-considerations">Security considerations</h2>
 <p>An empty or omitted <code>allowTools</code> list grants JavaScript access to every tool advertised by that downstream server. Use a non-empty list when you need least-privilege access. Configured downstream commands run with the gateway account's operating-system permissions.</p>
-<p>Each run uses a worker process, but this is not an OS sandbox. A QuickJS or native-library exploit could compromise the worker and access resources available to the gateway account. Do not pass secrets to the gateway. The gateway does not execute application handlers or provide reverse calls into the host agent. To expose application capabilities, use a separate MCP server that preserves their existing authorization checks and configure it as a downstream server.</p></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+<p>Trace logging is opt-in. When <code>traceLogPath</code> is set, the gateway logs code, run input, tool arguments, and raw and normalized tool results. Source code is preserved except that terminal control bytes are escaped for safe display. These values may contain secrets. The log file is created with mode <code>0600</code>, but it grows as runs are recorded; protect, rotate, and delete it as needed. Logging is for debugging, not an audit trail.</p>
+<p>Each run uses a worker process, but this is not an OS sandbox. A QuickJS or native-library exploit could compromise the worker and access resources available to the gateway account. Do not pass secrets to the gateway unless you accept that they may appear in configured trace logs. The gateway does not execute application handlers or provide reverse calls into the host agent. To expose application capabilities, use a separate MCP server that preserves their existing authorization checks and configure it as a downstream server.</p></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
     </div>
   </main>
   <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>

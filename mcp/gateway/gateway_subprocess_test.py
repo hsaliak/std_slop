@@ -11,10 +11,12 @@ def main():
     with tempfile.TemporaryDirectory() as temporary_directory:
         temp = pathlib.Path(temporary_directory)
         config_path = temp / "gateway.json"
+        trace_path = temp / "run_js_trace.log"
         config_path.write_text(
             json.dumps(
                 {
                     "runTimeoutMs": 30000,
+                    "traceLogPath": str(trace_path),
                     "servers": [
                         {
                             "alias": "echo",
@@ -34,6 +36,11 @@ def main():
                 }
             ),
             encoding="utf-8",
+        )
+        code = (
+            "const results = await Promise.all(["
+            "echo.echo({text: input.text}), echo2.echo({text: input.other})]); "
+            "return results.map(value => value.structuredContent);"
         )
         requests = [
             {
@@ -55,11 +62,7 @@ def main():
                 "params": {
                     "name": "run_js",
                     "arguments": {
-                        "code": (
-                            "const results = await Promise.all(["
-                            "echo.echo({text: input.text}), echo2.echo({text: input.other})]); "
-                            "return results.map(value => value.structuredContent);"
-                        ),
+                        "code": code,
                         "input": {"text": "gateway-smoke", "other": "ipc-parallel"},
                     },
                     "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"},
@@ -96,9 +99,30 @@ def main():
         if result != [{"text": "gateway-smoke"}, {"text": "ipc-parallel"}]:
             raise AssertionError(f"unexpected composed result: {result}")
 
+        trace = trace_path.read_text(encoding="utf-8")
+        for expected in (
+            "event=RUN START",
+            "code (terminal-safe; control bytes escaped):\n" + code,
+            '"text": "gateway-smoke"',
+            '"text": "ipc-parallel"',
+            "event=TOOL CALL 1",
+            "event=TOOL CALL 2",
+            "raw downstream result:",
+            "JavaScript-visible result:",
+            "event=RUN SUCCESS",
+        ):
+            if expected not in trace:
+                raise AssertionError(f"trace log missing {expected!r}: {trace}")
+        if trace_path.stat().st_mode & 0o777 != 0o600:
+            raise AssertionError(f"trace log permissions are not 0600: {trace_path.stat().st_mode:o}")
+
         config_path.write_text(
             json.dumps(
-                {"runTimeoutMs": 100, "servers": json.loads(config_path.read_text())["servers"]}
+                {
+                    "runTimeoutMs": 100,
+                    "traceLogPath": str(trace_path),
+                    "servers": json.loads(config_path.read_text())["servers"],
+                }
             ),
             encoding="utf-8",
         )
@@ -128,6 +152,9 @@ def main():
             raise AssertionError(
                 f"worker did not report its run deadline: {timed_response}"
             )
+        trace = trace_path.read_text(encoding="utf-8")
+        if "event=RUN FAILURE" not in trace or "while (true) {}" not in trace:
+            raise AssertionError(f"trace log missed the timed-out run: {trace}")
 
         marker = temp / "should-not-start"
         child = temp / "marker-child.sh"

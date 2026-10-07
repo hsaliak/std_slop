@@ -23,7 +23,7 @@ absl::StatusOr<WorkerCallRequest> ParseWorkerCallRequest(const nlohmann::json& m
 
 absl::StatusOr<nlohmann::json> ExecuteInWorker(const std::string& executable_path, const std::string& code,
                                                const nlohmann::json& input, js_runtime::AsyncToolBroker* broker,
-                                               js_runtime::RuntimeOptions options);
+                                               js_runtime::RuntimeOptions options, std::uint64_t trace_id = 0);
 
 int RunWorkerMode(int ipc_fd);
 
