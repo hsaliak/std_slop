@@ -1,8 +1,10 @@
 # Decision API MCP server plan
 
-Status: design proposal; no server is implemented by this document.
+Status: implementation plan for the OpenRouter Decision API MCP. The current executable setup guide is [mcp/decision_api/README.md](../mcp/decision_api/README.md); implementation patches are developed on a staging series.
 
-Scope: implement the OpenRouter Decisions API only. TypeSafe documentation remains comparison material, not a second backend. Model aliases such as `jev-latest` are allowed configuration values; pinning is an optional deployment choice, not a server requirement.
+Scope: implement the OpenRouter Decisions API only. TypeSafe documentation remains comparison material, not a second backend. Forward configured model IDs and aliases unchanged; pinning is an optional deployment choice, not a server requirement. The fetched OpenRouter catalog lists alias ID `~typesafe/jev-latest`, targeting `typesafe/jev-1.13`; the bare string `jev-latest` is not that exact catalog ID.
+
+Implementation status: all four bundles below are implemented on `slop/staging/decision-api-implementation` as separate patch commits. The plan remains here as the design record; see the [operator setup guide](../mcp/decision_api/README.md).
 
 ## Purpose and source review
 
@@ -17,9 +19,9 @@ The following sources were retrieved with `curl` and compared on 2026-10-08. For
 
 **Consistency finding:** the two OpenRouter documents agree on the core request (`model`, `state`, `questions`), the `noul`, `choice`, and `score` question types, and their probability-based answer meanings. They differ in purpose: the skill adds usage/model-selection guidance; the reference describes the HTTP contract. They document no separate HTTP endpoint for each primitive.
 
-The TypeSafe skill and API were also read because they were requested. They describe the same three primitives, but have different required-field details and a different direct HTTP endpoint. This plan does not implement or configure a direct TypeSafe backend. In particular, TypeSafe's `jev-latest` name can be passed as the configured OpenRouter model string, but these documents alone do not prove that a given alias is available through OpenRouter. Forward configured model strings unchanged and let OpenRouter validate them; never rewrite model IDs or aliases.
+The TypeSafe skill and API were also read because they were requested. They describe the same three primitives, but have different required-field details and a different direct HTTP endpoint. This plan does not implement a direct TypeSafe backend. The live OpenRouter catalog returned `~typesafe/jev-latest`, whose target is `typesafe/jev-1.13`; forward that exact model ID or any configured model string unchanged. Do not strip the `~typesafe/` prefix or infer that the direct TypeSafe alias `jev-latest` is an OpenRouter ID.
 
-OpenRouter-specific implementation gates: its reference marks `probabilities`, `confidence`, and `legend` optional where applicable; enforce the documented `true`/`false` keys for supplied Noul criteria; verify choice option and score-level limits from the live OpenRouter schema rather than borrowing TypeSafe-only limits. Its reference describes errors by linking the OpenAPI contract, so inspect that contract before implementing status-specific retries. This source review is not authenticated wire validation; no paid API calls were made.
+OpenRouter implementation uses the current OpenAPI contract fetched from `https://openrouter.ai/openapi.json` and the filtered live catalog. The Decisions operation is `POST /api/alpha/decisions`; its documented statuses are 200, 400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 524, and 529. `model`, `state`, and `questions` are required; the primitive-specific answer values are required while `probabilities`, `confidence`, and `legend` are optional where applicable. Noul criteria, if supplied, require `true` and `false`; Choice criteria are a description map; Score criteria are ordered. The schema sets no provider maximum for question count, Choice options, or Score levels, so the server uses documented local resource caps and does not claim they are OpenRouter limits. No authenticated or paid API evaluation was made.
 
 ## Upstream endpoints
 
@@ -41,7 +43,7 @@ Minimal OpenRouter configuration:
 ```json
 {
   "apiKey": "REPLACE_WITH_OPENROUTER_KEY",
-  "model": "jev-latest"
+  "model": "~typesafe/jev-latest"
 }
 ```
 
@@ -52,19 +54,19 @@ Expanded configuration showing proposed defaults:
   "apiKey": "REPLACE_WITH_OPENROUTER_KEY",
   "endpoint": "https://openrouter.ai/api/alpha/decisions",
   "modelsEndpoint": "https://openrouter.ai/api/v1/models?output_modalities=decisions",
-  "model": "jev-latest",
+  "model": "~typesafe/jev-latest",
   "timeoutMs": 30000
 }
 ```
 
-The `jev-latest` examples illustrate an allowed operator-selected alias, not a verified claim that this exact alias appears in OpenRouter's current catalog. Check the selected endpoint's catalog or evaluate a non-sensitive authorized probe; surface unsupported-model errors without silently rewriting the name. A pinned ID remains available when stable model behavior matters, but aliases are not rejected.
+The alias `~typesafe/jev-latest` was present in the fetched public OpenRouter catalog; its `canonical_slug` is also returned. The catalog is dynamic. Check the current endpoint's catalog for availability and keep any configured ID or alias unchanged; return unsupported-model errors rather than rewriting it. Pinning a canonical/versioned ID remains an operator choice when stable model behavior matters.
 
 | Field | Planned contract |
 | --- | --- |
 | `apiKey` | Required non-empty string; reject CR/LF, NUL, and other header control bytes. Sent as `Authorization: Bearer <key>` only to configured upstream URLs. Never returned through MCP or logged. |
 | `endpoint` | Full HTTPS evaluation URL, defaulting to `https://openrouter.ai/api/alpha/decisions`. Overrides must implement the OpenRouter Decisions contract. Reject fragments, userinfo, control bytes, and malformed URLs. |
 | `modelsEndpoint` | Optional full HTTPS discovery URL. Use the OpenRouter catalog default only with the default evaluation URL. With a custom endpoint, discovery is disabled unless explicitly configured; do not silently send its credentials to OpenRouter. |
-| `model` | Required configured default model ID or alias, such as `jev-latest`. `decide` may override it with a validated non-empty string. Forward names unchanged; do not impose a namespace or pinned-version format. No built-in model default. |
+| `model` | Required configured default model ID or alias, such as `~typesafe/jev-latest`. `decide` may override it with a validated non-empty string. Forward names unchanged; do not impose a namespace or pinned-version format. No built-in model default. |
 | `timeoutMs` | Proposed local deadline: default 30000 ms, range 1–60000 ms. Includes HTTP and any bounded retry wait. |
 
 Reject unknown configuration fields and validate the entire configuration before network traffic. A custom endpoint must implement the OpenRouter Decisions contract, not an arbitrary HTTP API. Treat endpoint selection as operator-authorized credential disclosure: disable redirects, verify TLS, and do not infer or call another host for discovery. Protect configuration files with mode `0600`; never commit real credentials. Do not include arbitrary headers, URL overrides, or API keys in agent-supplied arguments.
@@ -99,12 +101,13 @@ The gateway does not gain a credential field. Its optional trace log may capture
 
 ## API request and response
 
-An OpenRouter evaluation request has this shape. The model is configurable; `jev-latest` is an example of a string the server forwards unchanged, not a claim that every OpenRouter account or route supports it:
+An OpenRouter evaluation request has this shape. The model is configurable; `~typesafe/jev-latest` is an alias returned by the fetched public OpenRouter catalog; availability can change:
 
 ```json
 {
   "model": "jev-latest",
   "state": {"ticket": "I was charged twice and cannot complete checkout."},
+  "model": "~typesafe/jev-latest",
   "questions": {
     "needs_refund": {
       "type": "noul",
@@ -165,9 +168,9 @@ Description:
 
 > Evaluate named noul, choice, and score questions against shared state using the configured Decision API. Returns typed answers, the resolved model, and available usage metadata. Noul is probability of yes; Choice selects a defined option; Score is a probability-weighted ordered-rubric index. This may incur provider charges and does not execute actions. Use decision_help for schemas, examples, and uncertainty guidance.
 
-Arguments: required `state` (string/object/array) and non-empty `questions` object; optional `model` override; optional `openrouterOptions` mapped only to the documented OpenRouter fields `session_id`, `trace`, `user`, and `provider`, after validating the current upstream schema. Do not support arbitrary passthrough JSON. Shared instruction/criterion values are strings, objects, or arrays; allow null Choice descriptions only if OpenRouter's current schema accepts them.
+Arguments: required `state` (string/object/array) and non-empty `questions` object; optional `model` override; optional `openrouterOptions` limited to `session_id`, `trace` (`generation_name`, `parent_span_id`, `span_name`, `trace_id`, `trace_name`), `user`, and the OpenRouter `provider` routing-preferences object. Reject unknown option keys and invalid shapes; do not accept arbitrary top-level passthrough JSON. Shared instruction/criterion values are strings, objects, or arrays; allow null Choice descriptions only if OpenRouter's current schema accepts them.
 
-Each question requires `type` and `instructions`; Choice/Score require the appropriate `criteria`. A Noul's optional criteria must have the documented pair of keys under the local contract. Provide full discriminated JSON schemas, not a description saying only "any JSON." Reject unknown tool/question fields before HTTP. Set local question-count, body-size, response-size, nesting, and deadline limits; document them explicitly as server limits, separate from upstream/model limits.
+Each question requires `type` and `instructions`; Choice/Score require the appropriate `criteria`. A Noul's optional criteria must have the documented pair of keys under the local contract. Provide full discriminated JSON schemas, not a description saying only "any JSON." Reject unknown tool/question fields before HTTP. For the first implementation, enforce local limits of 32 questions, 255 Choice options per question, 64 Score levels, 1 MiB serialized request, 4 MiB response, and 64 JSON nesting levels; the request deadline defaults to 30000 ms (1–60000 ms). These are MCP server limits, not claimed OpenRouter limits.
 
 Return a concise text summary plus the validated `structuredContent`. Tool annotations must describe the actual behavior: external-provider access is open-world, and evaluations may incur charges. A read-only annotation, if appropriate for evaluation without data mutation, is not a claim that the call is local, private, or free. Do not promise that retries are idempotent or free.
 
@@ -179,7 +182,7 @@ Description:
 
 Arguments: optional `topic` enum (`overview`, `noul`, `choice`, `score`, `request`, `response`, `configuration`, `models`, `errors`, `examples`); default `overview`.
 
-Return both readable guidance and machine-readable schemas/examples. Overview identifies OpenRouter as the provider, the sanitized endpoint, configured model string, discovery availability, local limits, and available topics. Help describes optional response fields accurately and must not claim that an alias is available unless the live catalog reports it. Generate schema fragments from the same definitions used for validation/tool registration to prevent documentation drift. Omit API keys, headers, config paths, and URL query values from help/errors.
+Return both readable guidance and machine-readable schemas/examples. Overview identifies OpenRouter as the provider, the sanitized endpoint, configured model string, discovery availability, local limits, and available topics. Help describes optional response fields accurately and must not claim that an alias is available unless the live catalog reports it. Return `decide` and response schemas from the same definitions used for tool registration and help. Add parity tests so the shared input schema cannot drift from tools/list and the documented mixed-question examples pass request/response validation. Omit API keys, headers, config paths, and URL query values from help/errors.
 
 MCP tools/list descriptions advertise help without a separate service. Through run_js, `help("decisions", "decide")` inspects the registered MCP schema, while `await decisions.decision_help({topic: "examples"})` returns the richer usage guide. These are different operations.
 
@@ -220,7 +223,7 @@ Bound response bodies before JSON parsing, reject non-finite or out-of-range val
 
 ## Bundle-based implementation plan
 
-Implement the OpenRouter backend only. Keep each bundle independently reviewable; complete its validation before starting the next. No live or billable call is required by the default test suite.
+Implement the OpenRouter backend only. Keep each bundle independently reviewable; complete its validation before starting the next. No live or billable call is required by the default test suite. The current implementation uses local limits of 32 questions, 255 Choice options per question, 64 Score levels, 1 MiB serialized request, 4 MiB response, and 64 JSON nesting levels; these are server bounds, not claimed upstream maxima.
 
 ### Bundle 1: Lock the OpenRouter contract and configuration
 
@@ -260,7 +263,7 @@ Implement the OpenRouter backend only. Keep each bundle independently reviewable
 
 **Validation**
 - Unit tests cover model catalog valid/invalid fixtures, different model ID shapes, missing optional metadata, HTTP/catalog errors, and disabled discovery.
-- Assert help is deterministic and makes zero HTTP requests, accurately explains Noul/Choice/Score and optional fields, includes the `jev-latest` alias example without claiming availability, and contains no secret or config value.
+- Assert help is deterministic and makes zero HTTP requests, accurately explains Noul/Choice/Score and optional fields, includes the exact catalog alias `~typesafe/jev-latest` without claiming permanent availability, and contains no secret or config value.
 - Test MCP `tools/list` descriptions and schemas against the help schemas so they cannot drift.
 
 ### Bundle 4: Wire up the stdio server, gateway use, and operator docs
@@ -275,5 +278,5 @@ Implement the OpenRouter backend only. Keep each bundle independently reviewable
 - Check all config/request JSON examples and links. Verify secrets are absent from stdout, logs, MCP results, and errors; verify the key only reaches the configured HTTPS origin.
 - Update BUILD targets and package test/fuzz targets with minimal dependencies. Build affected binaries, run focused tests, then run `bazel test //...`. Any live smoke probe is separately opt-in, explicitly authorized, non-sensitive, and excluded from normal tests.
 
-Start implementation only after the OpenRouter OpenAPI/catalog checks in Bundle 1 resolve the listed schema questions. Keep TypeSafe findings as comparison notes; do not implement a second provider or infer its behavior.
-Use existing codebase cosntruct for json parsing and http client. ensure you adhere to DRY principles, and absl where possible. Do not re-implement things that can be found in our repo or the libraries we depend on eg absl or std etc
+Implementation is OpenRouter-only. The 4 MiB catalog/evaluation response cap and local input limits are enforced separately from upstream limits. Tests use fake HTTP or stdio-only local calls; no authenticated or billed evaluation was performed. Keep TypeSafe findings as comparison notes, not implementation behavior.
+Implementation guidance: reuse the existing JSON helpers and HTTP client; prefer focused abstractions and existing Abseil/standard-library facilities over duplicate implementations.

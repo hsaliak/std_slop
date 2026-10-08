@@ -79,6 +79,35 @@ TEST(DecisionApiServerTest, AdvertisesCorrectToolsAndAgentHelpWithoutNetwork) {
   const auto overview = DispatchTool(*server, "decision_help", {{"topic", "overview"}});
   ASSERT_TRUE(overview.has_value());
   EXPECT_EQ(json_dump(*overview).find("not-for-help"), std::string::npos);
+
+  const auto* list_result = json_at(*listed, "result");
+  ASSERT_NE(list_result, nullptr);
+  const auto* tool_definitions = json_at(*list_result, "tools");
+  ASSERT_NE(tool_definitions, nullptr);
+  const nlohmann::json* decide_schema = nullptr;
+  for (const auto& definition : *tool_definitions) {
+    if (json_get<std::string>(definition, "name") == "decide") decide_schema = json_at(definition, "inputSchema");
+  }
+  ASSERT_NE(decide_schema, nullptr);
+  const auto* help_result = json_at(*overview, "result");
+  ASSERT_NE(help_result, nullptr);
+  const auto* help_content = json_at(*help_result, "structuredContent");
+  ASSERT_NE(help_content, nullptr);
+  const auto* help_schemas = json_at(*help_content, "schemas");
+  ASSERT_NE(help_schemas, nullptr);
+  const auto* help_decide_schema = json_at(*help_schemas, "decide");
+  ASSERT_NE(help_decide_schema, nullptr);
+  EXPECT_EQ(*help_decide_schema, *decide_schema);
+
+  const auto* examples = json_at(*help_content, "examples");
+  ASSERT_NE(examples, nullptr);
+  const auto* request_example = json_at(*examples, "request");
+  const auto* response_example = json_at(*examples, "response");
+  ASSERT_NE(request_example, nullptr);
+  ASSERT_NE(response_example, nullptr);
+  auto example_request = DecisionApiClient::BuildRequest(*request_example, config);
+  ASSERT_TRUE(example_request.ok()) << example_request.status();
+  EXPECT_TRUE(DecisionApiClient::ValidateResponse(*example_request, *response_example).ok());
   EXPECT_EQ(http.post_count, 0);
   EXPECT_EQ(http.get_count, 0);
 }

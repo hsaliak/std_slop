@@ -64,6 +64,30 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "decision_api_server",
+    srcs = ["server_main.cpp"],
+    deps = [
+        ":config",
+        ":server",
+        "//core:transport",
+        "//mcp/server:stdio",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+sh_test(
+    name = "server_smoke_test",
+    size = "small",
+    srcs = ["server_smoke_test.sh"],
+    data = [
+        ":decision_api_server",
+        "//mcp/gateway:run_js_server",
+        "server_smoke_test.py",
+    ],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
 cc_test(
     name = "server_test",
     srcs = ["server_test.cpp"],

@@ -48,7 +48,9 @@ nlohmann::json QuestionSchema(const std::string& type) {
 nlohmann::json DecideInputSchema() {
   const nlohmann::json trace_schema = {{"type", "object"},
                                        {"properties",
-                                        {{"trace_id", {{"type", "string"}, {"maxLength", 256}}},
+                                        {{"generation_name", {{"type", "string"}, {"maxLength", 256}}},
+                                         {"parent_span_id", {{"type", "string"}, {"maxLength", 256}}},
+                                         {"trace_id", {{"type", "string"}, {"maxLength", 256}}},
                                          {"trace_name", {{"type", "string"}, {"maxLength", 256}}},
                                          {"span_name", {{"type", "string"}, {"maxLength", 256}}}}},
                                        {"additionalProperties", false}};
@@ -117,7 +119,7 @@ std::string HelpText(const std::string& topic, const Config& config) {
     return "decide requires state (string, object, or array) and a non-empty questions object. Each question has type "
            "and instructions; Choice and Score also require criteria. At most 32 questions may be batched. Independent "
            "questions "
-           "batched.";
+           "should share state; dependent questions need a follow-up call.";
   if (topic == "response")
     return "Answers are keyed by submitted question IDs. Every answer has a matching type and primitive value. "
            "Probabilities, confidence, and legend are optional where applicable. Missing/mismatched answers are "
@@ -131,14 +133,97 @@ std::string HelpText(const std::string& topic, const Config& config) {
                         ". It returns catalog IDs as-is; aliases may differ from their resolved version IDs. If "
                         "discovery is disabled, no fallback host is contacted.");
   if (topic == "errors")
-    return "Authentication, request validation, rate limit, overload, transport, timeout, and malformed response "
-           "failures are reported as errors, never as low-confidence decisions. This server does not retry evaluation "
+    return "OpenRouter documents HTTP 400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 524, and 529 responses. "
+           "Errors are reported as errors, never as low-confidence decisions. This server does not retry evaluation "
            "requests by default.";
   if (topic == "examples")
-    return "Example: {\"state\":{\"ticket\":\"duplicate "
-           "charge\"},\"questions\":{\"refund\":{\"type\":\"noul\",\"instructions\":\"Is a refund requested?\"}}}. "
-           "Model aliases are passed unchanged; use decision_models to inspect current catalog IDs.";
+    return "Use the structured request/response examples returned with this help result. Model aliases are passed "
+           "unchanged; use decision_models to inspect current catalog IDs.";
   return {};
+}
+
+nlohmann::json DecisionResponseSchema() {
+  const nlohmann::json probability = {{"type", "number"}, {"minimum", 0}, {"maximum", 1}};
+  const nlohmann::json probability_map = {{"type", "object"}, {"additionalProperties", probability}};
+
+  nlohmann::json noul_answer = nlohmann::json::object();
+  noul_answer["type"] = "object";
+  noul_answer["properties"] = {{"type", {{"const", "noul"}}}, {"noul", probability}};
+  noul_answer["required"] = {"type", "noul"};
+
+  nlohmann::json choice_answer = nlohmann::json::object();
+  choice_answer["type"] = "object";
+  choice_answer["properties"] = {{"type", {{"const", "choice"}}},
+                                 {"choice", {{"type", "string"}}},
+                                 {"confidence", probability},
+                                 {"probabilities", probability_map}};
+  choice_answer["required"] = {"type", "choice"};
+
+  nlohmann::json score_answer = nlohmann::json::object();
+  score_answer["type"] = "object";
+  score_answer["properties"] = {{"type", {{"const", "score"}}},
+                                {"score", {{"type", "number"}}},
+                                {"confidence", probability},
+                                {"legend", {{"type", "object"}, {"additionalProperties", StructuredValueSchema()}}},
+                                {"probabilities", probability_map}};
+  score_answer["required"] = {"type", "score"};
+
+  nlohmann::json answers = {{"type", "object"}};
+  answers["additionalProperties"] = {{"oneOf", {noul_answer, choice_answer, score_answer}}};
+  const nlohmann::json usage = {{"type", "object"},
+                                {"properties",
+                                 {{"input_tokens", {{"type", "integer"}}},
+                                  {"output_tokens", {{"type", "integer"}}},
+                                  {"cost", {{"type", "number"}}}}},
+                                {"required", {"input_tokens", "output_tokens"}}};
+  nlohmann::json properties = nlohmann::json::object();
+  properties["model"] = {{"type", "string"}};
+  properties["answers"] = answers;
+  properties["usage"] = usage;
+  properties["id"] = {{"type", "string"}};
+  properties["provider"] = {{"type", "string"}};
+  return {{"type", "object"}, {"properties", properties}, {"required", {"model", "answers", "usage"}}};
+}
+
+nlohmann::json DecisionHelpExamples() {
+  nlohmann::json request = nlohmann::json::object();
+  request["model"] = "~typesafe/jev-latest";
+  request["state"] = {{"ticket", "A duplicate charge blocked checkout."}};
+  request["questions"]["refund"] = {
+      {"type", "noul"},
+      {"instructions", "Is the customer asking for money back?"},
+      {"criteria",
+       {{"true", "They ask to reverse a duplicate charge."}, {"false", "They do not ask for money to be returned."}}}};
+  request["questions"]["team"] = {{"type", "choice"},
+                                  {"instructions", "Which team should handle the ticket?"},
+                                  {"criteria",
+                                   {{"billing", "Charges and refunds."},
+                                    {"technical", "Checkout failures."},
+                                    {"none", "Neither team is appropriate."}}}};
+  request["questions"]["urgency"] = {{"type", "score"},
+                                     {"instructions", "How urgent is the issue?"},
+                                     {"criteria", {"Can wait", "Needs attention soon", "Blocks purchases now"}}};
+
+  nlohmann::json response = nlohmann::json::object();
+  response["model"] = "~typesafe/jev-latest";
+  response["answers"]["refund"] = {{"type", "noul"}, {"noul", 0.97}};
+  response["answers"]["team"] = {{"type", "choice"},
+                                 {"choice", "billing"},
+                                 {"probabilities", {{"billing", 0.94}, {"technical", 0.04}, {"none", 0.02}}}};
+  response["answers"]["urgency"] = {
+      {"type", "score"},
+      {"score", 1.9},
+      {"legend", {{"0", "Can wait"}, {"1", "Needs attention soon"}, {"2", "Blocks purchases now"}}},
+      {"probabilities", {{"0", 0.02}, {"1", 0.06}, {"2", 0.92}}}};
+  response["usage"] = {{"input_tokens", 23}, {"output_tokens", 8}, {"cost", 0.00001}};
+  return {{"request", std::move(request)}, {"response", std::move(response)}};
+}
+
+nlohmann::json DecisionHelpContent(const std::string& topic, const std::string& text) {
+  return {{"topic", topic},
+          {"text", text},
+          {"schemas", {{"decide", DecideInputSchema()}, {"response", DecisionResponseSchema()}}},
+          {"examples", DecisionHelpExamples()}};
 }
 
 }  // namespace
@@ -146,20 +231,22 @@ std::string HelpText(const std::string& topic, const Config& config) {
 absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClient> client, const Config& config) {
   if (client == nullptr) return absl::InvalidArgumentError("decision API client must not be null");
   std::vector<mcp::server::ToolRegistration> tools;
-  tools.push_back(
-      MakeTool("decide",
-               "Evaluate named noul, choice, and score questions against shared state using OpenRouter. "
-               "Returns typed answers, resolved model, and available usage metadata. Noul is probability "
-               "of yes; Choice selects a defined option; Score is a probability-weighted ordered-rubric "
-               "index. This may incur provider charges and discloses input to an external service. It does "
-               "not execute actions. Use decision_help for schemas, examples, and uncertainty guidance.",
-               DecideInputSchema(),
-               {{"readOnlyHint", true}, {"openWorldHint", true}, {"destructiveHint", false}, {"idempotentHint", false}},
-               [client](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-                 auto response = client->Decide(arguments);
-                 if (!response.ok()) return ErrorResult(response.status());
-                 return ToolResult("OpenRouter decision completed", std::move(*response));
-               }));
+  tools.push_back(MakeTool(
+      "decide",
+      "Evaluate named noul, choice, and score questions against shared state using OpenRouter. "
+      "Returns typed answers, resolved model, and available usage metadata. Noul is probability "
+      "of yes; Choice selects a defined option; Score is a probability-weighted ordered-rubric "
+      "index. This may incur provider charges and discloses input to an external service. It does "
+      "not execute actions. openrouterOptions accepts session_id, trace (generation_name, parent_span_id, "
+      "span_name, trace_id, trace_name), user, and provider routing preferences. Use decision_help for schemas, "
+      "examples, and uncertainty guidance.",
+      DecideInputSchema(),
+      {{"readOnlyHint", true}, {"openWorldHint", true}, {"destructiveHint", false}, {"idempotentHint", false}},
+      [client](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
+        auto response = client->Decide(arguments);
+        if (!response.ok()) return ErrorResult(response.status());
+        return ToolResult("OpenRouter decision completed", std::move(*response));
+      }));
 
   const nlohmann::json help_schema = {{"type", "object"},
                                       {"properties",
@@ -184,7 +271,7 @@ absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClie
                  const std::string topic = topic_value.value_or("overview");
                  const std::string text = HelpText(topic, config);
                  if (text.empty()) return ErrorResult(absl::InvalidArgumentError("unknown help topic"));
-                 return ToolResult(text, {{"topic", topic}, {"text", text}});
+                 return ToolResult(text, DecisionHelpContent(topic, text));
                }));
 
   const nlohmann::json empty_schema = {{"type", "object"}, {"additionalProperties", false}};

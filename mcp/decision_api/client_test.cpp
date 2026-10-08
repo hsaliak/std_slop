@@ -32,11 +32,12 @@ class FakeHttpClient final : public slop::HttpClient {
     ++get_count;
     last_url = url;
     last_headers = headers;
-    return slop::HttpResponse{200, get_body, {}};
+    return slop::HttpResponse{get_status, get_body, {}};
   }
 
   int post_count = 0;
   int get_count = 0;
+  long get_status = 200;
   std::string last_url;
   std::string last_body;
   std::vector<std::string> last_headers;
@@ -60,12 +61,14 @@ TEST(DecisionApiClientTest, BuildsRequestAndForwardsModelAliasUnchanged) {
   config.model = "configured-model";
   nlohmann::json args = RequestArguments();
   args["model"] = "~typesafe/jev-latest";
-  args["openrouterOptions"] = {{"session_id", "session-1"}, {"user", "agent-1"}};
+  args["openrouterOptions"] = {
+      {"session_id", "session-1"}, {"trace", {{"generation_name", "billing-check"}}}, {"user", "agent-1"}};
   auto request = DecisionApiClient::BuildRequest(args, config);
   ASSERT_TRUE(request.ok()) << request.status();
   EXPECT_EQ(json_get<std::string>(*request, "model"), "~typesafe/jev-latest");
   EXPECT_EQ(json_get<std::string>(*request, "session_id"), "session-1");
   EXPECT_EQ(json_get<std::string>(*request, "user"), "agent-1");
+  EXPECT_NE(json_at(*request, "trace"), nullptr);
 }
 
 TEST(DecisionApiClientTest, RejectsInvalidQuestionAndUnknownFields) {
@@ -78,6 +81,9 @@ TEST(DecisionApiClientTest, RejectsInvalidQuestionAndUnknownFields) {
   EXPECT_FALSE(DecisionApiClient::BuildRequest(args, config).ok());
   args = RequestArguments();
   args["questions"]["refund"]["criteria"] = {{"true", "yes"}, {"false", "no"}, {"other", "bad"}};
+  EXPECT_FALSE(DecisionApiClient::BuildRequest(args, config).ok());
+  args = RequestArguments();
+  args["openrouterOptions"] = {{"trace", {{"unknown", "value"}}}};
   EXPECT_FALSE(DecisionApiClient::BuildRequest(args, config).ok());
 }
 
@@ -96,6 +102,9 @@ TEST(DecisionApiClientTest, ValidatesCorrelatedAnswerAndRequiredResponseFields) 
   response = ValidResponse();
   response.erase("usage");
   EXPECT_FALSE(DecisionApiClient::ValidateResponse(*request, response).ok());
+  response = ValidResponse();
+  response["usage"].erase("input_tokens");
+  EXPECT_FALSE(DecisionApiClient::ValidateResponse(*request, response).ok());
 }
 
 TEST(DecisionApiClientTest, ValidatesChoiceAndScoreAndOptionalFields) {
@@ -112,7 +121,7 @@ TEST(DecisionApiClientTest, ValidatesChoiceAndScoreAndOptionalFields) {
   ASSERT_TRUE(request.ok()) << request.status();
   nlohmann::json response = {
       {"model", "versioned-model"},
-      {"usage", nlohmann::json::object()},
+      {"usage", {{"input_tokens", 3}, {"output_tokens", 1}}},
       {"answers",
        {{"team", {{"type", "choice"}, {"choice", "billing"}, {"probabilities", {{"billing", 0.8}, {"support", 0.2}}}}},
         {"urgency",
@@ -120,12 +129,28 @@ TEST(DecisionApiClientTest, ValidatesChoiceAndScoreAndOptionalFields) {
           {"score", 0.75},
           {"legend", {{"0", "low"}, {"1", "high"}}},
           {"probabilities", {{"0", 0.25}, {"1", 0.75}}}}}}}};
-  EXPECT_TRUE(DecisionApiClient::ValidateResponse(*request, response).ok());
+  const absl::Status valid_status = DecisionApiClient::ValidateResponse(*request, response);
+  EXPECT_TRUE(valid_status.ok()) << valid_status;
   response["answers"]["team"]["choice"] = "unknown";
   EXPECT_FALSE(DecisionApiClient::ValidateResponse(*request, response).ok());
   response["answers"]["team"]["choice"] = "billing";
   response["answers"]["urgency"]["score"] = 2;
   EXPECT_FALSE(DecisionApiClient::ValidateResponse(*request, response).ok());
+}
+
+TEST(DecisionApiClientTest, RejectsCatalogHttpErrors) {
+  Config config;
+  config.api_key = "secret";
+  FakeHttpClient http;
+  http.get_status = 429;
+  http.get_body = "sensitive catalog body";
+  DecisionApiClient client(config, &http);
+
+  auto models = client.Models();
+  ASSERT_FALSE(models.ok());
+  EXPECT_NE(std::string(models.status().message()).find("HTTP 429"), std::string::npos);
+  EXPECT_EQ(std::string(models.status().message()).find("sensitive catalog body"), std::string::npos);
+  EXPECT_EQ(http.get_count, 1);
 }
 
 TEST(DecisionApiClientTest, DoesNotCallTransportForInvalidArgumentsAndPostsOnce) {
@@ -148,6 +173,22 @@ TEST(DecisionApiClientTest, DoesNotCallTransportForInvalidArgumentsAndPostsOnce)
   EXPECT_EQ(http.last_url, kDefaultEndpoint);
   EXPECT_NE(http.last_headers.end(),
             std::find(http.last_headers.begin(), http.last_headers.end(), "Authorization: Bearer secret"));
+}
+
+TEST(DecisionApiClientTest, ReportsHttpStatusWithoutReplayingOrEchoingResponseBody) {
+  Config config;
+  config.api_key = "secret";
+  config.model = "model-id";
+  FakeHttpClient http;
+  http.post_response.status_code = 402;
+  http.post_response.body = "sensitive upstream body";
+  DecisionApiClient client(config, &http);
+
+  auto result = client.Decide(RequestArguments());
+  ASSERT_FALSE(result.ok());
+  EXPECT_NE(std::string(result.status().message()).find("HTTP 402"), std::string::npos);
+  EXPECT_EQ(std::string(result.status().message()).find("sensitive upstream body"), std::string::npos);
+  EXPECT_EQ(http.post_count, 1);
 }
 
 TEST(DecisionApiClientTest, ReadsModelCatalogOnlyWhenConfigured) {

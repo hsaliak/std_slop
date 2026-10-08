@@ -226,7 +226,8 @@ absl::StatusOr<nlohmann::json> DecisionApiClient::BuildRequest(const nlohmann::j
       }
       if (iterator.key() == "trace") {
         if (!iterator.value().is_object()) return absl::InvalidArgumentError("trace option must be an object");
-        static const std::unordered_set<std::string> trace_fields = {"trace_id", "trace_name", "span_name"};
+        static const std::unordered_set<std::string> trace_fields = {"generation_name", "parent_span_id", "span_name",
+                                                                     "trace_id", "trace_name"};
         for (auto field = iterator.value().begin(); field != iterator.value().end(); ++field) {
           const auto trace_value = json_get<std::string>(iterator.value(), field.key());
           if (trace_fields.find(field.key()) == trace_fields.end() || !trace_value.has_value() ||
@@ -247,9 +248,17 @@ absl::StatusOr<nlohmann::json> DecisionApiClient::BuildRequest(const nlohmann::j
 }
 
 absl::Status DecisionApiClient::ValidateResponse(const nlohmann::json& request, const nlohmann::json& response) {
-  if (!response.is_object() || !json_get<std::string>(response, "model").has_value() || !json_at(response, "usage") ||
-      !json_at(response, "usage")->is_object()) {
+  if (!response.is_object() || !json_get<std::string>(response, "model").has_value()) {
     return absl::InvalidArgumentError("Decision API response must contain model, answers, and usage");
+  }
+  const auto* usage = json_at(response, "usage");
+  if (usage == nullptr || !usage->is_object()) {
+    return absl::InvalidArgumentError("Decision API response must contain model, answers, and usage");
+  }
+  const auto input_tokens = json_get<std::int64_t>(*usage, "input_tokens");
+  const auto output_tokens = json_get<std::int64_t>(*usage, "output_tokens");
+  if (!input_tokens.has_value() || *input_tokens < 0 || !output_tokens.has_value() || *output_tokens < 0) {
+    return absl::InvalidArgumentError("Decision API usage must contain non-negative token counts");
   }
   const auto* questions = json_at(request, "questions");
   const auto* answers = json_at(response, "answers");
