@@ -31,7 +31,7 @@ bool IsValidEndpoint(const std::string& endpoint) {
 absl::StatusOr<Config> ParseConfig(const nlohmann::json& value) {
   if (!value.is_object()) return absl::InvalidArgumentError("decision API config must be an object");
   static const std::unordered_set<std::string> allowed_fields = {"apiKey", "endpoint", "modelsEndpoint", "model",
-                                                                  "timeoutMs"};
+                                                                 "timeoutMs"};
   for (auto iterator = value.begin(); iterator != value.end(); ++iterator) {
     if (allowed_fields.find(iterator.key()) == allowed_fields.end()) {
       return absl::InvalidArgumentError(absl::StrCat("unknown config field: ", iterator.key()));

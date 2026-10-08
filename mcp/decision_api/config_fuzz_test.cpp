@@ -1,10 +1,10 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "nlohmann/json.hpp"
 
 #include "fuzztest/fuzztest.h"
 #include "mcp/decision_api/config.h"
-#include "nlohmann/json.hpp"
 
 namespace slop::mcp::decision_api {
 namespace {
