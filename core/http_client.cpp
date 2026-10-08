@@ -194,6 +194,12 @@ absl::StatusOr<std::string> HttpClient::GetOnce(const std::string& url, const st
   return response_or->body;
 }
 
+absl::StatusOr<HttpResponse> HttpClient::GetOnceWithResponse(const std::string& url,
+                                                             const std::vector<std::string>& headers,
+                                                             absl::Duration timeout, size_t max_response_bytes) {
+  return ExecuteWithRetryResponse(url, "GET", "", headers, nullptr, false, false, true, timeout, max_response_bytes);
+}
+
 absl::StatusOr<std::string> HttpClient::Post(const std::string& url, const std::string& body,
                                              const std::vector<std::string>& headers) {
   auto response_or = ExecuteWithRetryResponse(url, "POST", body, headers);

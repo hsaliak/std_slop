@@ -291,9 +291,13 @@ absl::StatusOr<nlohmann::json> DecisionApiClient::Models() const {
     return absl::FailedPreconditionError("model discovery is disabled for this endpoint");
   const std::vector<std::string> headers = {absl::StrCat("Authorization: Bearer ", config_.api_key),
                                             "Accept: application/json"};
-  auto body = http_client_->GetOnce(*config_.models_endpoint, headers);
-  if (!body.ok()) return body.status();
-  auto value = json_parse(*body);
+  auto response = http_client_->GetOnceWithResponse(*config_.models_endpoint, headers,
+                                                    absl::Milliseconds(config_.timeout_ms), kMaxResponseBytes);
+  if (!response.ok()) return response.status();
+  if (response->status_code < 200 || response->status_code >= 300) {
+    return absl::UnavailableError(absl::StrCat("OpenRouter model catalog returned HTTP ", response->status_code));
+  }
+  auto value = json_parse(response->body);
   if (!value.has_value() || !value->is_object())
     return absl::InvalidArgumentError("OpenRouter returned invalid model catalog JSON");
   const auto* models = json_at(*value, "data");

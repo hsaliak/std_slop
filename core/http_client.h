@@ -60,6 +60,10 @@ class HttpClient {
                                                             const std::vector<std::string>& headers);
 
   virtual absl::StatusOr<std::string> GetOnce(const std::string& url, const std::vector<std::string>& headers);
+  // Executes one GET attempt, returns every HTTP status, and never replays.
+  virtual absl::StatusOr<HttpResponse> GetOnceWithResponse(const std::string& url,
+                                                           const std::vector<std::string>& headers,
+                                                           absl::Duration timeout, size_t max_response_bytes);
 
   virtual absl::StatusOr<std::string> Get(const std::string& url, const std::vector<std::string>& headers);
   static bool IsTerminalError(long response_code, const std::string& response_body);

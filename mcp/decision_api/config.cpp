@@ -22,8 +22,15 @@ bool ContainsControl(const std::string& value) {
 }
 
 bool IsValidEndpoint(const std::string& endpoint) {
-  return endpoint.rfind("https://", 0) == 0 && endpoint.size() <= 2048 && endpoint.find('#') == std::string::npos &&
-         endpoint.find('@') == std::string::npos && !ContainsControl(endpoint);
+  if (endpoint.rfind("https://", 0) != 0 || endpoint.size() > 2048 || endpoint.find('#') != std::string::npos ||
+      endpoint.find('@') != std::string::npos || endpoint.find(' ') != std::string::npos || ContainsControl(endpoint)) {
+    return false;
+  }
+  const std::size_t authority_begin = 8;
+  const std::size_t authority_end = endpoint.find_first_of("/?", authority_begin);
+  const std::string authority = endpoint.substr(
+      authority_begin, authority_end == std::string::npos ? std::string::npos : authority_end - authority_begin);
+  return !authority.empty() && authority != "." && authority.find('\\') == std::string::npos;
 }
 
 }  // namespace

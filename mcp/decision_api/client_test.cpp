@@ -26,11 +26,13 @@ class FakeHttpClient final : public slop::HttpClient {
     return post_response;
   }
 
-  absl::StatusOr<std::string> GetOnce(const std::string& url, const std::vector<std::string>& headers) override {
+  absl::StatusOr<slop::HttpResponse> GetOnceWithResponse(const std::string& url,
+                                                         const std::vector<std::string>& headers, absl::Duration,
+                                                         std::size_t) override {
     ++get_count;
     last_url = url;
     last_headers = headers;
-    return get_body;
+    return slop::HttpResponse{200, get_body, {}};
   }
 
   int post_count = 0;

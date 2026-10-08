@@ -121,6 +121,26 @@ TEST(HttpClientTest, AbortDoesNotPoisonNextRequest) {
   EXPECT_FALSE(client.IsAborted());
 }
 
+TEST(HttpClientTest, GetOnceWithResponseReturnsStatusWithoutRetry) {
+  const int listen_fd = BindLoopbackServer();
+  ASSERT_GE(listen_fd, 0);
+  const int port = BoundPort(listen_fd);
+  ASSERT_GT(port, 0);
+  std::atomic<int> request_count = 0;
+  std::thread server(ServeOneResponse, listen_fd,
+                     "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 4\r\nConnection: close\r\n\r\nbusy",
+                     &request_count);
+
+  HttpClient client(5, 0);
+  auto response =
+      client.GetOnceWithResponse(absl::StrCat("http://127.0.0.1:", port, "/models"), {}, absl::Seconds(2), 1024);
+  server.join();
+  ASSERT_TRUE(response.ok()) << response.status();
+  EXPECT_EQ(response->status_code, 429);
+  EXPECT_EQ(response->body, "busy");
+  EXPECT_EQ(request_count.load(), 1);
+}
+
 TEST(HttpClientTest, GetError) {
   HttpClient client(0, 0);
   // Should fail on a non-existent local port or invalid URL

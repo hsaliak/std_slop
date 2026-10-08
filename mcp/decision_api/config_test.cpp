@@ -50,6 +50,10 @@ TEST(DecisionApiConfigTest, RejectsInvalidEndpointsAndTimeouts) {
   EXPECT_FALSE(ParseConfig(value).ok());
   value["endpoint"] = "https://user@example.test/decisions";
   EXPECT_FALSE(ParseConfig(value).ok());
+  value["endpoint"] = "https:///missing-host";
+  EXPECT_FALSE(ParseConfig(value).ok());
+  value["endpoint"] = "https://example.test /path";
+  EXPECT_FALSE(ParseConfig(value).ok());
   value["endpoint"] = std::string("https://example.test/\0path", 25);
   EXPECT_FALSE(ParseConfig(value).ok());
   value = MinimalConfig();
