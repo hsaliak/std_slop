@@ -28,6 +28,12 @@ void ResultNormalizationIsBounded(const std::string& text, bool is_error) {
   if (normalized.ok() && !normalized->ok) EXPECT_LE(normalized->error.size(), 1024);
 }
 
+void CompletionErrorsAreBounded(const std::string& text) {
+  if (text.size() > 64 * 1024) return;
+  EXPECT_EQ(BoundCompletionError(text), text.substr(0, 4096));
+}
+
+FUZZ_TEST(GatewayFuzzTest, CompletionErrorsAreBounded).WithDomains(fuzztest::Arbitrary<std::string>());
 FUZZ_TEST(GatewayFuzzTest, ConfigParsingIsTotal).WithDomains(fuzztest::Arbitrary<std::string>());
 FUZZ_TEST(GatewayFuzzTest, ResultNormalizationIsBounded)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>());

@@ -14,12 +14,6 @@ namespace slop::mcp::gateway {
 namespace {
 
 constexpr std::size_t kMaxQueuedCalls = 64;
-constexpr std::size_t kMaxErrorBytes = 4096;
-
-std::string Bounded(std::string text) {
-  if (text.size() > kMaxErrorBytes) text.resize(kMaxErrorBytes);
-  return text;
-}
 
 }  // namespace
 
@@ -68,17 +62,17 @@ void SerialBroker::ProcessOne() {
   auto result = catalog_.Call(request.server, request.tool, request.arguments, request.deadline);
   if (!result.ok()) {
     completed_.push_back(
-        {request.run_id, request.id, false, nullptr, Bounded(std::string(result.status().message())), "downstream"});
+        {request.run_id, request.id, false, nullptr, BoundCompletionError(std::string(result.status().message())), "downstream"});
     return;
   }
   auto normalized = NormalizeToolResult(*result);
   if (!normalized.ok()) {
     completed_.push_back({request.run_id, request.id, false, nullptr,
-                          Bounded(std::string(normalized.status().message())), "normalization"});
+                          BoundCompletionError(std::string(normalized.status().message())), "normalization"});
     return;
   }
   completed_.push_back({request.run_id, request.id, normalized->ok, std::move(normalized->value),
-                        Bounded(normalized->error), normalized->error_category});
+                        BoundCompletionError(std::move(normalized->error)), std::move(normalized->error_category)});
 }
 
 }  // namespace slop::mcp::gateway

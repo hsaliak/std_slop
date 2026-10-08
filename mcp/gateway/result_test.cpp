@@ -1,10 +1,23 @@
 #include "mcp/gateway/result.h"
 
+#include <cstddef>
+#include <string>
+
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
 namespace slop::mcp::gateway {
 namespace {
+
+TEST(ResultTest, BoundsCompletionErrorsAndPreservesTheirPrefix) {
+  for (const std::size_t size : {0, 1, 4095, 4096, 4097, 8192}) {
+    const std::string error(size, 'x');
+    EXPECT_EQ(BoundCompletionError(error), error.substr(0, 4096));
+  }
+  EXPECT_EQ(BoundCompletionError("permission denied"), "permission denied");
+  const std::string binary_error("a\0b", 3);
+  EXPECT_EQ(BoundCompletionError(binary_error), binary_error);
+}
 
 TEST(ResultTest, NormalizesSuccessfulResultShape) {
   ToolCallResult result;

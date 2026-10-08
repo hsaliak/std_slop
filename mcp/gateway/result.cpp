@@ -11,6 +11,8 @@
 namespace slop::mcp::gateway {
 namespace {
 
+constexpr std::size_t kMaxCompletionErrorBytes = 4096;
+
 std::string ToolErrorMessage(const ToolCallResult& result, std::size_t max_bytes) {
   std::string message;
   for (const nlohmann::json& item : result.content) {
@@ -26,6 +28,11 @@ std::string ToolErrorMessage(const ToolCallResult& result, std::size_t max_bytes
 }
 
 }  // namespace
+
+std::string BoundCompletionError(std::string error) {
+  if (error.size() > kMaxCompletionErrorBytes) error.resize(kMaxCompletionErrorBytes);
+  return error;
+}
 
 absl::StatusOr<NormalizedToolResult> NormalizeToolResult(const ToolCallResult& result, std::size_t max_bytes) {
   if (max_bytes == 0) return absl::InvalidArgumentError("result size limit must be positive");

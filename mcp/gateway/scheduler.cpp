@@ -13,16 +13,6 @@
 #include "mcp/gateway/result.h"
 
 namespace slop::mcp::gateway {
-namespace {
-
-constexpr std::size_t kMaxErrorBytes = 4096;
-
-std::string Bounded(std::string text) {
-  if (text.size() > kMaxErrorBytes) text.resize(kMaxErrorBytes);
-  return text;
-}
-
-}  // namespace
 
 absl::StatusOr<std::unique_ptr<Scheduler>> Scheduler::Create(Catalog catalog,
                                                               std::shared_ptr<TraceLogger> trace_logger) {
@@ -158,22 +148,22 @@ js_runtime::ToolCompletion Scheduler::Process(const js_runtime::ToolRequest& req
     if (trace_logger_ != nullptr) {
       trace_logger_->LogToolFailure(request.run_id, request.id, request.server, request.tool, result.status());
     }
-    return {request.run_id, request.id, false, nullptr, Bounded(std::string(result.status().message())), "downstream"};
+    return {request.run_id, request.id, false, nullptr, BoundCompletionError(std::string(result.status().message())), "downstream"};
   }
   auto normalized = NormalizeToolResult(*result);
   if (trace_logger_ != nullptr) {
     trace_logger_->LogToolResult(request.run_id, request.id, request.server, request.tool, *result, normalized);
   }
   if (!normalized.ok()) {
-    return {request.run_id, request.id, false, nullptr, Bounded(std::string(normalized.status().message())),
+    return {request.run_id, request.id, false, nullptr, BoundCompletionError(std::string(normalized.status().message())),
             "normalization"};
   }
   return {request.run_id,
           request.id,
           normalized->ok,
           std::move(normalized->value),
-          Bounded(normalized->error),
-          normalized->error_category};
+          BoundCompletionError(std::move(normalized->error)),
+          std::move(normalized->error_category)};
 }
 
 }  // namespace slop::mcp::gateway

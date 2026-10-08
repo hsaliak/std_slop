@@ -18,6 +18,9 @@ struct NormalizedToolResult {
   std::string error;
 };
 
+// Bounds runtime completion error messages to 4096 bytes, preserving the prefix.
+std::string BoundCompletionError(std::string error);
+
 absl::StatusOr<NormalizedToolResult> NormalizeToolResult(const ToolCallResult& result,
                                                          std::size_t max_bytes = 1024 * 1024);
 
