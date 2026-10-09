@@ -26,7 +26,7 @@ A few MCP servers are implemented and documented:
 
 - **Echo server:** a small stdio MCP example. See the [echo server guide](docs/echo-server.md).
 - **run_js gateway:** bounded JavaScript composition of downstream MCP tools. See the [gateway guide](mcp/gateway/README.md).
-- **OpenRouter Decision API:** typed `noul`, `choice`, and `score` evaluations through MCP. See the [Decision API guide](mcp/decision_api/README.md).
+- **Decision API MCP:** typed `noul`, `choice`, and `score` evaluations for SystemOne models such as Jev from TypeSafe; OpenRouter is the default backend. See the [Decision API guide](mcp/decision_api/README.md).
 
 ## Agent entry points
 

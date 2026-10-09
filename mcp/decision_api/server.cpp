@@ -100,9 +100,10 @@ absl::StatusOr<mcp::ToolCallResult> ErrorResult(const absl::Status& status) {
 std::string HelpText(const std::string& topic, const Config& config) {
   if (topic == "overview") {
     return absl::StrCat(
-        "Decision API MCP uses OpenRouter. Evaluation endpoint: ", SanitizedEndpoint(config.endpoint),
-        ". Configured model is passed through unchanged: ", config.model,
-        ". Use decision_models to copy an exact catalog ID such as ~typesafe/jev-latest; aliases may include namespace "
+        "Decision API MCP exposes typed judgments for SystemOne models such as Jev from TypeSafe. OpenRouter is the "
+        "default backend; configured evaluation endpoint: ",
+        SanitizedEndpoint(config.endpoint), ". Configured model is passed through unchanged: ", config.model,
+        ". Use decision_models to copy an exact model ID such as ~typesafe/jev-latest; aliases may include namespace "
         "prefixes and are never rewritten. Calls may incur charges and disclose state.");
   }
   if (topic == "noul")
@@ -129,9 +130,10 @@ std::string HelpText(const std::string& topic, const Config& config) {
         "The API key is held in the server's private config. The endpoint defaults to ", kDefaultEndpoint,
         ". timeoutMs defaults to 30000 (range 1-60000). A custom endpoint disables default catalog lookup.");
   if (topic == "models")
-    return absl::StrCat("decision_models reads the OpenRouter catalog at ", kDefaultModelsEndpoint,
-                        ". It returns catalog IDs as-is; aliases may differ from their resolved version IDs. If "
-                        "discovery is disabled, no fallback host is contacted.");
+    return absl::StrCat("decision_models reads the configured model catalog. The default OpenRouter catalog is at ",
+                        kDefaultModelsEndpoint,
+                        ". It returns catalog IDs as-is; SystemOne aliases such as ~typesafe/jev-latest may differ "
+                        "from their resolved version IDs. If discovery is disabled, no fallback host is contacted.");
   if (topic == "errors")
     return "OpenRouter documents HTTP 400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 524, and 529 responses. "
            "Errors are reported as errors, never as low-confidence decisions. This server does not retry evaluation "
@@ -233,19 +235,19 @@ absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClie
   std::vector<mcp::server::ToolRegistration> tools;
   tools.push_back(MakeTool(
       "decide",
-      "Evaluate named noul, choice, and score questions against shared state using OpenRouter. "
-      "Returns typed answers, resolved model, and available usage metadata. Noul is probability "
-      "of yes; Choice selects a defined option; Score is a probability-weighted ordered-rubric "
-      "index. This may incur provider charges and discloses input to an external service. It does "
-      "not execute actions. openrouterOptions accepts session_id, trace (generation_name, parent_span_id, "
-      "span_name, trace_id, trace_name), user, and provider routing preferences. Use decision_help for schemas, "
-      "examples, and uncertainty guidance.",
+      "Evaluate named noul, choice, and score questions against shared state for SystemOne models such as Jev from "
+      "TypeSafe. OpenRouter is the default backend. Returns typed answers, resolved model, and available usage "
+      "metadata. Noul is probability of yes; Choice selects a defined option; Score is a probability-weighted ordered-"
+      "rubric index. This may incur provider charges and discloses input to an external service. It does not execute "
+      "actions. openrouterOptions accepts session_id, trace (generation_name, parent_span_id, span_name, trace_id, "
+      "trace_name), user, and provider routing preferences. Use decision_help for schemas, examples, and uncertainty "
+      "guidance.",
       DecideInputSchema(),
       {{"readOnlyHint", true}, {"openWorldHint", true}, {"destructiveHint", false}, {"idempotentHint", false}},
       [client](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
         auto response = client->Decide(arguments);
         if (!response.ok()) return ErrorResult(response.status());
-        return ToolResult("OpenRouter decision completed", std::move(*response));
+        return ToolResult("Decision API evaluation completed", std::move(*response));
       }));
 
   const nlohmann::json help_schema = {{"type", "object"},
@@ -258,8 +260,10 @@ absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClie
                                       {"additionalProperties", false}};
   tools.push_back(
       MakeTool("decision_help",
-               "Explain the OpenRouter Decision API schemas, question types, model aliases, configuration, errors, and "
-               "uncertainty. This local documentation tool performs no HTTP request and reveals no credentials.",
+               "Explain Decision API schemas, SystemOne models such as TypeSafe Jev, question types, model aliases, "
+               "configuration, "
+               "errors, and uncertainty. OpenRouter is the default backend. This local documentation tool performs no "
+               "HTTP request and reveals no credentials.",
                help_schema, {{"readOnlyHint", true}, {"openWorldHint", false}},
                [config](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
                  if (!arguments.is_object())
@@ -275,24 +279,28 @@ absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClie
                }));
 
   const nlohmann::json empty_schema = {{"type", "object"}, {"additionalProperties", false}};
-  tools.push_back(MakeTool(
-      "decision_models",
-      "List decision-capable OpenRouter models from its catalog, including exact IDs and available context/pricing "
-      "metadata. Does not evaluate a request. Reports when discovery is disabled; never invents IDs or falls back to "
-      "another host.",
-      empty_schema, {{"readOnlyHint", true}, {"openWorldHint", true}},
-      [client](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        if (!arguments.is_object() || !arguments.empty())
-          return ErrorResult(absl::InvalidArgumentError("decision_models expects an empty object"));
-        auto models = client->Models();
-        if (!models.ok()) return ErrorResult(models.status());
-        const auto* data = json_at(*models, "data");
-        return ToolResult(absl::StrCat("OpenRouter returned ", data == nullptr ? 0 : data->size(), " decision models"),
-                          std::move(*models));
-      }));
+  tools.push_back(
+      MakeTool("decision_models",
+               "List decision-capable SystemOne models such as TypeSafe Jev from the configured catalog, including "
+               "exact IDs and "
+               "available context/pricing metadata. OpenRouter provides the default catalog. Does not evaluate a "
+               "request. Reports "
+               "when discovery is disabled; never invents IDs or falls back to another host.",
+               empty_schema, {{"readOnlyHint", true}, {"openWorldHint", true}},
+               [client](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
+                 if (!arguments.is_object() || !arguments.empty())
+                   return ErrorResult(absl::InvalidArgumentError("decision_models expects an empty object"));
+                 auto models = client->Models();
+                 if (!models.ok()) return ErrorResult(models.status());
+                 const auto* data = json_at(*models, "data");
+                 return ToolResult(
+                     absl::StrCat("Decision model catalog returned ", data == nullptr ? 0 : data->size(), " models"),
+                     std::move(*models));
+               }));
 
   mcp::ImplementationInfo identity;
-  identity.name = "openrouter-decision-api";
+  identity.name = "decision-api-mcp";
+  identity.title = "Decision API MCP";
   identity.version = "1.0.0";
   return mcp::server::Server::Create(std::move(identity), std::move(tools));
 }

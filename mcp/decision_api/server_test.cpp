@@ -60,6 +60,22 @@ TEST(DecisionApiServerTest, AdvertisesCorrectToolsAndAgentHelpWithoutNetwork) {
   auto server = CreateServer(client, config);
   ASSERT_TRUE(server.ok()) << server.status();
 
+  const nlohmann::json discovery_request = {
+      {"jsonrpc", "2.0"},
+      {"id", "discover"},
+      {"method", "server/discover"},
+      {"params", {{"_meta", {{"io.modelcontextprotocol/protocolVersion", "2026-07-28"}}}}}};
+  const auto discovery = server->Dispatch(json_dump(discovery_request));
+  ASSERT_TRUE(discovery.has_value());
+  const auto* discovery_result = json_at(*discovery, "result");
+  ASSERT_NE(discovery_result, nullptr);
+  const auto* discovery_meta = json_at(*discovery_result, "_meta");
+  ASSERT_NE(discovery_meta, nullptr);
+  const auto* server_info = json_at(*discovery_meta, "io.modelcontextprotocol/serverInfo");
+  ASSERT_NE(server_info, nullptr);
+  EXPECT_EQ(json_get<std::string>(*server_info, "name"), "decision-api-mcp");
+  EXPECT_EQ(json_get<std::string>(*server_info, "title"), "Decision API MCP");
+
   const nlohmann::json list_request = {
       {"jsonrpc", "2.0"},
       {"id", 1},
@@ -70,6 +86,9 @@ TEST(DecisionApiServerTest, AdvertisesCorrectToolsAndAgentHelpWithoutNetwork) {
   const std::string listing = json_dump(*listed);
   EXPECT_NE(listing.find("decision_help"), std::string::npos);
   EXPECT_NE(listing.find("openWorldHint"), std::string::npos);
+  EXPECT_NE(listing.find("SystemOne"), std::string::npos);
+  EXPECT_NE(listing.find("TypeSafe Jev"), std::string::npos);
+  EXPECT_NE(listing.find("OpenRouter is the default backend"), std::string::npos);
   EXPECT_EQ(http.post_count, 0);
   EXPECT_EQ(http.get_count, 0);
 
@@ -79,6 +98,9 @@ TEST(DecisionApiServerTest, AdvertisesCorrectToolsAndAgentHelpWithoutNetwork) {
   const auto overview = DispatchTool(*server, "decision_help", {{"topic", "overview"}});
   ASSERT_TRUE(overview.has_value());
   EXPECT_EQ(json_dump(*overview).find("not-for-help"), std::string::npos);
+  EXPECT_NE(json_dump(*overview).find("SystemOne"), std::string::npos);
+  EXPECT_NE(json_dump(*overview).find("TypeSafe"), std::string::npos);
+  EXPECT_NE(json_dump(*overview).find("OpenRouter is the default backend"), std::string::npos);
 
   const auto* list_result = json_at(*listed, "result");
   ASSERT_NE(list_result, nullptr);

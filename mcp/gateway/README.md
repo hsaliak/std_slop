@@ -112,7 +112,7 @@ Add the Decision API server as a downstream stdio server in `gateway.json` (keep
 }
 ```
 
-The `decision-api.json` file holds the OpenRouter key and model; do not put credentials in `gateway.json` or JavaScript. See the [Decision API setup guide](../decision_api/README.md) for its format and permission requirements. In `~/.config/slop/mcp.ini`, register the gateway using the registry alias `run_js`:
+The `decision-api.json` file holds the API key and model for the configured Decision API service (OpenRouter is the default); do not put credentials in `gateway.json` or JavaScript. See the [Decision API setup guide](../decision_api/README.md) for its format and permission requirements. In `~/.config/slop/mcp.ini`, register the gateway using the registry alias `run_js`:
 
 ```ini
 [server.run_js]

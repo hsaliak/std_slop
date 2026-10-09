@@ -1,8 +1,8 @@
 # Decision API MCP server plan
 
-Status: implementation plan for the OpenRouter Decision API MCP. The current executable setup guide is [mcp/decision_api/README.md](../mcp/decision_api/README.md); implementation patches are developed on a staging series.
+Status: design record for the Decision API MCP. The MCP provides typed decisions for SystemOne models such as Jev from TypeSafe. It uses OpenRouter's Decisions API and catalog by default; an explicit compatible endpoint can be configured. The current executable setup guide is [mcp/decision_api/README.md](../mcp/decision_api/README.md).
 
-Scope: implement the OpenRouter Decisions API only. TypeSafe documentation remains comparison material, not a second backend. Forward configured model IDs and aliases unchanged; pinning is an optional deployment choice, not a server requirement. The fetched OpenRouter catalog lists alias ID `~typesafe/jev-latest`, targeting `typesafe/jev-1.13`; the bare string `jev-latest` is not that exact catalog ID.
+Scope: expose the `noul`, `choice`, and `score` decision types through one configured Decisions endpoint. The current default backend is OpenRouter; this implementation does not use TypeSafe's separate direct HTTP endpoint. Forward configured model IDs and aliases unchanged; pinning is an optional deployment choice, not a server requirement. The default catalog lists alias `~typesafe/jev-latest`, targeting TypeSafe's `typesafe/jev-1.13` Jev SystemOne model; the bare string `jev-latest` is not that exact catalog ID.
 
 Implementation status: all four bundles below are implemented on `slop/staging/decision-api-implementation` as separate patch commits. The plan remains here as the design record; see the [operator setup guide](../mcp/decision_api/README.md).
 

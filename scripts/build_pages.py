@@ -100,7 +100,7 @@ PAGES = (
     PageSpec(
         "decision-api.html",
         "mcp/decision_api/README.md",
-        "OpenRouter Decision API MCP",
+        "Decision API MCP",
         (SourceSpec("mcp/decision_api/README.md"),),
     ),
     PageSpec(
@@ -136,7 +136,7 @@ NAVIGATION_DROPDOWNS = {
     "Implemented MCPs": (
         ("echo_server", "echo-server.html"),
         ("run_js Gateway", "run-js.html"),
-        ("OpenRouter Decision API", "decision-api.html"),
+        ("Decision API MCP", "decision-api.html"),
     ),
 }
 
