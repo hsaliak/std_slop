@@ -12,7 +12,7 @@
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="nav-menu"><summary>Coding Agents</summary><div class="nav-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server API</a><details class="nav-menu"><summary class="active">Implemented MCPs</summary><div class="nav-menu-links"><a href="echo-server.html">echo_server</a><a class="active" aria-current="page" href="run-js.html">run_js Gateway</a></div></details><a href="markdown.html">Markdown</a></nav></div></header>
   <main id="main-content">
 <section class="page-hero shell"><p class="eyebrow">Source: mcp/gateway/README.md</p><h1>run_js MCP gateway</h1></section>
-    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#example-use-the-gateway-from-std-slop">Example: use the gateway from std_slop</a></li><li class="toc-level-2"><a href="#configuration-and-limits">Configuration and limits</a></li><li class="toc-level-2"><a href="#testing-without-an-llm">Testing without an LLM</a></li><li class="toc-level-2"><a href="#security-considerations">Security considerations</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="run-js-server-example-gateway"><code>run_js_server</code> example gateway</h1>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#example-use-the-gateway-from-std-slop">Example: use the gateway from std_slop</a></li><li class="toc-level-2"><a href="#configuration-and-limits">Configuration and limits</a></li><li class="toc-level-2"><a href="#example-connect-to-the-decision-api-server">Example: connect to the Decision API server</a></li><li class="toc-level-2"><a href="#testing-without-an-llm">Testing without an LLM</a></li><li class="toc-level-2"><a href="#security-considerations">Security considerations</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="run-js-server-example-gateway"><code>run_js_server</code> example gateway</h1>
 <p><code>run_js_server</code> is a stdio MCP server that runs bounded JavaScript and calls tools from configured downstream stdio MCP servers. It exposes two tools:</p>
 <ul><li><code>run_js</code>: run JavaScript with optional JSON input.</li><li><code>run_js_help</code>: list authorized tools or inspect one tool's schema.</li></ul>
 <p>This file is the user setup guide. Current implementation status and follow-up work are in <a href="run-js-status.html">STATUS.md</a>.</p>
@@ -66,7 +66,49 @@ return {
 <section class="doc-section"><h2 id="configuration-and-limits">Configuration and limits</h2>
 <p>Optional gateway configuration options:</p>
 <ul><li><code>runTimeoutMs</code>: Run deadline in milliseconds. The default is 30000 ms; the allowed range is 1–60000 ms.</li><li><code>traceLogPath</code>: Absolute path for the trace log file. Omit this option to disable trace logging.</li></ul>
-<p>The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty <code>allowTools</code> list to restrict the exposed tools; omitting it or setting it to <code>[]</code> exposes every discovered tool from that server. It does not accept HTTP servers or secrets.</p>
+<p>The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty <code>allowTools</code> list to restrict the exposed tools; omitting it or setting it to <code>[]</code> exposes every discovered tool from that server. It does not accept HTTP servers or secrets.</p></section>
+<section class="doc-section"><h2 id="example-connect-to-the-decision-api-server">Example: connect to the Decision API server</h2>
+<p>Add the Decision API server as a downstream stdio server in <code>gateway.json</code> (keep other server entries you need):</p>
+<pre><code class="language-json">{
+  &quot;runTimeoutMs&quot;: 30000,
+  &quot;servers&quot;: [
+    {
+      &quot;alias&quot;: &quot;decisions&quot;,
+      &quot;transport&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;/absolute/path/to/bazel-bin/mcp/decision_api/decision_api_server&quot;,
+      &quot;args&quot;: [&quot;--config&quot;, &quot;/absolute/path/to/.config/slop/decision-api.json&quot;],
+      &quot;allowTools&quot;: [&quot;decision_help&quot;, &quot;decision_models&quot;, &quot;decide&quot;]
+    }
+  ]
+}</code></pre>
+<p>The <code>decision-api.json</code> file holds the OpenRouter key and model; do not put credentials in <code>gateway.json</code> or JavaScript. See the <a href="https://github.com/hsaliak/std_slop/blob/main/mcp/decision_api/README.md">Decision API setup guide</a> for its format and permission requirements. In <code>~/.config/slop/mcp.ini</code>, register the gateway using the registry alias <code>run_js</code>:</p>
+<pre><code class="language-ini">[server.run_js]
+transport=stdio
+command=/absolute/path/to/bazel-bin/mcp/gateway/run_js_server
+args_json=[&quot;--config&quot;,&quot;/absolute/path/to/gateway.json&quot;]
+enabled=true</code></pre>
+<p>The agent calls <code>mcp_run_js_run_js</code> with JavaScript in its <code>code</code> argument. The JavaScript alias is <code>decisions</code>:</p>
+<pre><code class="language-javascript">const guide = await decisions.decision_help({topic: &quot;overview&quot;});
+const models = await decisions.decision_models({});
+const result = await decisions.decide({
+  state: {message: &quot;The invoice was paid yesterday.&quot;},
+  questions: {
+    contains_keyword: {
+      type: &quot;noul&quot;,
+      instructions: &quot;Does the message contain the exact word invoice?&quot;,
+      criteria: {
+        true: &quot;The message contains the word invoice.&quot;,
+        false: &quot;The message does not contain the word invoice.&quot;
+      }
+    }
+  }
+});
+return {
+  help: guide.structuredContent,
+  modelCount: models.structuredContent.total_count,
+  decision: result.structuredContent
+};</code></pre>
+<p>Use <code>allowTools</code> to expose only the tools required by the script. <code>traceLogPath</code> is optional. When enabled, the gateway logs code, arguments, and results, including decision state; disable tracing or use non-sensitive data for tests. To also call the server directly, register it separately under <code>[server.decisions]</code>; the direct tool names then start with <code>mcp_decisions_</code>. See the <a href="https://github.com/hsaliak/std_slop/blob/main/mcp/decision_api/README.md">Decision API setup guide</a>.</p>
 <p>Every <code>run_js</code> call runs in a fresh <code>run_js_server --worker-fd</code> child. The parent and worker exchange length-prefixed JSON frames over a private Unix socketpair, with a 4 MiB frame limit. The child receives code, input, the authorized public catalog, limits, and tool results. The parent validates worker requests and performs all downstream MCP calls. Calls to one downstream client run serially; calls to different clients may run concurrently. The remaining run deadline is passed to downstream calls.</p></section>
 <section class="doc-section"><h2 id="testing-without-an-llm">Testing without an LLM</h2>
 <p>Build the example servers and run the subprocess integration test:</p>

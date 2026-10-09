@@ -93,6 +93,62 @@ Optional gateway configuration options:
 
 The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. It does not accept HTTP servers or secrets.
 
+## Example: connect to the Decision API server
+
+Add the Decision API server as a downstream stdio server in `gateway.json` (keep other server entries you need):
+
+```json
+{
+  "runTimeoutMs": 30000,
+  "servers": [
+    {
+      "alias": "decisions",
+      "transport": "stdio",
+      "command": "/absolute/path/to/bazel-bin/mcp/decision_api/decision_api_server",
+      "args": ["--config", "/absolute/path/to/.config/slop/decision-api.json"],
+      "allowTools": ["decision_help", "decision_models", "decide"]
+    }
+  ]
+}
+```
+
+The `decision-api.json` file holds the OpenRouter key and model; do not put credentials in `gateway.json` or JavaScript. See the [Decision API setup guide](../decision_api/README.md) for its format and permission requirements. In `~/.config/slop/mcp.ini`, register the gateway using the registry alias `run_js`:
+
+```ini
+[server.run_js]
+transport=stdio
+command=/absolute/path/to/bazel-bin/mcp/gateway/run_js_server
+args_json=["--config","/absolute/path/to/gateway.json"]
+enabled=true
+```
+
+The agent calls `mcp_run_js_run_js` with JavaScript in its `code` argument. The JavaScript alias is `decisions`:
+
+```javascript
+const guide = await decisions.decision_help({topic: "overview"});
+const models = await decisions.decision_models({});
+const result = await decisions.decide({
+  state: {message: "The invoice was paid yesterday."},
+  questions: {
+    contains_keyword: {
+      type: "noul",
+      instructions: "Does the message contain the exact word invoice?",
+      criteria: {
+        true: "The message contains the word invoice.",
+        false: "The message does not contain the word invoice."
+      }
+    }
+  }
+});
+return {
+  help: guide.structuredContent,
+  modelCount: models.structuredContent.total_count,
+  decision: result.structuredContent
+};
+```
+
+Use `allowTools` to expose only the tools required by the script. `traceLogPath` is optional. When enabled, the gateway logs code, arguments, and results, including decision state; disable tracing or use non-sensitive data for tests. To also call the server directly, register it separately under `[server.decisions]`; the direct tool names then start with `mcp_decisions_`. See the [Decision API setup guide](../decision_api/README.md).
+
 Every `run_js` call runs in a fresh `run_js_server --worker-fd` child. The parent and worker exchange length-prefixed JSON frames over a private Unix socketpair, with a 4 MiB frame limit. The child receives code, input, the authorized public catalog, limits, and tool results. The parent validates worker requests and performs all downstream MCP calls. Calls to one downstream client run serially; calls to different clients may run concurrently. The remaining run deadline is passed to downstream calls.
 
 ## Testing without an LLM

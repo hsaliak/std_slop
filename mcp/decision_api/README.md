@@ -42,11 +42,67 @@ Add to `~/.config/slop/mcp.ini`:
 [server.decisions]
 transport=stdio
 command=/absolute/path/to/bazel-bin/mcp/decision_api/decision_api_server
-args_json=["--config","/home/USER/.config/slop/decision-api.json"]
+args_json=["--config","/absolute/path/to/.config/slop/decision-api.json"]
 enabled=true
 ```
 
-The server checks that the config path is absolute, names a regular non-symlink file, and has no group/other permissions. MCP tool arguments never accept API keys or endpoint overrides.
+The server checks that the config path is absolute, names a regular non-symlink file, and has no group/other permissions. MCP tool arguments never accept API keys or endpoint overrides. With the registry name `decisions`, the direct tools are `mcp_decisions_decide`, `mcp_decisions_decision_help`, and `mcp_decisions_decision_models`.
+
+## Use through the `run_js` gateway
+
+The direct registration above and the gateway registration can coexist. The gateway starts its own `decision_api_server` child and can reuse the same private config file. In `gateway.json`, add a downstream server entry like this (keep any other entries you use):
+
+```json
+{
+  "runTimeoutMs": 30000,
+  "servers": [
+    {
+      "alias": "decisions",
+      "transport": "stdio",
+      "command": "/absolute/path/to/bazel-bin/mcp/decision_api/decision_api_server",
+      "args": ["--config", "/absolute/path/to/.config/slop/decision-api.json"],
+      "allowTools": ["decision_help", "decision_models", "decide"]
+    }
+  ]
+}
+```
+
+Register the gateway itself in `~/.config/slop/mcp.ini`:
+
+```ini
+[server.run_js]
+transport=stdio
+command=/absolute/path/to/bazel-bin/mcp/gateway/run_js_server
+args_json=["--config","/absolute/path/to/gateway.json"]
+enabled=true
+```
+
+With this registry alias, call the outer tool `mcp_run_js_run_js`; inside its JavaScript `code`, call `decisions.decision_help(...)`, `decisions.decision_models({})`, and `decisions.decide(...)`. For example:
+
+```javascript
+const guide = await decisions.decision_help({topic: "examples"});
+const models = await decisions.decision_models({});
+const result = await decisions.decide({
+  state: {message: "The invoice was paid yesterday."},
+  questions: {
+    contains_keyword: {
+      type: "noul",
+      instructions: "Does the message contain the exact word invoice?",
+      criteria: {
+        true: "The message contains the word invoice.",
+        false: "The message does not contain the word invoice."
+      }
+    }
+  }
+});
+return {
+  guide: guide.structuredContent,
+  modelCount: models.structuredContent.total_count,
+  decision: result.structuredContent
+};
+```
+
+`allowTools` is a least-privilege allowlist; include only the downstream tools you need. The gateway's `traceLogPath` is optional. If enabled, it records JavaScript, decision inputs, and results; use non-sensitive test data or disable tracing for sensitive state. The API key stays only in `decision-api.json`, not in `gateway.json` or JavaScript.
 
 ## Tools
 
