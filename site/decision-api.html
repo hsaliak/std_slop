@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Technical documentation for std::slop: a C++ monorepo for agentic tooling, with Markdown and MCP libraries and coding-agent interfaces.">
+  <title>OpenRouter Decision API MCP — std::slop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="nav-menu"><summary>Coding Agents</summary><div class="nav-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server API</a><details class="nav-menu"><summary class="active">Implemented MCPs</summary><div class="nav-menu-links"><a href="echo-server.html">echo_server</a><a href="run-js.html">run_js Gateway</a><a class="active" aria-current="page" href="decision-api.html">OpenRouter Decision API</a></div></details><a href="markdown.html">Markdown</a></nav></div></header>
+  <main id="main-content">
+<section class="page-hero shell"><p class="eyebrow">Source: mcp/decision_api/README.md</p><h1>OpenRouter Decision API MCP</h1></section>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#build-and-test">Build and test</a></li><li class="toc-level-2"><a href="#configure">Configure</a></li><li class="toc-level-2"><a href="#register-in-std-slop">Register in std_slop</a></li><li class="toc-level-2"><a href="#use-through-the-run-js-gateway">Use through the run_js gateway</a></li><li class="toc-level-2"><a href="#tools">Tools</a></li><li class="toc-level-3"><a href="#question-types">Question types</a></li><li class="toc-level-2"><a href="#example">Example</a></li><li class="toc-level-2"><a href="#security">Security</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="openrouter-decision-api-mcp-server">OpenRouter Decision API MCP server</h1>
+<p>This stdio MCP server makes one OpenRouter Decisions API call for a named batch of independent <code>noul</code>, <code>choice</code>, and <code>score</code> questions. It does not generate prose, apply business thresholds, or execute application actions. All three question types use the same evaluation endpoint.</p></div>
+<section class="doc-section"><h2 id="build-and-test">Build and test</h2>
+<pre><code class="language-sh">bazel build //mcp/decision_api:decision_api_server
+bazel test //mcp/decision_api:config_test //mcp/decision_api:client_test //mcp/decision_api:server_test //mcp/decision_api:server_smoke_test</code></pre>
+<p>No OpenRouter API key is needed for the tests. They use a fake HTTP client or local stdio process. <code>//core:http_client_test</code> tests the single-attempt HTTP helper used by catalog discovery.</p></section>
+<section class="doc-section"><h2 id="configure">Configure</h2>
+<p>Create a private config file, for example <code>~/.config/slop/decision-api.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;apiKey&quot;: &quot;YOUR_OPENROUTER_API_KEY&quot;,
+  &quot;model&quot;: &quot;~typesafe/jev-latest&quot;
+}</code></pre>
+<p>Protect it before starting the service:</p>
+<pre><code class="language-sh">chmod 600 ~/.config/slop/decision-api.json</code></pre>
+<p>The endpoint defaults to <code>https://openrouter.ai/api/alpha/decisions</code>. The optional <code>endpoint</code> field overrides it; this URL must implement the OpenRouter Decisions API contract. <code>modelsEndpoint</code> defaults to <code>https://openrouter.ai/api/v1/models?output_modalities=decisions</code> only when the default evaluation endpoint is used. A custom evaluation endpoint disables catalog lookup unless its matching catalog URL is configured explicitly.</p>
+<p><code>model</code> is required. Its value is forwarded unchanged, including aliases and versioned IDs. The live OpenRouter catalog currently lists the alias ID <code>~typesafe/jev-latest</code>, which targets a versioned Jev model. Prefer an ID returned by <code>decision_models</code>; the service does not strip prefixes or rewrite unavailable names. The alias and available models can change upstream.</p>
+<p><code>timeoutMs</code> defaults to 30000 and accepts 1–60000. <code>apiKey</code> is sent only in the HTTPS Bearer header to the configured endpoint/catalog hosts. Redirects are not followed. The service does not retry evaluation calls.</p></section>
+<section class="doc-section"><h2 id="register-in-std-slop">Register in std_slop</h2>
+<p>Add to <code>~/.config/slop/mcp.ini</code>:</p>
+<pre><code class="language-ini">[server.decisions]
+transport=stdio
+command=/absolute/path/to/bazel-bin/mcp/decision_api/decision_api_server
+args_json=[&quot;--config&quot;,&quot;/absolute/path/to/.config/slop/decision-api.json&quot;]
+enabled=true</code></pre>
+<p>The server checks that the config path is absolute, names a regular non-symlink file, and has no group/other permissions. MCP tool arguments never accept API keys or endpoint overrides. With the registry name <code>decisions</code>, the direct tools are <code>mcp_decisions_decide</code>, <code>mcp_decisions_decision_help</code>, and <code>mcp_decisions_decision_models</code>.</p></section>
+<section class="doc-section"><h2 id="use-through-the-run-js-gateway">Use through the <code>run_js</code> gateway</h2>
+<p>The direct registration above and the gateway registration can coexist. The gateway starts its own <code>decision_api_server</code> child and can reuse the same private config file. In <code>gateway.json</code>, add a downstream server entry like this (keep any other entries you use):</p>
+<pre><code class="language-json">{
+  &quot;runTimeoutMs&quot;: 30000,
+  &quot;servers&quot;: [
+    {
+      &quot;alias&quot;: &quot;decisions&quot;,
+      &quot;transport&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;/absolute/path/to/bazel-bin/mcp/decision_api/decision_api_server&quot;,
+      &quot;args&quot;: [&quot;--config&quot;, &quot;/absolute/path/to/.config/slop/decision-api.json&quot;],
+      &quot;allowTools&quot;: [&quot;decision_help&quot;, &quot;decision_models&quot;, &quot;decide&quot;]
+    }
+  ]
+}</code></pre>
+<p>Register the gateway itself in <code>~/.config/slop/mcp.ini</code>:</p>
+<pre><code class="language-ini">[server.run_js]
+transport=stdio
+command=/absolute/path/to/bazel-bin/mcp/gateway/run_js_server
+args_json=[&quot;--config&quot;,&quot;/absolute/path/to/gateway.json&quot;]
+enabled=true</code></pre>
+<p>With this registry alias, call the outer tool <code>mcp_run_js_run_js</code>; inside its JavaScript <code>code</code>, call <code>decisions.decision_help(...)</code>, <code>decisions.decision_models({})</code>, and <code>decisions.decide(...)</code>. For example:</p>
+<pre><code class="language-javascript">const guide = await decisions.decision_help({topic: &quot;examples&quot;});
+const models = await decisions.decision_models({});
+const result = await decisions.decide({
+  state: {message: &quot;The invoice was paid yesterday.&quot;},
+  questions: {
+    contains_keyword: {
+      type: &quot;noul&quot;,
+      instructions: &quot;Does the message contain the exact word invoice?&quot;,
+      criteria: {
+        true: &quot;The message contains the word invoice.&quot;,
+        false: &quot;The message does not contain the word invoice.&quot;
+      }
+    }
+  }
+});
+return {
+  guide: guide.structuredContent,
+  modelCount: models.structuredContent.total_count,
+  decision: result.structuredContent
+};</code></pre>
+<p><code>allowTools</code> is a least-privilege allowlist; include only the downstream tools you need. The gateway's <code>traceLogPath</code> is optional. If enabled, it records JavaScript, decision inputs, and results; use non-sensitive test data or disable tracing for sensitive state. The API key stays only in <code>decision-api.json</code>, not in <code>gateway.json</code> or JavaScript.</p></section>
+<section class="doc-section"><h2 id="tools">Tools</h2>
+<ul><li><strong><code>decide</code></strong> submits <code>state</code> plus a <code>questions</code> map. Each question has an ID, <code>type</code>, and <code>instructions</code>; <code>choice</code> and <code>score</code> also require <code>criteria</code>. Optional <code>model</code> overrides the configured model. OpenRouter options are limited to <code>session_id</code>, <code>trace</code> (<code>generation_name</code>, <code>parent_span_id</code>, <code>span_name</code>, <code>trace_id</code>, <code>trace_name</code>), <code>user</code>, and the <code>provider</code> routing-preferences object. The API can be billed and receives the submitted state.</li><li><strong><code>decision_help</code></strong> returns local prose plus <code>structuredContent.schemas</code> (<code>decide</code> and normalized response schemas) and <code>structuredContent.examples</code> (a complete mixed-question request and matching response). Topics: <code>overview</code>, <code>noul</code>, <code>choice</code>, <code>score</code>, <code>request</code>, <code>response</code>, <code>configuration</code>, <code>models</code>, <code>errors</code>, and <code>examples</code>. It makes no HTTP call.</li><li><strong><code>decision_models</code></strong> reads the OpenRouter filtered model catalog. It returns the original catalog response, including IDs, canonical slugs, context/pricing metadata, and pagination fields. It makes no evaluation request.</li></ul>
+<h3 id="question-types">Question types</h3>
+<ul><li><strong>Noul:</strong> yes/no probability. <code>noul</code> is P(yes), from 0 to 1. Optional criteria must contain exactly <code>true</code> and <code>false</code> descriptions. A value near 0.5 indicates uncertainty, not intensity.</li><li><strong>Choice:</strong> select one named option. <code>criteria</code> is an option-to-description object. Include a <code>none</code> option when there may be no match. <code>probabilities</code> and <code>confidence</code> are optional response fields.</li><li><strong>Score:</strong> rate against ordered levels, lowest first. <code>score</code> is the probability-weighted level index and can be fractional. <code>legend</code> and <code>probabilities</code> are optional.</li></ul>
+<p>Local resource limits are 32 questions, 255 Choice options per question, 64 Score levels, 1 MiB serialized request, 4 MiB response, and 64 JSON nesting levels. These are server limits, not OpenRouter's documented maximums.</p></section>
+<section class="doc-section"><h2 id="example">Example</h2>
+<pre><code class="language-javascript">const models = await decisions.decision_models({});
+const guide = await decisions.decision_help({topic: &quot;noul&quot;});
+const result = await decisions.decide({
+  state: {ticket: &quot;I was charged twice for the same order.&quot;},
+  model: &quot;~typesafe/jev-latest&quot;,
+  questions: {
+    refund: {
+      type: &quot;noul&quot;,
+      instructions: &quot;Is the customer asking for money back?&quot;,
+      criteria: {
+        true: &quot;They want at least one duplicate charge returned.&quot;,
+        false: &quot;They do not ask for money to be returned.&quot;
+      }
+    },
+    team: {
+      type: &quot;choice&quot;,
+      instructions: &quot;Which team should handle the request?&quot;,
+      criteria: {
+        billing: &quot;Charges, payments, refunds.&quot;,
+        technical: &quot;Product defects and system failures.&quot;,
+        none: &quot;Neither listed team is appropriate.&quot;
+      }
+    },
+    urgency: {
+      type: &quot;score&quot;,
+      instructions: &quot;How urgent is the issue?&quot;,
+      criteria: [&quot;Can wait&quot;, &quot;Needs attention soon&quot;, &quot;Blocks purchases now&quot;]
+    }
+  }
+});
+return {modelCount: models.structuredContent.total_count, guide: guide.structuredContent, decision: result.structuredContent};</code></pre>
+<p>Question IDs correlate returned answers; they are not instructions. Independent questions sharing evidence belong in one request. If an answer determines which evidence or options to fetch next, make a second request. Let application code apply named thresholds and fallback behavior, and calibrate them on representative, ambiguous, no-match, negated, and adversarial examples before relying on them. Confidence is not correctness or authorization.</p>
+<p>OpenRouter documents Decisions HTTP statuses 400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 524, and 529. Evaluation errors are returned as errors, not probabilities. The server does not retry evaluations by default; a retry can incur another charge.</p></section>
+<section class="doc-section"><h2 id="security">Security</h2>
+<p>The API key is stored in the server's config file, not in <code>std_slop</code> or the <code>run_js</code> gateway config. Do not pass secrets in <code>state</code>, instructions, or criteria: the configured provider receives those fields. Calls may incur charges. <code>decision_help</code> is local, but <code>decision_models</code> contacts OpenRouter. Model catalog descriptions are external data; treat them as untrusted content. Errors omit response bodies and authorization headers. Protect endpoint overrides and the config file as credential routing configuration.</p>
+<p>For composition through <code>run_js</code>, configure the server executable as a downstream stdio MCP and allow only the desired tool names. The gateway's optional trace log can contain request state and answers; do not log sensitive decision inputs. See the <a href="run-js.html">gateway setup guide</a>.</p></section><p class="source-note">Content is generated from the repository sources listed above. See the source files for the complete reference.</p></article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><span><span class="prompt">$</span> std::slop</span><span>C++ libraries and coding-agent interfaces</span><a href="docs.html">Documentation</a><a href="https://github.com/hsaliak/std_slop">Source on GitHub</a></div></footer>
+</body>
+</html>

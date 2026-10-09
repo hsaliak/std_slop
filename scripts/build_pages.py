@@ -43,6 +43,7 @@ PAGES = (
         "std::slop",
         (SourceSpec("README.md", (
             "Components",
+            "Implemented MCPs",
             "Library quick starts",
             "Component boundaries",
             "Agent entry points",
@@ -97,6 +98,12 @@ PAGES = (
         (SourceSpec("mcp/gateway/README.md"),),
     ),
     PageSpec(
+        "decision-api.html",
+        "mcp/decision_api/README.md",
+        "OpenRouter Decision API MCP",
+        (SourceSpec("mcp/decision_api/README.md"),),
+    ),
+    PageSpec(
         "run-js-status.html",
         "mcp/gateway/STATUS.md",
         "run_js gateway status",
@@ -129,6 +136,7 @@ NAVIGATION_DROPDOWNS = {
     "Implemented MCPs": (
         ("echo_server", "echo-server.html"),
         ("run_js Gateway", "run-js.html"),
+        ("OpenRouter Decision API", "decision-api.html"),
     ),
 }
 
@@ -136,6 +144,7 @@ SITE_SOURCE_PAGES = {
     "docs/echo-server.md": "echo-server.html",
     "docs/mcp-server.md": "mcp-server.html",
     "mcp/gateway/README.md": "run-js.html",
+    "mcp/decision_api/README.md": "decision-api.html",
     "mcp/gateway/STATUS.md": "run-js-status.html",
 }
 

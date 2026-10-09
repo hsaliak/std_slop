@@ -16,6 +16,12 @@ A C++ monorepo for agentic tooling.
 
 Markdown library, MCP client, MCP server, `std_slop`, and `sl`.
 
+## Implemented MCPs
+
+- [echo_server](docs/echo-server.md)
+- [run_js Gateway](mcp/gateway/README.md)
+- [OpenRouter Decision API](mcp/decision_api/README.md)
+
 ## Library quick starts
 
 Library build examples.
@@ -84,6 +90,7 @@ SOURCES = {
     ),
     "docs/mcp-slop-userguide.md": "# MCP agent integration\n\nRemote tools.\n",
     "mcp/gateway/README.md": "# run_js gateway\n\n[Implementation status](STATUS.md).\n",
+    "mcp/decision_api/README.md": "# OpenRouter Decision API MCP server\n\nDecision API guide.\n",
     "mcp/gateway/STATUS.md": "# Gateway implementation status\n\nCurrent state.\n",
     "markdown/README.md": "# Markdown library\n\nTerminal renderer.\n",
     "docs/README.md": (
@@ -156,6 +163,7 @@ class BuildPagesTest(unittest.TestCase):
             "mcp-server.html": "docs/mcp-server.md",
             "echo-server.html": "docs/echo-server.md",
             "run-js.html": "mcp/gateway/README.md",
+            "decision-api.html": "mcp/decision_api/README.md",
             "run-js-status.html": "mcp/gateway/STATUS.md",
             "markdown.html": "markdown/README.md",
         }
@@ -189,14 +197,25 @@ class BuildPagesTest(unittest.TestCase):
         )
         self.assertEqual(run_js_navigation.count('aria-current="page"'), 1)
 
+        decision_navigation = build_pages.navigation("decision-api.html")
+        self.assertIn('<summary class="active">Implemented MCPs', decision_navigation)
+        self.assertIn(
+            '<a class="active" aria-current="page" href="decision-api.html">OpenRouter Decision API',
+            decision_navigation,
+        )
+        self.assertEqual(decision_navigation.count('aria-current="page"'), 1)
+
     def test_implemented_mcp_guides_are_listed_and_linked(self):
         echo_page = self.page("echo-server.html")
         self.assertIn("deterministic echo implementation", echo_page)
-        self.assertIn("run_js gateway", self.page("docs.html"))
-        self.assertIn('href="echo-server.html"', self.page("docs.html"))
-        navigation = build_pages.navigation("echo-server.html")
-        self.assertIn('href="echo-server.html">echo_server', navigation)
-        self.assertIn('href="run-js.html">run_js Gateway', navigation)
+        decision_page = self.page("decision-api.html")
+        self.assertIn("OpenRouter Decision API MCP server", decision_page)
+        index = self.page("index.html")
+        self.assertIn('href="echo-server.html">echo_server', index)
+        self.assertIn('href="run-js.html">run_js Gateway', index)
+        self.assertIn('href="decision-api.html">OpenRouter Decision API', index)
+        navigation = build_pages.navigation("decision-api.html")
+        self.assertIn('href="decision-api.html">OpenRouter Decision API', navigation)
 
     def test_selected_sections_exist_in_repository_sources(self):
         runfiles = os.environ.get("TEST_SRCDIR")

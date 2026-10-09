@@ -20,6 +20,14 @@
 | Agent database and schema | Manage sessions, tools, model calls, and patch review state. | [Runtime data model](docs/SCHEMA.md) |
 | Markdown library | Parse Markdown and render styled terminal output using Tree-sitter. | [Parser and renderer](markdown/README.md) |
 
+## Implemented MCPs
+
+A few MCP servers are implemented and documented:
+
+- **Echo server:** a small stdio MCP example. See the [echo server guide](docs/echo-server.md).
+- **run_js gateway:** bounded JavaScript composition of downstream MCP tools. See the [gateway guide](mcp/gateway/README.md).
+- **OpenRouter Decision API:** typed `noul`, `choice`, and `score` evaluations through MCP. See the [Decision API guide](mcp/decision_api/README.md).
+
 ## Agent entry points
 
 Build both interfaces:
