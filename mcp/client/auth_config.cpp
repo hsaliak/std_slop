@@ -8,17 +8,17 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+
 #include "mcp/client/token_store.h"
+#include "mcp/validation.h"
 
 namespace slop::mcp {
 namespace {
 
-bool HasControlCharacter(const std::string& value) {
-  for (const char c : value) {
-    const unsigned char ch = static_cast<unsigned char>(c);
-    if (ch < 0x20 || ch == 0x7f) return true;
-  }
-  return false;
+bool HasOAuthProfileFields(const HttpAuthConfig& config) {
+  return !config.client_id.empty() || !config.scopes.empty() || !config.resource_metadata_url.empty() ||
+         !config.authorization_endpoint.empty() || !config.token_endpoint.empty() ||
+         config.authorization_response_iss_parameter_supported;
 }
 
 absl::Status ValidateTokenSource(const HttpAuthConfig& config) {
@@ -27,10 +27,13 @@ absl::Status ValidateTokenSource(const HttpAuthConfig& config) {
   if (has_file == has_env) {
     return absl::InvalidArgumentError("HTTP MCP auth requires exactly one token file or environment variable");
   }
-  if (HasControlCharacter(config.token_file) || HasControlCharacter(config.token_env)) {
-    return absl::InvalidArgumentError("HTTP MCP auth token source contains a control character");
+  if (has_file) {
+    if (!IsValidAbsolutePath(config.token_file, 4096)) {
+      return absl::InvalidArgumentError("HTTP MCP token file must be a bounded absolute path");
+    }
+    return absl::OkStatus();
   }
-  if (has_env && (config.token_env.find('=') != std::string::npos || config.token_env.front() == '=')) {
+  if (!IsValidEnvironmentVariableName(config.token_env)) {
     return absl::InvalidArgumentError("HTTP MCP auth environment variable name is invalid");
   }
   return absl::OkStatus();
@@ -55,21 +58,45 @@ absl::StatusOr<std::string> LoadBearerToken(const HttpAuthConfig& config) {
 absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config) {
   switch (config.method) {
     case HttpAuthMethod::kNone:
-      if (!config.token_file.empty() || !config.token_env.empty() || !config.expected_issuer.empty()) {
-        return absl::InvalidArgumentError("Unauthenticated HTTP MCP config cannot contain token settings");
+      if (!config.token_file.empty() || !config.token_env.empty() || !config.expected_issuer.empty() ||
+          HasOAuthProfileFields(config)) {
+        return absl::InvalidArgumentError("Unauthenticated HTTP MCP config cannot contain auth settings");
       }
       return absl::OkStatus();
     case HttpAuthMethod::kBearer:
-      if (!config.expected_issuer.empty()) {
-        return absl::InvalidArgumentError("Bearer HTTP MCP config cannot contain an OAuth issuer");
+      if (!config.expected_issuer.empty() || HasOAuthProfileFields(config)) {
+        return absl::InvalidArgumentError("Bearer HTTP MCP config cannot contain OAuth profile settings");
       }
       return ValidateTokenSource(config);
     case HttpAuthMethod::kOAuth:
-      if (config.token_file.empty() || !config.token_env.empty() || config.expected_issuer.empty()) {
-        return absl::InvalidArgumentError("OAuth HTTP MCP config requires a token file and expected issuer");
+      if (config.token_file.empty() || !config.token_env.empty() || config.expected_issuer.empty() ||
+          config.client_id.empty()) {
+        return absl::InvalidArgumentError("OAuth HTTP MCP config requires token file, issuer, and client ID");
       }
-      if (HasControlCharacter(config.token_file) || HasControlCharacter(config.expected_issuer)) {
+      if (!IsValidAbsolutePath(config.token_file, 4096)) {
+        return absl::InvalidArgumentError("HTTP MCP token file must be a bounded absolute path");
+      }
+      if (ContainsControlCharacters(config.expected_issuer) || ContainsControlCharacters(config.client_id) ||
+          ContainsControlCharacters(config.resource_metadata_url) ||
+          ContainsControlCharacters(config.authorization_endpoint) ||
+          ContainsControlCharacters(config.token_endpoint)) {
         return absl::InvalidArgumentError("OAuth HTTP MCP config contains a control character");
+      }
+      if (!IsValidHttpUrl(config.expected_issuer, 4096, true) ||
+          (!config.resource_metadata_url.empty() && !IsValidHttpUrl(config.resource_metadata_url, 4096, true))) {
+        return absl::InvalidArgumentError("OAuth HTTP MCP issuer and resource metadata URL must use HTTPS");
+      }
+      if (config.authorization_endpoint.empty() != config.token_endpoint.empty() ||
+          (!config.authorization_endpoint.empty() && (!IsValidHttpUrl(config.authorization_endpoint, 4096, true) ||
+                                                      !IsValidHttpUrl(config.token_endpoint, 4096, true)))) {
+        return absl::InvalidArgumentError("OAuth HTTP MCP authorization and token endpoints must both use HTTPS");
+      }
+      if (config.scopes.size() > 64) return absl::InvalidArgumentError("OAuth HTTP MCP scopes exceed the limit");
+      for (const std::string& scope : config.scopes) {
+        if (scope.empty() || scope.size() > 256 || scope.find(' ') != std::string::npos ||
+            ContainsControlCharacters(scope)) {
+          return absl::InvalidArgumentError("OAuth HTTP MCP scopes must be bounded single tokens");
+        }
       }
       return absl::OkStatus();
   }

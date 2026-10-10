@@ -1,28 +1,30 @@
 #include "mcp/gateway/trace_logger.h"
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
-#include <filesystem>
 #include <iostream>
 #include <string>
 #include <utility>
-
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
 #include "core/json_utils.h"
+#include "mcp/validation.h"
+
+#include <sys/stat.h>
 
 namespace slop::mcp::gateway {
 namespace {
 
 constexpr std::size_t kMaxLogPathBytes = 4096;
-constexpr char kRecordSeparator[] = "================================================================================\n";
+constexpr char kRecordSeparator[] =
+    "================================================================================\n";
 
 std::string ErrorText(const char* operation, int error_number) {
   return absl::StrCat(operation, ": ", std::strerror(error_number));
@@ -73,8 +75,7 @@ std::string ToolFields(const std::string& server, const std::string& tool) {
 }  // namespace
 
 absl::StatusOr<std::shared_ptr<TraceLogger>> TraceLogger::Open(const std::string& path) {
-  if (path.empty() || path.size() > kMaxLogPathBytes || path.find('\0') != std::string::npos ||
-      !std::filesystem::path(path).is_absolute()) {
+  if (!IsValidAbsolutePath(path, kMaxLogPathBytes)) {
     return absl::InvalidArgumentError("trace log path must be a bounded absolute path");
   }
   const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR);
@@ -177,8 +178,7 @@ absl::Status TraceLogger::AppendRecord(std::string record) {
 }
 
 std::string TraceLogger::EventHeader(const std::string& event, std::uint64_t trace_id) const {
-  return absl::StrCat("\n", kRecordSeparator, TimestampUtc(),
-                      " trace=", trace_id, " event=", event, "\n");
+  return absl::StrCat("\n", kRecordSeparator, TimestampUtc(), " trace=", trace_id, " event=", event, "\n");
 }
 
 }  // namespace slop::mcp::gateway

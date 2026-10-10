@@ -1,5 +1,7 @@
 #include "mcp/gateway/config.h"
 
+#include <utility>
+
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
@@ -35,6 +37,97 @@ TEST(ConfigTest, ParsesHttpConfiguration) {
     EXPECT_EQ(config->servers[0].endpoint_url, endpoint);
     EXPECT_TRUE(config->servers[0].allow_tools.empty());
   }
+}
+
+TEST(ConfigTest, ParsesBearerAuthenticationProfiles) {
+  nlohmann::json token_file = {
+      {"servers", {{{"alias", "docs"}, {"transport", "http"}, {"endpointUrl", "https://example.com/mcp"},
+                    {"auth", {{"type", "bearer"}, {"tokenFile", "/tmp/mcp-token.json"}}}}}}};
+  auto file_config = ParseConfig(token_file);
+  ASSERT_TRUE(file_config.ok()) << file_config.status();
+  const HttpAuthConfig& file_auth = file_config->servers[0].auth;
+  EXPECT_EQ(file_auth.method, HttpAuthMethod::kBearer);
+  EXPECT_EQ(file_auth.token_file, "/tmp/mcp-token.json");
+  EXPECT_TRUE(file_auth.token_env.empty());
+
+  nlohmann::json token_env = {
+      {"servers", {{{"alias", "docs"}, {"transport", "http"}, {"endpointUrl", "https://example.com/mcp"},
+                    {"auth", {{"type", "bearer"}, {"tokenEnv", "DOCS_MCP_TOKEN"}}}}}}};
+  auto env_config = ParseConfig(token_env);
+  ASSERT_TRUE(env_config.ok()) << env_config.status();
+  EXPECT_EQ(env_config->servers[0].auth.method, HttpAuthMethod::kBearer);
+  EXPECT_EQ(env_config->servers[0].auth.token_env, "DOCS_MCP_TOKEN");
+}
+
+TEST(ConfigTest, ParsesOAuthAuthenticationProfile) {
+  nlohmann::json value = {
+      {"servers",
+       {{{"alias", "docs"},
+         {"transport", "http"},
+         {"endpointUrl", "https://example.com/mcp"},
+         {"auth", {{"type", "oauth"},
+                   {"tokenFile", "/tmp/docs-token.json"},
+                   {"clientId", "docs-client"},
+                   {"issuer", "https://issuer.example"},
+                   {"scopes", {"read", "write"}},
+                   {"resourceMetadataUrl", "https://example.com/.well-known/resource"},
+                   {"authorizationEndpoint", "https://issuer.example/authorize"},
+                   {"tokenEndpoint", "https://issuer.example/token"},
+                   {"authorizationResponseIssParameterSupported", true}}}}}}};
+
+  auto config = ParseConfig(value);
+  ASSERT_TRUE(config.ok()) << config.status();
+  const HttpAuthConfig& auth = config->servers[0].auth;
+  EXPECT_EQ(auth.method, HttpAuthMethod::kOAuth);
+  EXPECT_EQ(auth.token_file, "/tmp/docs-token.json");
+  EXPECT_EQ(auth.client_id, "docs-client");
+  EXPECT_EQ(auth.expected_issuer, "https://issuer.example");
+  EXPECT_EQ(auth.scopes, std::vector<std::string>({"read", "write"}));
+  EXPECT_EQ(auth.resource_metadata_url, "https://example.com/.well-known/resource");
+  EXPECT_EQ(auth.authorization_endpoint, "https://issuer.example/authorize");
+  EXPECT_EQ(auth.token_endpoint, "https://issuer.example/token");
+  EXPECT_TRUE(auth.authorization_response_iss_parameter_supported);
+}
+
+TEST(ConfigTest, RejectsInvalidAuthenticationProfiles) {
+  const std::string endpoint = "https://example.com/mcp";
+  const auto parse_auth = [](nlohmann::json auth, const std::string& url = "https://example.com/mcp") {
+    nlohmann::json value = {{"servers", {{{"alias", "docs"}, {"transport", "http"}, {"endpointUrl", url},
+                                          {"auth", std::move(auth)}}}}};
+    return ParseConfig(value);
+  };
+
+  for (const nlohmann::json& auth : {nlohmann::json::object(),
+                                     nlohmann::json{{"type", "api_key"}},
+                                     nlohmann::json{{"type", "none"}, {"tokenEnv", "TOKEN"}},
+                                     nlohmann::json{{"type", "bearer"}},
+                                     nlohmann::json{{"type", "bearer"}, {"tokenFile", "/tmp/token"},
+                                                    {"tokenEnv", "TOKEN"}},
+                                     nlohmann::json{{"type", "bearer"}, {"tokenFile", "relative-token"}},
+                                     nlohmann::json{{"type", "bearer"}, {"tokenEnv", "INVALID-NAME"}},
+                                     nlohmann::json{{"type", "oauth"}, {"tokenFile", "/tmp/token"},
+                                                    {"issuer", "https://issuer.example"}},
+                                     nlohmann::json{{"type", "oauth"}, {"tokenFile", "/tmp/token"},
+                                                    {"clientId", "client"}, {"issuer", "http://issuer.example"}},
+                                     nlohmann::json{{"type", "oauth"}, {"tokenFile", "/tmp/token"},
+                                                    {"clientId", "client"}, {"issuer", "https://issuer.example"},
+                                                    {"authorizationEndpoint", "https://issuer.example/authorize"}}}) {
+    EXPECT_FALSE(parse_auth(auth).ok()) << auth;
+  }
+  EXPECT_FALSE(parse_auth({{"type", "bearer"}, {"tokenEnv", "TOKEN"}}, "http://example.com/mcp").ok());
+  EXPECT_FALSE(parse_auth({{"type", "oauth"}, {"tokenFile", "/tmp/token"}, {"clientId", "client"},
+                           {"issuer", "https://issuer.example"}},
+                          "http://example.com/mcp")
+                   .ok());
+
+  nlohmann::json stdio = Config();
+  stdio["servers"][0]["auth"] = {{"type", "none"}};
+  EXPECT_FALSE(ParseConfig(stdio).ok());
+
+  const auto default_auth = ParseConfig({{"servers", {{{"alias", "docs"}, {"transport", "http"},
+                                                        {"endpointUrl", endpoint}}}}});
+  ASSERT_TRUE(default_auth.ok()) << default_auth.status();
+  EXPECT_EQ(default_auth->servers[0].auth.method, HttpAuthMethod::kNone);
 }
 
 TEST(ConfigTest, BoundsRunTimeout) {

@@ -95,12 +95,39 @@ TEST(HttpAuthConfigTest, RejectsInvalidTokenSourceShapes) {
   EXPECT_FALSE(ValidateHttpAuthConfig(oauth).ok());
 }
 
+TEST(HttpAuthConfigTest, TokenFilesMustBeAbsoluteAndBounded) {
+  HttpAuthConfig bearer = BearerFileConfig("relative/token.json");
+  EXPECT_FALSE(ValidateHttpAuthConfig(bearer).ok());
+
+  bearer.token_file = "/" + std::string(4096, 'a');
+  EXPECT_FALSE(ValidateHttpAuthConfig(bearer).ok());
+
+  HttpAuthConfig oauth;
+  oauth.method = HttpAuthMethod::kOAuth;
+  oauth.token_file = "relative/oauth-token.json";
+  oauth.expected_issuer = "https://auth.example";
+  oauth.client_id = "test-client";
+  EXPECT_FALSE(ValidateHttpAuthConfig(oauth).ok());
+}
+
+TEST(HttpAuthConfigTest, EnvironmentTokenSourceRequiresPosixName) {
+  HttpAuthConfig bearer;
+  bearer.method = HttpAuthMethod::kBearer;
+  for (const std::string& name : {"9TOKEN", "TOKEN-NAME", "TOKEN=VALUE", ""}) {
+    bearer.token_env = name;
+    EXPECT_FALSE(ValidateHttpAuthConfig(bearer).ok()) << name;
+  }
+  bearer.token_env = "TOKEN_1";
+  EXPECT_TRUE(ValidateHttpAuthConfig(bearer).ok());
+}
+
 TEST(HttpAuthConfigTest, OAuthTokenRequiresMatchingIssuerAndResource) {
   const std::string path = TokenPath("oauth_binding");
   HttpAuthConfig config;
   config.method = HttpAuthMethod::kOAuth;
   config.token_file = path;
   config.expected_issuer = "https://auth.example";
+  config.client_id = "test-client";
   ASSERT_TRUE(SaveOAuthTokens(path, OAuthTokens(config.expected_issuer, "https://mcp.example/mcp")).ok());
 
   auto token = ResolveHttpAuthToken("https://mcp.example/mcp", config);
@@ -125,6 +152,7 @@ TEST(HttpAuthConfigTest, ExpiredOAuthTokenIsRejected) {
   config.method = HttpAuthMethod::kOAuth;
   config.token_file = path;
   config.expected_issuer = "https://auth.example";
+  config.client_id = "test-client";
   OAuthTokenSet tokens = OAuthTokens(config.expected_issuer, "https://mcp.example/mcp");
   tokens.expires_at_unix_seconds = 1;
   ASSERT_TRUE(SaveOAuthTokens(path, tokens).ok());
@@ -142,6 +170,7 @@ TEST(HttpAuthConfigTest, MissingOAuthTokenIsRejected) {
   config.method = HttpAuthMethod::kOAuth;
   config.token_file = path;
   config.expected_issuer = "https://auth.example";
+  config.client_id = "test-client";
 
   auto token = ResolveHttpAuthToken("https://mcp.example/mcp", config);
   ASSERT_FALSE(token.ok());

@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -22,6 +23,12 @@ struct HttpAuthConfig {
   std::string token_file;
   std::string token_env;
   std::string expected_issuer;
+  std::string client_id;
+  std::vector<std::string> scopes;
+  std::string resource_metadata_url;
+  std::string authorization_endpoint;
+  std::string token_endpoint;
+  bool authorization_response_iss_parameter_supported = false;
 };
 
 absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config);

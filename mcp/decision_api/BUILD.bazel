@@ -14,6 +14,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//core:json_utils",
+        "//mcp:validation",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -39,6 +40,7 @@ cc_library(
     deps = [
         ":config",
         "//core:json_utils",
+        "//mcp:validation",
         "//core:transport",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",

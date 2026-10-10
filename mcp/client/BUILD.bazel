@@ -103,6 +103,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":token_store",
+        "//mcp:validation",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
     ],
@@ -168,6 +169,7 @@ cc_library(
         "//ini:ini_parser",
         "//core:json_utils",
         "//core:shell_lib",
+        "//mcp:validation",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

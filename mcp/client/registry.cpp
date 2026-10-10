@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -20,19 +19,12 @@
 #include "core/shell_util.h"
 #include "ini/ini_parser.h"
 #include "mcp/client/stdio_transport.h"
+#include "mcp/validation.h"
 
 namespace slop::mcp {
 namespace {
 
 constexpr absl::string_view kServerSectionPrefix = "server.";
-
-bool IsValidServerName(absl::string_view name) {
-  if (name.empty()) return false;
-  for (const char c : name) {
-    if (!(absl::ascii_isalnum(c) || c == '_' || c == '-')) return false;
-  }
-  return true;
-}
 
 bool HasIniControlCharacter(absl::string_view value) {
   for (const char c : value) {
@@ -78,7 +70,7 @@ absl::StatusOr<std::vector<std::string>> ParseServerArgsJson(absl::string_view v
 }
 
 absl::Status ValidateServerRegistryEntry(const ServerRegistryEntry& entry) {
-  if (!IsValidServerName(entry.name)) {
+  if (!IsValidMcpServerName(entry.name)) {
     return absl::InvalidArgumentError("MCP server name must contain only letters, digits, hyphens, or underscores");
   }
   if (entry.transport != kTransportHttp && entry.transport != kTransportStdio) {

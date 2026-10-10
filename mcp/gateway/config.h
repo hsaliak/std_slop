@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "mcp/client/auth_config.h"
 #include "nlohmann/json.hpp"
 
 namespace slop::mcp::gateway {
@@ -19,6 +20,7 @@ struct ServerConfig {
   std::string command;
   std::vector<std::string> args;
   std::string endpoint_url;
+  HttpAuthConfig auth;
   std::vector<std::string> allow_tools;
 };
 

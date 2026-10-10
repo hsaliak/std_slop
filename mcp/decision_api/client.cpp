@@ -10,6 +10,7 @@
 #include "absl/time/time.h"
 
 #include "core/json_utils.h"
+#include "mcp/validation.h"
 
 namespace slop::mcp::decision_api {
 namespace {
@@ -18,13 +19,6 @@ constexpr std::size_t kMaxQuestions = 32;
 constexpr std::size_t kMaxRequestBytes = 1024 * 1024;
 constexpr std::size_t kMaxResponseBytes = 4 * 1024 * 1024;
 constexpr double kProbabilitySumTolerance = 0.02;
-
-bool ContainsControl(const std::string& value) {
-  for (unsigned char character : value) {
-    if (character < 0x20 || character == 0x7f) return true;
-  }
-  return false;
-}
 
 bool IsWithinJsonDepth(const nlohmann::json& value, std::size_t depth = 0) {
   if (depth > 64) return false;
@@ -200,11 +194,11 @@ absl::StatusOr<nlohmann::json> DecisionApiClient::BuildRequest(const nlohmann::j
   }
   const auto model = json_get<std::string>(arguments, "model");
   if (json_at(arguments, "model") != nullptr &&
-      (!model.has_value() || model->empty() || model->size() > 256 || ContainsControl(*model))) {
+      (!model.has_value() || model->empty() || model->size() > 256 || ContainsControlCharacters(*model))) {
     return absl::InvalidArgumentError("model override must be a non-empty model ID or alias of at most 256 bytes");
   }
   for (auto iterator = questions->begin(); iterator != questions->end(); ++iterator) {
-    if (iterator.key().empty() || iterator.key().size() > 64 || ContainsControl(iterator.key())) {
+    if (iterator.key().empty() || iterator.key().size() > 64 || ContainsControlCharacters(iterator.key())) {
       return absl::InvalidArgumentError("question IDs must be 1 to 64 bytes without control line breaks");
     }
     const absl::Status status = ValidateQuestion(iterator.value());
@@ -231,7 +225,7 @@ absl::StatusOr<nlohmann::json> DecisionApiClient::BuildRequest(const nlohmann::j
         for (auto field = iterator.value().begin(); field != iterator.value().end(); ++field) {
           const auto trace_value = json_get<std::string>(iterator.value(), field.key());
           if (trace_fields.find(field.key()) == trace_fields.end() || !trace_value.has_value() ||
-              trace_value->size() > 256 || ContainsControl(*trace_value)) {
+              trace_value->size() > 256 || ContainsControlCharacters(*trace_value)) {
             return absl::InvalidArgumentError("trace contains an unsupported or invalid field");
           }
         }

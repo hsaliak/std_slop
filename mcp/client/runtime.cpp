@@ -79,6 +79,12 @@ absl::StatusOr<StreamableHttpConfig> TransportConfigFromEntry(const ServerRegist
     auth.method = HttpAuthMethod::kOAuth;
     auth.token_file = entry.token_path;
     auth.expected_issuer = entry.authorization_server_url;
+    auth.client_id = entry.client_id;
+    auth.scopes = entry.scopes;
+    auth.resource_metadata_url = entry.resource_metadata_url;
+    auth.authorization_endpoint = entry.authorization_endpoint;
+    auth.token_endpoint = entry.token_endpoint;
+    auth.authorization_response_iss_parameter_supported = entry.authorization_response_iss_parameter_supported;
   } else if (entry.auth != kAuthNone) {
     return absl::InvalidArgumentError("MCP server auth method is invalid");
   }

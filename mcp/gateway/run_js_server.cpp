@@ -130,6 +130,9 @@ int main(int argc, char** argv) {
       slop::mcp::StreamableHttpConfig transport;
       transport.endpoint_url = server.endpoint_url;
       transport.request_timeout = client_options.request_timeout;
+      auto token = slop::mcp::ResolveHttpAuthToken(server.endpoint_url, server.auth);
+      if (!token.ok()) return Fail(token.status());
+      transport.bearer_token = std::move(*token);
       client = slop::mcp::ConnectMcp(transport, client_options, http_client.get());
       if (client.ok()) http_clients.push_back(std::move(http_client));
     }
