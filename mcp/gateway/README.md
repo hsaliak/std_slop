@@ -1,6 +1,6 @@
 # `run_js_server` example gateway
 
-`run_js_server` is a stdio MCP server that runs bounded JavaScript and calls tools from configured downstream stdio MCP servers. It exposes two tools:
+`run_js_server` is a stdio MCP server that runs bounded JavaScript and calls tools from configured downstream stdio or Streamable HTTP MCP servers. It exposes two tools:
 
 - `run_js`: run JavaScript with optional JSON input.
 - `run_js_help`: list authorized tools or inspect one tool's schema.
@@ -91,7 +91,28 @@ Optional gateway configuration options:
 - `runTimeoutMs`: Run deadline in milliseconds. The default is 30000 ms; the allowed range is 1–60000 ms.
 - `traceLogPath`: Absolute path for the trace log file. Omit this option to disable trace logging.
 
-The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. It does not accept HTTP servers or secrets.
+The gateway gives downstream MCP clients 10 seconds to initialize and 30 seconds per request. `runTimeoutMs` is a separate budget for each JavaScript run and also limits the time left for its downstream calls.
+
+The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. A stdio server uses an absolute `command` path and literal `args` array. An HTTP server uses `endpointUrl` with `transport: "http"`; the MCP client selects the protocol automatically. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. This gateway config does not accept authentication secrets.
+
+## Example: connect to an HTTP MCP server
+
+Add an HTTP server entry to `gateway.json` (keep any other entries you need):
+
+```json
+{
+  "servers": [
+    {
+      "alias": "openai_docs",
+      "transport": "http",
+      "endpointUrl": "https://developers.openai.com/mcp",
+      "allowTools": []
+    }
+  ]
+}
+```
+
+The gateway connects during startup and discovers the downstream tools. Inspect the available tools with `help()` before calling one from JavaScript. Configure `allowTools` with a non-empty list when you want to limit access.
 
 ## Example: connect to the Decision API server
 

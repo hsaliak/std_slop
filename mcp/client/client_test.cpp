@@ -36,8 +36,10 @@ class FakeHttpClient : public HttpClient {
   }
 
   absl::StatusOr<HttpResponse> PostOnceStreamWithResponse(const std::string& url, const std::string& body,
-                                                          const std::vector<std::string>& headers, absl::Duration,
-                                                          size_t, ChunkCallback on_chunk) override {
+                                                          const std::vector<std::string>& headers,
+                                                          absl::Duration timeout, size_t,
+                                                          ChunkCallback on_chunk) override {
+    timeouts.push_back(timeout);
     bool is_modern = false;
     for (const std::string& header : headers) {
       is_modern = is_modern || header.find("2026-07-28") != std::string::npos;
@@ -63,6 +65,7 @@ class FakeHttpClient : public HttpClient {
   std::string last_url;
   std::vector<std::string> bodies;
   std::vector<std::string> last_headers;
+  std::vector<absl::Duration> timeouts;
 };
 
 InitializeOptions MakeOptions() {
@@ -187,6 +190,31 @@ TEST(McpClientTest, PreferLatestFallsBackOnUnrecognizedDiscovery400) {
   EXPECT_EQ((*client)->revision(), ProtocolRevision::k2025_11_25);
   EXPECT_EQ(http.modern_calls, 1);
   EXPECT_EQ(http.bodies.size(), 3);
+}
+
+TEST(McpClientTest, AutomaticFallbackUsesConfiguredInitializationAndRequestTimeouts) {
+  FakeHttpClient http;
+  http.responses.push_back(
+      JsonResponse(R"({"jsonrpc":"2.0","id":"modern-1","error":{"code":-32601,"message":"Method not found"}})"));
+  http.responses.push_back(InitializeResponse());
+  http.responses.push_back({202, "", {}});
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+  config.request_timeout = absl::Seconds(4);
+  ClientOptions options = MakeClientOptions();
+  options.initialization_timeout = absl::Seconds(1);
+  options.request_timeout = absl::Seconds(2);
+
+  auto client = ConnectMcp(config, options, &http);
+
+  ASSERT_TRUE(client.ok()) << client.status();
+  ASSERT_EQ(http.timeouts.size(), 3);
+  EXPECT_GT(http.timeouts[0], absl::ZeroDuration());
+  EXPECT_LE(http.timeouts[0], options.initialization_timeout);
+  EXPECT_GT(http.timeouts[1], absl::ZeroDuration());
+  EXPECT_LE(http.timeouts[1], options.initialization_timeout);
+  EXPECT_GT(http.timeouts[2], absl::ZeroDuration());
+  EXPECT_LE(http.timeouts[2], options.request_timeout);
 }
 
 TEST(McpClientTest, PreferLatestFallsBackOnDiscoveryMethodNotFound) {

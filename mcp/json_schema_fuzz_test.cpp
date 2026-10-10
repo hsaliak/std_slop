@@ -76,6 +76,25 @@ FUZZ_TEST(JsonSchemaFuzzTest, MalformedUtf8NeverValidates);
 TEST(JsonSchemaFuzzTest, RegressionSeeds) {
   JsonSchemaNeverCrashes(R"({"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"})",
                          R"({"name":"tool"})");
+  JsonSchemaNeverCrashes(
+      R"({"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"query":{"type":"string","minLength":1}},"required":["query"]})",
+      R"({"query":"MCP"})");
+  for (const std::string dialect :
+       {"http://json-schema.org/draft-07/schema#", "https://json-schema.org/draft/2020-12/schema"}) {
+    const std::string prefix = "{\"$schema\":\"" + dialect + "\",";
+    for (const std::string bounds :
+         {R"("exclusiveMinimum":0,"exclusiveMaximum":10})", R"("exclusiveMinimum":0})", R"("exclusiveMaximum":10})",
+          R"("exclusiveMinimum":true})", R"("exclusiveMaximum":false})"}) {
+      for (const std::string instance : {"0", "5", "10"}) {
+        JsonSchemaNeverCrashes(prefix + bounds, instance);
+      }
+    }
+    for (const std::string sibling :
+         {R"("minimum":10})", R"("minimum":"malformed"})", R"("properties":{"ignored":{"$ref":"#/missing"}}})"}) {
+      JsonSchemaNeverCrashes(
+          prefix + R"("definitions":{"number":{"type":"integer"}},"$ref":"#/definitions/number",)" + sibling, "5");
+    }
+  }
   JsonSchemaNeverCrashes(R"({"$ref":"#/$defs/node","$defs":{"node":{"$ref":"#/$defs/node"}}})", "null");
   JsonSchemaNeverCrashes(R"({"oneOf":[false,{"type":"integer"}]})", "4");
   JsonSchemaNeverCrashes(R"({"type":"invalid","required":false})", "{}");

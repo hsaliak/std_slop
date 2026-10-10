@@ -20,7 +20,21 @@ TEST(ConfigTest, ParsesBoundedStdioConfiguration) {
   ASSERT_TRUE(config.ok()) << config.status();
   ASSERT_EQ(config->servers.size(), 1);
   EXPECT_EQ(config->servers[0].alias, "echo");
+  EXPECT_EQ(config->servers[0].transport, ServerTransport::kStdio);
   EXPECT_EQ(config->servers[0].allow_tools, std::vector<std::string>({"echo"}));
+}
+
+TEST(ConfigTest, ParsesHttpConfiguration) {
+  for (const std::string& endpoint : {"https://example.com/mcp", "http://127.0.0.1:8123/mcp", "http://[::1]:8123/mcp",
+                                      "http://[::ffff:192.0.2.1]/mcp"}) {
+    nlohmann::json value = {{"servers", {{{"alias", "docs"}, {"transport", "http"}, {"endpointUrl", endpoint}}}}};
+    auto config = ParseConfig(value);
+    ASSERT_TRUE(config.ok()) << config.status();
+    ASSERT_EQ(config->servers.size(), 1);
+    EXPECT_EQ(config->servers[0].transport, ServerTransport::kHttp);
+    EXPECT_EQ(config->servers[0].endpoint_url, endpoint);
+    EXPECT_TRUE(config->servers[0].allow_tools.empty());
+  }
 }
 
 TEST(ConfigTest, BoundsRunTimeout) {
@@ -51,9 +65,9 @@ TEST(ConfigTest, RejectsInvalidTraceLogPaths) {
   std::string nul_path = "/tmp/run_js.log";
   nul_path.push_back('\0');
   nul_path.append("suffix");
-  for (const nlohmann::json& path : {nlohmann::json("relative.log"), nlohmann::json(""), nlohmann::json(7),
-                                     nlohmann::json(nullptr), nlohmann::json(std::string(4097, 'x')),
-                                     nlohmann::json(nul_path)}) {
+  for (const nlohmann::json& path :
+       {nlohmann::json("relative.log"), nlohmann::json(""), nlohmann::json(7), nlohmann::json(nullptr),
+        nlohmann::json(std::string(4097, 'x')), nlohmann::json(nul_path)}) {
     nlohmann::json value = Config();
     value["traceLogPath"] = path;
     EXPECT_FALSE(ParseConfig(value).ok());
@@ -80,7 +94,7 @@ TEST(ConfigTest, RejectsInvalidShapeAndTransport) {
     EXPECT_FALSE(ParseConfig(value).ok());
   }
   nlohmann::json http = Config();
-  http["servers"][0]["transport"] = "http";
+  http["servers"][0]["transport"] = "unknown";
   EXPECT_FALSE(ParseConfig(http).ok());
 }
 
@@ -118,8 +132,42 @@ TEST(ConfigTest, RejectsMixedOrMalformedStdioFields) {
   EXPECT_FALSE(ParseConfig(invalid_args).ok());
 
   nlohmann::json mixed = Config();
-  mixed["servers"][0]["url"] = "https://example.invalid";
+  mixed["servers"][0]["endpointUrl"] = "https://example.invalid";
   EXPECT_FALSE(ParseConfig(mixed).ok());
+
+  nlohmann::json http = {{"servers",
+                          {{{"alias", "docs"},
+                            {"transport", "http"},
+                            {"endpointUrl", "https://example.com/mcp"},
+                            {"command", "/usr/bin/echo"},
+                            {"args", nlohmann::json::array()}}}}};
+  EXPECT_FALSE(ParseConfig(http).ok());
+
+  nlohmann::json invalid_http = {{"servers", {{{"alias", "docs"}, {"transport", "http"}}}}};
+  for (const nlohmann::json& url : {nlohmann::json(""),
+                                    nlohmann::json("/mcp"),
+                                    nlohmann::json("ftp://example.com"),
+                                    nlohmann::json("https:///mcp"),
+                                    nlohmann::json("https://user@example.com/mcp"),
+                                    nlohmann::json("https://example.com/%ZZ"),
+                                    nlohmann::json("https://example.com/?q=%"),
+                                    nlohmann::json("http://:80/mcp"),
+                                    nlohmann::json("http://example.com:/mcp"),
+                                    nlohmann::json("http://example.com:abc/mcp"),
+                                    nlohmann::json("http://example.com:65536/mcp"),
+                                    nlohmann::json("http://127.000.0.1/mcp"),
+                                    nlohmann::json("http://256.1.1.1/mcp"),
+                                    nlohmann::json("http://[not-ipv6]/mcp"),
+                                    nlohmann::json("http://[1:2:3:4:5:6:7:8:]/mcp"),
+                                    nlohmann::json("http://[::ffff:192.0.2.001]/mcp"),
+                                    nlohmann::json("http://[::1/mcp"),
+                                    nlohmann::json("http://::1/mcp"),
+                                    nlohmann::json("http://exa%mple.com/mcp"),
+                                    nlohmann::json(std::string("https://example.com/\0mcp", 25)),
+                                    nlohmann::json(std::string(4097, 'x'))}) {
+    invalid_http["servers"][0]["endpointUrl"] = url;
+    EXPECT_FALSE(ParseConfig(invalid_http).ok()) << url;
+  }
 }
 
 TEST(ConfigTest, TextParserRejectsMalformedAndOversizedInput) {

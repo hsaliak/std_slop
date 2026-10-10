@@ -20,6 +20,7 @@ namespace slop::mcp::v2025_11_25 {
 struct InitializeOptions {
   ImplementationInfo client_info;
   ClientCapabilities capabilities;
+  absl::Duration initialization_timeout = absl::Seconds(60);
   absl::Duration request_timeout = absl::Seconds(60);
 };
 

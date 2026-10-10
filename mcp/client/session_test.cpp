@@ -61,6 +61,7 @@ InitializeOptions MakeOptions() {
   InitializeOptions options;
   options.client_info.name = "test-client";
   options.client_info.version = "1.0";
+  options.initialization_timeout = absl::Seconds(2);
   options.request_timeout = absl::Seconds(1);
   return options;
 }
@@ -88,6 +89,37 @@ TEST(SessionTest, CallToolUsesOneDeadlineAcrossSendAndReceive) {
   EXPECT_LE(raw->send_timeouts.back(), absl::Milliseconds(25));
   EXPECT_GT(raw->receive_timeouts.back(), absl::ZeroDuration());
   EXPECT_LE(raw->receive_timeouts.back(), absl::Milliseconds(25));
+}
+
+TEST(SessionTest, InitializeUsesInitializationTimeoutSeparateFromRequestTimeout) {
+  auto fake = std::make_unique<FakeTransport>();
+  FakeTransport* raw = fake.get();
+  raw->responses.push_back(InitializeResult());
+  Session session(std::move(fake));
+  InitializeOptions options = MakeOptions();
+  options.initialization_timeout = absl::Milliseconds(25);
+
+  ASSERT_TRUE(session.Initialize(options).ok());
+
+  ASSERT_EQ(raw->send_timeouts.size(), 2);
+  ASSERT_EQ(raw->receive_timeouts.size(), 1);
+  EXPECT_GT(raw->send_timeouts[0], absl::ZeroDuration());
+  EXPECT_LE(raw->send_timeouts[0], absl::Milliseconds(25));
+  EXPECT_GT(raw->receive_timeouts[0], absl::ZeroDuration());
+  EXPECT_LE(raw->receive_timeouts[0], absl::Milliseconds(25));
+  EXPECT_EQ(raw->send_timeouts[1], options.request_timeout);
+}
+
+TEST(SessionTest, InitializeRejectsNonPositiveTimeouts) {
+  for (absl::Duration timeout : {absl::ZeroDuration(), absl::Milliseconds(-1)}) {
+    auto fake = std::make_unique<FakeTransport>();
+    FakeTransport* raw = fake.get();
+    Session session(std::move(fake));
+    InitializeOptions options = MakeOptions();
+    options.initialization_timeout = timeout;
+    EXPECT_EQ(session.Initialize(options).code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_FALSE(raw->started);
+  }
 }
 
 TEST(SessionTest, InitializeStartsTransportAndSendsInitializedNotification) {

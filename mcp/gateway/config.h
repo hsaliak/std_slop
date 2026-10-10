@@ -11,10 +11,14 @@
 
 namespace slop::mcp::gateway {
 
+enum class ServerTransport { kStdio, kHttp };
+
 struct ServerConfig {
   std::string alias;
+  ServerTransport transport = ServerTransport::kStdio;
   std::string command;
   std::vector<std::string> args;
+  std::string endpoint_url;
   std::vector<std::string> allow_tools;
 };
 

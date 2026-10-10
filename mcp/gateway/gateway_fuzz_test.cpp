@@ -17,6 +17,14 @@ void ConfigParsingIsTotal(const std::string& text) {
   if (!result.ok()) EXPECT_FALSE(result.status().ok());
 }
 
+TEST(GatewayFuzzTest, HttpConfigRegressionSeeds) {
+  ConfigParsingIsTotal(
+      R"({"servers":[{"alias":"docs","transport":"http","endpointUrl":"https://developers.openai.com/mcp"}]})");
+  ConfigParsingIsTotal(
+      R"({"servers":[{"alias":"docs","transport":"http","endpointUrl":"http://127.0.0.1:9000/mcp","args":[]}]})");
+  ConfigParsingIsTotal(R"({"servers":[{"alias":"docs","transport":"http","endpointUrl":"https:///mcp"}]})");
+}
+
 void ResultNormalizationIsBounded(const std::string& text, bool is_error) {
   if (text.size() > 4096) return;
   ToolCallResult result;

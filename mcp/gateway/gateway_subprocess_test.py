@@ -1,13 +1,98 @@
+import atexit
 import json
 import os
 import pathlib
 import subprocess
 import sys
 import tempfile
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class McpHttpHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        method = request.get("method")
+        if method == "server/discover":
+            response = {
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "error": {"code": -32601, "message": "Method not found"},
+            }
+        elif method == "initialize":
+            response = {
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "gateway-test", "version": "1.0"},
+                },
+            }
+        elif method == "notifications/initialized":
+            self.send_response(202)
+            self.end_headers()
+            return
+        elif method == "tools/list":
+            response = {
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": {
+                    "tools": [
+                        {
+                            "name": "lookup",
+                            "description": "Return the supplied query.",
+                            "inputSchema": {
+                                "$schema": "http://json-schema.org/draft-07/schema#",
+                                "type": "object",
+                                "properties": {"query": {"type": "string"}},
+                                "required": ["query"],
+                            },
+                        }
+                    ]
+                },
+            }
+        elif method == "tools/call":
+            query = request["params"]["arguments"]["query"]
+            if query == "slow":
+                time.sleep(0.5)
+            response = {
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": {"content": [{"type": "text", "text": "http:" + query}], "isError": False},
+            }
+        else:
+            response = {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "error": {"code": -32601, "message": "Method not found"},
+            }
+        body = json.dumps(response).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def log_message(self, _format, *_args):
+        pass
+
+
+def start_http_mcp_server():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), McpHttpHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    atexit.register(server.shutdown)
+    return server
 
 
 def main():
     gateway, echo_server = sys.argv[1:]
+    http_server = start_http_mcp_server()
     with tempfile.TemporaryDirectory() as temporary_directory:
         temp = pathlib.Path(temporary_directory)
         config_path = temp / "gateway.json"
@@ -32,6 +117,12 @@ def main():
                             "args": [],
                             "allowTools": ["echo"],
                         },
+                        {
+                            "alias": "docs",
+                            "transport": "http",
+                            "endpointUrl": "http://127.0.0.1:%d/mcp" % http_server.server_address[1],
+                            "allowTools": ["lookup"],
+                        },
                     ]
                 }
             ),
@@ -39,8 +130,9 @@ def main():
         )
         code = (
             "const results = await Promise.all(["
-            "echo.echo({text: input.text}), echo2.echo({text: input.other})]); "
-            "return results.map(value => value.structuredContent);"
+            "echo.echo({text: input.text}), echo2.echo({text: input.other}), "
+            "docs.lookup({query: input.query})]); "
+            "return results.map(value => value.structuredContent || value.content);"
         )
         requests = [
             {
@@ -63,7 +155,7 @@ def main():
                     "name": "run_js",
                     "arguments": {
                         "code": code,
-                        "input": {"text": "gateway-smoke", "other": "ipc-parallel"},
+                        "input": {"text": "gateway-smoke", "other": "ipc-parallel", "query": "http-smoke"},
                     },
                     "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"},
                 },
@@ -96,7 +188,7 @@ def main():
         if call.get("id") != "call" or "error" in call:
             raise AssertionError(f"run_js MCP call failed: {call}")
         result = call["result"]["structuredContent"]["result"]
-        if result != [{"text": "gateway-smoke"}, {"text": "ipc-parallel"}]:
+        if result != [{"text": "gateway-smoke"}, {"text": "ipc-parallel"}, [{"type": "text", "text": "http:http-smoke"}]]:
             raise AssertionError(f"unexpected composed result: {result}")
 
         trace = trace_path.read_text(encoding="utf-8")
@@ -105,8 +197,10 @@ def main():
             "code (terminal-safe; control bytes escaped):\n" + code,
             '"text": "gateway-smoke"',
             '"text": "ipc-parallel"',
+            '"query": "http-smoke"',
             "event=TOOL CALL 1",
             "event=TOOL CALL 2",
+            "event=TOOL CALL 3",
             "raw downstream result:",
             "JavaScript-visible result:",
             "event=RUN SUCCESS",
@@ -156,6 +250,31 @@ def main():
         if "event=RUN FAILURE" not in trace or "while (true) {}" not in trace:
             raise AssertionError(f"trace log missed the timed-out run: {trace}")
 
+        slow_request = {
+            "jsonrpc": "2.0",
+            "id": "slow",
+            "method": "tools/call",
+            "params": {
+                "name": "run_js",
+                "arguments": {"code": 'await docs.lookup({query: "slow"}); return "late";'},
+                "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"},
+            },
+        }
+        slow = subprocess.run(
+            [gateway, "--config", str(config_path)],
+            input=json.dumps(slow_request) + "\n",
+            text=True,
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if slow.returncode != 0:
+            raise AssertionError(f"slow downstream gateway exited {slow.returncode}: {slow.stderr}")
+        slow_response = json.loads(slow.stdout)
+        slow_error = slow_response["result"]["structuredContent"]["error"]
+        if slow_response.get("id") != "slow" or slow_error["category"] != "budget":
+            raise AssertionError(f"slow HTTP request did not honor run deadline: {slow_response}")
+
         marker = temp / "should-not-start"
         child = temp / "marker-child.sh"
         child.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
@@ -168,6 +287,7 @@ def main():
                         {
                             "alias": "echo",
                             "transport": "http",
+                            "endpointUrl": "http://127.0.0.1:1/mcp",
                             "command": str(child),
                             "args": [],
                             "allowTools": ["echo"],

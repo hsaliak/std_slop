@@ -47,11 +47,12 @@ absl::Status FailureStatus(const ProtocolFailure& failure) {
   return absl::FailedPreconditionError(message);
 }
 
-v2025_11_25::InitializeOptions ClassicOptions(const ClientOptions& options, const StreamableHttpConfig& config) {
+v2025_11_25::InitializeOptions ClassicOptions(const ClientOptions& options) {
   v2025_11_25::InitializeOptions classic;
   classic.client_info = options.client_info;
   classic.capabilities = options.classic_capabilities;
-  classic.request_timeout = config.request_timeout;
+  classic.initialization_timeout = options.initialization_timeout;
+  classic.request_timeout = options.request_timeout;
   return classic;
 }
 
@@ -179,7 +180,7 @@ class ModernClient final : public Client {
 
 absl::StatusOr<std::unique_ptr<Client>> ConnectClassic(const StreamableHttpConfig& config, const ClientOptions& options,
                                                        HttpClient* http_client) {
-  auto session_or = ConnectClassicStreamableHttp(config, ClassicOptions(options, config), http_client);
+  auto session_or = ConnectClassicStreamableHttp(config, ClassicOptions(options), http_client);
   if (!session_or.ok()) return session_or.status();
   return std::unique_ptr<Client>(std::make_unique<ClassicClient>(std::move(*session_or)));
 }

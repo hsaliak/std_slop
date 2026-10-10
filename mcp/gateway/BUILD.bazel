@@ -215,6 +215,7 @@ cc_binary(
         ":worker",
         ":trace_logger",
         "//mcp/client:client",
+        "//core:transport",
         "//mcp/client:stdio_transport",
         "//mcp/server:stdio",
         "@abseil-cpp//absl/status",

@@ -2,8 +2,8 @@
 
 #include <charconv>
 #include <chrono>
-#include <cstdint>
 #include <csignal>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
+#include "core/http_client.h"
 #include "mcp/client/client.h"
 #include "mcp/client/stdio_transport.h"
 #include "mcp/gateway/broker.h"
@@ -108,6 +109,8 @@ int main(int argc, char** argv) {
     trace_logger = std::move(*logger);
   }
 
+  std::vector<std::unique_ptr<slop::HttpClient>> http_clients;
+  http_clients.reserve(config->servers.size());
   std::vector<slop::mcp::gateway::DownstreamClient> downstreams;
   downstreams.reserve(config->servers.size());
   slop::mcp::ClientOptions client_options;
@@ -115,10 +118,21 @@ int main(int argc, char** argv) {
   client_options.initialization_timeout = absl::Seconds(10);
   client_options.request_timeout = absl::Seconds(30);
   for (const auto& server : config->servers) {
-    slop::mcp::StdioTransportOptions transport;
-    transport.command = server.command;
-    transport.args = server.args;
-    auto client = slop::mcp::ConnectStdioMcp(std::move(transport), client_options);
+    absl::StatusOr<std::unique_ptr<slop::mcp::Client>> client =
+        absl::InvalidArgumentError("unsupported downstream transport");
+    if (server.transport == slop::mcp::gateway::ServerTransport::kStdio) {
+      slop::mcp::StdioTransportOptions transport;
+      transport.command = server.command;
+      transport.args = server.args;
+      client = slop::mcp::ConnectStdioMcp(std::move(transport), client_options);
+    } else {
+      auto http_client = std::make_unique<slop::HttpClient>();
+      slop::mcp::StreamableHttpConfig transport;
+      transport.endpoint_url = server.endpoint_url;
+      transport.request_timeout = client_options.request_timeout;
+      client = slop::mcp::ConnectMcp(transport, client_options, http_client.get());
+      if (client.ok()) http_clients.push_back(std::move(http_client));
+    }
     if (!client.ok()) return Fail(client.status());
     downstreams.push_back({server.alias, server.allow_tools, std::move(*client)});
   }
@@ -128,11 +142,10 @@ int main(int argc, char** argv) {
   if (!broker.ok()) return Fail(broker.status());
   auto executable_path = ResolveExecutablePath(argv[0]);
   if (!executable_path.ok()) return Fail(executable_path.status());
-  slop::mcp::gateway::RunJsExecutor executor = [path = *executable_path](const std::string& code,
-                                                                         const nlohmann::json& input,
-                                                                         slop::js_runtime::AsyncToolBroker* tool_broker,
-                                                                         slop::js_runtime::RuntimeOptions options,
-                                                                         std::uint64_t trace_id) {
+  slop::mcp::gateway::RunJsExecutor executor = [path = *executable_path](
+                                                   const std::string& code, const nlohmann::json& input,
+                                                   slop::js_runtime::AsyncToolBroker* tool_broker,
+                                                   slop::js_runtime::RuntimeOptions options, std::uint64_t trace_id) {
     return slop::mcp::gateway::ExecuteInWorker(path, code, input, tool_broker, options, trace_id);
   };
   slop::js_runtime::RuntimeOptions runtime_options;

@@ -19,10 +19,14 @@ namespace slop::mcp {
 namespace {
 
 constexpr absl::string_view kDraft202012 = "https://json-schema.org/draft/2020-12/schema";
+constexpr absl::string_view kDraft07 = "http://json-schema.org/draft-07/schema#";
+
+bool IsDraft07(const nlohmann::json& schema) { return json_get_or(schema, "$schema", std::string()) == kDraft07; }
 
 struct EvaluationContext {
   const nlohmann::json& root;
   JsonSchemaLimits limits;
+  bool draft07 = false;
   size_t evaluations = 0;
   absl::flat_hash_set<std::pair<const nlohmann::json*, const nlohmann::json*>> active;
 };
@@ -190,18 +194,18 @@ absl::Status Validate(const nlohmann::json& schema, const nlohmann::json& instan
     ~ActiveGuard() { context->active.erase(key); }
   } guard{context, key};
 
-  if (const auto dialect = json_get<std::string>(schema, "$schema")) {
-    if (*dialect != kDraft202012) {
-      return absl::UnimplementedError(absl::StrCat("unsupported JSON Schema dialect: ", *dialect));
-    }
-  }
   if (const auto reference = json_get<std::string>(schema, "$ref")) {
     auto target_or = ResolveLocalReference(context->root, *reference);
     if (!target_or.ok()) return target_or.status();
     const absl::Status status = Validate(**target_or, instance, context, depth + 1);
-    if (!status.ok()) return status;
+    if (!status.ok() || context->draft07) return status;
   } else if (json_at(schema, "$ref") != nullptr) {
     return absl::InvalidArgumentError("JSON Schema $ref must be a string");
+  }
+  if (const auto dialect = json_get<std::string>(schema, "$schema")) {
+    if (*dialect != kDraft202012 && *dialect != kDraft07) {
+      return absl::UnimplementedError(absl::StrCat("unsupported JSON Schema dialect: ", *dialect));
+    }
   }
   if (json_at(schema, "$dynamicRef") != nullptr || json_at(schema, "$dynamicAnchor") != nullptr) {
     return absl::UnimplementedError("dynamic JSON Schema references are not supported");
@@ -409,22 +413,22 @@ absl::Status Check(const nlohmann::json& schema, EvaluationContext* context, siz
     ~Guard() { active->erase(schema); }
   } guard{active, &schema};
 
-  const auto shape_status = CheckKeywords(schema);
-  if (!shape_status.ok()) return shape_status;
-
-  if (const auto dialect = json_get<std::string>(schema, "$schema")) {
-    if (*dialect != kDraft202012) {
-      return absl::UnimplementedError(absl::StrCat("unsupported JSON Schema dialect: ", *dialect));
-    }
-  }
   if (const auto reference = json_get<std::string>(schema, "$ref")) {
     auto target_or = ResolveLocalReference(context->root, *reference);
     if (!target_or.ok()) return target_or.status();
     const absl::Status status = Check(**target_or, context, depth + 1, active);
-    if (!status.ok()) return status;
+    if (!status.ok() || context->draft07) return status;
   } else if (json_at(schema, "$ref") != nullptr) {
     return absl::InvalidArgumentError("JSON Schema $ref must be a string");
   }
+  if (const auto dialect = json_get<std::string>(schema, "$schema")) {
+    if (*dialect != kDraft202012 && *dialect != kDraft07) {
+      return absl::UnimplementedError(absl::StrCat("unsupported JSON Schema dialect: ", *dialect));
+    }
+  }
+  const auto shape_status = CheckKeywords(schema);
+  if (!shape_status.ok()) return shape_status;
+
   if (json_at(schema, "$dynamicRef") != nullptr || json_at(schema, "$dynamicAnchor") != nullptr ||
       json_at(schema, "pattern") != nullptr) {
     return absl::UnimplementedError("JSON Schema contains an unsupported keyword");
@@ -464,7 +468,7 @@ absl::Status Check(const nlohmann::json& schema, EvaluationContext* context, siz
 }  // namespace
 
 absl::Status ValidateJsonSchema(const nlohmann::json& schema, const nlohmann::json& instance, JsonSchemaLimits limits) {
-  EvaluationContext context{schema, limits, 0, {}};
+  EvaluationContext context{schema, limits, IsDraft07(schema), 0, {}};
   absl::flat_hash_set<const nlohmann::json*> active;
   const absl::Status schema_status = Check(schema, &context, 0, &active);
   if (!schema_status.ok()) return schema_status;
@@ -473,7 +477,7 @@ absl::Status ValidateJsonSchema(const nlohmann::json& schema, const nlohmann::js
 }
 
 absl::Status CheckJsonSchema(const nlohmann::json& schema, JsonSchemaLimits limits) {
-  EvaluationContext context{schema, limits, 0, {}};
+  EvaluationContext context{schema, limits, IsDraft07(schema), 0, {}};
   absl::flat_hash_set<const nlohmann::json*> active;
   return Check(schema, &context, 0, &active);
 }

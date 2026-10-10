@@ -41,6 +41,9 @@ absl::Status Session::Initialize(const InitializeOptions& options) {
   if (state_ == State::kInitialized) return absl::OkStatus();
   if (options.client_info.name.empty()) return absl::InvalidArgumentError("client_info.name must not be empty");
   if (options.client_info.version.empty()) return absl::InvalidArgumentError("client_info.version must not be empty");
+  if (options.initialization_timeout <= absl::ZeroDuration() || options.request_timeout <= absl::ZeroDuration()) {
+    return absl::InvalidArgumentError("MCP session timeouts must be positive");
+  }
 
   if (state_ == State::kCreated) {
     const absl::Status start_status = transport_->Start();
@@ -54,7 +57,7 @@ absl::Status Session::Initialize(const InitializeOptions& options) {
   nlohmann::json params = {{"protocolVersion", std::string(kClassicProtocolVersion)},
                            {"capabilities", BuildClientCapabilities(options.capabilities)},
                            {"clientInfo", client_info}};
-  auto result_or = SendRequest("initialize", params, options.request_timeout);
+  auto result_or = SendRequest("initialize", params, options.initialization_timeout);
   if (!result_or.ok()) return result_or.status();
   const absl::Status parse_status = ParseInitializeResult(*result_or);
   if (!parse_status.ok()) return parse_status;

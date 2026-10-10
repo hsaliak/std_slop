@@ -26,6 +26,71 @@ TEST(JsonSchemaTest, ValidatesRepresentativeToolArguments) {
             absl::StatusCode::kInvalidArgument);
 }
 
+TEST(JsonSchemaTest, ValidatesDraft7ToolArguments) {
+  const nlohmann::json schema = {
+      {"$schema", "http://json-schema.org/draft-07/schema#"},
+      {"type", "object"},
+      {"properties",
+       {{"query", {{"type", "string"}, {"minLength", 1}}},
+        {"limit", {{"type", "integer"}, {"minimum", 1}, {"maximum", 50}}}}},
+      {"required", {"query"}},
+      {"additionalProperties", false},
+  };
+  EXPECT_TRUE(ValidateJsonSchema(schema, {{"query", "docs"}, {"limit", 10}}).ok());
+  EXPECT_EQ(ValidateJsonSchema(schema, {{"query", ""}}).code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(ValidateJsonSchema(schema, {{"query", "docs"}, {"limit", 0}}).code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(ValidateJsonSchema(schema, {{"query", "docs"}, {"extra", true}}).code(),
+            absl::StatusCode::kInvalidArgument);
+}
+
+TEST(JsonSchemaTest, ExclusiveBoundsAreNumericInBothDialects) {
+  for (const std::string dialect :
+       {"http://json-schema.org/draft-07/schema#", "https://json-schema.org/draft/2020-12/schema"}) {
+    const nlohmann::json schema = {
+        {"$schema", dialect}, {"minimum", -1}, {"maximum", 11}, {"exclusiveMinimum", 0}, {"exclusiveMaximum", 10}};
+    ASSERT_TRUE(CheckJsonSchema(schema).ok());
+    EXPECT_TRUE(ValidateJsonSchema(schema, 5).ok());
+    for (int value : {-1, 0, 10, 11}) {
+      EXPECT_EQ(ValidateJsonSchema(schema, value).code(), absl::StatusCode::kInvalidArgument);
+    }
+    for (const std::string keyword : {"exclusiveMinimum", "exclusiveMaximum"}) {
+      const nlohmann::json standalone = {{"$schema", dialect}, {keyword, 5}};
+      EXPECT_TRUE(CheckJsonSchema(standalone).ok());
+      EXPECT_EQ(ValidateJsonSchema(standalone, 5).code(), absl::StatusCode::kInvalidArgument);
+      EXPECT_TRUE(ValidateJsonSchema(standalone, keyword == "exclusiveMinimum" ? 6 : 4).ok());
+      EXPECT_EQ(ValidateJsonSchema(standalone, keyword == "exclusiveMinimum" ? 4 : 6).code(),
+                absl::StatusCode::kInvalidArgument);
+      for (bool bound : {false, true}) {
+        const nlohmann::json invalid = {{"$schema", dialect}, {keyword, bound}};
+        EXPECT_EQ(CheckJsonSchema(invalid).code(), absl::StatusCode::kInvalidArgument);
+        EXPECT_EQ(ValidateJsonSchema(invalid, 5).code(), absl::StatusCode::kInvalidArgument);
+      }
+    }
+  }
+}
+
+TEST(JsonSchemaTest, ReferenceSiblingsDependOnDialect) {
+  for (bool draft07 : {true, false}) {
+    const std::string dialect =
+        draft07 ? "http://json-schema.org/draft-07/schema#" : "https://json-schema.org/draft/2020-12/schema";
+    nlohmann::json schema = {{"$schema", dialect},
+                             {"definitions", {{"number", {{"type", "integer"}}}}},
+                             {"$ref", "#/definitions/number"},
+                             {"minimum", 10}};
+    EXPECT_TRUE(CheckJsonSchema(schema).ok());
+    EXPECT_EQ(ValidateJsonSchema(schema, 5).ok(), draft07);
+    EXPECT_TRUE(ValidateJsonSchema(schema, 10).ok());
+    EXPECT_EQ(ValidateJsonSchema(schema, "text").code(), absl::StatusCode::kInvalidArgument);
+    schema["minimum"] = "malformed";
+    EXPECT_EQ(CheckJsonSchema(schema).ok(), draft07);
+    EXPECT_EQ(ValidateJsonSchema(schema, 5).ok(), draft07);
+    schema.erase("minimum");
+    schema["properties"] = {{"ignored", {{"$ref", "#/missing"}}}};
+    EXPECT_EQ(CheckJsonSchema(schema).ok(), draft07);
+    EXPECT_EQ(ValidateJsonSchema(schema, 5).ok(), draft07);
+  }
+}
+
 TEST(JsonSchemaTest, SupportsLocalReferencesAndComposition) {
   const nlohmann::json schema = {
       {"$defs", {{"identifier", {{"type", {"integer", "string"}}}}}},
@@ -46,7 +111,7 @@ TEST(JsonSchemaTest, AcceptsRecursiveSchemaWithBoundedInstance) {
 }
 
 TEST(JsonSchemaTest, RejectsUnsupportedDialectAndExternalReference) {
-  EXPECT_EQ(CheckJsonSchema({{"$schema", "http://json-schema.org/draft-07/schema#"}}).code(),
+  EXPECT_EQ(CheckJsonSchema({{"$schema", "https://json-schema.org/draft/2019-09/schema"}}).code(),
             absl::StatusCode::kUnimplemented);
   EXPECT_EQ(CheckJsonSchema({{"$ref", "https://example.test/schema"}}).code(), absl::StatusCode::kUnimplemented);
   EXPECT_EQ(CheckJsonSchema({{"$ref", "#/$defs/missing"}}).code(), absl::StatusCode::kInvalidArgument);

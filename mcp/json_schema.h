@@ -14,9 +14,10 @@ struct JsonSchemaLimits {
   size_t max_depth = 64;
 };
 
-// Validates an instance against the supported JSON Schema 2020-12 subset.
-// References are restricted to local JSON Pointers. Network and filesystem
-// resolution are intentionally not supported.
+// Validates an instance against the supported JSON Schema 2020-12 and Draft 7
+// subsets. References are restricted to local JSON Pointers. Network and
+// filesystem resolution are intentionally not supported. Exclusive bounds are
+// numeric in both dialects. Draft 7 ignores $ref siblings; 2020-12 applies them.
 absl::Status ValidateJsonSchema(const nlohmann::json& schema, const nlohmann::json& instance,
                                 JsonSchemaLimits limits = JsonSchemaLimits());
 
