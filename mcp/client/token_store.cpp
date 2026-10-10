@@ -88,7 +88,9 @@ bool ContainsHttpHeaderControlCharacter(const std::string& value) {
   return false;
 }
 
-absl::Status ValidateAccessTokenForHeader(const std::string& access_token) {
+}  // namespace
+
+absl::Status ValidateBearerTokenForHttpHeader(const std::string& access_token) {
   if (access_token.empty()) return absl::InvalidArgumentError("OAuth access token must not be empty");
   if (ContainsHttpHeaderControlCharacter(access_token)) {
     return absl::InvalidArgumentError("OAuth access token must not contain HTTP header control characters");
@@ -96,10 +98,8 @@ absl::Status ValidateAccessTokenForHeader(const std::string& access_token) {
   return absl::OkStatus();
 }
 
-}  // namespace
-
 absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& tokens) {
-  const absl::Status token_status = ValidateAccessTokenForHeader(tokens.access_token);
+  const absl::Status token_status = ValidateBearerTokenForHttpHeader(tokens.access_token);
   if (!token_status.ok()) return token_status;
   if (!absl::EqualsIgnoreCase(tokens.token_type, "Bearer")) {
     return absl::InvalidArgumentError("OAuth token file token_type must be Bearer");
@@ -190,7 +190,7 @@ absl::StatusOr<OAuthTokenSet> LoadOAuthTokens(const std::string& path) {
     return absl::InvalidArgumentError("OAuth token file token_type must be Bearer");
   }
   tokens.token_type = "Bearer";
-  const absl::Status token_status = ValidateAccessTokenForHeader(tokens.access_token);
+  const absl::Status token_status = ValidateBearerTokenForHttpHeader(tokens.access_token);
   if (!token_status.ok()) return token_status;
   return tokens;
 }

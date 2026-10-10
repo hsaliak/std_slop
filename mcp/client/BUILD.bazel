@@ -97,6 +97,18 @@ cc_library(
 )
 
 cc_library(
+    name = "auth_config",
+    srcs = ["auth_config.cpp"],
+    hdrs = ["auth_config.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":token_store",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "token_store",
     srcs = ["token_store.cpp"],
     hdrs = ["token_store.h", "token_store_internal.h"],
@@ -286,7 +298,7 @@ cc_library(
     deps = [
         ":client",
         ":registry",
-        ":token_store",
+        ":auth_config",
         "//core:data",
         "//core:json_utils",
         "//core:transport",
@@ -418,6 +430,12 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
     ],
+)
+
+cc_test(
+    name = "auth_config_test",
+    srcs = ["auth_config_test.cpp"],
+    deps = [":auth_config", "@googletest//:gtest_main"],
 )
 
 cc_test(

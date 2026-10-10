@@ -1,6 +1,5 @@
 #include "mcp/client/runtime.h"
 
-#include <ctime>
 #include <memory>
 #include <string>
 #include <utility>
@@ -15,8 +14,8 @@
 
 #include "core/json_utils.h"
 #include "core/status_macros.h"
+#include "mcp/client/auth_config.h"
 #include "mcp/client/client.h"
-#include "mcp/client/token_store.h"
 
 namespace slop::mcp {
 namespace {
@@ -72,31 +71,24 @@ absl::Status WithAuthContext(const ServerRegistryEntry& entry, const absl::Statu
 }
 
 absl::StatusOr<StreamableHttpConfig> TransportConfigFromEntry(const ServerRegistryEntry& entry) {
+  HttpAuthConfig auth;
+  if (entry.auth == kAuthBearer) {
+    auth.method = HttpAuthMethod::kBearer;
+    auth.token_file = entry.token_path;
+  } else if (entry.auth == kAuthOAuth) {
+    auth.method = HttpAuthMethod::kOAuth;
+    auth.token_file = entry.token_path;
+    auth.expected_issuer = entry.authorization_server_url;
+  } else if (entry.auth != kAuthNone) {
+    return absl::InvalidArgumentError("MCP server auth method is invalid");
+  }
+
+  auto token = ResolveHttpAuthToken(entry.url, auth);
+  if (!token.ok()) return WithAuthContext(entry, token.status());
+
   StreamableHttpConfig config;
   config.endpoint_url = entry.url;
-  if (entry.auth == kAuthBearer || entry.auth == kAuthOAuth) {
-    auto tokens = LoadOAuthTokens(entry.token_path);
-    if (!tokens.ok()) {
-      if (entry.auth == kAuthBearer) {
-        return absl::UnauthenticatedError(absl::StrCat("MCP bearer token is missing or invalid for server '",
-                                                       entry.name, "'; ", AuthFailureHint(entry)));
-      }
-      return absl::UnauthenticatedError(absl::StrCat("MCP OAuth token is missing or invalid for server '", entry.name,
-                                                     "'; ", AuthFailureHint(entry)));
-    }
-    if (entry.auth == kAuthOAuth) {
-      if (tokens->issuer.empty() || tokens->resource.empty() || tokens->issuer != entry.authorization_server_url ||
-          tokens->resource != entry.url) {
-        return absl::PermissionDeniedError(
-            absl::StrCat("MCP OAuth token binding does not match server '", entry.name, "'"));
-      }
-      if (tokens->expires_at_unix_seconds != 0 && tokens->expires_at_unix_seconds <= std::time(nullptr)) {
-        return absl::UnauthenticatedError(
-            absl::StrCat("MCP OAuth token is expired for server '", entry.name, "'; ", AuthFailureHint(entry)));
-      }
-    }
-    config.bearer_token = tokens->access_token;
-  }
+  config.bearer_token = std::move(*token);
   return config;
 }
 

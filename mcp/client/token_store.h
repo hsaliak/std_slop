@@ -18,6 +18,7 @@ struct OAuthTokenSet {
   int64_t expires_at_unix_seconds = 0;
 };
 
+absl::Status ValidateBearerTokenForHttpHeader(const std::string& access_token);
 absl::Status SaveOAuthTokens(const std::string& path, const OAuthTokenSet& tokens);
 absl::StatusOr<OAuthTokenSet> LoadOAuthTokens(const std::string& path);
 absl::Status DeleteOAuthTokens(const std::string& path);
