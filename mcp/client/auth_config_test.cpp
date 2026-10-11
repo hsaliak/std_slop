@@ -5,6 +5,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
+
 #include "mcp/client/token_store.h"
 
 namespace slop::mcp {
@@ -93,6 +94,24 @@ TEST(HttpAuthConfigTest, RejectsInvalidTokenSourceShapes) {
   oauth.method = HttpAuthMethod::kOAuth;
   oauth.token_file = "token.json";
   EXPECT_FALSE(ValidateHttpAuthConfig(oauth).ok());
+}
+
+TEST(HttpAuthConfigTest, ValidatesUnresolvedOAuthProfileForDiscovery) {
+  HttpAuthConfig config;
+  config.method = HttpAuthMethod::kOAuth;
+  config.token_file = "/tmp/oauth-token.json";
+  config.client_id = "test-client";
+
+  EXPECT_TRUE(ValidateHttpAuthConfigForDiscovery(config).ok());
+  EXPECT_FALSE(ValidateHttpAuthConfig(config).ok());
+
+  config.authorization_endpoint = "https://auth.example/authorize";
+  EXPECT_FALSE(ValidateHttpAuthConfigForDiscovery(config).ok());
+  config.token_endpoint = "https://auth.example/token";
+  EXPECT_FALSE(ValidateHttpAuthConfigForDiscovery(config).ok());
+
+  config.expected_issuer = "https://auth.example";
+  EXPECT_TRUE(ValidateHttpAuthConfig(config).ok());
 }
 
 TEST(HttpAuthConfigTest, TokenFilesMustBeAbsoluteAndBounded) {

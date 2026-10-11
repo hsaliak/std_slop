@@ -100,7 +100,7 @@ absl::StatusOr<std::string> ParseWwwAuthenticateResourceMetadata(absl::string_vi
       }
     }
 
-    if (key == "resource_metadata") {
+    if (absl::EqualsIgnoreCase(key, "resource_metadata")) {
       if (value.empty()) return absl::InvalidArgumentError("resource_metadata must not be empty");
       return value;
     }
@@ -151,14 +151,11 @@ absl::StatusOr<AuthorizationServerMetadata> ParseAuthorizationServerMetadata(con
     }
     parsed.client_id_metadata_document_supported = cimd->get<bool>();
   }
-  if (const auto* response_issuer =
-          json_at(metadata, "authorization_response_iss_parameter_supported")) {
+  if (const auto* response_issuer = json_at(metadata, "authorization_response_iss_parameter_supported")) {
     if (!response_issuer->is_boolean()) {
-      return absl::InvalidArgumentError(
-          "authorization_response_iss_parameter_supported must be boolean");
+      return absl::InvalidArgumentError("authorization_response_iss_parameter_supported must be boolean");
     }
-    parsed.authorization_response_iss_parameter_supported =
-        response_issuer->get<bool>();
+    parsed.authorization_response_iss_parameter_supported = response_issuer->get<bool>();
   }
   return parsed;
 }

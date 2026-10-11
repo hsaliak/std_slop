@@ -16,6 +16,7 @@
 #include "core/http_client.h"
 #include "mcp/client/registry.h"
 #include "mcp/client/token_store.h"
+#include "mcp/gateway/oauth_profile.h"
 
 #include <gtest/gtest.h>
 
@@ -414,6 +415,67 @@ TEST(McpCommandsTest, OAuthAddDiscoversMissingEndpoints) {
   EXPECT_EQ((*entries)[0].scopes[0], "repo");
 }
 
+TEST(McpCommandsTest, OAuthAddUsesIssuerToSelectAdvertisedAuthorizationServer) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  http_client.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp","authorization_servers":["https://other.example","https://auth.example"]})";
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  const absl::Status status = RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth",
+                                             "oauth", "--client-id", "client", "--issuer", "https://auth.example"},
+                                            &http_client, &input, &output, &error);
+
+  ASSERT_TRUE(status.ok()) << status;
+  ASSERT_EQ(http_client.get_urls.size(), 2);
+  EXPECT_EQ(http_client.get_urls[1], "https://auth.example/.well-known/oauth-authorization-server");
+  auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+  ASSERT_TRUE(entries.ok()) << entries.status();
+  ASSERT_EQ(entries->size(), 1);
+  EXPECT_EQ((*entries)[0].authorization_server_url, "https://auth.example");
+}
+
+TEST(McpCommandsTest, OAuthAddUsesResourceMetadataUrlOverride) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  http_client.post_response.headers.clear();
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  const absl::Status status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
+                     "client", "--resource-metadata-url", "https://api.example/.well-known/oauth-protected-resource"},
+                    &http_client, &input, &output, &error);
+
+  ASSERT_TRUE(status.ok()) << status;
+  EXPECT_TRUE(http_client.post_url.empty());
+  ASSERT_EQ(http_client.get_urls.size(), 2);
+  EXPECT_EQ(http_client.get_urls[0], "https://api.example/.well-known/oauth-protected-resource");
+  EXPECT_EQ(http_client.get_urls[1], "https://auth.example/.well-known/oauth-authorization-server");
+}
+
+TEST(McpCommandsTest, OAuthAddRejectsResourceMetadataOverrideWithManualEndpoints) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  const absl::Status status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
+                     "client", "--issuer", "https://manual.example", "--authorization-endpoint",
+                     "https://manual.example/authorize", "--token-endpoint", "https://manual.example/token",
+                     "--resource-metadata-url", "https://api.example/.well-known/oauth-protected-resource"},
+                    &http_client, &input, &output, &error);
+
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_TRUE(http_client.post_url.empty());
+}
+
 TEST(McpCommandsTest, OAuthAddManualEndpointsSkipsDiscovery) {
   ScopedHome home;
   FakeHttpClient http_client;
@@ -480,7 +542,57 @@ TEST(McpCommandsTest, OAuthAddStillRequiresClientId) {
   EXPECT_TRUE(absl::IsInvalidArgument(status));
 }
 
-TEST(McpCommandsTest, OAuthAddReportsDiscoveryFailure) {
+TEST(McpCommandsTest, GatewayAndCoreDiscoveryConform) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  http_client.post_response.status_code = 200;
+  http_client.post_response.headers.clear();
+  http_client.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp","authorization_servers":["https://other.example","https://auth.example"]})";
+
+  mcp::gateway::ServerConfig gateway_server;
+  gateway_server.alias = "github";
+  gateway_server.transport = mcp::gateway::ServerTransport::kHttp;
+  gateway_server.endpoint_url = "https://api.example/mcp";
+  gateway_server.auth.method = mcp::HttpAuthMethod::kOAuth;
+  gateway_server.auth.token_file = "/tmp/gateway-conformance-token.json";
+  gateway_server.auth.client_id = "client";
+  gateway_server.auth.expected_issuer = "https://auth.example";
+  gateway_server.auth.scopes = {"repo"};
+
+  const auto gateway_auth = mcp::gateway::ResolveOAuthAuthConfig(gateway_server, &http_client);
+
+  ASSERT_TRUE(gateway_auth.ok()) << gateway_auth.status();
+  const std::vector<std::string> gateway_metadata_requests = http_client.get_urls;
+  EXPECT_EQ(gateway_metadata_requests,
+            (std::vector<std::string>{"https://api.example/.well-known/oauth-protected-resource/mcp",
+                                      "https://api.example/.well-known/oauth-protected-resource",
+                                      "https://auth.example/.well-known/oauth-authorization-server"}));
+
+  http_client.post_url.clear();
+  http_client.get_urls.clear();
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+  const absl::Status core_status =
+      RunMcpCommand({"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id",
+                     "client", "--issuer", "https://auth.example", "--scope", "repo"},
+                    &http_client, &input, &output, &error);
+
+  ASSERT_TRUE(core_status.ok()) << core_status;
+  EXPECT_EQ(http_client.get_urls, gateway_metadata_requests);
+  auto entries = mcp::LoadServerRegistry(mcp::DefaultRegistryPath());
+  ASSERT_TRUE(entries.ok()) << entries.status();
+  ASSERT_EQ(entries->size(), 1);
+  const mcp::ServerRegistryEntry& core_entry = entries->front();
+  EXPECT_EQ(core_entry.authorization_server_url, gateway_auth->expected_issuer);
+  EXPECT_EQ(core_entry.resource_metadata_url, gateway_auth->resource_metadata_url);
+  EXPECT_EQ(core_entry.authorization_endpoint, gateway_auth->authorization_endpoint);
+  EXPECT_EQ(core_entry.token_endpoint, gateway_auth->token_endpoint);
+  EXPECT_EQ(core_entry.scopes, gateway_auth->scopes);
+}
+
+TEST(McpCommandsTest, OAuthAddFallsBackToWellKnownMetadata) {
   ScopedHome home;
   FakeHttpClient http_client;
   http_client.post_response.headers.clear();
@@ -488,11 +600,15 @@ TEST(McpCommandsTest, OAuthAddReportsDiscoveryFailure) {
   std::ostringstream output;
   std::ostringstream error;
 
-  absl::Status status = RunMcpCommand(
+  const absl::Status status = RunMcpCommand(
       {"mcp", "add", "github", "--url", "https://api.example/mcp", "--auth", "oauth", "--client-id", "client"},
       &http_client, &input, &output, &error);
-  EXPECT_FALSE(status.ok());
-  EXPECT_TRUE(absl::IsUnauthenticated(status));
+
+  ASSERT_TRUE(status.ok()) << status;
+  ASSERT_EQ(http_client.get_urls.size(), 3);
+  EXPECT_EQ(http_client.get_urls[0], "https://api.example/.well-known/oauth-protected-resource/mcp");
+  EXPECT_EQ(http_client.get_urls[1], "https://api.example/.well-known/oauth-protected-resource");
+  EXPECT_EQ(http_client.get_urls[2], "https://auth.example/.well-known/oauth-authorization-server");
 }
 
 TEST(McpCommandsTest, HelpCommandPrintsPrescriptiveUsage) {

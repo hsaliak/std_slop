@@ -112,8 +112,8 @@ absl::StatusOr<HttpAuthConfig> ParseHttpAuthConfig(const nlohmann::json* value) 
   if (json_at(*value, "tokenFile") == nullptr) {
     return absl::InvalidArgumentError("OAuth server auth requires tokenFile");
   }
-  if (json_at(*value, "clientId") == nullptr || json_at(*value, "issuer") == nullptr) {
-    return absl::InvalidArgumentError("OAuth server auth requires clientId and issuer");
+  if (json_at(*value, "clientId") == nullptr) {
+    return absl::InvalidArgumentError("OAuth server auth requires clientId");
   }
   auth.token_file = std::move(*token_file);
   auth.client_id = std::move(*client_id);
@@ -122,6 +122,10 @@ absl::StatusOr<HttpAuthConfig> ParseHttpAuthConfig(const nlohmann::json* value) 
   auth.resource_metadata_url = std::move(*resource_metadata_url);
   auth.authorization_endpoint = std::move(*authorization_endpoint);
   auth.token_endpoint = std::move(*token_endpoint);
+  const bool discovery_required = auth.authorization_endpoint.empty() && auth.token_endpoint.empty();
+  if (!discovery_required && !auth.resource_metadata_url.empty()) {
+    return absl::InvalidArgumentError("resourceMetadataUrl is only valid when authorization endpoints are discovered");
+  }
   if (json_at(*value, "scopes") != nullptr) {
     auto scopes =
         StringArray(*json_at(*value, "scopes"), kMaxOAuthScopeCount, kMaxOAuthScopeBytes, "server auth scopes");
@@ -135,13 +139,14 @@ absl::StatusOr<HttpAuthConfig> ParseHttpAuthConfig(const nlohmann::json* value) 
     }
     auth.authorization_response_iss_parameter_supported = *supported;
   }
-  if (!IsValidHttpUrl(auth.expected_issuer, kMaxOAuthUrlBytes) ||
+  if ((!auth.expected_issuer.empty() && !IsValidHttpUrl(auth.expected_issuer, kMaxOAuthUrlBytes)) ||
       (!auth.resource_metadata_url.empty() && !IsValidHttpUrl(auth.resource_metadata_url, kMaxOAuthUrlBytes)) ||
       (!auth.authorization_endpoint.empty() && !IsValidHttpUrl(auth.authorization_endpoint, kMaxOAuthUrlBytes)) ||
       (!auth.token_endpoint.empty() && !IsValidHttpUrl(auth.token_endpoint, kMaxOAuthUrlBytes))) {
     return absl::InvalidArgumentError("OAuth server auth URLs must be valid bounded HTTP(S) URLs");
   }
-  const absl::Status config_status = ValidateHttpAuthConfig(auth);
+  const absl::Status config_status =
+      discovery_required ? ValidateHttpAuthConfigForDiscovery(auth) : ValidateHttpAuthConfig(auth);
   if (!config_status.ok()) return config_status;
   return auth;
 }

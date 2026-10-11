@@ -8,6 +8,8 @@
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 
 namespace slop::mcp {
 namespace {
@@ -25,7 +27,7 @@ bool IsAsciiAlphaNumeric(unsigned char c) {
 
 bool IsValidDnsName(absl::string_view host) {
   if (host.empty() || host.size() > 254) return false;
-  if (host.back() == '.') host.remove_suffix(1);
+  host = absl::StripSuffix(host, ".");
   if (host.empty() || host.size() > 253) return false;
 
   while (!host.empty()) {

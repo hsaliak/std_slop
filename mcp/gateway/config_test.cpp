@@ -75,7 +75,7 @@ TEST(ConfigTest, ParsesOAuthAuthenticationProfile) {
                                {"clientSecretEnv", "DOCS_OAUTH_SECRET"},
                                {"issuer", "https://issuer.example"},
                                {"scopes", {"read", "write"}},
-                               {"resourceMetadataUrl", "https://example.com/.well-known/resource"},
+
                                {"authorizationEndpoint", "https://issuer.example/authorize"},
                                {"tokenEndpoint", "https://issuer.example/token"},
                                {"authorizationResponseIssParameterSupported", true}}}}}}};
@@ -89,10 +89,46 @@ TEST(ConfigTest, ParsesOAuthAuthenticationProfile) {
   EXPECT_EQ(auth.client_secret_env, "DOCS_OAUTH_SECRET");
   EXPECT_EQ(auth.expected_issuer, "https://issuer.example");
   EXPECT_EQ(auth.scopes, std::vector<std::string>({"read", "write"}));
-  EXPECT_EQ(auth.resource_metadata_url, "https://example.com/.well-known/resource");
+  EXPECT_TRUE(auth.resource_metadata_url.empty());
   EXPECT_EQ(auth.authorization_endpoint, "https://issuer.example/authorize");
   EXPECT_EQ(auth.token_endpoint, "https://issuer.example/token");
   EXPECT_TRUE(auth.authorization_response_iss_parameter_supported);
+}
+
+TEST(ConfigTest, ParsesMinimalOAuthProfileForMetadataDiscovery) {
+  const nlohmann::json value = {
+      {"servers",
+       {{{"alias", "docs"},
+         {"transport", "http"},
+         {"endpointUrl", "https://example.com/mcp"},
+         {"auth", {{"type", "oauth"}, {"tokenFile", "/tmp/docs-token.json"}, {"clientId", "docs-client"}}}}}}};
+
+  auto config = ParseConfig(value);
+
+  ASSERT_TRUE(config.ok()) << config.status();
+  const HttpAuthConfig& auth = config->servers[0].auth;
+  EXPECT_EQ(auth.method, HttpAuthMethod::kOAuth);
+  EXPECT_EQ(auth.client_id, "docs-client");
+  EXPECT_TRUE(auth.expected_issuer.empty());
+  EXPECT_TRUE(auth.authorization_endpoint.empty());
+  EXPECT_TRUE(auth.token_endpoint.empty());
+}
+
+TEST(ConfigTest, ParsesResourceMetadataUrlForDiscoveryProfile) {
+  const nlohmann::json value = {{"servers",
+                                 {{{"alias", "docs"},
+                                   {"transport", "http"},
+                                   {"endpointUrl", "https://example.com/mcp"},
+                                   {"auth",
+                                    {{"type", "oauth"},
+                                     {"tokenFile", "/tmp/docs-token.json"},
+                                     {"clientId", "docs-client"},
+                                     {"resourceMetadataUrl", "https://example.com/.well-known/resource"}}}}}}};
+
+  auto config = ParseConfig(value);
+
+  ASSERT_TRUE(config.ok()) << config.status();
+  EXPECT_EQ(config->servers[0].auth.resource_metadata_url, "https://example.com/.well-known/resource");
 }
 
 TEST(ConfigTest, RejectsInvalidAuthenticationProfiles) {

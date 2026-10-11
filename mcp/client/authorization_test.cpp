@@ -19,6 +19,14 @@ TEST(McpAuthorizationTest, ParsesResourceMetadataFromWwwAuthenticate) {
   EXPECT_EQ(*parsed, "https://example.com/.well-known/oauth-protected-resource");
 }
 
+TEST(McpAuthorizationTest, ParsesResourceMetadataParameterCaseInsensitively) {
+  auto parsed = ParseWwwAuthenticateResourceMetadata(
+      "Bearer Resource_Metadata=https://example.com/resource, error=invalid_token");
+
+  ASSERT_TRUE(parsed.ok()) << parsed.status();
+  EXPECT_EQ(*parsed, "https://example.com/resource");
+}
+
 TEST(McpAuthorizationTest, ParsesUnquotedResourceMetadata) {
   auto parsed = ParseWwwAuthenticateResourceMetadata(
       "Bearer resource_metadata=https://example.com/resource, error=invalid_token");

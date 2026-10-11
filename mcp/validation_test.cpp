@@ -8,9 +8,10 @@ namespace slop::mcp {
 namespace {
 
 TEST(ValidationTest, AcceptsValidHttpUrls) {
-  for (const std::string& url : {"https://example.com/mcp", "http://127.0.0.1:8123/mcp", "http://[::1]:8123/mcp",
-                                 "http://[::ffff:192.0.2.1]/mcp", "https://example.com/%2F?q=ok",
-                                 "https://foo-bar.example/path?query=a?b&x=y", "https://localhost/mcp"}) {
+  for (const std::string& url :
+       {"https://example.com/mcp", "http://127.0.0.1:8123/mcp", "http://[::1]:8123/mcp",
+        "http://[::ffff:192.0.2.1]/mcp", "https://example.com/%2F?q=ok", "https://foo-bar.example/path?query=a?b&x=y",
+        "https://localhost/mcp", "https://example.com./mcp"}) {
     EXPECT_TRUE(IsValidHttpUrl(url, 4096)) << url;
   }
   EXPECT_TRUE(IsValidHttpUrl("https://example.com/mcp", 2048, true));

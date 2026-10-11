@@ -34,6 +34,9 @@ struct HttpAuthConfig {
 
 absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config);
 
+// Validates an OAuth profile that will discover its issuer and endpoints before use.
+absl::Status ValidateHttpAuthConfigForDiscovery(const HttpAuthConfig& config);
+
 // Resolves the configured credential. OAuth tokens are checked against both
 // the expected issuer and the resource URL before they can be used.
 absl::StatusOr<std::optional<std::string>> ResolveHttpAuthToken(const std::string& resource_url,

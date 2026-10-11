@@ -61,6 +61,7 @@ cc_test(
     deps = [
         ":mcp_commands",
         "//core:transport",
+        "//mcp/gateway:oauth_profile",
         "//mcp/client:registry",
         "//mcp/client:token_store",
         "@abseil-cpp//absl/status",

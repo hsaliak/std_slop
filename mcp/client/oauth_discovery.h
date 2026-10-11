@@ -12,6 +12,7 @@ namespace slop::mcp {
 
 struct OAuthDiscoveryOptions {
   std::string selected_authorization_server;
+  std::string resource_metadata_url;
 };
 
 struct OAuthDiscoveryResult {

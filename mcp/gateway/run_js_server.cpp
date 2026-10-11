@@ -24,6 +24,7 @@
 #include "mcp/gateway/catalog.h"
 #include "mcp/gateway/config.h"
 #include "mcp/gateway/oauth_cli.h"
+#include "mcp/gateway/oauth_profile.h"
 #include "mcp/gateway/server.h"
 #include "mcp/gateway/trace_logger.h"
 #include "mcp/gateway/worker.h"
@@ -152,7 +153,13 @@ int main(int argc, char** argv) {
       slop::mcp::StreamableHttpConfig transport;
       transport.endpoint_url = server.endpoint_url;
       transport.request_timeout = client_options.request_timeout;
-      auto token = slop::mcp::ResolveHttpAuthToken(server.endpoint_url, server.auth);
+      slop::mcp::HttpAuthConfig auth = server.auth;
+      if (auth.method == slop::mcp::HttpAuthMethod::kOAuth) {
+        auto resolved_auth = slop::mcp::gateway::ResolveOAuthAuthConfig(server, http_client.get());
+        if (!resolved_auth.ok()) return Fail(resolved_auth.status());
+        auth = std::move(*resolved_auth);
+      }
+      auto token = slop::mcp::ResolveHttpAuthToken(server.endpoint_url, auth);
       if (!token.ok()) return Fail(token.status());
       transport.bearer_token = std::move(*token);
       client = slop::mcp::ConnectMcp(transport, client_options, http_client.get());

@@ -37,6 +37,42 @@ class FakeHttpClient : public slop::HttpClient {
   std::vector<std::string> last_headers;
 };
 
+class DiscoveryHttpClient : public slop::HttpClient {
+ public:
+  absl::StatusOr<slop::HttpResponse> PostOnceWithResponse(const std::string& url, const std::string&,
+                                                          const std::vector<std::string>&) override {
+    if (url == "https://resource.example/mcp") {
+      return slop::HttpResponse{
+          401,
+          "",
+          {{"www-authenticate",
+            R"(Bearer resource_metadata="https://resource.example/.well-known/oauth-protected-resource")"}}};
+    }
+    last_token_url = url;
+    return token_response;
+  }
+
+  absl::StatusOr<std::string> GetOnce(const std::string& url, const std::vector<std::string>&) override {
+    get_urls.push_back(url);
+    if (url == resource_metadata_url) {
+      return R"({"resource":"https://resource.example/mcp","authorization_servers":["https://issuer.example"]})";
+    }
+    if (url == authorization_metadata_url) {
+      return R"({"issuer":"https://issuer.example","authorization_endpoint":"https://issuer.example/authorize","token_endpoint":"https://issuer.example/token","code_challenge_methods_supported":["S256"]})";
+    }
+    return absl::NotFoundError("unexpected metadata URL");
+  }
+
+  const std::string resource_metadata_url = "https://resource.example/.well-known/oauth-protected-resource";
+  const std::string authorization_metadata_url = "https://issuer.example/.well-known/oauth-authorization-server";
+  slop::HttpResponse token_response{
+      200,
+      R"({"access_token":"access-token","refresh_token":"refresh-token","token_type":"Bearer","expires_in":60})",
+      {}};
+  std::string last_token_url;
+  std::vector<std::string> get_urls;
+};
+
 class ScopedEnvironmentVariable {
  public:
   explicit ScopedEnvironmentVariable(std::string name) : name_(std::move(name)) {
@@ -178,6 +214,70 @@ TEST(OAuthCliTest, LoginUsesPkceAndDoesNotPrintSecretsOrTokens) {
   EXPECT_EQ(output.str().find("access-token"), std::string::npos);
   EXPECT_EQ(output.str().find("refresh-token"), std::string::npos);
   EXPECT_NE(output.str().find("code_challenge_method=S256"), std::string::npos);
+  std::filesystem::remove(token_file);
+}
+
+TEST(OAuthCliTest, LoginDiscoversOAuthEndpointsFromWellKnownMetadata) {
+  const std::string token_file = TestTokenPath("slop_gateway_oauth_cli_discovery_login_test.json");
+  std::filesystem::remove(token_file);
+  DiscoveryHttpClient http;
+  const OAuthCliOptions options{OAuthCliAction::kLogin, "gateway.json", "docs"};
+  GatewayConfig config = OAuthConfig(token_file);
+  HttpAuthConfig& auth = config.servers[0].auth;
+  auth.client_secret_env.clear();
+  auth.expected_issuer.clear();
+  auth.authorization_endpoint.clear();
+  auth.token_endpoint.clear();
+  auth.resource_metadata_url.clear();
+  std::ostringstream output;
+  CallbackInputBuffer input_buffer(&output);
+  std::istream input(&input_buffer);
+
+  const absl::Status status = RunOAuthCliCommand(options, config, &http, &input, &output);
+
+  ASSERT_TRUE(status.ok()) << status;
+  ASSERT_EQ(http.get_urls.size(), 2);
+  EXPECT_EQ(http.get_urls[0], http.resource_metadata_url);
+  EXPECT_EQ(http.get_urls[1], http.authorization_metadata_url);
+  EXPECT_EQ(http.last_token_url, "https://issuer.example/token");
+  auto tokens = slop::mcp::LoadOAuthTokens(token_file);
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->issuer, "https://issuer.example");
+  EXPECT_EQ(tokens->resource, "https://resource.example/mcp");
+  std::filesystem::remove(token_file);
+}
+
+TEST(OAuthCliTest, RefreshDiscoversOAuthEndpointsFromWellKnownMetadata) {
+  const std::string token_file = TestTokenPath("slop_gateway_oauth_cli_discovery_refresh_test.json");
+  std::filesystem::remove(token_file);
+  slop::mcp::OAuthTokenSet old_tokens;
+  old_tokens.access_token = "old-access-token";
+  old_tokens.refresh_token = "old-refresh-token";
+  old_tokens.issuer = "https://issuer.example";
+  old_tokens.resource = "https://resource.example/mcp";
+  ASSERT_TRUE(slop::mcp::SaveOAuthTokens(token_file, old_tokens).ok());
+  DiscoveryHttpClient http;
+  const OAuthCliOptions options{OAuthCliAction::kRefresh, "gateway.json", "docs"};
+  GatewayConfig config = OAuthConfig(token_file);
+  HttpAuthConfig& auth = config.servers[0].auth;
+  auth.client_secret_env.clear();
+  auth.expected_issuer.clear();
+  auth.authorization_endpoint.clear();
+  auth.token_endpoint.clear();
+  auth.resource_metadata_url.clear();
+  std::ostringstream output;
+
+  const absl::Status status = RunOAuthCliCommand(options, config, &http, nullptr, &output);
+
+  ASSERT_TRUE(status.ok()) << status;
+  ASSERT_EQ(http.get_urls.size(), 2);
+  EXPECT_EQ(http.get_urls[1], http.authorization_metadata_url);
+  EXPECT_EQ(http.last_token_url, "https://issuer.example/token");
+  auto tokens = slop::mcp::LoadOAuthTokens(token_file);
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->access_token, "access-token");
+  EXPECT_EQ(tokens->issuer, "https://issuer.example");
+  EXPECT_EQ(tokens->resource, "https://resource.example/mcp");
   std::filesystem::remove(token_file);
 }
 

@@ -153,6 +153,7 @@ cc_library(
         ":authorization",
         "//core:json_utils",
         "//core:transport",
+        "//mcp:validation",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -445,6 +446,20 @@ cc_test(
         "//core:transport",
         "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "oauth_discovery_fuzz_test",
+    srcs = ["oauth_discovery_fuzz_test.cpp"],
+    copts = ["-Wno-unused-parameter", "-Wno-deprecated-declarations"],
+    deps = [
+        ":oauth_discovery",
+        "//core:transport",
+        "@abseil-cpp//absl/status:statusor",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
     ],
 )
 

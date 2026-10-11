@@ -11,6 +11,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "mcp/client/oauth_client.h"
+#include "mcp/gateway/oauth_profile.h"
 #include "mcp/validation.h"
 
 namespace slop::mcp::gateway {
@@ -47,27 +48,34 @@ absl::StatusOr<const ServerConfig*> FindOAuthServer(const GatewayConfig& config,
     if (!IsValidHttpUrl(server.endpoint_url, 4096, true)) {
       return absl::InvalidArgumentError("OAuth setup requires an HTTPS MCP endpoint");
     }
-    const absl::Status auth_status = ValidateHttpAuthConfig(server.auth);
+    const bool discovery_required = server.auth.authorization_endpoint.empty() && server.auth.token_endpoint.empty();
+    const absl::Status auth_status =
+        discovery_required ? ValidateHttpAuthConfigForDiscovery(server.auth) : ValidateHttpAuthConfig(server.auth);
     if (!auth_status.ok()) return auth_status;
     return &server;
   }
   return absl::NotFoundError(absl::StrCat("Gateway server not found: ", alias));
 }
 
-absl::StatusOr<::slop::mcp::OAuthClientConfig> OAuthConfigFromServer(const ServerConfig& server) {
-  ::slop::mcp::OAuthClientConfig oauth;
-  oauth.client_id = server.auth.client_id;
-  oauth.authorization_endpoint = server.auth.authorization_endpoint;
-  oauth.token_endpoint = server.auth.token_endpoint;
-  oauth.scopes = server.auth.scopes;
-  oauth.resource = server.endpoint_url;
-  oauth.issuer = server.auth.expected_issuer;
-  oauth.authorization_response_iss_parameter_supported = server.auth.authorization_response_iss_parameter_supported;
+absl::StatusOr<::slop::mcp::OAuthClientConfig> OAuthConfigFromServer(const ServerConfig& server,
+                                                                     ::slop::HttpClient* http_client) {
+  std::string client_secret;
   if (!server.auth.client_secret_env.empty()) {
-    auto client_secret = ::slop::mcp::LoadOAuthClientSecretFromEnvironment(server.auth.client_secret_env);
-    if (!client_secret.ok()) return client_secret.status();
-    oauth.client_secret = std::move(*client_secret);
+    auto loaded_secret = ::slop::mcp::LoadOAuthClientSecretFromEnvironment(server.auth.client_secret_env);
+    if (!loaded_secret.ok()) return loaded_secret.status();
+    client_secret = std::move(*loaded_secret);
   }
+  auto resolved_auth = ResolveOAuthAuthConfig(server, http_client);
+  if (!resolved_auth.ok()) return resolved_auth.status();
+  ::slop::mcp::OAuthClientConfig oauth;
+  oauth.client_id = resolved_auth->client_id;
+  oauth.authorization_endpoint = resolved_auth->authorization_endpoint;
+  oauth.token_endpoint = resolved_auth->token_endpoint;
+  oauth.scopes = resolved_auth->scopes;
+  oauth.resource = server.endpoint_url;
+  oauth.issuer = resolved_auth->expected_issuer;
+  oauth.authorization_response_iss_parameter_supported = resolved_auth->authorization_response_iss_parameter_supported;
+  oauth.client_secret = std::move(client_secret);
   return oauth;
 }
 
@@ -129,7 +137,7 @@ absl::Status RunOAuthCliCommand(const OAuthCliOptions& options, const GatewayCon
   }
   auto server = FindOAuthServer(config, options.server_alias);
   if (!server.ok()) return server.status();
-  auto oauth = OAuthConfigFromServer(**server);
+  auto oauth = OAuthConfigFromServer(**server, http_client);
   if (!oauth.ok()) return oauth.status();
 
   if (options.action == OAuthCliAction::kLogin) {

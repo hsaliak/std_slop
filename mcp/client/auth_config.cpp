@@ -55,7 +55,9 @@ absl::StatusOr<std::string> LoadBearerToken(const HttpAuthConfig& config) {
 
 }  // namespace
 
-absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config) {
+namespace {
+
+absl::Status ValidateHttpAuthConfigInternal(const HttpAuthConfig& config, bool allow_discovery) {
   switch (config.method) {
     case HttpAuthMethod::kNone:
       if (!config.token_file.empty() || !config.token_env.empty() || !config.expected_issuer.empty() ||
@@ -68,10 +70,14 @@ absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config) {
         return absl::InvalidArgumentError("Bearer HTTP MCP config cannot contain OAuth profile settings");
       }
       return ValidateTokenSource(config);
-    case HttpAuthMethod::kOAuth:
-      if (config.token_file.empty() || !config.token_env.empty() || config.expected_issuer.empty() ||
-          config.client_id.empty()) {
-        return absl::InvalidArgumentError("OAuth HTTP MCP config requires token file, issuer, and client ID");
+    case HttpAuthMethod::kOAuth: {
+      const bool can_discover =
+          allow_discovery && config.authorization_endpoint.empty() && config.token_endpoint.empty();
+      if (config.token_file.empty() || !config.token_env.empty() || config.client_id.empty()) {
+        return absl::InvalidArgumentError("OAuth HTTP MCP config requires token file and client ID");
+      }
+      if (config.expected_issuer.empty() && !can_discover) {
+        return absl::InvalidArgumentError("OAuth HTTP MCP config requires an issuer or metadata discovery");
       }
       if (!IsValidAbsolutePath(config.token_file, 4096)) {
         return absl::InvalidArgumentError("HTTP MCP token file must be a bounded absolute path");
@@ -85,7 +91,7 @@ absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config) {
           ContainsControlCharacters(config.token_endpoint)) {
         return absl::InvalidArgumentError("OAuth HTTP MCP config contains a control character");
       }
-      if (!IsValidHttpUrl(config.expected_issuer, 4096, true) ||
+      if ((!config.expected_issuer.empty() && !IsValidHttpUrl(config.expected_issuer, 4096, true)) ||
           (!config.resource_metadata_url.empty() && !IsValidHttpUrl(config.resource_metadata_url, 4096, true))) {
         return absl::InvalidArgumentError("OAuth HTTP MCP issuer and resource metadata URL must use HTTPS");
       }
@@ -102,8 +108,19 @@ absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config) {
         }
       }
       return absl::OkStatus();
+    }
   }
   return absl::InvalidArgumentError("HTTP MCP auth method is invalid");
+}
+
+}  // namespace
+
+absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config) {
+  return ValidateHttpAuthConfigInternal(config, false);
+}
+
+absl::Status ValidateHttpAuthConfigForDiscovery(const HttpAuthConfig& config) {
+  return ValidateHttpAuthConfigInternal(config, true);
 }
 
 absl::StatusOr<std::optional<std::string>> ResolveHttpAuthToken(const std::string& resource_url,

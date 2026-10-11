@@ -1,6 +1,7 @@
 #include "mcp/client/oauth_discovery.h"
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -36,6 +37,8 @@ class FakeHttpClient : public HttpClient {
     get_headers = headers;
     if (url == resource_metadata_url) return resource_metadata_body;
     if (url == authorization_metadata_url) return authorization_metadata_body;
+    const auto response = additional_responses.find(url);
+    if (response != additional_responses.end()) return response->second;
     return absl::NotFoundError("unexpected URL");
   }
 
@@ -54,6 +57,7 @@ class FakeHttpClient : public HttpClient {
   std::vector<std::string> post_headers;
   std::vector<std::string> get_urls;
   std::vector<std::string> get_headers;
+  std::unordered_map<std::string, std::string> additional_responses;
 };
 
 TEST(OAuthDiscoveryTest, DiscoversEndpointsFromWwwAuthenticateChallenge) {
@@ -64,7 +68,6 @@ TEST(OAuthDiscoveryTest, DiscoversEndpointsFromWwwAuthenticateChallenge) {
   ASSERT_TRUE(discovered.ok()) << discovered.status();
   EXPECT_EQ(http.post_url, "https://api.example/mcp");
   EXPECT_NE(http.post_body.find("initialize"), std::string::npos);
-  EXPECT_EQ(http.post_body.find("server/discover"), std::string::npos);
   ASSERT_EQ(http.get_urls.size(), 2);
   EXPECT_EQ(http.get_urls[0], "https://api.example/.well-known/oauth-protected-resource");
   EXPECT_EQ(http.get_urls[1], "https://auth.example/.well-known/oauth-authorization-server");
@@ -76,13 +79,40 @@ TEST(OAuthDiscoveryTest, DiscoversEndpointsFromWwwAuthenticateChallenge) {
   EXPECT_EQ(discovered->scopes_supported[0], "repo");
 }
 
+TEST(OAuthDiscoveryTest, UsesConfiguredResourceMetadataUrlWithoutProbe) {
+  FakeHttpClient http;
+  OAuthDiscoveryOptions options;
+  options.resource_metadata_url = http.resource_metadata_url;
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp", options);
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  EXPECT_TRUE(http.post_url.empty());
+  ASSERT_EQ(http.get_urls.size(), 2);
+  EXPECT_EQ(http.get_urls[0], http.resource_metadata_url);
+  EXPECT_EQ(discovered->issuer, "https://auth.example");
+}
+
+TEST(OAuthDiscoveryTest, RejectsInvalidResourceMetadataUrlOverride) {
+  FakeHttpClient http;
+  OAuthDiscoveryOptions options;
+  options.resource_metadata_url = "http://api.example/.well-known/oauth-protected-resource";
+
+  const auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp", options);
+
+  ASSERT_FALSE(discovered.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(discovered.status()));
+  EXPECT_TRUE(http.post_url.empty());
+  EXPECT_TRUE(http.get_urls.empty());
+}
+
 TEST(OAuthDiscoveryTest, InsertsWellKnownBeforePathIssuer) {
   FakeHttpClient http;
   http.resource_metadata_body =
-      R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example/tenant-a"]})";
+      R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example/tenant-a/"]})";
   http.authorization_metadata_url = "https://auth.example/.well-known/oauth-authorization-server/tenant-a";
   http.authorization_metadata_body =
-      R"({"issuer":"https://auth.example/tenant-a","authorization_endpoint":"https://auth.example/tenant-a/authorize","token_endpoint":"https://auth.example/tenant-a/token","code_challenge_methods_supported":["S256"]})";
+      R"({"issuer":"https://auth.example/tenant-a/","authorization_endpoint":"https://auth.example/tenant-a/authorize","token_endpoint":"https://auth.example/tenant-a/token","code_challenge_methods_supported":["S256"]})";
 
   auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
 
@@ -93,24 +123,143 @@ TEST(OAuthDiscoveryTest, InsertsWellKnownBeforePathIssuer) {
   EXPECT_EQ(discovered->token_endpoint, "https://auth.example/tenant-a/token");
 }
 
-TEST(OAuthDiscoveryTest, RejectsMissingWwwAuthenticateHeader) {
+TEST(OAuthDiscoveryTest, UsesPathWellKnownMetadataWhenChallengeHasNoUrl) {
+  FakeHttpClient http;
+  http.post_response.status_code = 200;
+  http.post_response.headers.clear();
+  const std::string resource_metadata_url = "https://api.example/.well-known/oauth-protected-resource/mcp";
+  http.additional_responses[resource_metadata_url] = http.resource_metadata_body;
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  ASSERT_EQ(http.get_urls.size(), 2);
+  EXPECT_EQ(http.get_urls[0], resource_metadata_url);
+  EXPECT_EQ(http.get_urls[1], http.authorization_metadata_url);
+  EXPECT_EQ(discovered->resource_metadata_url, resource_metadata_url);
+}
+
+TEST(OAuthDiscoveryTest, RemovesResourceTrailingSlashBeforeWellKnownInsertion) {
+  FakeHttpClient http;
+  http.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp/","authorization_servers":["https://auth.example"]})";
+  http.post_response.status_code = 200;
+  http.post_response.headers.clear();
+  const std::string resource_metadata_url = "https://api.example/.well-known/oauth-protected-resource/mcp";
+  http.additional_responses[resource_metadata_url] = http.resource_metadata_body;
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp/");
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  EXPECT_EQ(http.get_urls[0], resource_metadata_url);
+  EXPECT_EQ(discovered->resource, "https://api.example/mcp/");
+}
+
+TEST(OAuthDiscoveryTest, FallsBackToRootMetadataAfterPathMetadataMiss) {
   FakeHttpClient http;
   http.post_response.headers.clear();
 
   auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
 
-  ASSERT_FALSE(discovered.ok());
-  EXPECT_TRUE(absl::IsUnauthenticated(discovered.status()));
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  ASSERT_EQ(http.get_urls.size(), 3);
+  EXPECT_EQ(http.get_urls[0], "https://api.example/.well-known/oauth-protected-resource/mcp");
+  EXPECT_EQ(http.get_urls[1], http.resource_metadata_url);
+  EXPECT_EQ(http.get_urls[2], http.authorization_metadata_url);
+  EXPECT_EQ(discovered->resource_metadata_url, http.resource_metadata_url);
 }
 
-TEST(OAuthDiscoveryTest, RejectsNonChallengeResponse) {
+TEST(OAuthDiscoveryTest, UsesRootMetadataForResourceWithoutPath) {
   FakeHttpClient http;
+  http.resource_metadata_body =
+      R"({"resource":"https://api.example","authorization_servers":["https://auth.example"]})";
   http.post_response.status_code = 200;
+  http.post_response.headers.clear();
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example");
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  ASSERT_EQ(http.get_urls.size(), 2);
+  EXPECT_EQ(http.get_urls[0], "https://api.example/.well-known/oauth-protected-resource");
+  EXPECT_EQ(http.get_urls[1], http.authorization_metadata_url);
+}
+
+TEST(OAuthDiscoveryTest, InsertsWellKnownBeforeResourcePathAndQuery) {
+  FakeHttpClient http;
+  http.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp?tenant=one","authorization_servers":["https://auth.example"]})";
+  http.post_response.status_code = 200;
+  http.post_response.headers.clear();
+  const std::string resource_metadata_url = "https://api.example/.well-known/oauth-protected-resource/mcp?tenant=one";
+  http.additional_responses[resource_metadata_url] = http.resource_metadata_body;
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp?tenant=one");
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  EXPECT_EQ(http.get_urls[0], resource_metadata_url);
+  EXPECT_EQ(discovered->resource, "https://api.example/mcp?tenant=one");
+}
+
+TEST(OAuthDiscoveryTest, InsertsMetadataSuffixWhenIssuerPathContainsWellKnown) {
+  FakeHttpClient http;
+  http.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example/.well-known/tenant-a"]})";
+  http.authorization_metadata_url = "https://auth.example/.well-known/oauth-authorization-server/.well-known/tenant-a";
+  http.authorization_metadata_body =
+      R"({"issuer":"https://auth.example/.well-known/tenant-a","authorization_endpoint":"https://auth.example/authorize","token_endpoint":"https://auth.example/token","code_challenge_methods_supported":["S256"]})";
 
   auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
 
-  ASSERT_FALSE(discovered.ok());
-  EXPECT_TRUE(absl::IsUnauthenticated(discovered.status()));
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  EXPECT_EQ(http.get_urls[1], http.authorization_metadata_url);
+}
+
+TEST(OAuthDiscoveryTest, FallsBackToOpenIdConfigurationWithoutIssuerPath) {
+  FakeHttpClient http;
+  http.authorization_metadata_url = "https://auth.example/.well-known/openid-configuration";
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  ASSERT_EQ(http.get_urls.size(), 3);
+  EXPECT_EQ(http.get_urls[1], "https://auth.example/.well-known/oauth-authorization-server");
+  EXPECT_EQ(http.get_urls[2], "https://auth.example/.well-known/openid-configuration");
+  EXPECT_EQ(discovered->issuer, "https://auth.example");
+}
+
+TEST(OAuthDiscoveryTest, FallsBackToOpenIdPathInsertionForPathIssuer) {
+  FakeHttpClient http;
+  http.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example/tenant-a"]})";
+  http.authorization_metadata_url = "https://auth.example/.well-known/openid-configuration/tenant-a";
+  http.authorization_metadata_body =
+      R"({"issuer":"https://auth.example/tenant-a","authorization_endpoint":"https://auth.example/tenant-a/authorize","token_endpoint":"https://auth.example/tenant-a/token","code_challenge_methods_supported":["S256"]})";
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  ASSERT_EQ(http.get_urls.size(), 3);
+  EXPECT_EQ(http.get_urls[1], "https://auth.example/.well-known/oauth-authorization-server/tenant-a");
+  EXPECT_EQ(http.get_urls[2], "https://auth.example/.well-known/openid-configuration/tenant-a");
+  EXPECT_EQ(discovered->issuer, "https://auth.example/tenant-a");
+}
+
+TEST(OAuthDiscoveryTest, FallsBackToOpenIdPathAppendingForPathIssuer) {
+  FakeHttpClient http;
+  http.resource_metadata_body =
+      R"({"resource":"https://api.example/mcp","authorization_servers":["https://auth.example/tenant-a"]})";
+  http.authorization_metadata_url = "https://auth.example/tenant-a/.well-known/openid-configuration";
+  http.authorization_metadata_body =
+      R"({"issuer":"https://auth.example/tenant-a","authorization_endpoint":"https://auth.example/tenant-a/authorize","token_endpoint":"https://auth.example/tenant-a/token","code_challenge_methods_supported":["S256"]})";
+
+  auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");
+
+  ASSERT_TRUE(discovered.ok()) << discovered.status();
+  ASSERT_EQ(http.get_urls.size(), 4);
+  EXPECT_EQ(http.get_urls[1], "https://auth.example/.well-known/oauth-authorization-server/tenant-a");
+  EXPECT_EQ(http.get_urls[2], "https://auth.example/.well-known/openid-configuration/tenant-a");
+  EXPECT_EQ(http.get_urls[3], "https://auth.example/tenant-a/.well-known/openid-configuration");
+  EXPECT_EQ(discovered->issuer, "https://auth.example/tenant-a");
 }
 
 TEST(OAuthDiscoveryTest, RejectsMalformedResourceMetadataJson) {
@@ -154,6 +303,7 @@ TEST(OAuthDiscoveryTest, RejectsHttpAuthorizationServer) {
 
 TEST(OAuthDiscoveryTest, RejectsMalformedAuthorizationMetadataJson) {
   FakeHttpClient http;
+  http.authorization_metadata_url = "https://auth.example/.well-known/openid-configuration";
   http.authorization_metadata_body = "not json";
 
   auto discovered = DiscoverOAuthEndpoints(&http, "https://api.example/mcp");

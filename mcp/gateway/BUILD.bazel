@@ -207,12 +207,41 @@ cc_library(
 )
 
 cc_library(
+    name = "oauth_profile",
+    srcs = ["oauth_profile.cpp"],
+    hdrs = ["oauth_profile.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":config",
+        "//core:transport",
+        "//mcp/client:auth_config",
+        "//mcp/client:oauth_discovery",
+        "//mcp:validation",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "oauth_profile_test",
+    srcs = ["oauth_profile_test.cpp"],
+    deps = [
+        ":config",
+        ":oauth_profile",
+        "//core:transport",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "oauth_cli",
     srcs = ["oauth_cli.cpp"],
     hdrs = ["oauth_cli.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":config",
+        ":oauth_profile",
         "//core:transport",
         "//mcp/client:auth_config",
         "//mcp/client:oauth_client",
@@ -247,6 +276,7 @@ cc_binary(
         ":worker",
         ":trace_logger",
         ":oauth_cli",
+        ":oauth_profile",
         "//mcp/client:client",
         "//mcp/client:auth_config",
         "//core:transport",

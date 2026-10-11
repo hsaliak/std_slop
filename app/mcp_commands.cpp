@@ -23,9 +23,9 @@ std::string McpUsageText() {
   return R"USAGE(usage: std_slop mcp <command> [arguments]
 
 Commands:
-  add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--token-path <path>] [--client-id <id>] [--scope <scope>...]
+  add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--token-path <path>] [--client-id <id>] [--scope <scope>...] [--issuer <issuer>] [--resource-metadata-url <url>]
       Register or update an HTTP MCP server. For --auth bearer, --token saves the bearer token outside mcp.ini.
-      For --auth oauth, --client-id must be a real client ID. OAuth endpoints are discovered if omitted.
+      For --auth oauth, --client-id must be a real client ID. OAuth endpoints are discovered if omitted; --issuer selects among multiple advertised authorization servers, and --resource-metadata-url overrides resource metadata discovery.
   add <name> --transport stdio --command <executable> [--args-json '<string-array>']
       Register a trusted local MCP process. Arguments are passed literally, without a shell. The enabled server
       starts with the agent runtime; this command only saves its configuration.
@@ -138,10 +138,10 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
   }
   if (command == "add") {
     if (args.size() < 3) return Usage();
-    const absl::Status flag_status =
-        ValidateFlags(args, {"--scope"},
-                      {"--transport", "--command", "--args-json", "--url", "--auth", "--token", "--client-id",
-                       "--token-path", "--authorization-endpoint", "--token-endpoint", "--issuer"});
+    const absl::Status flag_status = ValidateFlags(
+        args, {"--scope"},
+        {"--transport", "--command", "--args-json", "--url", "--auth", "--token", "--client-id", "--token-path",
+         "--authorization-endpoint", "--token-endpoint", "--issuer", "--resource-metadata-url"});
     if (!flag_status.ok()) return flag_status;
     mcp::ServerRegistryEntry entry;
     entry.name = args[2];
@@ -154,8 +154,9 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
       return absl::InvalidArgumentError("MCP --transport must be http or stdio");
     }
     if (entry.transport == mcp::kTransportStdio) {
-      for (const std::string& flag : {"--url", "--auth", "--token", "--client-id", "--token-path", "--scope",
-                                      "--authorization-endpoint", "--token-endpoint", "--issuer"}) {
+      for (const std::string& flag :
+           {"--url", "--auth", "--token", "--client-id", "--token-path", "--scope", "--authorization-endpoint",
+            "--token-endpoint", "--issuer", "--resource-metadata-url"}) {
         if (HasFlag(args, flag))
           return absl::InvalidArgumentError("stdio MCP registration cannot use HTTP or auth flags");
       }
@@ -198,6 +199,7 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     entry.authorization_endpoint = ValueAfter(args, "--authorization-endpoint");
     entry.token_endpoint = ValueAfter(args, "--token-endpoint");
     entry.authorization_server_url = ValueAfter(args, "--issuer");
+    entry.resource_metadata_url = ValueAfter(args, "--resource-metadata-url");
     entry.scopes = ValuesAfter(args, "--scope");
     const std::string bearer_token = std::string(absl::StripAsciiWhitespace(ValueAfter(args, "--token")));
     if (entry.auth == mcp::kAuthBearer && bearer_token.empty()) {
@@ -209,13 +211,23 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     if (entry.auth == "oauth" && entry.client_id.empty()) {
       return absl::InvalidArgumentError("MCP OAuth server requires client_id");
     }
+    if (!entry.resource_metadata_url.empty() && entry.auth != mcp::kAuthOAuth) {
+      return absl::InvalidArgumentError("MCP --resource-metadata-url requires --auth oauth");
+    }
+    const bool discovery_required = entry.authorization_endpoint.empty() && entry.token_endpoint.empty();
+    if (!discovery_required && !entry.resource_metadata_url.empty()) {
+      return absl::InvalidArgumentError("MCP --resource-metadata-url requires OAuth endpoint discovery");
+    }
     if (entry.auth == "oauth" && (entry.authorization_endpoint.empty() || entry.token_endpoint.empty())) {
       if (!entry.authorization_endpoint.empty() || !entry.token_endpoint.empty()) {
         return absl::InvalidArgumentError(
             "MCP OAuth discovery requires both authorization_endpoint and token_endpoint to be omitted");
       }
       if (http_client == nullptr) return absl::InvalidArgumentError("MCP OAuth discovery requires an HTTP client");
-      auto discovery = mcp::DiscoverOAuthEndpoints(http_client, entry.url);
+      mcp::OAuthDiscoveryOptions discovery_options;
+      discovery_options.selected_authorization_server = entry.authorization_server_url;
+      discovery_options.resource_metadata_url = entry.resource_metadata_url;
+      auto discovery = mcp::DiscoverOAuthEndpoints(http_client, entry.url, std::move(discovery_options));
       if (!discovery.ok()) return discovery.status();
       entry.authorization_endpoint = discovery->authorization_endpoint;
       entry.token_endpoint = discovery->token_endpoint;
