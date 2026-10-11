@@ -45,3 +45,11 @@ forget backward compatibility. Do not suggest plans that are complicated by back
 - When adding a new source or test in a package, update that package's `BUILD.bazel`.
 - Keep test and fuzz target deps aligned with the production code they exercise; add only the extra test libraries they actually need.
 - Keep fuzz targets in the same package as the code under test.
+
+## MCP OAuth and authentication
+
+- Keep OAuth protocol and token-store operations (PKCE, callback verification, code exchange, refresh, and secure file writes) in `mcp/client`; CLI and gateway adapters should map their config and I/O into shared APIs instead of duplicating the flow.
+- Keep gateway configuration independent from `mcp.ini`. Store only references to client-secret environment variables in config; do not accept secret values as command-line arguments or persist them in config/registry. Do not print token or secret values.
+- Check stored issuer/resource bindings before token use and refresh. Preserve the existing refresh token when a provider omits a replacement.
+- Use generic shared validation in `mcp/validation` when multiple MCP components need it; keep OAuth profile and transport policy in the owning config parser.
+- Test OAuth login and refresh with a fake `HttpClient`; cover callback state/issuer checks, token binding and retention, token-file persistence, and secret-safe output.
