@@ -127,6 +127,24 @@ TEST(ModernHttpTest, PreservesStructuredErrorsOnNonSuccessStatus) {
   EXPECT_EQ(http.calls, 1);
 }
 
+TEST(ModernHttpTest, MapsOAuthErrorBodyToHttpStatus) {
+  FakeHttpClient http;
+  http.response = {
+      401,
+      R"({"error":"missing_token","error_description":"This endpoint needs an OAuth access token."})",
+      {{"content-type", "application/json"}},
+  };
+  HttpExchange exchange(MakeOptions(), &http);
+
+  auto result = exchange.Execute(MakeRequest());
+
+  ASSERT_TRUE(result.ok()) << result.status();
+  ASSERT_TRUE(result->failure.has_value());
+  EXPECT_EQ(result->failure->http_status, 401);
+  EXPECT_FALSE(result->failure->json_rpc_code.has_value());
+  EXPECT_EQ(result->failure->execution, ExecutionCertainty::kNotExecuted);
+}
+
 TEST(ModernHttpTest, PreservesStructuredErrorWithNullIdOnNonSuccessStatus) {
   FakeHttpClient http;
   http.response = {

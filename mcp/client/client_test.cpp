@@ -176,6 +176,19 @@ TEST(McpClientTest, AggregatesPagesAndRejectsCursorCycles) {
   EXPECT_EQ((*cycle_client)->ListTools().status().code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(McpClientTest, MapsOAuthErrorResponseToUnauthenticated) {
+  FakeHttpClient http;
+  http.responses.push_back(
+      JsonResponse(R"({"error":"missing_token","error_description":"OAuth token required"})", 401));
+  StreamableHttpConfig config;
+  config.endpoint_url = "https://example.com/mcp";
+
+  auto client = ConnectMcp(config, MakeClientOptions(), &http);
+
+  EXPECT_EQ(client.status().code(), absl::StatusCode::kUnauthenticated);
+  EXPECT_EQ(http.modern_calls, 1);
+}
+
 TEST(McpClientTest, PreferLatestFallsBackOnUnrecognizedDiscovery400) {
   FakeHttpClient http;
   http.responses.push_back({400, "", {}});

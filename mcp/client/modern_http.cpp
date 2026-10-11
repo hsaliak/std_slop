@@ -101,29 +101,47 @@ void HttpExchange::Cancel() {
 absl::StatusOr<HttpExchangeResult> HttpExchange::DecodeResponse(const Request& request,
                                                                 const HttpResponse& response) const {
   std::vector<nlohmann::json> messages;
+  const bool unsuccessful_http = response.status_code < 200 || response.status_code >= 300;
+  const auto http_failure_without_json_rpc = [&]() {
+    return NormalizeModernMessages(request, std::vector<nlohmann::json>(), options_.max_messages, response.status_code);
+  };
   const std::string content_type = absl::AsciiStrToLower(HeaderValue(response.headers, "content-type"));
   if (!response.body.empty() && absl::StrContains(content_type, "application/json")) {
     auto message_or = ParseJsonRpcMessage(response.body);
-    if (!message_or.ok()) return message_or.status();
+    if (!message_or.ok()) {
+      if (unsuccessful_http) return http_failure_without_json_rpc();
+      return message_or.status();
+    }
     messages.push_back(std::move(*message_or));
   } else if (!response.body.empty() && absl::StrContains(content_type, "text/event-stream")) {
     SseDecoder decoder;
     auto events_or = decoder.Feed(response.body);
-    if (!events_or.ok()) return events_or.status();
+    if (!events_or.ok()) {
+      if (unsuccessful_http) return http_failure_without_json_rpc();
+      return events_or.status();
+    }
     auto final_or = decoder.Finish();
-    if (!final_or.ok()) return final_or.status();
+    if (!final_or.ok()) {
+      if (unsuccessful_http) return http_failure_without_json_rpc();
+      return final_or.status();
+    }
     events_or->insert(events_or->end(), std::make_move_iterator(final_or->begin()),
                       std::make_move_iterator(final_or->end()));
     if (events_or->size() > options_.max_messages) {
+      if (unsuccessful_http) return http_failure_without_json_rpc();
       return absl::ResourceExhaustedError("MCP SSE message limit exceeded");
     }
     for (const SseEvent& event : *events_or) {
       if (event.data.empty()) continue;
       auto message_or = ParseJsonRpcMessage(event.data);
-      if (!message_or.ok()) return message_or.status();
+      if (!message_or.ok()) {
+        if (unsuccessful_http) return http_failure_without_json_rpc();
+        return message_or.status();
+      }
       messages.push_back(std::move(*message_or));
     }
   } else if (!response.body.empty()) {
+    if (unsuccessful_http) return http_failure_without_json_rpc();
     return absl::InvalidArgumentError(absl::StrCat("unsupported MCP response content type: ", content_type));
   }
   return NormalizeModernMessages(request, std::move(messages), options_.max_messages, response.status_code);
