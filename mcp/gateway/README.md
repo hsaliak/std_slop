@@ -93,7 +93,7 @@ Optional gateway configuration options:
 
 The gateway gives downstream MCP clients 10 seconds to initialize and 30 seconds per request. `runTimeoutMs` is a separate budget for each JavaScript run and also limits the time left for its downstream calls.
 
-The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. A stdio server uses an absolute `command` path and literal `args` array. An HTTP server uses `endpointUrl` with `transport: "http"`; the MCP client selects the protocol automatically. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. This gateway config does not accept authentication secrets.
+The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. A stdio server uses an absolute `command` path and literal `args` array. An HTTP server uses `endpointUrl` with `transport: "http"`; the MCP client selects the protocol automatically. Set a non-empty `allowTools` list to restrict the exposed tools; omitting it or setting it to `[]` exposes every discovered tool from that server. Gateway configuration accepts references to authentication material, not access tokens, refresh tokens, or client secret values.
 
 ## Example: connect to an HTTP MCP server
 
@@ -113,6 +113,57 @@ Add an HTTP server entry to `gateway.json` (keep any other entries you need):
 ```
 
 The gateway connects during startup and discovers the downstream tools. Inspect the available tools with `help()` before calling one from JavaScript. Configure `allowTools` with a non-empty list when you want to limit access.
+
+## Gateway-owned OAuth login and refresh
+
+An HTTP OAuth profile keeps token data in a separate token file. Configure the client ID, issuer, OAuth endpoints, scopes, and an absolute token-file path in `gateway.json`. `clientSecretEnv`, when needed, is only the name of an environment variable; do not add a `clientSecret` value to the file.
+
+```json
+{
+  "servers": [
+    {
+      "alias": "private_docs",
+      "transport": "http",
+      "endpointUrl": "https://mcp.example.com/mcp",
+      "auth": {
+        "type": "oauth",
+        "tokenFile": "/home/user/.config/slop/private-docs-token.json",
+        "clientId": "docs-client",
+        "clientSecretEnv": "DOCS_OAUTH_CLIENT_SECRET",
+        "issuer": "https://identity.example.com",
+        "scopes": ["read"],
+        "resourceMetadataUrl": "https://mcp.example.com/.well-known/oauth-protected-resource",
+        "authorizationEndpoint": "https://identity.example.com/authorize",
+        "tokenEndpoint": "https://identity.example.com/token"
+      }
+    }
+  ]
+}
+```
+
+For a public client, omit `clientSecretEnv`. For a confidential client, set the named environment variable using a secure prompt or your secret manager. Use a different environment variable name for each client that has a different secret. For example, in Bash:
+
+```bash
+read -rs -p 'OAuth client secret: ' DOCS_OAUTH_CLIENT_SECRET
+printf '\n'
+export DOCS_OAUTH_CLIENT_SECRET
+```
+
+Do not put the secret in a command-line argument or in `gateway.json`. The OAuth client must allow the redirect URI `http://127.0.0.1/callback`.
+
+Run login, finish authorization in a browser, then paste the full redirect URL when prompted:
+
+```bash
+bazel run //mcp/gateway:run_js_server -- auth login --config /absolute/path/to/gateway.json --server private_docs
+```
+
+The command uses PKCE and validates the callback state and issuer before exchanging the code. The token file is written with the shared secure token-store format. Refresh it with:
+
+```bash
+bazel run //mcp/gateway:run_js_server -- auth refresh --config /absolute/path/to/gateway.json --server private_docs
+```
+
+Both commands use `gateway.json` and the configured client-secret environment variable, if present; they do not start the gateway MCP stdio service or read `mcp.ini`. Gateway startup reads the token file once. Restart the gateway after a manual refresh. Tokens and client secrets are not printed by these commands. Live token refresh is not supported.
 
 ## Example: connect to the Decision API server
 

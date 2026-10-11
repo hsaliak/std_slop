@@ -12,8 +12,8 @@
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="nav-menu"><summary>Coding Agents</summary><div class="nav-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server API</a><details class="nav-menu"><summary class="active">Implemented MCPs</summary><div class="nav-menu-links"><a href="echo-server.html">echo_server</a><a class="active" aria-current="page" href="run-js.html">run_js Gateway</a><a href="decision-api.html">Decision API MCP</a></div></details><a href="markdown.html">Markdown</a></nav></div></header>
   <main id="main-content">
 <section class="page-hero shell"><p class="eyebrow">Source: mcp/gateway/README.md</p><h1>run_js MCP gateway</h1></section>
-    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#example-use-the-gateway-from-std-slop">Example: use the gateway from std_slop</a></li><li class="toc-level-2"><a href="#configuration-and-limits">Configuration and limits</a></li><li class="toc-level-2"><a href="#example-connect-to-the-decision-api-server">Example: connect to the Decision API server</a></li><li class="toc-level-2"><a href="#testing-without-an-llm">Testing without an LLM</a></li><li class="toc-level-2"><a href="#security-considerations">Security considerations</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="run-js-server-example-gateway"><code>run_js_server</code> example gateway</h1>
-<p><code>run_js_server</code> is a stdio MCP server that runs bounded JavaScript and calls tools from configured downstream stdio MCP servers. It exposes two tools:</p>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#example-use-the-gateway-from-std-slop">Example: use the gateway from std_slop</a></li><li class="toc-level-2"><a href="#configuration-and-limits">Configuration and limits</a></li><li class="toc-level-2"><a href="#example-connect-to-an-http-mcp-server">Example: connect to an HTTP MCP server</a></li><li class="toc-level-2"><a href="#gateway-owned-oauth-login-and-refresh">Gateway-owned OAuth login and refresh</a></li><li class="toc-level-2"><a href="#example-connect-to-the-decision-api-server">Example: connect to the Decision API server</a></li><li class="toc-level-2"><a href="#testing-without-an-llm">Testing without an LLM</a></li><li class="toc-level-2"><a href="#security-considerations">Security considerations</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="run-js-server-example-gateway"><code>run_js_server</code> example gateway</h1>
+<p><code>run_js_server</code> is a stdio MCP server that runs bounded JavaScript and calls tools from configured downstream stdio or Streamable HTTP MCP servers. It exposes two tools:</p>
 <ul><li><code>run_js</code>: run JavaScript with optional JSON input.</li><li><code>run_js_help</code>: list authorized tools or inspect one tool's schema.</li></ul>
 <p>This file is the user setup guide. Current implementation status and follow-up work are in <a href="run-js-status.html">STATUS.md</a>.</p>
 <p>Inside JavaScript, call an authorized tool with <code>await alias.tool(args)</code> or <code>await mcp.call("alias", "tool", args)</code>. Use <code>help()</code> or <code>mcp.help()</code> to inspect the authorized catalog.</p></div>
@@ -66,7 +66,53 @@ return {
 <section class="doc-section"><h2 id="configuration-and-limits">Configuration and limits</h2>
 <p>Optional gateway configuration options:</p>
 <ul><li><code>runTimeoutMs</code>: Run deadline in milliseconds. The default is 30000 ms; the allowed range is 1–60000 ms.</li><li><code>traceLogPath</code>: Absolute path for the trace log file. Omit this option to disable trace logging.</li></ul>
-<p>The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. The configuration accepts stdio servers with absolute command paths and literal argument arrays. Set a non-empty <code>allowTools</code> list to restrict the exposed tools; omitting it or setting it to <code>[]</code> exposes every discovered tool from that server. It does not accept HTTP servers or secrets.</p></section>
+<p>The gateway gives downstream MCP clients 10 seconds to initialize and 30 seconds per request. <code>runTimeoutMs</code> is a separate budget for each JavaScript run and also limits the time left for its downstream calls.</p>
+<p>The gateway also enforces limits on code, QuickJS heap and stack, result size, tool-call count, catalog size, and queued calls. A stdio server uses an absolute <code>command</code> path and literal <code>args</code> array. An HTTP server uses <code>endpointUrl</code> with <code>transport: "http"</code>; the MCP client selects the protocol automatically. Set a non-empty <code>allowTools</code> list to restrict the exposed tools; omitting it or setting it to <code>[]</code> exposes every discovered tool from that server. Gateway configuration accepts references to authentication material, not access tokens, refresh tokens, or client secret values.</p></section>
+<section class="doc-section"><h2 id="example-connect-to-an-http-mcp-server">Example: connect to an HTTP MCP server</h2>
+<p>Add an HTTP server entry to <code>gateway.json</code> (keep any other entries you need):</p>
+<pre><code class="language-json">{
+  &quot;servers&quot;: [
+    {
+      &quot;alias&quot;: &quot;openai_docs&quot;,
+      &quot;transport&quot;: &quot;http&quot;,
+      &quot;endpointUrl&quot;: &quot;https://developers.openai.com/mcp&quot;,
+      &quot;allowTools&quot;: []
+    }
+  ]
+}</code></pre>
+<p>The gateway connects during startup and discovers the downstream tools. Inspect the available tools with <code>help()</code> before calling one from JavaScript. Configure <code>allowTools</code> with a non-empty list when you want to limit access.</p></section>
+<section class="doc-section"><h2 id="gateway-owned-oauth-login-and-refresh">Gateway-owned OAuth login and refresh</h2>
+<p>An HTTP OAuth profile keeps token data in a separate token file. Configure the client ID, issuer, OAuth endpoints, scopes, and an absolute token-file path in <code>gateway.json</code>. <code>clientSecretEnv</code>, when needed, is only the name of an environment variable; do not add a <code>clientSecret</code> value to the file.</p>
+<pre><code class="language-json">{
+  &quot;servers&quot;: [
+    {
+      &quot;alias&quot;: &quot;private_docs&quot;,
+      &quot;transport&quot;: &quot;http&quot;,
+      &quot;endpointUrl&quot;: &quot;https://mcp.example.com/mcp&quot;,
+      &quot;auth&quot;: {
+        &quot;type&quot;: &quot;oauth&quot;,
+        &quot;tokenFile&quot;: &quot;/home/user/.config/slop/private-docs-token.json&quot;,
+        &quot;clientId&quot;: &quot;docs-client&quot;,
+        &quot;clientSecretEnv&quot;: &quot;DOCS_OAUTH_CLIENT_SECRET&quot;,
+        &quot;issuer&quot;: &quot;https://identity.example.com&quot;,
+        &quot;scopes&quot;: [&quot;read&quot;],
+        &quot;resourceMetadataUrl&quot;: &quot;https://mcp.example.com/.well-known/oauth-protected-resource&quot;,
+        &quot;authorizationEndpoint&quot;: &quot;https://identity.example.com/authorize&quot;,
+        &quot;tokenEndpoint&quot;: &quot;https://identity.example.com/token&quot;
+      }
+    }
+  ]
+}</code></pre>
+<p>For a public client, omit <code>clientSecretEnv</code>. For a confidential client, set the named environment variable using a secure prompt or your secret manager. Use a different environment variable name for each client that has a different secret. For example, in Bash:</p>
+<pre><code class="language-bash">read -rs -p &#x27;OAuth client secret: &#x27; DOCS_OAUTH_CLIENT_SECRET
+printf &#x27;\n&#x27;
+export DOCS_OAUTH_CLIENT_SECRET</code></pre>
+<p>Do not put the secret in a command-line argument or in <code>gateway.json</code>. The OAuth client must allow the redirect URI <code>http://127.0.0.1/callback</code>.</p>
+<p>Run login, finish authorization in a browser, then paste the full redirect URL when prompted:</p>
+<pre><code class="language-bash">bazel run //mcp/gateway:run_js_server -- auth login --config /absolute/path/to/gateway.json --server private_docs</code></pre>
+<p>The command uses PKCE and validates the callback state and issuer before exchanging the code. The token file is written with the shared secure token-store format. Refresh it with:</p>
+<pre><code class="language-bash">bazel run //mcp/gateway:run_js_server -- auth refresh --config /absolute/path/to/gateway.json --server private_docs</code></pre>
+<p>Both commands use <code>gateway.json</code> and the configured client-secret environment variable, if present; they do not start the gateway MCP stdio service or read <code>mcp.ini</code>. Gateway startup reads the token file once. Restart the gateway after a manual refresh. Tokens and client secrets are not printed by these commands. Live token refresh is not supported.</p></section>
 <section class="doc-section"><h2 id="example-connect-to-the-decision-api-server">Example: connect to the Decision API server</h2>
 <p>Add the Decision API server as a downstream stdio server in <code>gateway.json</code> (keep other server entries you need):</p>
 <pre><code class="language-json">{

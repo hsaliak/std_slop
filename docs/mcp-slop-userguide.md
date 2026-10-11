@@ -34,8 +34,8 @@ Commands:
 add <name> --url <mcp_endpoint> [--auth none|bearer|oauth] [--token <token>] [--token-path <path>] [--client-id <id>] [--scope <scope>...]
 add <name> --transport stdio --command <executable> [--args-json '<string-array>']
 list
-oauth-login <name> [--client-secret <secret>]
-oauth-refresh <name> [--client-secret <secret>]
+oauth-login <name>
+oauth-refresh <name>
 logout <name>
 remove <name>
 help
@@ -219,13 +219,16 @@ std_slop mcp oauth-login github
 
 The command prints an authorization URL. Open it in a browser, complete the provider flow, then paste the callback URL at the prompt.
 
-If the OAuth client requires a secret, pass it only when exchanging the code:
+If the OAuth client requires a secret, enter it into `SLOP_MCP_CLIENT_SECRET` through a secure prompt before login or refresh:
 
 ```sh
-std_slop mcp oauth-login github --client-secret CLIENT_SECRET
+read -rs -p 'OAuth client secret: ' SLOP_MCP_CLIENT_SECRET
+printf '\n'
+export SLOP_MCP_CLIENT_SECRET
+std_slop mcp oauth-login github
 ```
 
-The client secret is used for that request and is not stored.
+The secret is not accepted as a command-line argument and is not stored in the registry or token file.
 
 ### OAuth refresh
 
@@ -235,10 +238,11 @@ Refresh a stored OAuth token:
 std_slop mcp oauth-refresh github
 ```
 
-If the OAuth client requires a secret for refresh:
+If the OAuth client requires a secret for refresh, keep `SLOP_MCP_CLIENT_SECRET` set and run:
 
 ```sh
-std_slop mcp oauth-refresh github --client-secret CLIENT_SECRET
+std_slop mcp oauth-refresh github
+unset SLOP_MCP_CLIENT_SECRET
 ```
 
 ### Logout

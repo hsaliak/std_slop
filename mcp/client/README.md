@@ -112,14 +112,18 @@ bazel run //app:std_slop -- mcp oauth-login github
 
 `CLIENT_ID` must be a real client ID from a registered OAuth app or GitHub App. Discovery finds the authorization and token endpoints only; it cannot create or infer a client ID.
 
-If that app also requires a client secret, pass it only when exchanging or refreshing tokens:
+If that app also requires a client secret, enter it through a secure prompt into `SLOP_MCP_CLIENT_SECRET` before login or refresh:
 
 ```sh
-bazel run //app:std_slop -- mcp oauth-login github --client-secret CLIENT_SECRET
-bazel run //app:std_slop -- mcp oauth-refresh github --client-secret CLIENT_SECRET
+read -rs -p 'OAuth client secret: ' SLOP_MCP_CLIENT_SECRET
+printf '\n'
+export SLOP_MCP_CLIENT_SECRET
+bazel run //app:std_slop -- mcp oauth-login github
+bazel run //app:std_slop -- mcp oauth-refresh github
+unset SLOP_MCP_CLIENT_SECRET
 ```
 
-The client secret is not written to `mcp.ini` or the token file.
+The secret is not accepted as a command-line argument and is not written to `mcp.ini` or the token file.
 
 GitHub Copilot MCP example:
 
@@ -129,7 +133,11 @@ bazel run //app:std_slop -- mcp add githubcopilot \
   --auth oauth \
   --client-id YOUR_REGISTERED_GITHUB_APP_CLIENT_ID \
   --scope read:user
-bazel run //app:std_slop -- mcp oauth-login githubcopilot --client-secret YOUR_REGISTERED_GITHUB_APP_CLIENT_SECRET
+read -rs -p 'OAuth client secret: ' SLOP_MCP_CLIENT_SECRET
+printf '\n'
+export SLOP_MCP_CLIENT_SECRET
+bazel run //app:std_slop -- mcp oauth-login githubcopilot
+unset SLOP_MCP_CLIENT_SECRET
 ```
 
 If the server does not publish OAuth metadata, pass endpoints manually:

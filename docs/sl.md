@@ -90,8 +90,8 @@ These examples cover context, sessions, messages, scratchpad state, skills, stat
 | `sl mcp add NAME --url URL [options]` | Add or replace an HTTP server. |
 | `sl mcp add NAME --transport stdio --command EXE [--args-json JSON]` | Add or replace a modern stdio server. Arguments are a JSON string array. |
 | `sl mcp list` | List saved server transport, auth mode, enabled state, and URL or command. It does not show argv. |
-| `sl mcp oauth-login NAME [--client-secret SECRET]` | Run browser-paste OAuth login; see the prompt limitation below. |
-| `sl mcp oauth-refresh NAME [--client-secret SECRET]` | Refresh a saved OAuth token. |
+| `sl mcp oauth-login NAME` | Run browser-paste OAuth login; see the prompt limitation below. |
+| `sl mcp oauth-refresh NAME` | Refresh a saved OAuth token. |
 | `sl mcp logout NAME` | Delete the token but keep the registration. |
 | `sl mcp remove NAME` | Remove the registration and attempt to delete its token. |
 | `sl mcp help` | Show the shared MCP command help. |
@@ -149,7 +149,7 @@ sl mcp logout work
 sl mcp remove work
 ```
 
-OAuth login needs interactive input. `sl` currently buffers the shared handler's output, so its URL and prompt are not displayed before the callback read. Use `std_slop mcp oauth-login work` for browser-paste login. Refresh can use `sl`; pass `--client-secret` if the provider requires it.
+OAuth login needs interactive input. `sl` currently buffers the shared handler's output, so its URL and prompt are not displayed before the callback read. Use `std_slop mcp oauth-login work` for browser-paste login. If the provider requires a client secret, set `SLOP_MCP_CLIENT_SECRET` in the environment through a secure prompt; OAuth commands do not accept secret values as arguments.
 
 For registry examples, process lifetime, discovery requirements, and the full login flow, see the [MCP integration guide](mcp-slop-userguide.md). The runtime starts enabled stdio children at startup; each `sl` prompt invocation has its own processes.
 
