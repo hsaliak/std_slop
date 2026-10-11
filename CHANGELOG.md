@@ -1,3 +1,9 @@
+## v0.27.4 - 2026-10-12
+- **OpenRouter Decision API MCP**: Added a stdio server with model discovery and typed `noul`, `choice`, and `score` decision evaluations.
+- **HTTP MCP composition in `run_js`**: Added Streamable HTTP downstream servers, OAuth discovery/login/refresh, secure token handling, and environment-only client secrets. Added SondaHub test-server support and improved MCP OAuth HTTP error reporting.
+- **Gateway observability**: Added opt-in tracing, clearer trace formatting, and bounded completion-error output.
+- **Documentation**: Added setup guides for gateway OAuth and the Decision API, documented explicit OAuth scope selection, and grouped implemented MCPs in site navigation.
+
 ## v0.27.3 - 2026-10-07
 - **QuickJS MCP composition gateway**: Added bounded `run_js` execution and `run_js_help` for composing tools from configured downstream stdio MCP servers. Each run uses an isolated worker process, bounded IPC, runtime and call limits, and a shared deadline. An omitted or empty `allowTools` list exposes all discovered tools; a non-empty list restricts access.
 - **MCP client deadlines**: Propagated request timeouts through MCP sessions and stdio/Streamable HTTP transports so tool calls respect the gateway run deadline.
