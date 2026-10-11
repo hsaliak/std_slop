@@ -112,13 +112,36 @@ TEST(OAuthClientTest, RejectsMalformedAndEncodedDuplicateParameters) {
             absl::StatusCode::kInvalidArgument);
 }
 
-TEST(OAuthClientTest, ReportsCallbackOAuthError) {
+TEST(OAuthClientTest, DoesNotReflectCallbackOAuthErrorDetails) {
+  const std::string sensitive_marker = "sensitive-callback-detail";
   auto code = ExtractAuthorizationCodeFromCallback(
-      "http://127.0.0.1/callback?error=access_denied&error_description=User+denied&state=expected", "expected");
+      "http://127.0.0.1/callback?error=access_denied&error_description=" + sensitive_marker +
+          "&error_uri=https%3A%2F%2Fevil.example%2F" + sensitive_marker + "&state=expected",
+      "expected");
   ASSERT_FALSE(code.ok());
   EXPECT_TRUE(absl::IsUnauthenticated(code.status()));
-  EXPECT_TRUE(absl::StrContains(code.status().message(), "access_denied"));
-  EXPECT_TRUE(absl::StrContains(code.status().message(), "User denied"));
+  EXPECT_TRUE(absl::StrContains(code.status().message(), "OAuth callback returned an authorization error"));
+  EXPECT_FALSE(absl::StrContains(code.status().message(), sensitive_marker));
+  EXPECT_FALSE(absl::StrContains(code.status().message(), "evil.example"));
+}
+
+TEST(OAuthClientTest, RejectsEmptyAndDuplicateCallbackErrorParameters) {
+  const auto bare_error =
+      ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=abc&state=expected&error", "expected");
+  ASSERT_FALSE(bare_error.ok());
+  EXPECT_TRUE(absl::IsUnauthenticated(bare_error.status()));
+  const auto empty_error =
+      ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?error=&code=abc&state=expected", "expected");
+  ASSERT_FALSE(empty_error.ok());
+  EXPECT_TRUE(absl::IsUnauthenticated(empty_error.status()));
+  EXPECT_TRUE(absl::StrContains(empty_error.status().message(), "OAuth callback returned an authorization error"));
+
+  const auto duplicate_error = ExtractAuthorizationCodeFromCallback(
+      "http://127.0.0.1/callback?error=access_denied&error=&state=expected", "expected");
+  ASSERT_FALSE(duplicate_error.ok());
+  EXPECT_TRUE(absl::IsInvalidArgument(duplicate_error.status()));
+  EXPECT_TRUE(absl::StrContains(duplicate_error.status().message(), "duplicate error"));
+  EXPECT_FALSE(absl::StrContains(duplicate_error.status().message(), "access_denied"));
 }
 
 TEST(OAuthClientTest, OmitsEmptyScopeParameter) {
@@ -178,31 +201,34 @@ TEST(OAuthClientTest, OmitsClientSecretWhenNotConfigured) {
   EXPECT_EQ(http.last_body.find("client_secret="), std::string::npos);
 }
 
-TEST(OAuthClientTest, ReportsJsonOAuthErrorResponse) {
+TEST(OAuthClientTest, DoesNotReflectTokenEndpointErrorDetails) {
   FakeHttpClient http;
-  http.response.body =
-      R"({"error":"incorrect_client_credentials","error_description":"The client_id and/or client_secret passed are incorrect.","error_uri":"https://docs.example/error"})";
+  const std::string sensitive_marker = "sensitive-token-endpoint-detail";
+  http.response.body = "{\"error\":\"client_secret_value\",\"error_description\":\"" + sensitive_marker +
+                       "\",\"error_uri\":\"https://evil.example/" + sensitive_marker + "\"}";
 
   auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
 
   ASSERT_FALSE(exchanged.ok());
   EXPECT_TRUE(absl::IsUnauthenticated(exchanged.status()));
-  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "incorrect_client_credentials"));
-  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "client_secret"));
-  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "https://docs.example/error"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "OAuth token endpoint returned an error"));
+  EXPECT_FALSE(absl::StrContains(exchanged.status().message(), "client_secret_value"));
+  EXPECT_FALSE(absl::StrContains(exchanged.status().message(), sensitive_marker));
+  EXPECT_FALSE(absl::StrContains(exchanged.status().message(), "evil.example"));
 }
 
-TEST(OAuthClientTest, ReportsJsonOAuthErrorOnNonSuccessStatus) {
+TEST(OAuthClientTest, DoesNotReflectTokenEndpointErrorOnNonSuccessStatus) {
   FakeHttpClient http;
   http.response.status_code = 400;
-  http.response.body = R"({"error":"bad_verification_code","error_description":"code expired"})";
+  http.response.body = R"({"error":"bad_verification_code","error_description":"sensitive-marker"})";
 
   auto exchanged = ExchangeAuthorizationCode(&http, Config(), "code", "verifier");
 
   ASSERT_FALSE(exchanged.ok());
   EXPECT_TRUE(absl::IsUnauthenticated(exchanged.status()));
-  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "bad_verification_code"));
-  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "code expired"));
+  EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "OAuth token endpoint returned an error"));
+  EXPECT_FALSE(absl::StrContains(exchanged.status().message(), "bad_verification_code"));
+  EXPECT_FALSE(absl::StrContains(exchanged.status().message(), "sensitive-marker"));
   EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "HTTP 400"));
 }
 

@@ -425,6 +425,19 @@ cc_test(
 )
 
 cc_test(
+    name = "oauth_client_fuzz_test",
+    srcs = ["oauth_client_fuzz_test.cpp"],
+    copts = ["-Wno-unused-parameter", "-Wno-deprecated-declarations"],
+    deps = [
+        ":oauth_client",
+        "//core:transport",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "oauth_discovery_test",
     srcs = ["oauth_discovery_test.cpp"],
     deps = [

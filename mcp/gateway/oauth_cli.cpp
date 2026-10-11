@@ -1,6 +1,5 @@
 #include "mcp/gateway/oauth_cli.h"
 
-#include <cstdlib>
 #include <istream>
 #include <ostream>
 #include <string>
@@ -18,23 +17,6 @@ namespace slop::mcp::gateway {
 namespace {
 
 constexpr std::size_t kMaxCallbackUrlBytes = 8192;
-constexpr std::size_t kMaxClientSecretBytes = 4096;
-
-absl::StatusOr<std::string> ClientSecretFromEnvironment(const HttpAuthConfig& auth) {
-  if (auth.client_secret_env.empty()) return std::string();
-  if (!IsValidEnvironmentVariableName(auth.client_secret_env)) {
-    return absl::InvalidArgumentError("OAuth client secret environment variable name is invalid");
-  }
-  const char* value = std::getenv(auth.client_secret_env.c_str());
-  if (value == nullptr || value[0] == '\0') {
-    return absl::FailedPreconditionError("OAuth client secret environment variable is unset or empty");
-  }
-  std::string secret(value);
-  if (secret.size() > kMaxClientSecretBytes || ContainsControlCharacters(secret)) {
-    return absl::InvalidArgumentError("OAuth client secret environment value is invalid");
-  }
-  return secret;
-}
 
 absl::StatusOr<std::string> ReadCallbackUrl(std::istream* input) {
   if (input == nullptr) return absl::InvalidArgumentError("OAuth login requires callback input");
@@ -73,17 +55,19 @@ absl::StatusOr<const ServerConfig*> FindOAuthServer(const GatewayConfig& config,
 }
 
 absl::StatusOr<::slop::mcp::OAuthClientConfig> OAuthConfigFromServer(const ServerConfig& server) {
-  auto client_secret = ClientSecretFromEnvironment(server.auth);
-  if (!client_secret.ok()) return client_secret.status();
   ::slop::mcp::OAuthClientConfig oauth;
   oauth.client_id = server.auth.client_id;
-  oauth.client_secret = std::move(*client_secret);
   oauth.authorization_endpoint = server.auth.authorization_endpoint;
   oauth.token_endpoint = server.auth.token_endpoint;
   oauth.scopes = server.auth.scopes;
   oauth.resource = server.endpoint_url;
   oauth.issuer = server.auth.expected_issuer;
   oauth.authorization_response_iss_parameter_supported = server.auth.authorization_response_iss_parameter_supported;
+  if (!server.auth.client_secret_env.empty()) {
+    auto client_secret = ::slop::mcp::LoadOAuthClientSecretFromEnvironment(server.auth.client_secret_env);
+    if (!client_secret.ok()) return client_secret.status();
+    oauth.client_secret = std::move(*client_secret);
+  }
   return oauth;
 }
 

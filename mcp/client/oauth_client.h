@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 
 #include "core/http_client.h"
 #include "mcp/client/authorization.h"
@@ -43,6 +44,7 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                         const std::string& code, const std::string& code_verifier);
 absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const OAuthClientConfig& config,
                                                 const std::string& refresh_token);
+absl::StatusOr<std::string> LoadOAuthClientSecretFromEnvironment(absl::string_view name, bool required = true);
 absl::Status CompletePkceAuthorizationAndSaveTokens(HttpClient* http_client, const OAuthClientConfig& config,
                                                     const PkceAuthorizationSession& session,
                                                     const std::string& callback_url, const std::string& token_file);

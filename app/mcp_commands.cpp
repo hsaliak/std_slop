@@ -31,11 +31,11 @@ Commands:
       starts with the agent runtime; this command only saves its configuration.
   list
       List configured MCP servers.
-  oauth-login <name> [--client-secret <secret>]
-      Start OAuth authorization-code + PKCE browser login and paste the callback URL. Pass --client-secret
-      only for OAuth clients that require it; the secret is used once and is not stored.
-  oauth-refresh <name> [--client-secret <secret>]
-      Refresh a stored OAuth token. Pass --client-secret again if the OAuth server requires it.
+  oauth-login <name>
+      Start OAuth authorization-code + PKCE browser login and paste the callback URL.
+      For confidential clients, set SLOP_MCP_CLIENT_SECRET in the environment.
+  oauth-refresh <name>
+      Refresh a stored OAuth token. Set SLOP_MCP_CLIENT_SECRET in the environment if required.
   logout <name>
       Delete a stored OAuth token.
   remove <name>
@@ -45,7 +45,7 @@ Examples:
   std_slop mcp add private --url https://example.com/mcp --auth bearer --token <token>
   std_slop mcp add local-files --transport stdio --command /absolute/path/to/server --args-json '["--root", "/work"]'
   std_slop mcp add githubcopilot --url https://api.githubcopilot.com/mcp --auth oauth --client-id <real_client_id>
-  std_slop mcp oauth-login githubcopilot --client-secret <secret>)USAGE";
+  std_slop mcp oauth-login githubcopilot)USAGE";
 }
 
 absl::Status Usage() { return absl::InvalidArgumentError(McpUsageText()); }
@@ -109,10 +109,8 @@ mcp::OAuthClientConfig ConfigFromEntry(const mcp::ServerRegistryEntry& entry, co
   return config;
 }
 
-absl::StatusOr<std::string> ClientSecretFromArgs(const std::vector<std::string>& args) {
-  if (args.size() == 3) return std::string{};
-  if (args.size() == 5 && args[3] == "--client-secret" && !args[4].empty()) return args[4];
-  return absl::InvalidArgumentError("usage: std_slop mcp oauth-login|oauth-refresh <name> [--client-secret <secret>]");
+absl::StatusOr<std::string> ClientSecretFromEnvironment() {
+  return mcp::LoadOAuthClientSecretFromEnvironment("SLOP_MCP_CLIENT_SECRET", false);
 }
 
 absl::Status WithMcpContext(const std::string& action, const std::string& server_name, const absl::Status& status) {
@@ -301,8 +299,8 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     return absl::OkStatus();
   }
   if (command == "oauth-login") {
-    if ((args.size() != 3 && args.size() != 5) || http_client == nullptr || in == nullptr) return Usage();
-    auto client_secret = ClientSecretFromArgs(args);
+    if (args.size() != 3 || http_client == nullptr || in == nullptr) return Usage();
+    auto client_secret = ClientSecretFromEnvironment();
     if (!client_secret.ok()) return client_secret.status();
     auto entry = FindEntry(args[2]);
     if (!entry.ok()) return entry.status();
@@ -319,8 +317,8 @@ absl::Status RunMcpCommand(const std::vector<std::string>& args, HttpClient* htt
     return absl::OkStatus();
   }
   if (command == "oauth-refresh") {
-    if ((args.size() != 3 && args.size() != 5) || http_client == nullptr) return Usage();
-    auto client_secret = ClientSecretFromArgs(args);
+    if (args.size() != 3 || http_client == nullptr) return Usage();
+    auto client_secret = ClientSecretFromEnvironment();
     if (!client_secret.ok()) return client_secret.status();
     auto entry = FindEntry(args[2]);
     if (!entry.ok()) return entry.status();

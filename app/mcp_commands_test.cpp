@@ -3,8 +3,10 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -64,6 +66,30 @@ class FakeHttpClient : public HttpClient {
   std::vector<std::string> post_headers;
   std::vector<std::string> get_urls;
   std::vector<std::string> get_headers;
+};
+
+class ScopedEnvironmentVariable {
+ public:
+  ScopedEnvironmentVariable(std::string name, std::string value) : name_(std::move(name)) {
+    const char* previous = std::getenv(name_.c_str());
+    if (previous != nullptr) previous_value_ = previous;
+    set_result_ = setenv(name_.c_str(), value.c_str(), 1) == 0;
+  }
+
+  ~ScopedEnvironmentVariable() {
+    if (previous_value_.has_value()) {
+      setenv(name_.c_str(), previous_value_->c_str(), 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+  bool ok() const { return set_result_; }
+
+ private:
+  std::string name_;
+  std::optional<std::string> previous_value_;
+  bool set_result_ = false;
 };
 
 class ScopedHome {
@@ -531,8 +557,10 @@ TEST(McpCommandsTest, RefreshAddsServerContextToTokenErrors) {
   EXPECT_NE(std::string(status.message()).find("MCP token refresh failed for server 'github'"), std::string::npos);
 }
 
-TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
+TEST(McpCommandsTest, RefreshUsesClientSecretEnvironmentWithoutPersistingIt) {
   ScopedHome home;
+  ScopedEnvironmentVariable secret("SLOP_MCP_CLIENT_SECRET", "top secret");
+  ASSERT_TRUE(secret.ok());
   FakeHttpClient http_client;
   std::istringstream input;
   std::ostringstream output;
@@ -553,8 +581,7 @@ TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
 
   http_client.post_response = {
       200, R"({"access_token":"new-access","refresh_token":"new-refresh","token_type":"Bearer","expires_in":60})", {}};
-  status = RunMcpCommand({"mcp", "oauth-refresh", "github", "--client-secret", "top secret"}, &http_client, &input,
-                         &output, &error);
+  status = RunMcpCommand({"mcp", "oauth-refresh", "github"}, &http_client, &input, &output, &error);
   ASSERT_TRUE(status.ok()) << status;
   EXPECT_NE(http_client.post_body.find("client_secret=top%20secret"), std::string::npos);
 
@@ -562,6 +589,19 @@ TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
   ASSERT_TRUE(tokens.ok()) << tokens.status();
   EXPECT_EQ(tokens->access_token, "new-access");
   EXPECT_EQ(output.str().find("top secret"), std::string::npos);
+}
+
+TEST(McpCommandsTest, OAuthCommandsRejectClientSecretArguments) {
+  ScopedHome home;
+  FakeHttpClient http_client;
+  std::istringstream input;
+  std::ostringstream output;
+  std::ostringstream error;
+
+  const absl::Status status = RunMcpCommand({"mcp", "oauth-login", "github", "--client-secret", "argv-secret"},
+                                            &http_client, &input, &output, &error);
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_EQ(std::string(status.message()).find("argv-secret"), std::string::npos);
 }
 
 TEST(McpCommandsTest, AddRejectsClientSecretBecauseItIsNotPersisted) {

@@ -72,14 +72,9 @@ std::string RandomToken() {
 bool IsHttpsUrl(const std::string& url) { return absl::StartsWith(url, "https://"); }
 
 std::string OAuthErrorMessage(const nlohmann::json& parsed, const std::string& fallback) {
-  const std::string error = json_get_or(parsed, "error", std::string{});
-  if (error.empty()) return fallback;
-  const std::string description = json_get_or(parsed, "error_description", std::string{});
-  const std::string uri = json_get_or(parsed, "error_uri", std::string{});
-  std::string message = absl::StrCat("OAuth token response error: ", error);
-  if (!description.empty()) absl::StrAppend(&message, ": ", description);
-  if (!uri.empty()) absl::StrAppend(&message, " (", uri, ")");
-  return message;
+  const auto error = json_get<std::string>(parsed, "error");
+  if (!error.has_value() || error->empty()) return fallback;
+  return "OAuth token endpoint returned an error";
 }
 
 absl::Status TokenHttpError(const HttpResponse& response, const std::string& fallback) {
@@ -191,21 +186,24 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
   }
   std::string code;
   std::string state;
-  std::string error;
-  std::string error_description;
-  std::string error_uri;
   std::string issuer;
   bool saw_code = false;
   bool saw_state = false;
+  bool saw_error = false;
   bool saw_issuer = false;
   for (const absl::string_view part : absl::StrSplit(callback_url.substr(query + 1), '&', absl::SkipEmpty())) {
     const size_t equals = part.find('=');
-    if (equals == absl::string_view::npos) continue;
-    auto key_or = UrlDecode(part.substr(0, equals));
+    const absl::string_view encoded_key = equals == absl::string_view::npos ? part : part.substr(0, equals);
+    auto key_or = UrlDecode(encoded_key);
     if (!key_or.ok()) return key_or.status();
+    const std::string& key = *key_or;
+    if (key == "error") {
+      if (saw_error) return absl::InvalidArgumentError("OAuth callback contains duplicate error");
+      saw_error = true;
+    }
+    if (equals == absl::string_view::npos) continue;
     auto value_or = UrlDecode(part.substr(equals + 1));
     if (!value_or.ok()) return value_or.status();
-    const std::string& key = *key_or;
     const std::string& value = *value_or;
     if (key == "code") {
       if (saw_code) return absl::InvalidArgumentError("OAuth callback contains duplicate code");
@@ -217,9 +215,6 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
       saw_state = true;
       state = value;
     }
-    if (key == "error") error = value;
-    if (key == "error_description") error_description = value;
-    if (key == "error_uri") error_uri = value;
     if (key == "iss") {
       if (saw_issuer) return absl::InvalidArgumentError("OAuth callback contains duplicate issuer");
       saw_issuer = true;
@@ -233,12 +228,7 @@ absl::StatusOr<std::string> ExtractAuthorizationCodeFromCallback(const std::stri
   if (saw_issuer && !expected_issuer.empty() && issuer != expected_issuer) {
     return absl::PermissionDeniedError("OAuth callback issuer mismatch");
   }
-  if (!error.empty()) {
-    std::string message = absl::StrCat("OAuth callback error: ", error);
-    if (!error_description.empty()) absl::StrAppend(&message, ": ", error_description);
-    if (!error_uri.empty()) absl::StrAppend(&message, " (", error_uri, ")");
-    return absl::UnauthenticatedError(message);
-  }
+  if (saw_error) return absl::UnauthenticatedError("OAuth callback returned an authorization error");
   if (code.empty()) return absl::InvalidArgumentError("OAuth callback missing code");
   return code;
 }
@@ -298,6 +288,25 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
   tokens->resource = config.resource;
   if (tokens->refresh_token.empty()) tokens->refresh_token = refresh_token;
   return *tokens;
+}
+
+absl::StatusOr<std::string> LoadOAuthClientSecretFromEnvironment(absl::string_view name, bool required) {
+  if (!IsValidEnvironmentVariableName(name)) {
+    return absl::InvalidArgumentError("OAuth client secret environment variable name is invalid");
+  }
+  const std::string environment_name(name.data(), name.size());
+  const char* value = std::getenv(environment_name.c_str());
+  if (value == nullptr || value[0] == '\0') {
+    if (required) {
+      return absl::FailedPreconditionError("OAuth client secret environment variable is unset or empty");
+    }
+    return std::string();
+  }
+  std::string secret(value);
+  if (secret.size() > 4096 || ContainsControlCharacters(secret)) {
+    return absl::InvalidArgumentError("OAuth client secret environment value is invalid");
+  }
+  return secret;
 }
 
 absl::Status CompletePkceAuthorizationAndSaveTokens(HttpClient* http_client, const OAuthClientConfig& config,

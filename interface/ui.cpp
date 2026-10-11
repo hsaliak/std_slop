@@ -43,9 +43,9 @@ inline constexpr std::string_view kTool = "tool";
 #include "core/json_utils.h"
 #include "core/message_parser.h"
 #include "interface/color.h"
-#include "interface/renderer.h"
 #include "interface/command_definitions.h"
 #include "interface/completer.h"
+#include "interface/renderer.h"
 
 namespace slop {
 namespace {
@@ -420,8 +420,8 @@ std::string FormatTurnStatus(const TurnStatus& status) {
     absl::StrAppend(&formatted, " · In ", FormatCompactCount(usage.input_tokens));
     if (usage.cached_input_tokens.has_value() && usage.input_tokens > 0) {
       const int cached_percentage = *usage.cached_input_tokens * 100 / usage.input_tokens;
-      absl::StrAppend(&formatted, " · Cached ", FormatCompactCount(*usage.cached_input_tokens), " (",
-                      cached_percentage, "%)");
+      absl::StrAppend(&formatted, " · Cached ", FormatCompactCount(*usage.cached_input_tokens), " (", cached_percentage,
+                      "%)");
     }
     if (usage.cache_write_input_tokens.has_value()) {
       absl::StrAppend(&formatted, " · Cache write ", FormatCompactCount(*usage.cache_write_input_tokens));
@@ -466,7 +466,6 @@ void PrintToolCallMessage(const std::string& name, const std::string& args, cons
     std::cout << "  " << Colorize(absl::StrCat("· ", tokens, " tokens"), "", ansi::Metadata);
   }
   std::cout << std::endl;
-
 }
 void PrintToolResultMessage([[maybe_unused]] const std::string& name, const std::string& result,
                             const std::string& status, const std::string& prefix) {
@@ -599,11 +598,16 @@ std::string GetCliHelpText() {
       "std_slop mcp add <name> --url <mcp_endpoint> --auth bearer --token <token>\n"
       "```\n\n"
       "## MCP server management\n"
-      "- `std_slop mcp add <name> --url <mcp_endpoint> --auth bearer --token <token>`: Register a bearer-token MCP server. The token is saved to the per-server token file, not `mcp.ini`.\n"
-      "- `std_slop mcp add <name> --url <mcp_endpoint> --auth oauth --client-id <id>`: Register an OAuth MCP server and discover OAuth endpoints. The client ID must be from a registered OAuth/GitHub App.\n"
-      "- `std_slop mcp oauth-login <name> [--client-secret <secret>]`: Start browser+paste OAuth login for a registered MCP server. The secret is used once and is not stored.\n"
-      "- `std_slop mcp oauth-refresh <name> [--client-secret <secret>]`: Refresh a stored OAuth token. The secret is used once and is not stored.\n"
-      "- `std_slop mcp help`: Show detailed MCP command usage.\n\n"      "## Options\n"
+      "- `std_slop mcp add <name> --url <mcp_endpoint> --auth bearer --token <token>`: Register a bearer-token MCP "
+      "server. The token is saved to the per-server token file, not `mcp.ini`.\n"
+      "- `std_slop mcp add <name> --url <mcp_endpoint> --auth oauth --client-id <id>`: Register an OAuth MCP server "
+      "and discover OAuth endpoints. The client ID must be from a registered OAuth/GitHub App.\n"
+      "- `std_slop mcp oauth-login <name>`: Start browser+paste OAuth login for a registered MCP server. For "
+      "confidential clients, set `SLOP_MCP_CLIENT_SECRET` in the environment.\n"
+      "- `std_slop mcp oauth-refresh <name>`: Refresh a stored OAuth token; use the same environment variable when "
+      "required.\n"
+      "- `std_slop mcp help`: Show detailed MCP command usage.\n\n"
+      "## Options\n"
       "- `--prompt \"...\"`: Run a single instruction in batch mode and exit.\n"
       "- `--prompt-file <path>`: Read a single batch-mode instruction from a file and exit.\n"
       "- Piped stdin in prompt mode is optional context prepended before the instruction; for example, "

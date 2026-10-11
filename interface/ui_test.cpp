@@ -165,10 +165,14 @@ TEST(UiTest, FormatTurnStatusCompactsLongElapsedTime) {
 
 TEST(UiTest, FormatTurnStatusRendersEveryPhase) {
   const std::vector<std::pair<TurnPhase, std::string>> phases = {
-      {TurnPhase::kPreparing, "Preparing context"},       {TurnPhase::kConnecting, "Connecting"},
-      {TurnPhase::kWaitingForModel, "Waiting for model"},  {TurnPhase::kReceiving, "Receiving"},
-      {TurnPhase::kRunningTools, "Running tool"},          {TurnPhase::kWaitingForFollowUp, "Waiting for follow-up"},
-      {TurnPhase::kCompleted, "Done"},                     {TurnPhase::kFailed, "Failed"},
+      {TurnPhase::kPreparing, "Preparing context"},
+      {TurnPhase::kConnecting, "Connecting"},
+      {TurnPhase::kWaitingForModel, "Waiting for model"},
+      {TurnPhase::kReceiving, "Receiving"},
+      {TurnPhase::kRunningTools, "Running tool"},
+      {TurnPhase::kWaitingForFollowUp, "Waiting for follow-up"},
+      {TurnPhase::kCompleted, "Done"},
+      {TurnPhase::kFailed, "Failed"},
       {TurnPhase::kCancelled, "Cancelled"},
   };
 
@@ -226,7 +230,6 @@ TEST(UiTest, PrintToolResultMessageStderr) {
   EXPECT_TRUE(absl::StrContains(output, "stderr line 1"));
   EXPECT_TRUE(absl::StrContains(output, "stderr line 2"));
 }
-
 
 TEST(UiTest, PrintToolResultMessageUnknownToolJsonDefaultFormatting) {
   std::string name = "custom_persisted_tool";
@@ -363,7 +366,7 @@ TEST(UiTest, GetCliHelpTextDocumentsMcpCommands) {
   EXPECT_TRUE(absl::StrContains(help, "std_slop mcp <add|remove|list|oauth-login|oauth-refresh|logout|help>"));
   EXPECT_TRUE(absl::StrContains(help, "std_slop mcp add <name>"));
   EXPECT_TRUE(absl::StrContains(help, "registered OAuth/GitHub App"));
-  EXPECT_TRUE(absl::StrContains(help, "--client-secret <secret>"));
+  EXPECT_TRUE(absl::StrContains(help, "SLOP_MCP_CLIENT_SECRET"));
   EXPECT_TRUE(absl::StrContains(help, "std_slop mcp oauth-refresh <name>"));
 }
 
