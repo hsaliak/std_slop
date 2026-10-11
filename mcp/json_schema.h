@@ -15,8 +15,10 @@ struct JsonSchemaLimits {
 };
 
 // Validates an instance against the supported JSON Schema 2020-12 and Draft 7
-// subsets. References are restricted to local JSON Pointers. Network and
-// filesystem resolution are intentionally not supported. Exclusive bounds are
+// subsets. Pattern matching uses the RE2 syntax subset and JSON Schema's
+// substring semantics; unsupported regex constructs are rejected. References
+// are restricted to local JSON Pointers. Network and filesystem resolution are
+// intentionally not supported. Exclusive bounds are
 // numeric in both dialects. Draft 7 ignores $ref siblings; 2020-12 applies them.
 absl::Status ValidateJsonSchema(const nlohmann::json& schema, const nlohmann::json& instance,
                                 JsonSchemaLimits limits = JsonSchemaLimits());

@@ -118,9 +118,54 @@ TEST(JsonSchemaTest, RejectsUnsupportedDialectAndExternalReference) {
 }
 
 TEST(JsonSchemaTest, RejectsUnsupportedKeywordsAndMalformedShapes) {
-  EXPECT_EQ(CheckJsonSchema({{"pattern", "^a"}}).code(), absl::StatusCode::kUnimplemented);
   EXPECT_EQ(CheckJsonSchema({{"properties", nlohmann::json::array()}}).code(), absl::StatusCode::kInvalidArgument);
   EXPECT_EQ(CheckJsonSchema({{"allOf", nlohmann::json::object()}}).code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(JsonSchemaTest, SupportsJsonPrimitiveAndContainerTypes) {
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "null"}}, nullptr).ok());
+  EXPECT_FALSE(ValidateJsonSchema({{"type", "null"}}, false).ok());
+
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "boolean"}}, true).ok());
+  EXPECT_FALSE(ValidateJsonSchema({{"type", "boolean"}}, 1).ok());
+
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "array"}}, nlohmann::json::array({1, "x"})).ok());
+  EXPECT_FALSE(ValidateJsonSchema({{"type", "array"}}, nlohmann::json::object()).ok());
+
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "object"}}, nlohmann::json::object()).ok());
+  EXPECT_FALSE(ValidateJsonSchema({{"type", "object"}}, nlohmann::json::array()).ok());
+
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "number"}}, 1).ok());
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "number"}}, 1.5).ok());
+  EXPECT_FALSE(ValidateJsonSchema({{"type", "number"}}, "1").ok());
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "integer"}}, 1.0).ok());
+  EXPECT_FALSE(ValidateJsonSchema({{"type", "integer"}}, 1.5).ok());
+
+  EXPECT_TRUE(ValidateJsonSchema({{"type", "string"}}, "text").ok());
+  EXPECT_FALSE(ValidateJsonSchema({{"type", "string"}}, 1).ok());
+}
+
+TEST(JsonSchemaTest, ValidatesPatternWithSafeRegexMatching) {
+  const nlohmann::json sondahub_order_schema = {
+      {"type", "object"},
+      {"properties", {{"order_number", {{"type", "string"}, {"pattern", "^SH-\\d{6}$"}}}}},
+      {"required", {"order_number"}},
+      {"additionalProperties", false},
+  };
+  EXPECT_TRUE(CheckJsonSchema(sondahub_order_schema).ok());
+  EXPECT_TRUE(ValidateJsonSchema(sondahub_order_schema, {{"order_number", "SH-100007"}}).ok());
+  EXPECT_FALSE(ValidateJsonSchema(sondahub_order_schema, {{"order_number", "SH-10007"}}).ok());
+  EXPECT_FALSE(ValidateJsonSchema(sondahub_order_schema, {{"order_number", "SH-100007x"}}).ok());
+
+  const nlohmann::json unanchored_pattern = {{"type", "string"}, {"pattern", "order"}};
+  EXPECT_TRUE(ValidateJsonSchema(unanchored_pattern, "prefix order suffix").ok());
+  EXPECT_FALSE(ValidateJsonSchema(unanchored_pattern, "shipment").ok());
+}
+
+TEST(JsonSchemaTest, RejectsMalformedPatterns) {
+  EXPECT_EQ(CheckJsonSchema({{"pattern", "("}}).code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(ValidateJsonSchema({{"pattern", "("}}, "text").code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(CheckJsonSchema({{"pattern", 7}}).code(), absl::StatusCode::kInvalidArgument);
 }
 
 TEST(JsonSchemaTest, ChecksKeywordShapesWithoutAnInstance) {

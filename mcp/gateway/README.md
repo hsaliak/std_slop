@@ -114,6 +114,60 @@ Add an HTTP server entry to `gateway.json` (keep any other entries you need):
 
 The gateway connects during startup and discovers the downstream tools. Inspect the available tools with `help()` before calling one from JavaScript. Configure `allowTools` with a non-empty list when you want to limit access.
 
+## Example: connect to the SondaHub MCP test server
+
+[SondaHub's MCP test server](https://sondahub.com/mcp-server/) provides both a public HTTP endpoint and an OAuth-protected endpoint:
+
+- Public: `https://api.sondahub.com/mcp` (no OAuth).
+- OAuth: `https://api.sondahub.com/mcp/secure`.
+
+Add either entry, or both with distinct aliases, to `gateway.json`:
+
+```json
+{
+  "servers": [
+    {
+      "alias": "sondahub_public",
+      "transport": "http",
+      "endpointUrl": "https://api.sondahub.com/mcp",
+      "allowTools": []
+    },
+    {
+      "alias": "sondahub",
+      "transport": "http",
+      "endpointUrl": "https://api.sondahub.com/mcp/secure",
+      "allowTools": [],
+      "auth": {
+        "type": "oauth",
+        "tokenFile": "/home/YOUR_USER/.config/slop/sondahub-token.json",
+        "clientId": "sonda",
+        "scopes": ["mcp:read", "mcp:write"]
+      }
+    }
+  ]
+}
+```
+
+The public endpoint needs no login. The OAuth example uses SondaHub's public test client ID, `sonda`; it does not need a client secret. Use an absolute path for `tokenFile`. The gateway discovers OAuth metadata from the endpoint. Its callback URI is `http://127.0.0.1/callback`; the OAuth client must allow that exact URI. Request only `mcp:read` if you do not need to test write tools.
+
+Log in to the OAuth endpoint before starting the gateway:
+
+```bash
+bazel run //mcp/gateway:run_js_server -- auth login \
+  --config /absolute/path/to/gateway.json \
+  --server sondahub
+```
+
+After startup, inspect the catalog with `help()` and call tools through the configured aliases. For example:
+
+```javascript
+const order = await sondahub.store_order_status({order_number: "SH-100042"});
+const products = await sondahub_public.store_search_products({query: "headphones", limit: 2});
+return {order: order.structuredContent, products: products.structuredContent};
+```
+
+SondaHub is a test server. Its simulated writes are not persisted unless a client carries the returned `X-Sondahub-Session` token into later requests.
+
 ## Gateway-owned OAuth login and refresh
 
 An HTTP OAuth profile normally needs only a registered client ID and an absolute token-file path. Gateway login, refresh, and startup discover the OAuth metadata from the MCP endpoint:

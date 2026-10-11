@@ -14,6 +14,7 @@
 #include "absl/strings/string_view.h"
 
 #include "core/json_utils.h"
+#include "re2/re2.h"
 
 namespace slop::mcp {
 namespace {
@@ -148,6 +149,24 @@ bool MatchesType(absl::string_view type, const nlohmann::json& instance) {
   }
   if (type == "string") return instance.is_string();
   return false;
+}
+
+re2::RE2::Options PatternOptions() {
+  re2::RE2::Options options;
+  options.set_log_errors(false);
+  options.set_max_mem(8 * 1024 * 1024);
+  return options;
+}
+
+absl::Status CheckPattern(const nlohmann::json& schema) {
+  const nlohmann::json* pattern = json_at(schema, "pattern");
+  if (pattern == nullptr) return absl::OkStatus();
+  if (!pattern->is_string()) return absl::InvalidArgumentError("JSON Schema pattern must be a string");
+  const re2::RE2 regex(pattern->get_ref<const std::string&>(), PatternOptions());
+  if (!regex.ok()) {
+    return absl::InvalidArgumentError(absl::StrCat("invalid JSON Schema pattern: ", regex.error()));
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Validate(const nlohmann::json& schema, const nlohmann::json& instance, EvaluationContext* context,
@@ -324,8 +343,14 @@ absl::Status Validate(const nlohmann::json& schema, const nlohmann::json& instan
     if (const auto minimum = json_get<size_t>(schema, "minLength"); minimum && *length < *minimum) {
       return absl::InvalidArgumentError("string is shorter than minLength");
     }
-    if (json_at(schema, "pattern") != nullptr) {
-      return absl::UnimplementedError("JSON Schema pattern is not supported");
+    if (const auto* pattern = json_at(schema, "pattern")) {
+      const re2::RE2 regex(pattern->get_ref<const std::string&>(), PatternOptions());
+      if (!regex.ok()) {
+        return absl::InvalidArgumentError(absl::StrCat("invalid JSON Schema pattern: ", regex.error()));
+      }
+      if (!re2::RE2::PartialMatch(instance.get_ref<const std::string&>(), regex)) {
+        return absl::InvalidArgumentError("string does not match JSON Schema pattern");
+      }
     }
   }
 
@@ -428,9 +453,10 @@ absl::Status Check(const nlohmann::json& schema, EvaluationContext* context, siz
   }
   const auto shape_status = CheckKeywords(schema);
   if (!shape_status.ok()) return shape_status;
+  const absl::Status pattern_status = CheckPattern(schema);
+  if (!pattern_status.ok()) return pattern_status;
 
-  if (json_at(schema, "$dynamicRef") != nullptr || json_at(schema, "$dynamicAnchor") != nullptr ||
-      json_at(schema, "pattern") != nullptr) {
+  if (json_at(schema, "$dynamicRef") != nullptr || json_at(schema, "$dynamicAnchor") != nullptr) {
     return absl::UnimplementedError("JSON Schema contains an unsupported keyword");
   }
   for (absl::string_view keyword : {"allOf", "anyOf", "oneOf", "prefixItems"}) {

@@ -12,7 +12,7 @@
   <header class="site-header"><div class="shell nav-row"><a class="brand" href="index.html" aria-label="std::slop home"><img src="assets/slop.png" alt="std::slop logo"></a><nav aria-label="Primary navigation"><details class="nav-menu"><summary>Coding Agents</summary><div class="nav-menu-links"><a href="agent.html">std::slop</a><a href="sl.html">sl</a></div></details><a href="mcp.html">MCP Client</a><a href="mcp-server.html">MCP Server API</a><details class="nav-menu"><summary class="active">Implemented MCPs</summary><div class="nav-menu-links"><a href="echo-server.html">echo_server</a><a class="active" aria-current="page" href="run-js.html">run_js Gateway</a><a href="decision-api.html">Decision API MCP</a></div></details><a href="markdown.html">Markdown</a></nav></div></header>
   <main id="main-content">
 <section class="page-hero shell"><p class="eyebrow">Source: mcp/gateway/README.md</p><h1>run_js MCP gateway</h1></section>
-    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#example-use-the-gateway-from-std-slop">Example: use the gateway from std_slop</a></li><li class="toc-level-2"><a href="#configuration-and-limits">Configuration and limits</a></li><li class="toc-level-2"><a href="#example-connect-to-an-http-mcp-server">Example: connect to an HTTP MCP server</a></li><li class="toc-level-2"><a href="#gateway-owned-oauth-login-and-refresh">Gateway-owned OAuth login and refresh</a></li><li class="toc-level-2"><a href="#example-connect-to-the-decision-api-server">Example: connect to the Decision API server</a></li><li class="toc-level-2"><a href="#testing-without-an-llm">Testing without an LLM</a></li><li class="toc-level-2"><a href="#security-considerations">Security considerations</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="run-js-server-example-gateway"><code>run_js_server</code> example gateway</h1>
+    <div class="shell doc-layout"><aside class="toc" aria-label="On this page"><p>On this page</p><ul><li class="toc-level-2"><a href="#example-use-the-gateway-from-std-slop">Example: use the gateway from std_slop</a></li><li class="toc-level-2"><a href="#configuration-and-limits">Configuration and limits</a></li><li class="toc-level-2"><a href="#example-connect-to-an-http-mcp-server">Example: connect to an HTTP MCP server</a></li><li class="toc-level-2"><a href="#example-connect-to-the-sondahub-mcp-test-server">Example: connect to the SondaHub MCP test server</a></li><li class="toc-level-2"><a href="#gateway-owned-oauth-login-and-refresh">Gateway-owned OAuth login and refresh</a></li><li class="toc-level-2"><a href="#example-connect-to-the-decision-api-server">Example: connect to the Decision API server</a></li><li class="toc-level-2"><a href="#testing-without-an-llm">Testing without an LLM</a></li><li class="toc-level-2"><a href="#security-considerations">Security considerations</a></li></ul></aside><article class="markdown-content"><div class="doc-lead"><h1 id="run-js-server-example-gateway"><code>run_js_server</code> example gateway</h1>
 <p><code>run_js_server</code> is a stdio MCP server that runs bounded JavaScript and calls tools from configured downstream stdio or Streamable HTTP MCP servers. It exposes two tools:</p>
 <ul><li><code>run_js</code>: run JavaScript with optional JSON input.</li><li><code>run_js_help</code>: list authorized tools or inspect one tool's schema.</li></ul>
 <p>This file is the user setup guide. Current implementation status and follow-up work are in <a href="run-js-status.html">STATUS.md</a>.</p>
@@ -81,6 +81,42 @@ return {
   ]
 }</code></pre>
 <p>The gateway connects during startup and discovers the downstream tools. Inspect the available tools with <code>help()</code> before calling one from JavaScript. Configure <code>allowTools</code> with a non-empty list when you want to limit access.</p></section>
+<section class="doc-section"><h2 id="example-connect-to-the-sondahub-mcp-test-server">Example: connect to the SondaHub MCP test server</h2>
+<p><a href="https://sondahub.com/mcp-server/">SondaHub's MCP test server</a> provides both a public HTTP endpoint and an OAuth-protected endpoint:</p>
+<ul><li>Public: <code>https://api.sondahub.com/mcp</code> (no OAuth).</li><li>OAuth: <code>https://api.sondahub.com/mcp/secure</code>.</li></ul>
+<p>Add either entry, or both with distinct aliases, to <code>gateway.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;servers&quot;: [
+    {
+      &quot;alias&quot;: &quot;sondahub_public&quot;,
+      &quot;transport&quot;: &quot;http&quot;,
+      &quot;endpointUrl&quot;: &quot;https://api.sondahub.com/mcp&quot;,
+      &quot;allowTools&quot;: []
+    },
+    {
+      &quot;alias&quot;: &quot;sondahub&quot;,
+      &quot;transport&quot;: &quot;http&quot;,
+      &quot;endpointUrl&quot;: &quot;https://api.sondahub.com/mcp/secure&quot;,
+      &quot;allowTools&quot;: [],
+      &quot;auth&quot;: {
+        &quot;type&quot;: &quot;oauth&quot;,
+        &quot;tokenFile&quot;: &quot;/home/YOUR_USER/.config/slop/sondahub-token.json&quot;,
+        &quot;clientId&quot;: &quot;sonda&quot;,
+        &quot;scopes&quot;: [&quot;mcp:read&quot;, &quot;mcp:write&quot;]
+      }
+    }
+  ]
+}</code></pre>
+<p>The public endpoint needs no login. The OAuth example uses SondaHub's public test client ID, <code>sonda</code>; it does not need a client secret. Use an absolute path for <code>tokenFile</code>. The gateway discovers OAuth metadata from the endpoint. Its callback URI is <code>http://127.0.0.1/callback</code>; the OAuth client must allow that exact URI. Request only <code>mcp:read</code> if you do not need to test write tools.</p>
+<p>Log in to the OAuth endpoint before starting the gateway:</p>
+<pre><code class="language-bash">bazel run //mcp/gateway:run_js_server -- auth login \
+  --config /absolute/path/to/gateway.json \
+  --server sondahub</code></pre>
+<p>After startup, inspect the catalog with <code>help()</code> and call tools through the configured aliases. For example:</p>
+<pre><code class="language-javascript">const order = await sondahub.store_order_status({order_number: &quot;SH-100042&quot;});
+const products = await sondahub_public.store_search_products({query: &quot;headphones&quot;, limit: 2});
+return {order: order.structuredContent, products: products.structuredContent};</code></pre>
+<p>SondaHub is a test server. Its simulated writes are not persisted unless a client carries the returned <code>X-Sondahub-Session</code> token into later requests.</p></section>
 <section class="doc-section"><h2 id="gateway-owned-oauth-login-and-refresh">Gateway-owned OAuth login and refresh</h2>
 <p>An HTTP OAuth profile normally needs only a registered client ID and an absolute token-file path. Gateway login, refresh, and startup discover the OAuth metadata from the MCP endpoint:</p>
 <ol><li>The gateway sends an MCP initialize request and uses a <code>resource_metadata</code> URL from a 401 <code>WWW-Authenticate</code> challenge when present. Otherwise, it tries the protected-resource well-known URLs in MCP order: endpoint-path insertion, then the root URL.</li><li>It fetches the protected-resource metadata and selects the advertised authorization server.</li><li>It tries RFC 8414 Authorization Server Metadata first. MCP requires OpenID Connect Discovery fallbacks: with a path issuer, path insertion then path appending; without a path, the root OIDC URL. Each response is parsed as JSON and validated against the issuer, resource binding, endpoints, and S256 PKCE requirements. RFC 8414 places <code>/.well-known/oauth-authorization-server</code> between the host and issuer path.</li></ol>

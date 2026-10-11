@@ -89,7 +89,13 @@ SOURCES = {
         "[MCP server guide](mcp-server.md).\n"
     ),
     "docs/mcp-slop-userguide.md": "# MCP agent integration\n\nRemote tools.\n",
-    "mcp/gateway/README.md": "# run_js gateway\n\n[Implementation status](STATUS.md).\n",
+    "mcp/gateway/README.md": (
+        "# run_js gateway\n\n"
+        "## SondaHub MCP test server\n\n"
+        "Public endpoint: https://api.sondahub.com/mcp\n\n"
+        "OAuth endpoint: https://api.sondahub.com/mcp/secure\n\n"
+        "[Implementation status](STATUS.md).\n"
+    ),
     "mcp/decision_api/README.md": "# Decision API MCP server\n\nSystemOne decision models such as TypeSafe Jev.\n",
     "mcp/gateway/STATUS.md": "# Gateway implementation status\n\nCurrent state.\n",
     "markdown/README.md": "# Markdown library\n\nTerminal renderer.\n",
@@ -210,6 +216,10 @@ class BuildPagesTest(unittest.TestCase):
         self.assertIn("deterministic echo implementation", echo_page)
         decision_page = self.page("decision-api.html")
         self.assertIn("Decision API MCP server", decision_page)
+        run_js_page = self.page("run-js.html")
+        self.assertIn("SondaHub MCP test server", run_js_page)
+        self.assertIn("https://api.sondahub.com/mcp", run_js_page)
+        self.assertIn("https://api.sondahub.com/mcp/secure", run_js_page)
         index = self.page("index.html")
         self.assertIn('href="echo-server.html">echo_server', index)
         self.assertIn('href="run-js.html">run_js Gateway', index)
