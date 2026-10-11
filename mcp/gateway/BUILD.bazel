@@ -206,6 +206,35 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "oauth_cli",
+    srcs = ["oauth_cli.cpp"],
+    hdrs = ["oauth_cli.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":config",
+        "//core:transport",
+        "//mcp/client:auth_config",
+        "//mcp/client:oauth_client",
+        "//mcp:validation",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "oauth_cli_test",
+    srcs = ["oauth_cli_test.cpp"],
+    deps = [
+        ":config",
+        ":oauth_cli",
+        "//core:transport",
+        "//mcp/client:token_store",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_binary(
     name = "run_js_server",
     srcs = ["run_js_server.cpp"],
@@ -217,6 +246,7 @@ cc_binary(
         ":gateway_server",
         ":worker",
         ":trace_logger",
+        ":oauth_cli",
         "//mcp/client:client",
         "//mcp/client:auth_config",
         "//core:transport",

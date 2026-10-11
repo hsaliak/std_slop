@@ -1,6 +1,7 @@
 #include "mcp/client/oauth_client.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -63,13 +64,12 @@ TEST(OAuthClientTest, ValidatesCallbackIssuerAndPkceAdvertisement) {
       "http://127.0.0.1/callback?code=abc&state=expected&iss=https%3A%2F%2Fauth.example", "expected",
       "https://auth.example");
   ASSERT_TRUE(code.ok()) << code.status();
-  auto absent = ExtractAuthorizationCodeFromCallback(
-      "http://127.0.0.1/callback?code=abc&state=expected", "expected",
-      "https://auth.example");
+  auto absent = ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=abc&state=expected", "expected",
+                                                     "https://auth.example");
   ASSERT_TRUE(absent.ok()) << absent.status();
-  auto required_absent = ExtractAuthorizationCodeFromCallback(
-      "http://127.0.0.1/callback?code=abc&state=expected", "expected",
-      "https://auth.example", "http://127.0.0.1/callback", true);
+  auto required_absent =
+      ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=abc&state=expected", "expected",
+                                           "https://auth.example", "http://127.0.0.1/callback", true);
   EXPECT_EQ(required_absent.status().code(), absl::StatusCode::kPermissionDenied);
   auto mismatch = ExtractAuthorizationCodeFromCallback(
       "http://127.0.0.1/callback?code=abc&state=expected&iss=https%3A%2F%2Fevil.example", "expected",
@@ -97,19 +97,16 @@ TEST(OAuthClientTest, RejectsStateMismatch) {
 }
 
 TEST(OAuthClientTest, RejectsMalformedAndEncodedDuplicateParameters) {
-  EXPECT_EQ(ExtractAuthorizationCodeFromCallback(
-                "http://127.0.0.1/callback?code=%GG&state=expected", "expected")
+  EXPECT_EQ(ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=%GG&state=expected", "expected")
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
-  EXPECT_EQ(ExtractAuthorizationCodeFromCallback(
-                "http://127.0.0.1/callback?state=expected&st%61te=expected&code=abc",
-                "expected")
+  EXPECT_EQ(ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?state=expected&st%61te=expected&code=abc",
+                                                 "expected")
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
-  EXPECT_EQ(ExtractAuthorizationCodeFromCallback(
-                "http://127.0.0.1/callback?code=%00&state=expected", "expected")
+  EXPECT_EQ(ExtractAuthorizationCodeFromCallback("http://127.0.0.1/callback?code=%00&state=expected", "expected")
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
@@ -207,6 +204,85 @@ TEST(OAuthClientTest, ReportsJsonOAuthErrorOnNonSuccessStatus) {
   EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "bad_verification_code"));
   EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "code expired"));
   EXPECT_TRUE(absl::StrContains(exchanged.status().message(), "HTTP 400"));
+}
+
+TEST(OAuthClientTest, CompletesPkceAuthorizationAndStoresTokens) {
+  const std::string token_file =
+      (std::filesystem::temp_directory_path() / "slop_oauth_client_login_test.json").string();
+  std::filesystem::remove(token_file);
+  FakeHttpClient http;
+  const OAuthClientConfig config = Config();
+  auto session = StartPkceAuthorization(config);
+  ASSERT_TRUE(session.ok()) << session.status();
+  const std::string callback = session->redirect_uri + "?code=authorization-code&state=" + session->state;
+
+  const absl::Status status = CompletePkceAuthorizationAndSaveTokens(&http, config, *session, callback, token_file);
+
+  ASSERT_TRUE(status.ok()) << status;
+  auto tokens = LoadOAuthTokens(token_file);
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->access_token, "access");
+  EXPECT_EQ(tokens->refresh_token, "refresh");
+  EXPECT_EQ(tokens->issuer, config.issuer);
+  EXPECT_EQ(tokens->resource, config.resource);
+  EXPECT_NE(http.last_body.find("code=authorization-code"), std::string::npos);
+  std::filesystem::remove(token_file);
+}
+
+TEST(OAuthClientTest, RejectsInvalidCallbackBeforeExchangingCode) {
+  FakeHttpClient http;
+  const OAuthClientConfig config = Config();
+  auto session = StartPkceAuthorization(config);
+  ASSERT_TRUE(session.ok()) << session.status();
+
+  const absl::Status status = CompletePkceAuthorizationAndSaveTokens(
+      &http, config, *session, session->redirect_uri + "?code=authorization-code&state=wrong", "/tmp/token.json");
+
+  EXPECT_TRUE(absl::IsPermissionDenied(status));
+  EXPECT_TRUE(http.last_url.empty());
+}
+
+TEST(OAuthClientTest, RefreshesStoredTokensAndPreservesRefreshToken) {
+  const std::string token_file =
+      (std::filesystem::temp_directory_path() / "slop_oauth_client_refresh_test.json").string();
+  std::filesystem::remove(token_file);
+  OAuthTokenSet old_tokens;
+  old_tokens.access_token = "old-access";
+  old_tokens.refresh_token = "old-refresh";
+  old_tokens.issuer = Config().issuer;
+  old_tokens.resource = Config().resource;
+  ASSERT_TRUE(SaveOAuthTokens(token_file, old_tokens).ok());
+  FakeHttpClient http;
+  http.response.body = R"({"access_token":"new-access","token_type":"Bearer","expires_in":120})";
+
+  const absl::Status status = RefreshOAuthTokenFile(&http, Config(), token_file);
+
+  ASSERT_TRUE(status.ok()) << status;
+  auto tokens = LoadOAuthTokens(token_file);
+  ASSERT_TRUE(tokens.ok()) << tokens.status();
+  EXPECT_EQ(tokens->access_token, "new-access");
+  EXPECT_EQ(tokens->refresh_token, "old-refresh");
+  EXPECT_NE(http.last_body.find("refresh_token=old-refresh"), std::string::npos);
+  std::filesystem::remove(token_file);
+}
+
+TEST(OAuthClientTest, RefusesToRefreshTokensBoundToAnotherClient) {
+  const std::string token_file =
+      (std::filesystem::temp_directory_path() / "slop_oauth_client_binding_test.json").string();
+  std::filesystem::remove(token_file);
+  OAuthTokenSet tokens;
+  tokens.access_token = "old-access";
+  tokens.refresh_token = "old-refresh";
+  tokens.issuer = Config().issuer;
+  tokens.resource = "https://other.example/mcp";
+  ASSERT_TRUE(SaveOAuthTokens(token_file, tokens).ok());
+  FakeHttpClient http;
+
+  const absl::Status status = RefreshOAuthTokenFile(&http, Config(), token_file);
+
+  EXPECT_TRUE(absl::IsPermissionDenied(status));
+  EXPECT_TRUE(http.last_url.empty());
+  std::filesystem::remove(token_file);
 }
 
 TEST(OAuthClientTest, ReportsHttpStatusForJsonNonOAuthErrorResponse) {

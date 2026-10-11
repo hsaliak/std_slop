@@ -13,10 +13,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "curl/curl.h"
 
 #include "core/json_utils.h"
 #include "core/sha256.h"
+#include "curl/curl.h"
+#include "mcp/validation.h"
 
 namespace slop::mcp {
 namespace {
@@ -37,8 +38,7 @@ absl::StatusOr<std::string> UrlDecode(absl::string_view value) {
   if (value.empty()) return std::string{};
   for (size_t i = 0; i < value.size(); ++i) {
     if (value[i] != '%') continue;
-    if (i + 2 >= value.size() || !absl::ascii_isxdigit(value[i + 1]) ||
-        !absl::ascii_isxdigit(value[i + 2])) {
+    if (i + 2 >= value.size() || !absl::ascii_isxdigit(value[i + 1]) || !absl::ascii_isxdigit(value[i + 2])) {
       return absl::InvalidArgumentError("OAuth callback contains invalid percent encoding");
     }
     i += 2;
@@ -260,8 +260,7 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
   auto body = FormBody(fields);
   if (!body.ok()) return body.status();
   auto response = http_client->PostOnceWithResponse(
-      config.token_endpoint, *body,
-      {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+      config.token_endpoint, *body, {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth token exchange failed");
@@ -288,8 +287,7 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
   auto body = FormBody(fields);
   if (!body.ok()) return body.status();
   auto response = http_client->PostOnceWithResponse(
-      config.token_endpoint, *body,
-      {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
+      config.token_endpoint, *body, {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
   if (!response.ok()) return response.status();
   if (response->status_code < 200 || response->status_code >= 300) {
     return TokenHttpError(*response, "OAuth refresh failed");
@@ -300,6 +298,35 @@ absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const O
   tokens->resource = config.resource;
   if (tokens->refresh_token.empty()) tokens->refresh_token = refresh_token;
   return *tokens;
+}
+
+absl::Status CompletePkceAuthorizationAndSaveTokens(HttpClient* http_client, const OAuthClientConfig& config,
+                                                    const PkceAuthorizationSession& session,
+                                                    const std::string& callback_url, const std::string& token_file) {
+  if (!IsValidAbsolutePath(token_file, 4096)) {
+    return absl::InvalidArgumentError("OAuth token file must be a bounded absolute path");
+  }
+  auto code = ExtractAuthorizationCodeFromCallback(callback_url, session.state, config.issuer, session.redirect_uri,
+                                                   config.authorization_response_iss_parameter_supported);
+  if (!code.ok()) return code.status();
+  auto tokens = ExchangeAuthorizationCode(http_client, config, *code, session.code_verifier);
+  if (!tokens.ok()) return tokens.status();
+  return SaveOAuthTokens(token_file, *tokens);
+}
+
+absl::Status RefreshOAuthTokenFile(HttpClient* http_client, const OAuthClientConfig& config,
+                                   const std::string& token_file) {
+  if (!IsValidAbsolutePath(token_file, 4096)) {
+    return absl::InvalidArgumentError("OAuth token file must be a bounded absolute path");
+  }
+  auto existing_tokens = LoadOAuthTokens(token_file);
+  if (!existing_tokens.ok()) return existing_tokens.status();
+  if (existing_tokens->issuer != config.issuer || existing_tokens->resource != config.resource) {
+    return absl::PermissionDeniedError("OAuth token binding does not match the configured client");
+  }
+  auto refreshed_tokens = RefreshOAuthToken(http_client, config, existing_tokens->refresh_token);
+  if (!refreshed_tokens.ok()) return refreshed_tokens.status();
+  return SaveOAuthTokens(token_file, *refreshed_tokens);
 }
 
 }  // namespace slop::mcp

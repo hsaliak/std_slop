@@ -16,9 +16,9 @@ namespace slop::mcp {
 namespace {
 
 bool HasOAuthProfileFields(const HttpAuthConfig& config) {
-  return !config.client_id.empty() || !config.scopes.empty() || !config.resource_metadata_url.empty() ||
-         !config.authorization_endpoint.empty() || !config.token_endpoint.empty() ||
-         config.authorization_response_iss_parameter_supported;
+  return !config.client_id.empty() || !config.client_secret_env.empty() || !config.scopes.empty() ||
+         !config.resource_metadata_url.empty() || !config.authorization_endpoint.empty() ||
+         !config.token_endpoint.empty() || config.authorization_response_iss_parameter_supported;
 }
 
 absl::Status ValidateTokenSource(const HttpAuthConfig& config) {
@@ -75,6 +75,9 @@ absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config) {
       }
       if (!IsValidAbsolutePath(config.token_file, 4096)) {
         return absl::InvalidArgumentError("HTTP MCP token file must be a bounded absolute path");
+      }
+      if (!config.client_secret_env.empty() && !IsValidEnvironmentVariableName(config.client_secret_env)) {
+        return absl::InvalidArgumentError("OAuth HTTP MCP client secret environment variable name is invalid");
       }
       if (ContainsControlCharacters(config.expected_issuer) || ContainsControlCharacters(config.client_id) ||
           ContainsControlCharacters(config.resource_metadata_url) ||

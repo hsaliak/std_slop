@@ -24,6 +24,7 @@ struct HttpAuthConfig {
   std::string token_env;
   std::string expected_issuer;
   std::string client_id;
+  std::string client_secret_env;
   std::vector<std::string> scopes;
   std::string resource_metadata_url;
   std::string authorization_endpoint;
@@ -36,7 +37,7 @@ absl::Status ValidateHttpAuthConfig(const HttpAuthConfig& config);
 // Resolves the configured credential. OAuth tokens are checked against both
 // the expected issuer and the resource URL before they can be used.
 absl::StatusOr<std::optional<std::string>> ResolveHttpAuthToken(const std::string& resource_url,
-                                                                 const HttpAuthConfig& config);
+                                                                const HttpAuthConfig& config);
 
 }  // namespace slop::mcp
 

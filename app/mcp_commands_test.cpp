@@ -547,6 +547,8 @@ TEST(McpCommandsTest, RefreshUsesClientSecretWithoutPersistingIt) {
   mcp::OAuthTokenSet old_tokens;
   old_tokens.access_token = "old-access";
   old_tokens.refresh_token = "old-refresh";
+  old_tokens.issuer = "https://manual.example";
+  old_tokens.resource = "https://api.example/mcp";
   ASSERT_TRUE(mcp::SaveOAuthTokens(mcp::DefaultTokenPath("github"), old_tokens).ok());
 
   http_client.post_response = {

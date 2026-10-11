@@ -132,6 +132,7 @@ cc_library(
     deps = [
         ":authorization",
         ":token_store",
+        "//mcp:validation",
         "//core:json_utils",
         "//core:sha256",
         "//core:transport",

@@ -23,6 +23,7 @@
 #include "mcp/gateway/broker.h"
 #include "mcp/gateway/catalog.h"
 #include "mcp/gateway/config.h"
+#include "mcp/gateway/oauth_cli.h"
 #include "mcp/gateway/server.h"
 #include "mcp/gateway/trace_logger.h"
 #include "mcp/gateway/worker.h"
@@ -30,7 +31,11 @@
 
 namespace {
 
-constexpr char kUsage[] = "usage: run_js_server --config PATH | --help\n";
+constexpr char kUsage[] =
+    "usage: run_js_server --config PATH | auth login|refresh --config PATH --server ALIAS | --help\n";
+constexpr char kOAuthUsage[] =
+    "usage: run_js_server auth login|refresh --config PATH --server ALIAS\n"
+    "       run_js_server auth --help\n";
 
 absl::StatusOr<std::string> ReadConfigFile(const std::string& path) {
   std::ifstream file(path, std::ios::binary);
@@ -92,6 +97,23 @@ int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--help") {
     std::cout << kUsage;
     return 0;
+  }
+  if (argc == 3 && std::string(argv[1]) == "auth" && std::string(argv[2]) == "--help") {
+    std::cout << kOAuthUsage;
+    return 0;
+  }
+  if (argc >= 2 && std::string(argv[1]) == "auth") {
+    std::vector<std::string> args(argv + 1, argv + argc);
+    auto options = slop::mcp::gateway::ParseOAuthCliOptions(args);
+    if (!options.ok()) return Fail(options.status());
+    auto config_text = ReadConfigFile(options->config_path);
+    if (!config_text.ok()) return Fail(config_text.status());
+    auto config = slop::mcp::gateway::ParseConfigText(*config_text);
+    if (!config.ok()) return Fail(config.status());
+    slop::HttpClient http_client;
+    const absl::Status status =
+        slop::mcp::gateway::RunOAuthCliCommand(*options, *config, &http_client, &std::cin, &std::cout);
+    return status.ok() ? 0 : Fail(status);
   }
   if (argc != 3 || std::string(argv[1]) != "--config") {
     std::cerr << kUsage;

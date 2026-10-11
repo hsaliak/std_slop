@@ -43,6 +43,11 @@ absl::StatusOr<OAuthTokenSet> ExchangeAuthorizationCode(HttpClient* http_client,
                                                         const std::string& code, const std::string& code_verifier);
 absl::StatusOr<OAuthTokenSet> RefreshOAuthToken(HttpClient* http_client, const OAuthClientConfig& config,
                                                 const std::string& refresh_token);
+absl::Status CompletePkceAuthorizationAndSaveTokens(HttpClient* http_client, const OAuthClientConfig& config,
+                                                    const PkceAuthorizationSession& session,
+                                                    const std::string& callback_url, const std::string& token_file);
+absl::Status RefreshOAuthTokenFile(HttpClient* http_client, const OAuthClientConfig& config,
+                                   const std::string& token_file);
 
 }  // namespace slop::mcp
 

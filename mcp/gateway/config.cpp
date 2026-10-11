@@ -23,6 +23,7 @@ constexpr std::size_t kMaxTraceLogPathBytes = 4096;
 constexpr std::size_t kMaxTokenFilePathBytes = 4096;
 constexpr std::size_t kMaxTokenEnvNameBytes = 256;
 constexpr std::size_t kMaxOAuthClientIdBytes = 4096;
+constexpr std::size_t kMaxOAuthClientSecretEnvBytes = 256;
 constexpr std::size_t kMaxOAuthUrlBytes = 4096;
 constexpr std::size_t kMaxOAuthScopeCount = 64;
 constexpr std::size_t kMaxOAuthScopeBytes = 256;
@@ -87,17 +88,19 @@ absl::StatusOr<HttpAuthConfig> ParseHttpAuthConfig(const nlohmann::json* value) 
   }
   if (*type != "oauth") return absl::InvalidArgumentError("server auth type must be none, bearer, or oauth");
 
-  const absl::Status status =
-      ValidateJsonObjectFields(*value,
-                               {"type", "tokenFile", "clientId", "issuer", "scopes", "resourceMetadataUrl",
-                                "authorizationEndpoint", "tokenEndpoint", "authorizationResponseIssParameterSupported"},
-                               "server auth");
+  const absl::Status status = ValidateJsonObjectFields(
+      *value,
+      {"type", "tokenFile", "clientId", "clientSecretEnv", "issuer", "scopes", "resourceMetadataUrl",
+       "authorizationEndpoint", "tokenEndpoint", "authorizationResponseIssParameterSupported"},
+      "server auth");
   if (!status.ok()) return status;
   auth.method = HttpAuthMethod::kOAuth;
   auto token_file = OptionalStringField(*value, "tokenFile", kMaxTokenFilePathBytes);
   if (!token_file.ok()) return token_file.status();
   auto client_id = OptionalStringField(*value, "clientId", kMaxOAuthClientIdBytes);
   if (!client_id.ok()) return client_id.status();
+  auto client_secret_env = OptionalStringField(*value, "clientSecretEnv", kMaxOAuthClientSecretEnvBytes);
+  if (!client_secret_env.ok()) return client_secret_env.status();
   auto issuer = OptionalStringField(*value, "issuer", kMaxOAuthUrlBytes);
   if (!issuer.ok()) return issuer.status();
   auto resource_metadata_url = OptionalStringField(*value, "resourceMetadataUrl", kMaxOAuthUrlBytes);
@@ -114,6 +117,7 @@ absl::StatusOr<HttpAuthConfig> ParseHttpAuthConfig(const nlohmann::json* value) 
   }
   auth.token_file = std::move(*token_file);
   auth.client_id = std::move(*client_id);
+  auth.client_secret_env = std::move(*client_secret_env);
   auth.expected_issuer = std::move(*issuer);
   auth.resource_metadata_url = std::move(*resource_metadata_url);
   auth.authorization_endpoint = std::move(*authorization_endpoint);
