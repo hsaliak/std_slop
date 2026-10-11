@@ -166,6 +166,8 @@ If a bearer token is missing or invalid at startup, `std_slop` logs a warning an
 
 Use `--auth oauth` for servers that support OAuth authorization-code + PKCE.
 
+If the resource requires particular permissions, select its scopes with one or more `--scope` options when you add the server. Do not assume a successful OAuth login grants every tool permission.
+
 ### Register with discovery
 
 If the server publishes protected resource metadata, omit explicit endpoints and let `std_slop` discover them:
@@ -179,6 +181,22 @@ std_slop mcp add github \
 ```
 
 `CLIENT_ID` must come from a registered OAuth or GitHub App. Discovery finds endpoints; it does not create or infer a client ID.
+
+OAuth scopes are provider-specific. `--scope` may be repeated; request every scope required by the tools you plan to use. `std_slop` does not infer the required scope set. A successful browser login with missing scopes can still leave calls denied. After changing scopes, run `oauth-login` again to obtain a token with the new grants.
+
+SondaHub's public test endpoint needs no OAuth. For its protected endpoint, `mcp:read` grants read tools and `mcp:write` is needed for write tools:
+
+```sh
+# Public HTTP endpoint.
+std_slop mcp add sondahub-public --url https://api.sondahub.com/mcp
+
+# OAuth endpoint with read and write access.
+std_slop mcp add sondahub \
+  --url https://api.sondahub.com/mcp/secure \
+  --auth oauth --client-id sonda \
+  --scope mcp:read --scope mcp:write
+std_slop mcp oauth-login sondahub
+```
 
 What `std_slop` does during discovery:
 

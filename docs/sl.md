@@ -118,7 +118,16 @@ sl mcp add local-files --transport stdio \
   --args-json '["--root", "/work/project"]'
 ```
 
-For HTTP servers, `--auth` accepts `none`, `bearer`, or `oauth`. Bearer mode requires `--token`; OAuth mode requires `--client-id`. `--scope` may be repeated. `--token-path PATH` overrides the default token location. Server names use letters, digits, hyphens, or underscores.
+For HTTP servers, `--auth` accepts `none`, `bearer`, or `oauth`. Bearer mode requires `--token`; OAuth mode requires `--client-id`. `--scope` may be repeated. OAuth scopes are provider-specific: select the scopes required by the tools you plan to use; `std_slop` does not infer them. A login can succeed while later tool calls fail for insufficient scope. After changing scopes, run `std_slop mcp oauth-login NAME` again. `--token-path PATH` overrides the default token location. Server names use letters, digits, hyphens, or underscores.
+
+SondaHub provides a public endpoint and an OAuth endpoint. The public endpoint needs no OAuth. For OAuth, request `mcp:read` for read tools and `mcp:write` for write tools:
+
+```sh
+std_slop mcp add sondahub-public --url https://api.sondahub.com/mcp
+std_slop mcp add sondahub --url https://api.sondahub.com/mcp/secure \
+  --auth oauth --client-id sonda --scope mcp:read --scope mcp:write
+std_slop mcp oauth-login sondahub
+```
 
 For stdio servers, `--args-json` is optional and defaults to an empty array; when supplied, it must be a JSON array of strings. Arguments are literal argv values; no shell is started and `$VAR` or `~` is not expanded. The executable inherits the agent's environment, working directory, user permissions, and local file access. Configure only trusted executables. Stdio supports modern MCP `2026-07-28` only and has no HTTP/OAuth authentication.
 

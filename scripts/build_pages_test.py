@@ -65,7 +65,11 @@ SOURCES = {
         "# Coding-agent walkthrough\n\nInteractive setup.\n"
     ),
     "docs/sl.md": (
-        "# sl command-line guide\n\nScripted prompts and state commands.\n"
+        "# sl command-line guide\n\nScripted prompts and state commands.\n\n"
+        "## MCP scopes\n\n"
+        "OAuth scopes are provider-specific; select required scopes. "
+        "SondaHub uses `mcp:read` and `mcp:write`.\n\n"
+        "```sh\nstd_slop mcp add sondahub --scope mcp:read --scope mcp:write\n```\n"
     ),
     "docs/SESSIONS.md": "# Sessions\n\nAgent sessions.\n",
     "docs/CONTEXT_MANAGEMENT.md": "# Context management\n\nAgent context.\n",
@@ -148,6 +152,13 @@ class BuildPagesTest(unittest.TestCase):
             self.assertNotIn(text, agent)
         self.assertIn("Scripted prompts and state commands",
                       self.page("sl.html"))
+
+    def test_sl_page_includes_oauth_scope_guidance(self):
+        page = self.page("sl.html")
+        for text in ("OAuth scopes are provider-specific",
+                     "select required scopes", "mcp:read", "mcp:write",
+                     "std_slop mcp add sondahub"):
+            self.assertIn(text, page)
 
     def test_client_and_server_have_separate_pages(self):
         client = self.page("mcp.html")

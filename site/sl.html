@@ -73,7 +73,12 @@ sl mcp add work --url https://example.com/mcp \
 sl mcp add local-files --transport stdio \
   --command /absolute/path/to/mcp-server \
   --args-json &#x27;[&quot;--root&quot;, &quot;/work/project&quot;]&#x27;</code></pre>
-<p>For HTTP servers, <code>--auth</code> accepts <code>none</code>, <code>bearer</code>, or <code>oauth</code>. Bearer mode requires <code>--token</code>; OAuth mode requires <code>--client-id</code>. <code>--scope</code> may be repeated. <code>--token-path PATH</code> overrides the default token location. Server names use letters, digits, hyphens, or underscores.</p>
+<p>For HTTP servers, <code>--auth</code> accepts <code>none</code>, <code>bearer</code>, or <code>oauth</code>. Bearer mode requires <code>--token</code>; OAuth mode requires <code>--client-id</code>. <code>--scope</code> may be repeated. OAuth scopes are provider-specific: select the scopes required by the tools you plan to use; <code>std_slop</code> does not infer them. A login can succeed while later tool calls fail for insufficient scope. After changing scopes, run <code>std_slop mcp oauth-login NAME</code> again. <code>--token-path PATH</code> overrides the default token location. Server names use letters, digits, hyphens, or underscores.</p>
+<p>SondaHub provides a public endpoint and an OAuth endpoint. The public endpoint needs no OAuth. For OAuth, request <code>mcp:read</code> for read tools and <code>mcp:write</code> for write tools:</p>
+<pre><code class="language-sh">std_slop mcp add sondahub-public --url https://api.sondahub.com/mcp
+std_slop mcp add sondahub --url https://api.sondahub.com/mcp/secure \
+  --auth oauth --client-id sonda --scope mcp:read --scope mcp:write
+std_slop mcp oauth-login sondahub</code></pre>
 <p>For stdio servers, <code>--args-json</code> is optional and defaults to an empty array; when supplied, it must be a JSON array of strings. Arguments are literal argv values; no shell is started and <code>$VAR</code> or <code>~</code> is not expanded. The executable inherits the agent's environment, working directory, user permissions, and local file access. Configure only trusted executables. Stdio supports modern MCP <code>2026-07-28</code> only and has no HTTP/OAuth authentication.</p>
 <p>If OAuth discovery is unavailable, supply both HTTPS endpoints and the issuer:</p>
 <pre><code class="language-sh">sl mcp add work --url https://example.com/mcp \
