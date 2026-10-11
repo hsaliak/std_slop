@@ -116,7 +116,13 @@ The gateway connects during startup and discovers the downstream tools. Inspect 
 
 ## Gateway-owned OAuth login and refresh
 
-An HTTP OAuth profile keeps token data in a separate token file. Configure the client ID, issuer, OAuth endpoints, scopes, and an absolute token-file path in `gateway.json`. `clientSecretEnv`, when needed, is only the name of an environment variable; do not add a `clientSecret` value to the file.
+An HTTP OAuth profile normally needs only a registered client ID and an absolute token-file path. Gateway login, refresh, and startup discover the OAuth metadata from the MCP endpoint:
+
+1. The gateway sends an MCP initialize request and uses a `resource_metadata` URL from a 401 `WWW-Authenticate` challenge when present. Otherwise, it tries the protected-resource well-known URLs in MCP order: endpoint-path insertion, then the root URL.
+2. It fetches the protected-resource metadata and selects the advertised authorization server.
+3. It tries RFC 8414 Authorization Server Metadata first. MCP requires OpenID Connect Discovery fallbacks: with a path issuer, path insertion then path appending; without a path, the root OIDC URL. Each response is parsed as JSON and validated against the issuer, resource binding, endpoints, and S256 PKCE requirements. RFC 8414 places `/.well-known/oauth-authorization-server` between the host and issuer path.
+
+Minimal configuration:
 
 ```json
 {
@@ -128,18 +134,14 @@ An HTTP OAuth profile keeps token data in a separate token file. Configure the c
       "auth": {
         "type": "oauth",
         "tokenFile": "/home/user/.config/slop/private-docs-token.json",
-        "clientId": "docs-client",
-        "clientSecretEnv": "DOCS_OAUTH_CLIENT_SECRET",
-        "issuer": "https://identity.example.com",
-        "scopes": ["read"],
-        "resourceMetadataUrl": "https://mcp.example.com/.well-known/oauth-protected-resource",
-        "authorizationEndpoint": "https://identity.example.com/authorize",
-        "tokenEndpoint": "https://identity.example.com/token"
+        "clientId": "docs-client"
       }
     }
   ]
 }
 ```
+
+`scopes` and `clientSecretEnv` are optional. Add `clientSecretEnv` only for a confidential client; it is the name of an environment variable, not the secret. MCP well-known fallback discovery works without a `WWW-Authenticate` challenge. Set `resourceMetadataUrl` only as an explicit override for a non-standard resource server. If the server advertises multiple authorization servers, set `issuer` to select and pin one. For servers without usable metadata, you can set `issuer`, `authorizationEndpoint`, and `tokenEndpoint` manually; provide both endpoints or neither.
 
 For a public client, omit `clientSecretEnv`. For a confidential client, set the named environment variable using a secure prompt or your secret manager. Use a different environment variable name for each client that has a different secret. For example, in Bash:
 
@@ -163,7 +165,7 @@ The command uses PKCE and validates the callback state and issuer before exchang
 bazel run //mcp/gateway:run_js_server -- auth refresh --config /absolute/path/to/gateway.json --server private_docs
 ```
 
-Both commands use `gateway.json` and the configured client-secret environment variable, if present; they do not start the gateway MCP stdio service or read `mcp.ini`. Gateway startup reads the token file once. Restart the gateway after a manual refresh. Tokens and client secrets are not printed by these commands. Live token refresh is not supported.
+Both commands use `gateway.json` and the configured client-secret environment variable, if present; they do not start the gateway MCP stdio service or read `mcp.ini`. Gateway startup repeats metadata discovery and validates the token file's issuer/resource binding before use. Restart the gateway after a manual refresh. Tokens and client secrets are not printed by these commands. Live token refresh is not supported.
 
 ## Example: connect to the Decision API server
 

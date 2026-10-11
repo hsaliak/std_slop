@@ -82,7 +82,9 @@ return {
 }</code></pre>
 <p>The gateway connects during startup and discovers the downstream tools. Inspect the available tools with <code>help()</code> before calling one from JavaScript. Configure <code>allowTools</code> with a non-empty list when you want to limit access.</p></section>
 <section class="doc-section"><h2 id="gateway-owned-oauth-login-and-refresh">Gateway-owned OAuth login and refresh</h2>
-<p>An HTTP OAuth profile keeps token data in a separate token file. Configure the client ID, issuer, OAuth endpoints, scopes, and an absolute token-file path in <code>gateway.json</code>. <code>clientSecretEnv</code>, when needed, is only the name of an environment variable; do not add a <code>clientSecret</code> value to the file.</p>
+<p>An HTTP OAuth profile normally needs only a registered client ID and an absolute token-file path. Gateway login, refresh, and startup discover the OAuth metadata from the MCP endpoint:</p>
+<ol><li>The gateway sends an MCP initialize request and uses a <code>resource_metadata</code> URL from a 401 <code>WWW-Authenticate</code> challenge when present. Otherwise, it tries the protected-resource well-known URLs in MCP order: endpoint-path insertion, then the root URL.</li><li>It fetches the protected-resource metadata and selects the advertised authorization server.</li><li>It tries RFC 8414 Authorization Server Metadata first. MCP requires OpenID Connect Discovery fallbacks: with a path issuer, path insertion then path appending; without a path, the root OIDC URL. Each response is parsed as JSON and validated against the issuer, resource binding, endpoints, and S256 PKCE requirements. RFC 8414 places <code>/.well-known/oauth-authorization-server</code> between the host and issuer path.</li></ol>
+<p>Minimal configuration:</p>
 <pre><code class="language-json">{
   &quot;servers&quot;: [
     {
@@ -92,17 +94,12 @@ return {
       &quot;auth&quot;: {
         &quot;type&quot;: &quot;oauth&quot;,
         &quot;tokenFile&quot;: &quot;/home/user/.config/slop/private-docs-token.json&quot;,
-        &quot;clientId&quot;: &quot;docs-client&quot;,
-        &quot;clientSecretEnv&quot;: &quot;DOCS_OAUTH_CLIENT_SECRET&quot;,
-        &quot;issuer&quot;: &quot;https://identity.example.com&quot;,
-        &quot;scopes&quot;: [&quot;read&quot;],
-        &quot;resourceMetadataUrl&quot;: &quot;https://mcp.example.com/.well-known/oauth-protected-resource&quot;,
-        &quot;authorizationEndpoint&quot;: &quot;https://identity.example.com/authorize&quot;,
-        &quot;tokenEndpoint&quot;: &quot;https://identity.example.com/token&quot;
+        &quot;clientId&quot;: &quot;docs-client&quot;
       }
     }
   ]
 }</code></pre>
+<p><code>scopes</code> and <code>clientSecretEnv</code> are optional. Add <code>clientSecretEnv</code> only for a confidential client; it is the name of an environment variable, not the secret. MCP well-known fallback discovery works without a <code>WWW-Authenticate</code> challenge. Set <code>resourceMetadataUrl</code> only as an explicit override for a non-standard resource server. If the server advertises multiple authorization servers, set <code>issuer</code> to select and pin one. For servers without usable metadata, you can set <code>issuer</code>, <code>authorizationEndpoint</code>, and <code>tokenEndpoint</code> manually; provide both endpoints or neither.</p>
 <p>For a public client, omit <code>clientSecretEnv</code>. For a confidential client, set the named environment variable using a secure prompt or your secret manager. Use a different environment variable name for each client that has a different secret. For example, in Bash:</p>
 <pre><code class="language-bash">read -rs -p &#x27;OAuth client secret: &#x27; DOCS_OAUTH_CLIENT_SECRET
 printf &#x27;\n&#x27;
@@ -112,7 +109,7 @@ export DOCS_OAUTH_CLIENT_SECRET</code></pre>
 <pre><code class="language-bash">bazel run //mcp/gateway:run_js_server -- auth login --config /absolute/path/to/gateway.json --server private_docs</code></pre>
 <p>The command uses PKCE and validates the callback state and issuer before exchanging the code. The token file is written with the shared secure token-store format. Refresh it with:</p>
 <pre><code class="language-bash">bazel run //mcp/gateway:run_js_server -- auth refresh --config /absolute/path/to/gateway.json --server private_docs</code></pre>
-<p>Both commands use <code>gateway.json</code> and the configured client-secret environment variable, if present; they do not start the gateway MCP stdio service or read <code>mcp.ini</code>. Gateway startup reads the token file once. Restart the gateway after a manual refresh. Tokens and client secrets are not printed by these commands. Live token refresh is not supported.</p></section>
+<p>Both commands use <code>gateway.json</code> and the configured client-secret environment variable, if present; they do not start the gateway MCP stdio service or read <code>mcp.ini</code>. Gateway startup repeats metadata discovery and validates the token file's issuer/resource binding before use. Restart the gateway after a manual refresh. Tokens and client secrets are not printed by these commands. Live token refresh is not supported.</p></section>
 <section class="doc-section"><h2 id="example-connect-to-the-decision-api-server">Example: connect to the Decision API server</h2>
 <p>Add the Decision API server as a downstream stdio server in <code>gateway.json</code> (keep other server entries you need):</p>
 <pre><code class="language-json">{
