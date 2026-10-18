@@ -26,6 +26,27 @@ TEST_F(OrchestratorTest, AssemblePromptBasic) {
   EXPECT_EQ(prompt["input"][0]["role"], "user");
   EXPECT_EQ(prompt["input"][1]["role"], "assistant");
 }
+
+TEST_F(OrchestratorTest, AssemblePromptOverridePreservesRuntimeInstructions) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+  ASSERT_TRUE(db.RegisterSkill({0, "test_skill", "A test skill", "SKILL_PATCH"}).ok());
+  ASSERT_TRUE(db.Execute(
+                  "INSERT INTO tools (name, description, json_schema, is_enabled) "
+                  "VALUES ('test_tool', 'TEST_TOOL_DESCRIPTION', '{}', 1)")
+                  .ok());
+  ASSERT_TRUE(db.AppendMessage("s1", "user", "Hello").ok());
+
+  auto result = orchestrator->AssemblePrompt("s1", {"test_skill"}, "CUSTOM_SYSTEM_PROMPT");
+
+  ASSERT_TRUE(result.ok());
+  const std::string instructions = (*result)["instructions"].get<std::string>();
+  EXPECT_TRUE(absl::StrContains(instructions, "CUSTOM_SYSTEM_PROMPT"));
+  EXPECT_TRUE(absl::StrContains(instructions, "TEST_TOOL_DESCRIPTION"));
+  EXPECT_TRUE(absl::StrContains(instructions, "Conversation History Guidelines"));
+  EXPECT_TRUE(absl::StrContains(instructions, "SKILL_PATCH"));
+}
 TEST_F(OrchestratorTest, AssemblePromptWithSkills) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());

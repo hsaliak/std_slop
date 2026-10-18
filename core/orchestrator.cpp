@@ -78,8 +78,9 @@ void Orchestrator::Builder::Apply(Orchestrator* orchestrator) {
  * @param active_skills List of skills currently active for the turn.
  * @return absl::StatusOr<nlohmann::json> The prepared JSON payload for the LLM API.
  */
-absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& session_id,
-                                                            const std::vector<std::string>& active_skills) {
+absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(
+    const std::string& session_id, const std::vector<std::string>& active_skills,
+    const std::optional<std::string>& system_prompt_override) {
   auto history_or = GetAccordionHistory(session_id);
   if (!history_or.ok()) return history_or.status();
   auto history = std::move(*history_or);
@@ -95,7 +96,7 @@ absl::StatusOr<nlohmann::json> Orchestrator::AssemblePrompt(const std::string& s
       }
     }
   }
-  std::string system_instruction = BuildSystemInstructions(session_id);
+  std::string system_instruction = BuildSystemInstructions(session_id, system_prompt_override);
   InjectAgentMd(&system_instruction);
   InjectSkillsSummary(&system_instruction);
   ASSIGN_OR_RETURN(auto enabled_tools, db_->GetTopLevelTools());
@@ -189,7 +190,8 @@ absl::StatusOr<nlohmann::json> Orchestrator::GetQuota(const std::string& oauth_t
  * @param session_id The active session ID.
  * @return std::string The complete system instruction string.
  */
-std::string Orchestrator::BuildSystemInstructions(const std::string& /*session_id*/) {
+std::string Orchestrator::BuildSystemInstructions(
+    const std::string& /*session_id*/, const std::optional<std::string>& system_prompt_override) {
   static constexpr absl::string_view kHistoryInstructions = R"(
 ## Conversation History Guidelines
 1. The following messages are sequential and chronological.
@@ -203,6 +205,9 @@ Resolved: [List of things finished this session]
 Technical Anchors: [Ports, IPs, constant values]
 )";
   std::string system_instruction;
+  if (system_prompt_override.has_value()) {
+    system_instruction = *system_prompt_override;
+  } else {
 #ifdef HAVE_SYSTEM_PROMPT_H
   {
     // The builtin system prompt may contain metadata headers like #patch: or #purpose:.
@@ -224,6 +229,7 @@ Technical Anchors: [Ports, IPs, constant values]
     }
   }
 #endif
+  }
   if (system_instruction.empty()) {
     system_instruction = "You are a helpful coding assistant.";
   }

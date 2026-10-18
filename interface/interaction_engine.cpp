@@ -202,7 +202,7 @@ bool InteractionEngine::Process(std::string& input, std::string& session_id, std
   bool structured_output_completed = false;
   absl::Status structured_output_error = absl::OkStatus();
   while (true) {
-    auto prompt_or = orchestrator_.AssemblePrompt(session_id, active_skills);
+    auto prompt_or = orchestrator_.AssemblePrompt(session_id, active_skills, config.system_prompt_override);
     if (!prompt_or.ok()) {
       slop::HandleStatus(prompt_or.status(), "Prompt Error");
       break;

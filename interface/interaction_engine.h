@@ -25,6 +25,7 @@ class InteractionEngine {
     bool openai_oauth = false;
     bool silent = false;
     std::optional<nlohmann::json> structured_output_schema;
+    std::optional<std::string> system_prompt_override;
   };
 
   InteractionEngine(Database& db, Orchestrator& orchestrator, CommandHandler& cmd_handler, ToolDispatcher& dispatcher,

@@ -2,6 +2,7 @@
 #define SLOP_SQL_ORCHESTRATOR_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -49,8 +50,9 @@ class Orchestrator {
   std::string GetModel() const { return config_.model; }
   int GetThrottle() const { return config_.throttle; }
   Builder Update() const { return Builder(*this); }
-  absl::StatusOr<nlohmann::json> AssemblePrompt(const std::string& session_id,
-                                                const std::vector<std::string>& active_skills = {});
+  absl::StatusOr<nlohmann::json> AssemblePrompt(
+      const std::string& session_id, const std::vector<std::string>& active_skills = {},
+      const std::optional<std::string>& system_prompt_override = std::nullopt);
   absl::StatusOr<nlohmann::json> AssemblePayload(const std::string& session_id, const std::string& system_instruction,
                                                  const std::vector<Database::Message>& history,
                                                  const std::vector<std::string>& active_skills = {});
@@ -87,7 +89,8 @@ class Orchestrator {
   std::vector<std::string> last_selected_groups_;
   std::optional<nlohmann::json> structured_output_schema_;
   std::unique_ptr<OpenAiResponsesOrchestrator> responses_;
-  std::string BuildSystemInstructions(const std::string& session_id);
+  std::string BuildSystemInstructions(const std::string& session_id,
+                                       const std::optional<std::string>& system_prompt_override);
 };
 }  // namespace slop
 #endif  // SLOP_SQL_ORCHESTRATOR_H_
