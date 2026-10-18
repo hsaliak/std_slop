@@ -31,6 +31,17 @@ sl --ephemeral --prompt "Try this without changing the ledger"
 
 Live prompts need model configuration and credentials. Use the same setup described in the walkthrough.
 
+## System prompt override
+
+Override only the built-in `system_prompt.md` content for one process. Tool instructions, skills, `AGENTS.md`, conversation history guidance, and follow-up behavior remain enabled:
+
+```sh
+sl --system_prompt "You are a concise release-note assistant." --prompt "Summarize these changes"
+sl --system_prompt_file ./release-system-prompt.md --prompt "Summarize these changes"
+```
+
+Use at most one of `--system_prompt` and `--system_prompt_file`. The override is not persisted.
+
 ## Database selection
 
 Without `--db` or `--ephemeral`, `sl` uses the configured database or `slop.db`. `--db` and `--ephemeral` are mutually exclusive.

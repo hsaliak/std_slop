@@ -610,6 +610,8 @@ std::string GetCliHelpText() {
       "## Options\n"
       "- `--prompt \"...\"`: Run a single instruction in batch mode and exit.\n"
       "- `--prompt-file <path>`: Read a single batch-mode instruction from a file and exit.\n"
+      "- `--system_prompt \"...\"`: Override the built-in system prompt for this process.\n"
+      "- `--system_prompt_file <path>`: Read the system prompt override from a file.\n"
       "- Piped stdin in prompt mode is optional context prepended before the instruction; for example, "
       "`ls *.cc | std_slop --prompt \"sort these files\"`.\n"
       "- Specify exactly one instruction source: `--prompt` or `--prompt-file`.\n"
