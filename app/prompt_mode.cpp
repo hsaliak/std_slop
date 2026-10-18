@@ -61,14 +61,11 @@ absl::StatusOr<std::string> ReadAll(std::istream* input) {
 }  // namespace
 
 absl::StatusOr<std::optional<std::string>> ResolveSystemPromptOverride(const SystemPromptFlags& flags) {
-  int source_count = 0;
-  if (!flags.prompt.empty()) ++source_count;
-  if (!flags.prompt_file.empty()) ++source_count;
-  if (source_count == 0) return std::nullopt;
-  if (source_count != 1) {
+  if (!flags.prompt.empty() && !flags.prompt_file.empty()) {
     return absl::InvalidArgumentError(
         "Specify at most one system prompt source: --system_prompt or --system_prompt_file.");
   }
+  if (flags.prompt.empty() && flags.prompt_file.empty()) return std::nullopt;
 
   std::string prompt;
   if (!flags.prompt_file.empty()) {
