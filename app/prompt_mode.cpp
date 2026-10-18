@@ -60,6 +60,34 @@ absl::StatusOr<std::string> ReadAll(std::istream* input) {
 
 }  // namespace
 
+absl::StatusOr<std::optional<std::string>> ResolveSystemPromptOverride(const SystemPromptFlags& flags) {
+  int source_count = 0;
+  if (!flags.prompt.empty()) ++source_count;
+  if (!flags.prompt_file.empty()) ++source_count;
+  if (source_count == 0) return std::nullopt;
+  if (source_count != 1) {
+    return absl::InvalidArgumentError(
+        "Specify at most one system prompt source: --system_prompt or --system_prompt_file.");
+  }
+
+  std::string prompt;
+  if (!flags.prompt_file.empty()) {
+    std::ifstream file(flags.prompt_file);
+    if (!file.is_open()) {
+      return absl::NotFoundError(absl::StrCat("Failed to open system prompt file: ", flags.prompt_file));
+    }
+    auto prompt_or = ReadAll(&file);
+    if (!prompt_or.ok()) return prompt_or.status();
+    prompt = *prompt_or;
+  } else {
+    prompt = flags.prompt;
+  }
+  if (absl::StripAsciiWhitespace(prompt).empty()) {
+    return absl::InvalidArgumentError("System prompt override must not be empty.");
+  }
+  return prompt;
+}
+
 absl::StatusOr<nlohmann::json> ResolveStructuredOutputSchema(const StructuredFormatFlags& flags) {
   int source_count = 0;
   if (!flags.format.empty()) ++source_count;

@@ -2,6 +2,7 @@
 #define SLOP_APP_PROMPT_MODE_H_
 
 #include <istream>
+#include <optional>
 #include <string>
 
 #include "absl/status/status.h"
@@ -21,11 +22,18 @@ struct StructuredFormatFlags {
   std::string format_file;
 };
 
+struct SystemPromptFlags {
+  std::string prompt;
+  std::string prompt_file;
+};
+
 bool HasPromptInputSource(const PromptInputFlags& flags);
 
 bool HasStructuredFormatSource(const StructuredFormatFlags& flags);
 
 absl::StatusOr<nlohmann::json> ResolveStructuredOutputSchema(const StructuredFormatFlags& flags);
+
+absl::StatusOr<std::optional<std::string>> ResolveSystemPromptOverride(const SystemPromptFlags& flags);
 
 absl::Status ValidatePromptModePreflight(const PromptInputFlags& prompt_flags,
                                          const StructuredFormatFlags& format_flags,

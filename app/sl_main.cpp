@@ -50,6 +50,8 @@ ABSL_FLAG(std::string, openai_oauth_token_path, "", "Override the OpenAI OAuth t
 ABSL_FLAG(std::string, session, "", "Session name (default: default_session)");
 ABSL_FLAG(std::string, prompt, "", "Run one prompt and exit");
 ABSL_FLAG(std::string, prompt_file, "", "Read one prompt from a file and exit");
+ABSL_FLAG(std::string, system_prompt, "", "Override the built-in system prompt");
+ABSL_FLAG(std::string, system_prompt_file, "", "Read the system prompt override from a file");
 ABSL_FLAG(bool, json, false, "Emit JSON output");
 ABSL_FLAG(std::string, schema, "", "JSON Schema file for structured prompt output");
 ABSL_FLAG(int, limit, 10, "Maximum number of rows for list commands");
@@ -378,7 +380,8 @@ bool IsGlobalValueFlag(const std::string& argument) {
   return argument == "--config" || argument == "--db" || argument == "--model" ||
          argument == "--openai_api_key" || argument == "--openai_base_url" ||
          argument == "--openai_oauth_token_path" || argument == "--session" || argument == "--prompt" ||
-         argument == "--prompt_file" || argument == "--schema" || argument == "--limit" ||
+         argument == "--prompt_file" || argument == "--system_prompt" || argument == "--system_prompt_file" ||
+         argument == "--schema" || argument == "--limit" ||
          argument == "--retain_groups" || argument == "--watermark_tokens" || argument == "--file" ||
          argument == "--flagfile" || argument == "--undefok" || argument == "--fromenv" ||
          argument == "--tryfromenv";
@@ -389,7 +392,8 @@ bool IsKnownGlobalFlag(const std::string& argument) {
   return name == "--config" || name == "--db" || name == "--ephemeral" || name == "--model" ||
          name == "--openai_api_key" || name == "--openai_base_url" || name == "--openai_oauth" ||
          name == "--openai_oauth_token_path" || name == "--session" || name == "--prompt" ||
-         name == "--prompt_file" || name == "--json" || name == "--schema" || name == "--limit" ||
+         name == "--prompt_file" || name == "--system_prompt" || name == "--system_prompt_file" ||
+         name == "--json" || name == "--schema" || name == "--limit" ||
          name == "--retain_groups" || name == "--watermark_tokens" || name == "--file" ||
          name == "--help" || name == "--h" || name == "--helpshort" || name == "--helpfull" ||
          name == "--helpmatch" || name == "--helpon" || name == "--helppackage" || name == "--helpxml" ||
@@ -539,6 +543,9 @@ int RunPrompt() {
   }
   auto prompt_or = slop::ResolvePromptInput(prompt_flags, isatty(STDIN_FILENO) ? nullptr : &std::cin);
   if (!prompt_or.ok()) return PrintPromptError(prompt_or.status(), json);
+  auto system_prompt_or = slop::ResolveSystemPromptOverride(
+      {absl::GetFlag(FLAGS_system_prompt), absl::GetFlag(FLAGS_system_prompt_file)});
+  if (!system_prompt_or.ok()) return PrintPromptError(system_prompt_or.status(), json);
 
   auto specializations_or = slop::LoadLlmToolSpecializations(absl::GetFlag(FLAGS_config));
   if (!specializations_or.ok()) return PrintPromptError(specializations_or.status(), json);
@@ -601,6 +608,7 @@ int RunPrompt() {
   config.is_batch_mode = true;
   config.silent = json || schema.has_value();
   config.structured_output_schema = schema;
+  config.system_prompt_override = *system_prompt_or;
 
   auto llm_query_invoker = [&engine, config](const std::string& query, const std::vector<std::string>& skills,
                                              const slop::LlmQueryOptions& options)
@@ -655,7 +663,8 @@ int main(int argc, char* argv[]) {
   absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions{});
   absl::InitializeLog();
   absl::SetProgramUsageMessage(
-      "sl [--prompt TEXT|--prompt-file FILE] [--json] [--schema FILE] [--db PATH|--ephemeral]\n"
+      "sl [--prompt TEXT|--prompt-file FILE] [--system_prompt TEXT|--system_prompt_file FILE] [--json] "
+      "[--schema FILE] [--db PATH|--ephemeral]\n"
       "sl context|session|message|scratchpad|skill|model|stats|tool ...\n"
       "sl mcp ...");
 

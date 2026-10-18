@@ -71,6 +71,8 @@ ABSL_FLAG(bool, fetch_openai_oauth_device_token, false,
 ABSL_FLAG(std::string, session, "", "Session name (overrides positional session_id)");
 ABSL_FLAG(std::string, prompt, "", "Run a single prompt in batch mode and exit");
 ABSL_FLAG(std::string, prompt_file, "", "Read a single batch-mode instruction from this file and exit");
+ABSL_FLAG(std::string, system_prompt, "", "Override the built-in system prompt");
+ABSL_FLAG(std::string, system_prompt_file, "", "Read the system prompt override from a file");
 ABSL_FLAG(std::string, prompt_db, "",
           "Database to use for batch mode. Defaults to in-memory (':memory:'). Mutually exclusive with --db.");
 ABSL_FLAG(std::string, output, "text", "Prompt-mode output format: text or json");
@@ -224,8 +226,13 @@ int main(int argc, char* argv[]) {
   const bool has_prompt_input = slop::HasPromptInputSource(prompt_flags);
   const bool has_structured_format = slop::HasStructuredFormatSource(format_flags);
   std::string output_mode = absl::GetFlag(FLAGS_output);
+  auto system_prompt_or = slop::ResolveSystemPromptOverride(
+      {absl::GetFlag(FLAGS_system_prompt), absl::GetFlag(FLAGS_system_prompt_file)});
   if (auto status = slop::ValidatePromptModePreflight(prompt_flags, format_flags, output_mode); !status.ok()) {
     return ReturnPromptPreflightError(status, output_mode == "json" ? output_mode : "text");
+  }
+  if (!system_prompt_or.ok()) {
+    return ReturnPromptPreflightError(system_prompt_or.status(), output_mode == "json" ? output_mode : "text");
   }
   if (output_mode == "json" && !has_prompt_input) {
     return ReturnPromptPreflightError(absl::InvalidArgumentError("--output=json requires prompt mode."), output_mode);
@@ -441,6 +448,7 @@ int main(int argc, char* argv[]) {
   engine_config.openai_api_key = openai_key;
   engine_config.openai_base_url = openai_oauth ? slop::kOpenAiChatGptCodexBaseUrl : openai_base_url;
   engine_config.openai_oauth = openai_oauth;
+  engine_config.system_prompt_override = *system_prompt_or;
 
   auto llm_query_invoker = [&engine, engine_config](const std::string& query,
                                                      const std::vector<std::string>& skills,

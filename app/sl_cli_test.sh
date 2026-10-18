@@ -57,6 +57,12 @@ if mcp_error=$("${sl}" mcp list --json --db); then
 fi
 grep -F 'Flag requires a value: --db' <<<"${mcp_error}"
 
+if system_prompt_error=$(${sl} --ephemeral --prompt test --system_prompt_file "${tmp_dir}/missing-system-prompt.md" 2>&1); then
+  echo "missing system prompt file unexpectedly succeeded" >&2
+  exit 1
+fi
+grep -F 'Failed to open system prompt file' <<<"${system_prompt_error}"
+
 if positional_mcp_error=$("${sl}" --json context mcp show --json=wat); then
   echo "positional mcp invalid flag unexpectedly succeeded" >&2
   exit 1

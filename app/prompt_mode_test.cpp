@@ -105,6 +105,45 @@ TEST(PromptModeTest, ResolvePromptInputRejectsEmptyFileInstruction) {
   EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST(PromptModeTest, ResolveSystemPromptOverrideUsesInlinePrompt) {
+  auto prompt = ResolveSystemPromptOverride({.prompt = "custom system prompt"});
+  ASSERT_TRUE(prompt.ok()) << prompt.status();
+  ASSERT_TRUE(prompt->has_value());
+  EXPECT_EQ(**prompt, "custom system prompt");
+}
+
+TEST(PromptModeTest, ResolveSystemPromptOverrideReadsFile) {
+  const std::string path = ::testing::TempDir() + "/system_prompt.md";
+  {
+    std::ofstream file(path);
+    file << "line one\nline two\n";
+  }
+
+  auto prompt = ResolveSystemPromptOverride({.prompt_file = path});
+
+  ASSERT_TRUE(prompt.ok()) << prompt.status();
+  ASSERT_TRUE(prompt->has_value());
+  EXPECT_EQ(**prompt, "line one\nline two\n");
+}
+
+TEST(PromptModeTest, ResolveSystemPromptOverrideRejectsConflictingSources) {
+  auto prompt = ResolveSystemPromptOverride({.prompt = "inline", .prompt_file = "system.md"});
+  ASSERT_FALSE(prompt.ok());
+  EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
+TEST(PromptModeTest, ResolveSystemPromptOverrideRejectsMissingFile) {
+  auto prompt = ResolveSystemPromptOverride({.prompt_file = "/path/that/does/not/exist"});
+  ASSERT_FALSE(prompt.ok());
+  EXPECT_EQ(prompt.status().code(), absl::StatusCode::kNotFound);
+}
+
+TEST(PromptModeTest, ResolveSystemPromptOverrideRejectsEmptyContent) {
+  auto prompt = ResolveSystemPromptOverride({.prompt = "  \n\t"});
+  ASSERT_FALSE(prompt.ok());
+  EXPECT_EQ(prompt.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 TEST(PromptModeTest, HasStructuredFormatSourceDetectsAnySource) {
   EXPECT_FALSE(HasStructuredFormatSource({}));
   EXPECT_TRUE(HasStructuredFormatSource({.format = R"({"type":"object"})"}));
