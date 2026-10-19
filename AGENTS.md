@@ -1,6 +1,28 @@
 do not use rg
 forget backward compatibility. Do not suggest plans that are complicated by backward compatibility. We build forward.
 
+## C++ coding style
+
+- Write C++17 using the Google C++ Style Guide.
+- Treat Abseil as the first-choice utility library. Before writing a custom helper or using a standard-library utility, check whether Abseil already provides the required behavior. Prefer `absl::StrCat`, `absl::StrSplit`, Abseil containers, `absl::Cleanup`, `absl::Mutex`, Abseil time utilities, and related primitives when they improve safety or clarity.
+- Prefer existing Abseil scope and lifetime helpers over handwritten RAII wrappers. For example, use `absl::Cleanup` for scoped cleanup instead of creating a one-off cleanup class or lambda wrapper.
+- Keep production C++ exception-free. Use `absl::Status` and `absl::StatusOr` for fallible operations, and propagate errors with `RETURN_IF_ERROR` and `ASSIGN_OR_RETURN`.
+- Use RAII and value types by default. Do not use owning raw pointers, raw `new`, or raw `delete`; use `std::unique_ptr`, `std::shared_ptr`, or values for ownership. Raw pointers are allowed only for clearly non-owning interfaces.
+- Prefer simple, readable code over complex template metaprogramming, deep inheritance, speculative abstractions, or unnecessary wrappers.
+- Concurrency is allowed where it is required by the application, such as HTTP streaming, cancellation, UI responsiveness, or independent runtime work. Prefer the existing concurrency patterns and Abseil synchronization primitives. Keep ownership, cancellation, shutdown, and shared-state access explicit; avoid introducing concurrency only to save a small amount of synchronous work. Add thread-safety or TSan coverage when a change introduces new shared mutable state or synchronization behavior.
+- Use `core/json_utils.h` for production JSON parsing, access, defaulting, and serialization. Use `json_parse`, `json_get`, `json_get_or`, `json_at`, and `json_dump`. Keep direct `nlohmann::json` manipulation limited to the JSON helper implementation and narrow test fixtures.
+- Keep deterministic core logic in-process. Do not shell out for hashing, encoding, parsing, cleanup, or other deterministic computation.
+- Add or update focused unit tests when changing behavior, status handling, validation, JSON fields, serialization, or provider normalization.
+- Add or update deterministic, side-effect-free FuzzTest coverage when changing code that consumes untrusted structured input, including tool arguments, provider responses, dispatcher validation, JSON helpers, or file-content and line-range parsing.
+- Fuzz tests should check the repository invariants: no crash, malformed input is rejected cleanly, invalid shapes do not reach side effects, and normalization is deterministic.
+- Keep fuzz targets in the same package as the code under test. Update that package's `BUILD.bazel` with the standard FuzzTest dependencies when adding a target.
+- Use both unit and fuzz tests for parser, validator, dispatcher-boundary, JSON-helper, and provider-normalization changes. Unit tests lock exact behavior; fuzz tests cover malformed and novel inputs.
+- Run the affected targets and the full test suite before delivery. When validating fuzz changes, also run:
+  ```sh
+  bazel test //core:*fuzz_test //tools:*fuzz_test //interface:*fuzz_test
+  ```
+  Use `--nocache_test_results` when cache-independent fuzz validation is needed.
+
 ## JSON helpers
 
 - In production code, use `core/json_utils.h`: `json_parse`, `json_get`, `json_get_or`, `json_dump`.
