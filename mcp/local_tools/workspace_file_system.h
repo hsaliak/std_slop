@@ -1,6 +1,7 @@
 #ifndef SLOP_MCP_LOCAL_TOOLS_WORKSPACE_FILE_SYSTEM_H_
 #define SLOP_MCP_LOCAL_TOOLS_WORKSPACE_FILE_SYSTEM_H_
 
+#include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -23,6 +24,8 @@ struct ReadFileOptions {
 absl::StatusOr<std::string> FormatFileLines(absl::string_view content, const ReadFileOptions& options);
 
 absl::StatusOr<std::vector<std::string>> ParseWorkspaceRelativePath(absl::string_view path, bool allow_root);
+absl::StatusOr<std::vector<std::size_t>> FindMatchingLines(absl::string_view content, absl::string_view pattern,
+                                                          bool fixed_strings);
 absl::StatusOr<std::filesystem::path> ResolveWorkspaceDirectory(const std::filesystem::path& root,
                                                                 absl::string_view path);
 absl::StatusOr<std::string> ReadWorkspaceFile(const std::filesystem::path& root, absl::string_view path,

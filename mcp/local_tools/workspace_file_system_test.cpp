@@ -54,6 +54,30 @@ TEST(WorkspaceFileSystemTest, ParsesRelativePathsAndRejectsTraversalAndAbsoluteF
   EXPECT_TRUE(ParseWorkspaceRelativePath("name..part/file", false).ok());
 }
 
+TEST(WorkspaceFileSystemTest, FindsLiteralAndRegexLinesInProcess) {
+  auto literal = FindMatchingLines("before\nneedle\nother needle\n", "needle", true);
+  ASSERT_TRUE(literal.ok()) << literal.status().message();
+  EXPECT_EQ(*literal, (std::vector<std::size_t>{2, 3}));
+
+  auto regex = FindMatchingLines("match\nother\nmatch again\n", "^match", false);
+  ASSERT_TRUE(regex.ok()) << regex.status().message();
+  EXPECT_EQ(*regex, (std::vector<std::size_t>{1, 3}));
+  const auto invalid = FindMatchingLines("text\n", "[", false);
+  ASSERT_FALSE(invalid.ok());
+  EXPECT_EQ(invalid.status().code(), absl::StatusCode::kInvalidArgument);
+  const auto oversized = FindMatchingLines("text\n", std::string(4097, 'a'), false);
+  ASSERT_FALSE(oversized.ok());
+  EXPECT_EQ(oversized.status().code(), absl::StatusCode::kResourceExhausted);
+
+  const std::string binary_content("text\0content", 12);
+  auto binary_regex = FindMatchingLines(binary_content, "[", false);
+  ASSERT_FALSE(binary_regex.ok());
+  EXPECT_EQ(binary_regex.status().code(), absl::StatusCode::kInvalidArgument);
+  auto binary_literal = FindMatchingLines(binary_content, "text", true);
+  ASSERT_TRUE(binary_literal.ok()) << binary_literal.status().message();
+  EXPECT_TRUE(binary_literal->empty());
+}
+
 TEST(WorkspaceFileSystemTest, ReadsRangesAndNumbersLines) {
   const std::filesystem::path root = MakeTempDirectory();
   ASSERT_FALSE(root.empty());

@@ -23,14 +23,20 @@ void FileLineRangeIsDeterministic(const std::string& content, const std::optiona
   EXPECT_TRUE(first->empty() || first->back() == '\n');
 }
 
-void GrepLiteralPatternNeverCrashes(const std::string& pattern) {
-  const auto result = GrepWorkspaceFiles("/dev/null", ".", pattern, 0, 1, true, false, {});
-  if (!result.ok()) EXPECT_FALSE(result.status().message().empty());
-}
-
-void GrepRegexPatternNeverCrashes(const std::string& pattern) {
-  const auto result = GrepWorkspaceFiles("/dev/null", ".", pattern, 0, 1, false, false, {});
-  if (!result.ok()) EXPECT_FALSE(result.status().message().empty());
+void GrepLineMatchingIsDeterministic(const std::string& content, const std::string& pattern, bool fixed_strings) {
+  const auto first = FindMatchingLines(content, pattern, fixed_strings);
+  const auto second = FindMatchingLines(content, pattern, fixed_strings);
+  EXPECT_EQ(first.ok(), second.ok());
+  if (!first.ok()) {
+    EXPECT_EQ(first.status().code(), second.status().code());
+    EXPECT_EQ(first.status().message(), second.status().message());
+    return;
+  }
+  EXPECT_EQ(*first, *second);
+  for (std::size_t index = 0; index < first->size(); ++index) {
+    EXPECT_GT((*first)[index], 0);
+    if (index > 0) EXPECT_LT((*first)[index - 1], (*first)[index]);
+  }
 }
 
 void WorkspacePathParserIsDeterministic(const std::string& path) {
@@ -56,11 +62,9 @@ FUZZ_TEST(WorkspaceFileSystemFuzzTest, FileLineRangeIsDeterministic)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::optional<int>>(),
                  fuzztest::Arbitrary<std::optional<int>>(), fuzztest::Arbitrary<bool>());
 
-FUZZ_TEST(WorkspaceFileSystemFuzzTest, GrepLiteralPatternNeverCrashes)
-    .WithDomains(fuzztest::Arbitrary<std::string>());
-
-FUZZ_TEST(WorkspaceFileSystemFuzzTest, GrepRegexPatternNeverCrashes)
-    .WithDomains(fuzztest::Arbitrary<std::string>());
+FUZZ_TEST(WorkspaceFileSystemFuzzTest, GrepLineMatchingIsDeterministic)
+    .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>(),
+                 fuzztest::Arbitrary<bool>());
 
 FUZZ_TEST(WorkspaceFileSystemFuzzTest, WorkspacePathParserIsDeterministic)
     .WithDomains(fuzztest::Arbitrary<std::string>());

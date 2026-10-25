@@ -323,6 +323,30 @@ bool MatchesPattern(absl::string_view line, absl::string_view pattern, const re2
   return re2::RE2::PartialMatch(text, *regex);
 }
 
+std::vector<std::size_t> FindMatchIndices(const std::vector<std::string>& lines, absl::string_view pattern,
+                                          const re2::RE2* regex, bool fixed_strings) {
+  std::vector<std::size_t> matches;
+  for (std::size_t index = 0; index < lines.size(); ++index) {
+    if (MatchesPattern(lines[index], pattern, regex, fixed_strings)) matches.push_back(index);
+  }
+  return matches;
+}
+
+absl::StatusOr<std::unique_ptr<re2::RE2>> CompileRegex(absl::string_view pattern) {
+  re2::RE2::Options options;
+  options.set_log_errors(false);
+  options.set_max_mem(8 * 1024 * 1024);
+  options.set_encoding(re2::RE2::Options::EncodingLatin1);
+  auto regex = std::make_unique<re2::RE2>(std::string(pattern), options);
+  if (!regex->ok()) {
+    if (regex->error_code() == re2::RE2::ErrorPatternTooLarge) {
+      return absl::ResourceExhaustedError("Regular expression exceeds the configured RE2 memory limit");
+    }
+    return absl::InvalidArgumentError(absl::StrCat("Invalid regular expression: ", regex->error()));
+  }
+  return regex;
+}
+
 absl::Status SearchFileContent(absl::string_view path, absl::string_view content, absl::string_view pattern,
                                const re2::RE2* regex, bool fixed_strings, int context, int limit,
                                std::size_t* searched_bytes, std::size_t* output_lines, std::string* output, bool* stop) {
@@ -336,8 +360,7 @@ absl::Status SearchFileContent(absl::string_view path, absl::string_view content
   const std::vector<std::string> lines = SplitLines(content);
   std::vector<unsigned char> selected(lines.size(), 0);
   std::vector<unsigned char> matching(lines.size(), 0);
-  for (std::size_t index = 0; index < lines.size(); ++index) {
-    if (!MatchesPattern(lines[index], pattern, regex, fixed_strings)) continue;
+  for (const std::size_t index : FindMatchIndices(lines, pattern, regex, fixed_strings)) {
     matching[index] = 1;
     const std::size_t first = index > static_cast<std::size_t>(context) ? index - context : 0;
     const std::size_t last = std::min(lines.size(), index + static_cast<std::size_t>(context) + 1);
@@ -392,6 +415,27 @@ absl::StatusOr<std::vector<std::string>> ParseWorkspaceRelativePath(absl::string
 
   if (components.empty() && !allow_root) return absl::InvalidArgumentError("Path must name a file");
   return components;
+}
+
+absl::StatusOr<std::vector<std::size_t>> FindMatchingLines(absl::string_view content, absl::string_view pattern,
+                                                          bool fixed_strings) {
+  if (pattern.empty()) return absl::InvalidArgumentError("pattern must be non-empty");
+  if (pattern.find('\0') != absl::string_view::npos) return absl::InvalidArgumentError("pattern contains a NUL byte");
+  if (pattern.size() > kMaxPatternBytes) {
+    return absl::ResourceExhaustedError(absl::StrCat("pattern exceeds the ", kMaxPatternBytes, " byte limit"));
+  }
+  std::unique_ptr<re2::RE2> compiled_regex;
+  if (!fixed_strings) {
+    ASSIGN_OR_RETURN(compiled_regex, CompileRegex(pattern));
+  }
+  if (content.find('\0') != absl::string_view::npos) return std::vector<std::size_t>{};
+  const std::vector<std::string> lines = SplitLines(content);
+  const std::vector<std::size_t> indices =
+      FindMatchIndices(lines, pattern, compiled_regex.get(), fixed_strings);
+  std::vector<std::size_t> line_numbers;
+  line_numbers.reserve(indices.size());
+  for (const std::size_t index : indices) line_numbers.push_back(index + 1);
+  return line_numbers;
 }
 
 absl::StatusOr<std::filesystem::path> ResolveWorkspaceDirectory(const std::filesystem::path& root,
@@ -478,14 +522,7 @@ absl::StatusOr<std::string> GrepWorkspaceFiles(const std::filesystem::path& root
 
   std::unique_ptr<re2::RE2> compiled_regex;
   if (!fixed_strings) {
-    re2::RE2::Options regex_options;
-    regex_options.set_log_errors(false);
-    regex_options.set_max_mem(8 * 1024 * 1024);
-    regex_options.set_encoding(re2::RE2::Options::EncodingLatin1);
-    compiled_regex = std::make_unique<re2::RE2>(std::string(pattern), regex_options);
-    if (!compiled_regex->ok()) {
-      return absl::InvalidArgumentError(absl::StrCat("Invalid regular expression: ", compiled_regex->error()));
-    }
+    ASSIGN_OR_RETURN(compiled_regex, CompileRegex(pattern));
   }
   const re2::RE2* regex = compiled_regex.get();
 
