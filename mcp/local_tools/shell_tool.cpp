@@ -11,7 +11,7 @@
 #include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "mcp/local_tools/tool_utils.h"
-#include "mcp/local_tools/workspace_file_system.h"
+#include "tools/file_operations.h"
 #include "mcp/types.h"
 
 namespace slop::mcp::local_tools {
@@ -96,7 +96,7 @@ std::vector<mcp::server::ToolRegistration> CreateShellTools(WorkspaceCatalog wor
         auto workspace_or = ResolveWorkspace(workspaces, arguments);
         if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
         const Workspace workspace = std::move(*workspace_or);
-        auto working_directory_or = ResolveWorkspaceDirectory(workspace.root, relative_cwd);
+        auto working_directory_or = file_ops::ResolveWorkspaceDirectory(workspace.root, relative_cwd);
         if (!working_directory_or.ok()) return MakeToolError(working_directory_or.status());
         const std::filesystem::path working_directory = std::move(*working_directory_or);
 

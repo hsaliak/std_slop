@@ -22,59 +22,13 @@ cc_library(
 )
 
 cc_library(
-    name = "workspace_file_system",
-    srcs = ["workspace_file_system.cpp"],
-    hdrs = ["workspace_file_system.h"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//core:data",
-        "//tools:edit_engine",
-        "@abseil-cpp//absl/cleanup",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@nlohmann_json//:json",
-        "@re2//:re2",
-    ],
-)
-
-cc_test(
-    name = "workspace_file_system_fuzz_test",
-    srcs = ["workspace_file_system_fuzz_test.cpp"],
-    copts = [
-        "-Wno-unused-parameter",
-        "-Wno-deprecated-declarations",
-    ],
-    deps = [
-        ":workspace_file_system",
-        "@fuzztest//fuzztest",
-        "@fuzztest//fuzztest:fuzztest_gtest_main",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "workspace_file_system_test",
-    srcs = ["workspace_file_system_test.cpp"],
-    deps = [
-        ":workspace_file_system",
-        "@abseil-cpp//absl/cleanup",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/time",
-        "@googletest//:gtest_main",
-        "@nlohmann_json//:json",
-    ],
-)
-
-cc_library(
     name = "server",
     srcs = ["file_tools.cpp", "server.cpp", "shell_tool.cpp"],
     hdrs = ["file_tools.h", "server.h", "shell_tool.h", "tool_utils.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":workspace_catalog",
-        ":workspace_file_system",
+        "//tools:file_operations",
         "//core:data",
         "//core:json_utils",
         "//core:shell_lib",
@@ -131,6 +85,7 @@ cc_test(
         "//core:data",
         "//core:json_utils",
         "//core:shell_lib",
+        "//tools:runtime",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",

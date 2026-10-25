@@ -1,5 +1,7 @@
 
+#include "core/json_utils.h"
 #include "tools/common.h"
+#include "tools/file_operations.h"
 
 #include <string>
 
@@ -11,16 +13,26 @@
 namespace slop {
 namespace {
 
-void ValidateReadFileArgsDeterministic(const std::string& raw_args) {
+void ReadFileArgumentValidationEnforcesPathAndRangeInvariants(const std::string& raw_args) {
   nlohmann::json args = nlohmann::json::parse(raw_args, nullptr, false);
-  if (args.is_discarded()) {
-    args = nlohmann::json::object();
+  if (args.is_discarded()) args = nlohmann::json::object();
+
+  const absl::Status status = ValidateReadFileArgs(args);
+  if (!status.ok()) {
+    EXPECT_FALSE(status.message().empty());
+    return;
   }
 
-  const absl::Status first = ValidateReadFileArgs(args);
-  const absl::Status second = ValidateReadFileArgs(args);
-  EXPECT_EQ(first.ok(), second.ok());
-  EXPECT_EQ(first.code(), second.code());
+  const auto path = json_get<std::string>(args, "path");
+  ASSERT_TRUE(path.has_value());
+  EXPECT_TRUE(file_ops::ParseWorkspaceRelativePath(*path, false).ok());
+  auto start_line = ParseOptionalInteger(args, "start_line");
+  ASSERT_TRUE(start_line.ok());
+  auto end_line = ParseOptionalInteger(args, "end_line");
+  ASSERT_TRUE(end_line.ok());
+  EXPECT_FALSE(*start_line && **start_line < 1);
+  EXPECT_FALSE(*end_line && **end_line < 1);
+  if (*start_line && *end_line) EXPECT_LE(**start_line, **end_line);
 }
 
 void ReadFileRejectsTraversalOrAbsolute(const std::string& middle, bool absolute) {
@@ -38,22 +50,18 @@ void ReadFileRangeValidation(const std::string& path, int start_line, int end_li
   args["end_line"] = end_line;
 
   const absl::Status status = ValidateReadFileArgs(args);
-  if (path.empty()) {
-    EXPECT_FALSE(status.ok());
-    return;
-  }
-  if (path.find("..") != std::string::npos || path[0] == '/') {
-    EXPECT_FALSE(status.ok());
-    return;
-  }
-  if (start_line > end_line) {
-    EXPECT_FALSE(status.ok());
-    return;
-  }
-  EXPECT_TRUE(status.ok());
+  const bool expected_valid = file_ops::ParseWorkspaceRelativePath(path, false).ok() && start_line >= 1 &&
+                              end_line >= 1 && start_line <= end_line;
+  EXPECT_EQ(status.ok(), expected_valid);
+  if (!status.ok()) EXPECT_FALSE(status.message().empty());
 }
 
-FUZZ_TEST(FileToolArgsFuzzTest, ValidateReadFileArgsDeterministic);
+TEST(FileToolArgsTest, RejectsNonPositiveLineNumbers) {
+  EXPECT_FALSE(ValidateReadFileArgs({{"path", "file.txt"}, {"start_line", 0}}).ok());
+  EXPECT_FALSE(ValidateReadFileArgs({{"path", "file.txt"}, {"end_line", -1}}).ok());
+}
+
+FUZZ_TEST(FileToolArgsFuzzTest, ReadFileArgumentValidationEnforcesPathAndRangeInvariants);
 
 FUZZ_TEST(FileToolArgsFuzzTest, ReadFileRejectsTraversalOrAbsolute)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>());

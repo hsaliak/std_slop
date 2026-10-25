@@ -1,5 +1,5 @@
-#ifndef SLOP_MCP_LOCAL_TOOLS_WORKSPACE_FILE_SYSTEM_H_
-#define SLOP_MCP_LOCAL_TOOLS_WORKSPACE_FILE_SYSTEM_H_
+#ifndef SLOP_TOOLS_FILE_OPERATIONS_H_
+#define SLOP_TOOLS_FILE_OPERATIONS_H_
 
 #include <cstddef>
 #include <filesystem>
@@ -7,13 +7,14 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "nlohmann/json.hpp"
 
 #include "tools/edit_engine.h"
 
-namespace slop::mcp::local_tools {
+namespace slop::file_ops {
 
 struct ReadFileOptions {
   std::optional<int> start_line;
@@ -24,6 +25,7 @@ struct ReadFileOptions {
 absl::StatusOr<std::string> FormatFileLines(absl::string_view content, const ReadFileOptions& options);
 
 absl::StatusOr<std::vector<std::string>> ParseWorkspaceRelativePath(absl::string_view path, bool allow_root);
+absl::Status ValidateIgnorePatterns(const std::vector<std::string>& patterns);
 absl::StatusOr<std::vector<std::size_t>> FindMatchingLines(absl::string_view content, absl::string_view pattern,
                                                           bool fixed_strings);
 absl::StatusOr<std::filesystem::path> ResolveWorkspaceDirectory(const std::filesystem::path& root,
@@ -42,6 +44,6 @@ absl::StatusOr<std::string> WriteWorkspaceFile(const std::filesystem::path& root
 absl::StatusOr<slop::TextEditResult> EditWorkspaceFile(const std::filesystem::path& root, absl::string_view path,
                                                        const nlohmann::json& edits);
 
-}  // namespace slop::mcp::local_tools
+}  // namespace slop::file_ops
 
-#endif  // SLOP_MCP_LOCAL_TOOLS_WORKSPACE_FILE_SYSTEM_H_
+#endif  // SLOP_TOOLS_FILE_OPERATIONS_H_

@@ -12,6 +12,7 @@
 #include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
+#include "tools/file_operations.h"
 
 namespace slop {
 
@@ -136,12 +137,15 @@ absl::Status ValidateReadFileArgs(const nlohmann::json& args) {
   if (!path || path->empty()) {
     return absl::InvalidArgumentError("Missing mandatory field: path");
   }
-  if (absl::StrContains(*path, "..") || (!path->empty() && (*path)[0] == '/')) {
-    return absl::PermissionDeniedError("SECURITY_VIOLATION: Path traversal (..) or absolute paths are not allowed.");
-  }
+  ASSIGN_OR_RETURN(const std::vector<std::string> components,
+                   file_ops::ParseWorkspaceRelativePath(*path, false));
+  (void)components;
 
   ASSIGN_OR_RETURN(auto start_opt, ParseOptionalInteger(args, "start_line"));
   ASSIGN_OR_RETURN(auto end_opt, ParseOptionalInteger(args, "end_line"));
+  if ((start_opt && *start_opt < 1) || (end_opt && *end_opt < 1)) {
+    return absl::InvalidArgumentError("Line numbers must be positive");
+  }
   if (start_opt.has_value() && end_opt.has_value() && *start_opt > *end_opt) {
     return absl::InvalidArgumentError(
         absl::StrCat("start_line (", *start_opt, ") cannot be greater than end_line (", *end_opt, ")"));

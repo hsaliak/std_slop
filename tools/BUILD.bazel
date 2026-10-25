@@ -64,6 +64,52 @@ cc_test(
 )
 
 cc_library(
+    name = "file_operations",
+    srcs = ["file_operations.cpp"],
+    hdrs = ["file_operations.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:data",
+        ":edit_engine",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+        "@re2//:re2",
+    ],
+)
+
+cc_test(
+    name = "file_operations_test",
+    srcs = ["file_operations_test.cpp"],
+    deps = [
+        ":file_operations",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "file_operations_fuzz_test",
+    srcs = ["file_operations_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":file_operations",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "runtime",
     srcs = [
         "common.cpp",
@@ -93,6 +139,7 @@ cc_library(
     deps = [
         ":dispatcher",
         ":edit_engine",
+        ":file_operations",
         "//core:data",
         "//core:json_utils",
         "//core:shell_lib",
@@ -130,6 +177,7 @@ cc_test(
         "-Wno-deprecated-declarations",
     ],
     deps = [
+        ":file_operations",
         ":runtime",
         "//core:json_utils",
         "@fuzztest//fuzztest",

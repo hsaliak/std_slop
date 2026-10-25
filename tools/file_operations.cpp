@@ -1,4 +1,4 @@
-#include "mcp/local_tools/workspace_file_system.h"
+#include "tools/file_operations.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -27,7 +27,7 @@
 #include "core/status_macros.h"
 #include "re2/re2.h"
 
-namespace slop::mcp::local_tools {
+namespace slop::file_ops {
 namespace {
 
 constexpr std::size_t kMaxReadBytes = 4 * 1024 * 1024;
@@ -349,7 +349,8 @@ absl::StatusOr<std::unique_ptr<re2::RE2>> CompileRegex(absl::string_view pattern
 
 absl::Status SearchFileContent(absl::string_view path, absl::string_view content, absl::string_view pattern,
                                const re2::RE2* regex, bool fixed_strings, int context, int limit,
-                               std::size_t* searched_bytes, std::size_t* output_lines, std::string* output, bool* stop) {
+                               std::size_t* searched_bytes, std::size_t* output_lines, std::string* output,
+                               bool* truncated, bool* stop) {
   if (*stop) return absl::OkStatus();
   if (content.size() > kMaxGrepBytes - *searched_bytes) {
     return absl::ResourceExhaustedError(absl::StrCat("Search exceeds the ", kMaxGrepBytes, " byte limit"));
@@ -374,16 +375,17 @@ absl::Status SearchFileContent(absl::string_view path, absl::string_view content
       previous_selected = false;
       continue;
     }
+    if (*output_lines >= static_cast<std::size_t>(limit)) {
+      *truncated = true;
+      *stop = true;
+      break;
+    }
     if (!previous_selected && emitted_for_file) RETURN_IF_ERROR(AppendOutput(output, "--"));
     const char* separator = matching[index] ? ":" : "-";
     RETURN_IF_ERROR(AppendOutput(output, absl::StrCat(path, separator, index + 1, separator, lines[index])));
     ++*output_lines;
     emitted_for_file = true;
     previous_selected = true;
-    if (*output_lines >= static_cast<std::size_t>(limit)) {
-      *stop = true;
-      break;
-    }
   }
   return absl::OkStatus();
 }
@@ -415,6 +417,16 @@ absl::StatusOr<std::vector<std::string>> ParseWorkspaceRelativePath(absl::string
 
   if (components.empty() && !allow_root) return absl::InvalidArgumentError("Path must name a file");
   return components;
+}
+
+absl::Status ValidateIgnorePatterns(const std::vector<std::string>& patterns) {
+  if (patterns.size() > 100) return absl::ResourceExhaustedError("ignore may contain at most 100 patterns");
+  for (const std::string& pattern : patterns) {
+    if (pattern.find('\0') != std::string::npos) {
+      return absl::InvalidArgumentError("ignore patterns must not contain NUL bytes");
+    }
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<std::size_t>> FindMatchingLines(absl::string_view content, absl::string_view pattern,
@@ -485,6 +497,7 @@ absl::StatusOr<std::string> ReadWorkspaceFile(const std::filesystem::path& root,
 absl::StatusOr<std::string> ListWorkspaceDirectory(const std::filesystem::path& root, absl::string_view path,
                                                    int depth, bool include_ignored,
                                                    const std::vector<std::string>& ignore_patterns) {
+  RETURN_IF_ERROR(ValidateIgnorePatterns(ignore_patterns));
   ASSIGN_OR_RETURN(const std::vector<std::string> components, ParseWorkspaceRelativePath(path, true));
   ASSIGN_OR_RETURN(int directory_descriptor, OpenDirectory(root, components));
   absl::Cleanup close_directory = [directory_descriptor] { close(directory_descriptor); };
@@ -518,6 +531,7 @@ absl::StatusOr<std::string> GrepWorkspaceFiles(const std::filesystem::path& root
   }
   if (context < 0 || context > 20) return absl::InvalidArgumentError("context must be between 0 and 20");
   if (limit < 1 || limit > 1000) return absl::InvalidArgumentError("limit must be between 1 and 1000");
+  RETURN_IF_ERROR(ValidateIgnorePatterns(ignore_patterns));
   ASSIGN_OR_RETURN(const std::vector<std::string> components, ParseWorkspaceRelativePath(path, true));
 
   std::unique_ptr<re2::RE2> compiled_regex;
@@ -530,6 +544,7 @@ absl::StatusOr<std::string> GrepWorkspaceFiles(const std::filesystem::path& root
   std::size_t searched_bytes = 0;
   std::size_t searched_files = 0;
   std::size_t output_lines = 0;
+  bool truncated = false;
   bool stop = false;
   const std::vector<std::string> patterns = IgnorePatterns(include_ignored, ignore_patterns);
   auto search_file = [&](absl::string_view relative_path) -> absl::Status {
@@ -538,7 +553,13 @@ absl::StatusOr<std::string> GrepWorkspaceFiles(const std::filesystem::path& root
     }
     ASSIGN_OR_RETURN(const std::string content, ReadWorkspaceFile(root, relative_path, ReadFileOptions{}));
     return SearchFileContent(relative_path, content, pattern, regex, fixed_strings, context, limit, &searched_bytes,
-                             &output_lines, &output, &stop);
+                             &output_lines, &output, &truncated, &stop);
+  };
+  const auto finish = [&]() -> absl::StatusOr<std::string> {
+    if (truncated) {
+      RETURN_IF_ERROR(AppendOutput(&output, "[TRUNCATED: Use a more specific pattern or path to narrow results]"));
+    }
+    return output;
   };
 
   std::string base_path = absl::StrJoin(components, "/");
@@ -550,7 +571,7 @@ absl::StatusOr<std::string> GrepWorkspaceFiles(const std::filesystem::path& root
       return search_file(relative);
     };
     RETURN_IF_ERROR(WalkDirectory(directory_descriptor, "", 0, kMaxGrepDepth, patterns, visitor, &stop));
-    return output;
+    return finish();
   }
 
   ASSIGN_OR_RETURN(int parent_descriptor, OpenParentDirectory(root, components));
@@ -564,8 +585,8 @@ absl::StatusOr<std::string> GrepWorkspaceFiles(const std::filesystem::path& root
     ++searched_files;
     ASSIGN_OR_RETURN(const std::string content, ReadFileAt(parent_descriptor, basename, kMaxReadBytes));
     RETURN_IF_ERROR(SearchFileContent(path, content, pattern, regex, fixed_strings, context, limit, &searched_bytes,
-                                      &output_lines, &output, &stop));
-    return output;
+                                      &output_lines, &output, &truncated, &stop));
+    return finish();
   }
   if (!S_ISDIR(info.st_mode)) return absl::PermissionDeniedError("Search path must be a regular file or directory");
 
@@ -578,7 +599,7 @@ absl::StatusOr<std::string> GrepWorkspaceFiles(const std::filesystem::path& root
     return search_file(relative);
   };
   RETURN_IF_ERROR(WalkDirectory(directory_descriptor, base_path, 0, kMaxGrepDepth, patterns, visitor, &stop));
-  return output;
+  return finish();
 }
 
 absl::StatusOr<std::string> WriteWorkspaceFile(const std::filesystem::path& root, absl::string_view path,
@@ -605,4 +626,4 @@ absl::StatusOr<slop::TextEditResult> EditWorkspaceFile(const std::filesystem::pa
   return result;
 }
 
-}  // namespace slop::mcp::local_tools
+}  // namespace slop::file_ops

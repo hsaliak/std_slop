@@ -12,7 +12,7 @@
 #include "core/json_utils.h"
 #include "core/status_macros.h"
 #include "mcp/local_tools/tool_utils.h"
-#include "mcp/local_tools/workspace_file_system.h"
+#include "tools/file_operations.h"
 #include "mcp/types.h"
 
 namespace slop::mcp::local_tools {
@@ -64,12 +64,7 @@ absl::StatusOr<std::vector<std::string>> IgnorePatterns(const nlohmann::json& ar
   if (value == nullptr) return std::vector<std::string>{};
   auto parsed = json_get<std::vector<std::string>>(arguments, "ignore");
   if (!parsed) return absl::InvalidArgumentError("ignore must be an array of strings");
-  if (parsed->size() > 100) return absl::ResourceExhaustedError("ignore may contain at most 100 patterns");
-  for (const std::string& pattern : *parsed) {
-    if (pattern.find('\0') != std::string::npos) {
-      return absl::InvalidArgumentError("ignore patterns must not contain NUL bytes");
-    }
-  }
+  RETURN_IF_ERROR(file_ops::ValidateIgnorePatterns(*parsed));
   return *parsed;
 }
 
@@ -127,7 +122,8 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         const std::optional<int> end_line = *end_line_or;
         const bool line_numbers = *line_numbers_or;
         const Workspace workspace = std::move(*workspace_or);
-        auto content = ReadWorkspaceFile(workspace.root, path, {start_line, end_line, line_numbers});
+        auto content = file_ops::ReadWorkspaceFile(workspace.root, path,
+                                                    file_ops::ReadFileOptions{start_line, end_line, line_numbers});
         if (!content.ok()) return MakeToolError(content.status());
         return MakeToolResult(*content, {{"workspace", workspace.id}, {"path", path}, {"content", *content}});
       }));
@@ -157,7 +153,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         const bool include_ignored = *include_ignored_or;
         const std::vector<std::string> ignore = std::move(*ignore_or);
         const Workspace workspace = std::move(*workspace_or);
-        auto output = ListWorkspaceDirectory(workspace.root, path, depth, include_ignored, ignore);
+        auto output = file_ops::ListWorkspaceDirectory(workspace.root, path, depth, include_ignored, ignore);
         if (!output.ok()) return MakeToolError(output.status());
         return MakeToolResult(*output,
                               {{"workspace", workspace.id}, {"path", path}, {"entries", *output}});
@@ -199,7 +195,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         const bool include_ignored = *include_ignored_or;
         const std::vector<std::string> ignore = std::move(*ignore_or);
         const Workspace workspace = std::move(*workspace_or);
-        auto output = GrepWorkspaceFiles(workspace.root, path, pattern, context, limit, fixed_strings, include_ignored,
+        auto output = file_ops::GrepWorkspaceFiles(workspace.root, path, pattern, context, limit, fixed_strings, include_ignored,
                                          ignore);
         if (!output.ok()) return MakeToolError(output.status());
         return MakeToolResult(*output, {{"workspace", workspace.id}, {"path", path}, {"matches", *output}});
@@ -222,7 +218,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         const std::string path = std::move(*path_or);
         const std::string content = std::move(*content_or);
         const Workspace workspace = std::move(*workspace_or);
-        auto output = WriteWorkspaceFile(workspace.root, path, content);
+        auto output = file_ops::WriteWorkspaceFile(workspace.root, path, content);
         if (!output.ok()) return MakeToolError(output.status());
         return MakeToolResult(*output,
                               {{"workspace", workspace.id}, {"path", path}, {"bytes_written", content.size()}});
@@ -244,7 +240,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
         const std::string path = std::move(*path_or);
         const Workspace workspace = std::move(*workspace_or);
-        auto result = EditWorkspaceFile(workspace.root, path, *edits);
+        auto result = file_ops::EditWorkspaceFile(workspace.root, path, *edits);
         if (!result.ok()) return MakeToolError(result.status());
         nlohmann::json structured = {{"workspace", workspace.id},
                                      {"path", path},

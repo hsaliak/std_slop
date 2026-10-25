@@ -12,10 +12,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 
+#include "core/database.h"
 #include "core/json_utils.h"
 #include "core/shell_util.h"
 #include "core/status_macros.h"
 #include "mcp/local_tools/workspace_catalog.h"
+#include "tools/tool_executor.h"
 
 #include <gtest/gtest.h>
 
@@ -271,6 +273,62 @@ TEST(LocalFileToolsTest, ToolSchemasRejectMalformedArgumentsBeforeHandler) {
                                      {{"path", "missing.txt"}, {"start_line", 2147483648LL}});
   ASSERT_TRUE(invalid_line.contains("result"));
   EXPECT_TRUE(invalid_line["result"]["isError"].get<bool>());
+}
+
+TEST(LocalFileToolsTest, NativeAndMcpAdaptersShareWorkspaceFileOperations) {
+  const std::filesystem::path root = std::filesystem::current_path() /
+                                     absl::StrCat("shared_file_ops_", absl::ToUnixNanos(absl::Now()));
+  std::error_code error;
+  std::filesystem::create_directories(root / "src", error);
+  ASSERT_FALSE(error) << error.message();
+  absl::Cleanup remove_root = [&root] {
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(root, cleanup_error);
+  };
+  WriteFile(root / "src" / "data.txt", "one\nneedle two\n");
+
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  auto catalog = WorkspaceCatalog::Create(root);
+  ASSERT_TRUE(catalog.ok()) << catalog.status().message();
+  auto server = CreateServer(std::move(*catalog));
+  ASSERT_TRUE(server.ok()) << server.status().message();
+
+  const std::string native_path = (root.filename() / "src" / "data.txt").string();
+  auto native_read = (*executor)->Execute("read_file", {{"path", native_path}});
+  ASSERT_TRUE(native_read.ok()) << native_read.status().message();
+  const auto mcp_read = CallTool(*server, 1, "read_file", {{"path", "src/data.txt"}});
+  ASSERT_TRUE(mcp_read.contains("result"));
+  EXPECT_EQ(*native_read, mcp_read["result"]["content"][0]["text"].get<std::string>());
+
+  auto native_grep = (*executor)->Execute("grep", {{"path", (root.filename() / "src").string()},
+                                                       {"pattern", "needle"},
+                                                       {"fixed_strings", true}});
+  ASSERT_TRUE(native_grep.ok()) << native_grep.status().message();
+  const auto mcp_grep = CallTool(*server, 2, "grep", {{"path", "src"}, {"pattern", "needle"},
+                                                        {"fixed_strings", true}});
+  ASSERT_TRUE(mcp_grep.contains("result"));
+  EXPECT_TRUE(absl::StrContains(*native_grep, "data.txt:2:needle two"));
+  EXPECT_TRUE(absl::StrContains(mcp_grep["result"]["structuredContent"]["matches"].get<std::string>(),
+                                "data.txt:2:needle two"));
+
+  const std::string native_write_path = (root.filename() / "src" / "native.txt").string();
+  auto native_write = (*executor)->Execute("write_file", {{"path", native_write_path}, {"content", "alpha beta"}});
+  ASSERT_TRUE(native_write.ok()) << native_write.status().message();
+  const auto mcp_write = CallTool(*server, 3, "write_file", {{"path", "src/mcp.txt"}, {"content", "alpha beta"}});
+  ASSERT_TRUE(mcp_write.contains("result"));
+  EXPECT_EQ(ReadFile(root / "src" / "native.txt"), ReadFile(root / "src" / "mcp.txt"));
+
+  const nlohmann::json edits = {{{"op", "replace"}, {"find", "beta"}, {"text", "gamma"}}};
+  auto native_edit = (*executor)->Execute("edit_tool", {{"path", native_write_path}, {"edits", edits}});
+  ASSERT_TRUE(native_edit.ok()) << native_edit.status().message();
+  const auto mcp_edit = CallTool(*server, 4, "edit_tool", {{"path", "src/mcp.txt"}, {"edits", edits}});
+  ASSERT_TRUE(mcp_edit.contains("result"));
+  EXPECT_FALSE(mcp_edit["result"]["isError"].get<bool>());
+  EXPECT_EQ(ReadFile(root / "src" / "native.txt"), "alpha gamma");
+  EXPECT_EQ(ReadFile(root / "src" / "mcp.txt"), ReadFile(root / "src" / "native.txt"));
 }
 
 }  // namespace

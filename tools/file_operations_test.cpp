@@ -1,4 +1,4 @@
-#include "mcp/local_tools/workspace_file_system.h"
+#include "tools/file_operations.h"
 
 #include <filesystem>
 #include <fstream>
@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 
-namespace slop::mcp::local_tools {
+namespace slop::file_ops {
 namespace {
 
 std::filesystem::path MakeTempDirectory() {
@@ -39,7 +39,7 @@ std::string ReadTestFile(const std::filesystem::path& path) {
   return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 }
 
-TEST(WorkspaceFileSystemTest, ParsesRelativePathsAndRejectsTraversalAndAbsoluteForms) {
+TEST(FileOperationsTest, ParsesRelativePathsAndRejectsTraversalAndAbsoluteForms) {
   auto parsed = ParseWorkspaceRelativePath("./src//file.cpp", false);
   ASSERT_TRUE(parsed.ok()) << parsed.status().message();
   EXPECT_EQ(*parsed, (std::vector<std::string>{"src", "file.cpp"}));
@@ -54,7 +54,7 @@ TEST(WorkspaceFileSystemTest, ParsesRelativePathsAndRejectsTraversalAndAbsoluteF
   EXPECT_TRUE(ParseWorkspaceRelativePath("name..part/file", false).ok());
 }
 
-TEST(WorkspaceFileSystemTest, FindsLiteralAndRegexLinesInProcess) {
+TEST(FileOperationsTest, FindsLiteralAndRegexLinesInProcess) {
   auto literal = FindMatchingLines("before\nneedle\nother needle\n", "needle", true);
   ASSERT_TRUE(literal.ok()) << literal.status().message();
   EXPECT_EQ(*literal, (std::vector<std::size_t>{2, 3}));
@@ -78,7 +78,15 @@ TEST(WorkspaceFileSystemTest, FindsLiteralAndRegexLinesInProcess) {
   EXPECT_TRUE(binary_literal->empty());
 }
 
-TEST(WorkspaceFileSystemTest, ReadsRangesAndNumbersLines) {
+TEST(FileOperationsTest, ValidatesIgnorePatternCountAndNulBytes) {
+  EXPECT_TRUE(ValidateIgnorePatterns({"build", "*.tmp"}).ok());
+  EXPECT_EQ(ValidateIgnorePatterns({std::string("bad\0pattern", 11)}).code(),
+            absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(ValidateIgnorePatterns(std::vector<std::string>(101, "pattern")).code(),
+            absl::StatusCode::kResourceExhausted);
+}
+
+TEST(FileOperationsTest, ReadsRangesAndNumbersLines) {
   const std::filesystem::path root = MakeTempDirectory();
   ASSERT_FALSE(root.empty());
   absl::Cleanup remove_root = [&root] {
@@ -97,7 +105,7 @@ TEST(WorkspaceFileSystemTest, ReadsRangesAndNumbersLines) {
   EXPECT_FALSE(ReadWorkspaceFile(root, "lines.txt", ReadFileOptions{5, std::nullopt, false}).ok());
 }
 
-TEST(WorkspaceFileSystemTest, ReadsAndWritesDoNotFollowSymlinks) {
+TEST(FileOperationsTest, ReadsAndWritesDoNotFollowSymlinks) {
   const std::filesystem::path root = MakeTempDirectory();
   ASSERT_FALSE(root.empty());
   absl::Cleanup remove_root = [&root] {
@@ -139,7 +147,7 @@ TEST(WorkspaceFileSystemTest, ReadsAndWritesDoNotFollowSymlinks) {
   EXPECT_FALSE(absl::StrContains(*listing, "escape/secret.txt"));
 }
 
-TEST(WorkspaceFileSystemTest, ListsSymlinksButDoesNotTraverseThem) {
+TEST(FileOperationsTest, ListsSymlinksButDoesNotTraverseThem) {
   const std::filesystem::path root = MakeTempDirectory();
   ASSERT_FALSE(root.empty());
   absl::Cleanup remove_root = [&root] {
@@ -159,7 +167,7 @@ TEST(WorkspaceFileSystemTest, ListsSymlinksButDoesNotTraverseThem) {
   EXPECT_TRUE(absl::StrContains(*listing, "File: nested/file.txt"));
 }
 
-TEST(WorkspaceFileSystemTest, GrepSupportsLiteralRegexContextAndFilePaths) {
+TEST(FileOperationsTest, GrepSupportsLiteralRegexContextAndFilePaths) {
   const std::filesystem::path root = MakeTempDirectory();
   ASSERT_FALSE(root.empty());
   absl::Cleanup remove_root = [&root] {
@@ -185,7 +193,7 @@ TEST(WorkspaceFileSystemTest, GrepSupportsLiteralRegexContextAndFilePaths) {
   EXPECT_FALSE(GrepWorkspaceFiles(root, ".", "[", 0, 10, false, false, {}).ok());
 }
 
-TEST(WorkspaceFileSystemTest, EditsAreValidatedBeforeAtomicReplacement) {
+TEST(FileOperationsTest, EditsAreValidatedBeforeAtomicReplacement) {
   const std::filesystem::path root = MakeTempDirectory();
   ASSERT_FALSE(root.empty());
   absl::Cleanup remove_root = [&root] {
@@ -209,4 +217,4 @@ TEST(WorkspaceFileSystemTest, EditsAreValidatedBeforeAtomicReplacement) {
 }
 
 }  // namespace
-}  // namespace slop::mcp::local_tools
+}  // namespace slop::file_ops
