@@ -29,7 +29,7 @@ The reply contains `resultType: "complete"`, text content, and `structuredConten
 | `1` | Startup or transport failure; diagnostics go to stderr. |
 | `2` | Invalid command-line arguments; usage goes to stderr. |
 
-Use the built binary as a host-launched subprocess. It can also be registered as a local stdio server with `std_slop mcp add` or `sl mcp add`; see the [MCP user guide](mcp-slop-userguide.md). The outbound stdio client supports modern MCP `2026-07-28` only and passes command arguments directly, without a shell. The server process runs with the agent user's permissions and inherited environment, so register only trusted programs. The integration test also uses an independent Python standard-library client and real pipes. Python 3 is needed for that test, not for the C++ server binary.
+Run the echo binary as a host-launched subprocess. To use the separate bundled local workspace tools application built on this server library, build and register it as a local stdio server; see the [Local workspace MCP guide](mcp-slop-userguide.md#bundled-local-workspace-tools). The outbound stdio client supports modern MCP `2026-07-28` only and passes command arguments directly, without a shell. A stdio server runs with the agent user's permissions and inherited environment, so register only trusted programs. The echo integration test also uses an independent Python standard-library client and real pipes. Python 3 is needed for that test, not for the C++ server binary.
 
 ## Server package and API
 
@@ -180,7 +180,9 @@ This implementation has no HTTP transport, authentication endpoints, resources/p
 
 Stdio needs no MCP OAuth flow, but it is not a permission boundary. The host launches a local process with local permissions and environment. Treat incoming arguments as untrusted and define tool access policy explicitly.
 
-The example exposes only `echo`. It does not automatically expose agent tools. A future application adapter must allowlist tools, define workspace/session ownership, preserve existing argument validation and mail-mode protections, and keep stdout clean. Shell execution, unrestricted SQL, and Git mutation require separate policy decisions.
+The reusable server example exposes only `echo`; the generic server library does not automatically expose agent tools. The repository also includes a separate bundled local workspace MCP server in `mcp/local_tools/`. It provides worktree-aware file and shell tools, but shell commands are not sandboxed. See the [local workspace MCP guide](mcp-slop-userguide.md#bundled-local-workspace-tools) for its tool contract and security limits.
+
+Applications that register their own handlers must still allowlist tools, define workspace/session ownership, preserve argument validation and mail-mode protections, and keep stdout clean. Shell execution, unrestricted SQL, and Git mutation require separate policy decisions.
 
 ## Server validation commands
 

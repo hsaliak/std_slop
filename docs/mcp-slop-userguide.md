@@ -141,9 +141,34 @@ std_slop mcp add local-tools \
   --command /absolute/path/to/bazel-bin/mcp/local_tools/local_tools_server
 ```
 
-The service needs no extra arguments or saved workspace path. It captures its launch directory as the default workspace, `launch`, then discovers linked Git worktrees when it lists or resolves workspaces. Worktree IDs have the form `worktree:/absolute/path`; each call may include a `workspace` ID. `workspace_list` lists the current catalog and `workspace_info` returns one workspace root.
+The service needs no extra arguments or saved workspace path. It captures its launch directory as the default workspace, `launch`, then discovers linked Git worktrees when it lists or resolves workspaces. `workspace_list` refreshes the catalog on every call; `workspace_info` returns one workspace root. A workspace ID is `launch` or `worktree:/absolute/path`. Omit `workspace` to use `launch`.
 
-The service provides `workspace_list`, `workspace_info`, `read_file`, `list_directory`, `grep`, `write_file`, `edit_tool`, and `execute_bash`. File paths are relative to the selected workspace. File tools reject absolute paths, traversal, and symlink traversal, and they have size/output limits. The service has no dedicated Git MCP tools. `execute_bash` starts in the selected workspace, or an optional workspace-relative `cwd`; it is **not a sandbox**. A command can use absolute paths, change directory, run Git, or access files outside the workspace. The shell tool has a 30-second default timeout, a 45-second maximum, and a 1 MiB combined stdout/stderr limit.
+#### Tool reference
+
+Each top-level tool argument object rejects unknown fields. File paths are relative to the selected workspace; absolute paths, `..` traversal, and symlink traversal are rejected. The bundled stdio server also enforces its default 1 MiB input-line limit, including the JSON-RPC envelope. The file service has no dedicated Git MCP tools.
+
+| Tool | Arguments and behavior |
+| --- | --- |
+| `workspace_list` | No arguments. Lists the launch workspace and currently linked Git worktrees. |
+| `workspace_info` | Optional `workspace`; defaults to `launch`. Returns the selected root path. |
+| `read_file` | Required `path`; optional `workspace`, `start_line`, `end_line` (1-based), and `line_numbers` (default `false`). Reads at most 4 MiB. |
+| `list_directory` | Optional `path` (default `.`), `workspace`, `depth` (default 1, range 1–8), `include_ignored` (default `false`), and `ignore` (additional patterns). Lists at most 1,000 entries. By default it skips `.git`, `node_modules`, `bazel-*`, `dist`, `build`, `.cache`, `.next`, and `target`; `include_ignored` disables those defaults. |
+| `grep` | Required `pattern`; optional `path` (default `.`), `workspace`, `context` (default 0, range 0–20), `limit` (default 200, range 1–1,000), `fixed_strings` (default `false`), `include_ignored` (default `false`), and `ignore` (additional patterns). Patterns are limited to 4 KiB; a search scans at most 10,000 files and 32 MiB of file content, and returned output is limited to 1 MiB. `limit` caps returned matches. RE2 regular-expression matching is the default; set `fixed_strings` to `true` for literal matching. |
+| `write_file` | Required `path` and `content`; optional `workspace`. Writes atomically; the underlying file operation accepts up to 4 MiB, subject to the server's 1 MiB JSON input-line limit. |
+| `edit_tool` | Required `path` and non-empty `edits` array; optional `workspace`. Supports `replace`, `insert_before`, `insert_after`, and `delete`; at most 256 edits. Each edit uses exact, non-empty `find` text. Supply non-empty `text` for replace/insert operations. `which` selects `only` (default), `first`, `last`, or a zero-based match index. |
+| `execute_bash` | Required non-empty `command` (maximum 64 KiB); optional `workspace`, workspace-relative `cwd` (default `.`), `timeout_seconds` (default 30, range 1–45), and `allow_nonzero_exit` (default `false`). Combined stdout/stderr is limited to 1 MiB. |
+
+For example, this edit replaces the first exact match in a selected worktree:
+
+```json
+{
+  "workspace": "worktree:/work/project-feature",
+  "path": "src/config.h",
+  "edits": [{"op": "replace", "find": "old_value", "text": "new_value", "which": "first"}]
+}
+```
+
+`execute_bash` starts in the selected workspace, or its optional workspace-relative `cwd`, but it is **not a sandbox**. A command can use absolute paths, change directory, run Git, or access files outside the workspace. Register and use this server only when you trust the process and command source.
 
 In mail mode, every dynamically imported MCP tool requires the host to be on a `slop/staging/*` branch, including tools that declare a read-only hint. Native read tools and the staging-branch bootstrap tool remain available off staging. This is a branch gate, not sandboxing: a call allowed on staging can still affect another worktree or external system.
 

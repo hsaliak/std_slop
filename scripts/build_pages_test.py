@@ -19,6 +19,7 @@ Markdown library, MCP client, MCP server, `std_slop`, and `sl`.
 ## Implemented MCPs
 
 - [echo_server](docs/echo-server.md)
+- [Local workspace MCP](docs/mcp-slop-userguide.md#bundled-local-workspace-tools)
 - [run_js Gateway](mcp/gateway/README.md)
 - [Decision API MCP](mcp/decision_api/README.md)
 
@@ -85,6 +86,7 @@ SOURCES = {
     "docs/mcp-server.md": (
         "# MCP stdio server\n\n"
         "Inbound stdio server, protocol `2026-07-28`.\n\n"
+        "[Local workspace MCP guide](mcp-slop-userguide.md#bundled-local-workspace-tools).\n\n"
         "```sh\nbazel build //mcp/server:echo_server\n```\n"
     ),
     "docs/echo-server.md": (
@@ -92,7 +94,13 @@ SOURCES = {
         "The deterministic echo implementation.\n\n"
         "[MCP server guide](mcp-server.md).\n"
     ),
-    "docs/mcp-slop-userguide.md": "# MCP agent integration\n\nRemote tools.\n",
+    "docs/mcp-slop-userguide.md": (
+        "# MCP agent integration\n\nRemote tools.\n\n"
+        "### Bundled local workspace tools\n\n"
+        "The local workspace MCP provides `workspace_list` and `read_file`. Shell execution is not a sandbox.\n\n"
+        "#### Tool reference\n\n"
+        "| Tool | Arguments |\n| --- | --- |\n| `execute_bash` | `timeout_seconds` |\n"
+    ),
     "mcp/gateway/README.md": (
         "# run_js gateway\n\n"
         "## SondaHub MCP test server\n\n"
@@ -106,6 +114,7 @@ SOURCES = {
     "docs/README.md": (
         "# Documentation guide\n\nChoose a component.\n\n"
         "[Echo MCP server](echo-server.md)\n\n"
+        "[Local workspace MCP](mcp-slop-userguide.md#bundled-local-workspace-tools)\n\n"
         "[run_js gateway](../mcp/gateway/README.md)\n\n"
         "[run_js status](../mcp/gateway/STATUS.md)\n"
     ),
@@ -178,6 +187,7 @@ class BuildPagesTest(unittest.TestCase):
             "sl.html": "docs/sl.md",
             "mcp.html": "docs/mcp-api.md",
             "mcp-server.html": "docs/mcp-server.md",
+            "local-tools.html": "docs/mcp-slop-userguide.md",
             "echo-server.html": "docs/echo-server.md",
             "run-js.html": "mcp/gateway/README.md",
             "decision-api.html": "mcp/decision_api/README.md",
@@ -214,6 +224,14 @@ class BuildPagesTest(unittest.TestCase):
         )
         self.assertEqual(run_js_navigation.count('aria-current="page"'), 1)
 
+        local_tools_navigation = build_pages.navigation("local-tools.html")
+        self.assertIn('<summary class="active">Implemented MCPs', local_tools_navigation)
+        self.assertIn(
+            '<a class="active" aria-current="page" href="local-tools.html">Local workspace MCP',
+            local_tools_navigation,
+        )
+        self.assertEqual(local_tools_navigation.count('aria-current="page"'), 1)
+
         decision_navigation = build_pages.navigation("decision-api.html")
         self.assertIn('<summary class="active">Implemented MCPs', decision_navigation)
         self.assertIn(
@@ -225,6 +243,15 @@ class BuildPagesTest(unittest.TestCase):
     def test_implemented_mcp_guides_are_listed_and_linked(self):
         echo_page = self.page("echo-server.html")
         self.assertIn("deterministic echo implementation", echo_page)
+        local_tools_page = self.page("local-tools.html")
+        self.assertIn("Local workspace MCP", local_tools_page)
+        self.assertIn("workspace_list", local_tools_page)
+        self.assertIn("read_file", local_tools_page)
+        self.assertIn("timeout_seconds", local_tools_page)
+        self.assertIn("not a sandbox", local_tools_page)
+        self.assertIn(
+            'href="local-tools.html#bundled-local-workspace-tools"', self.page("mcp-server.html")
+        )
         decision_page = self.page("decision-api.html")
         self.assertIn("Decision API MCP server", decision_page)
         run_js_page = self.page("run-js.html")
@@ -233,10 +260,12 @@ class BuildPagesTest(unittest.TestCase):
         self.assertIn("https://api.sondahub.com/mcp/secure", run_js_page)
         index = self.page("index.html")
         self.assertIn('href="echo-server.html">echo_server', index)
+        self.assertIn('href="local-tools.html#bundled-local-workspace-tools">Local workspace MCP', index)
         self.assertIn('href="run-js.html">run_js Gateway', index)
         self.assertIn('href="decision-api.html">Decision API MCP', index)
         navigation = build_pages.navigation("decision-api.html")
         self.assertIn('href="decision-api.html">Decision API MCP', navigation)
+        self.assertIn('href="local-tools.html#bundled-local-workspace-tools"', self.page("docs.html"))
 
     def test_selected_sections_exist_in_repository_sources(self):
         runfiles = os.environ.get("TEST_SRCDIR")
@@ -273,6 +302,7 @@ class BuildPagesTest(unittest.TestCase):
                 self.assertIn('href="sl.html">sl', page)
                 self.assertIn('href="mcp-server.html"', page)
                 self.assertIn('href="echo-server.html"', page)
+                self.assertIn('href="local-tools.html"', page)
                 self.assertIn('href="run-js.html"', page)
                 self.assertNotIn("C++ coding agent and integrated", page)
 
@@ -284,6 +314,16 @@ class BuildPagesTest(unittest.TestCase):
         self.assertEqual(
             build_pages.source_url("docs/README.md", "../markdown/README.md"),
             "https://github.com/hsaliak/std_slop/blob/main/markdown/README.md",
+        )
+        self.assertEqual(
+            build_pages.source_url(
+                "docs/README.md", "mcp-slop-userguide.md#bundled-local-workspace-tools"
+            ),
+            "local-tools.html#bundled-local-workspace-tools",
+        )
+        self.assertEqual(
+            build_pages.source_url("docs/README.md", "mcp-slop-userguide.md"),
+            "https://github.com/hsaliak/std_slop/blob/main/docs/mcp-slop-userguide.md",
         )
         self.assertEqual(
             build_pages.source_url("docs/README.md", "echo-server.md"), "echo-server.html"

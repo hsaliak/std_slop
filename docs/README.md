@@ -30,9 +30,10 @@
 This repository includes small MCP servers that demonstrate different use cases:
 
 - [Echo MCP server](echo-server.md) — deterministic, side-effect-free `echo` tool; also used by the gateway example.
+- [Local workspace MCP](mcp-slop-userguide.md#bundled-local-workspace-tools) — bundled worktree-aware file tools and a non-sandboxed shell tool.
 - [run_js gateway](../mcp/gateway/README.md) — bounded JavaScript composition over configured downstream stdio MCP servers. See its [implementation status](../mcp/gateway/STATUS.md) for current verification and follow-up work.
 
-The inbound C++ server library supports stdio only. The outbound client supports Streamable HTTP and modern MCP `2026-07-28` over local stdio. Configured stdio programs run with the agent user's permissions and environment. The server does not automatically export agent tools. The Markdown library and echo server do not need agent model credentials or a session database.
+The reusable inbound C++ server library supports stdio only and does not automatically export agent tools. The bundled local workspace MCP is a separate application built on that server library. Configured stdio programs run with the agent user's permissions and environment; the local shell tool is not a sandbox. The outbound client supports Streamable HTTP and modern MCP `2026-07-28` over local stdio. The Markdown library and echo server do not need agent model credentials or a session database.
 
 ## Agent runtime reference
 

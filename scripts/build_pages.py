@@ -86,6 +86,12 @@ PAGES = (
         (SourceSpec("docs/mcp-server.md"),),
     ),
     PageSpec(
+        "local-tools.html",
+        "docs/mcp-slop-userguide.md",
+        "Local workspace MCP",
+        (SourceSpec("docs/mcp-slop-userguide.md", ("Bundled local workspace tools",)),),
+    ),
+    PageSpec(
         "echo-server.html",
         "docs/echo-server.md",
         "Echo MCP server",
@@ -135,12 +141,14 @@ NAVIGATION_DROPDOWNS = {
     "Coding Agents": (("std::slop", "agent.html"), ("sl", "sl.html")),
     "Implemented MCPs": (
         ("echo_server", "echo-server.html"),
+        ("Local workspace MCP", "local-tools.html"),
         ("run_js Gateway", "run-js.html"),
         ("Decision API MCP", "decision-api.html"),
     ),
 }
 
 SITE_SOURCE_PAGES = {
+    "docs/mcp-slop-userguide.md": "local-tools.html",
     "docs/echo-server.md": "echo-server.html",
     "docs/mcp-server.md": "mcp-server.html",
     "mcp/gateway/README.md": "run-js.html",
@@ -230,6 +238,11 @@ def source_url(source_path: str, target: str) -> str:
     resolved = posixpath.normpath((source_dir / path).as_posix())
     if resolved.startswith("../"):
         resolved = resolved[3:]
+    if (
+        resolved == "docs/mcp-slop-userguide.md"
+        and parsed.fragment != "bundled-local-workspace-tools"
+    ):
+        return f"{REPOSITORY_URL}/blob/main/{resolved}{fragment}"
     if resolved in SITE_SOURCE_PAGES:
         return f"{SITE_SOURCE_PAGES[resolved]}{fragment}"
     if resolved.endswith(".md") or resolved.endswith(".ini"):

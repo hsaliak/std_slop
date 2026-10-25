@@ -25,6 +25,7 @@
 A few MCP servers are implemented and documented:
 
 - **Echo server:** a small stdio MCP example. See the [echo server guide](docs/echo-server.md).
+- **Local workspace MCP:** a bundled stdio server for worktree-aware file and shell tools. Shell commands are not sandboxed. See the [local workspace tool guide](docs/mcp-slop-userguide.md#bundled-local-workspace-tools).
 - **run_js gateway:** bounded JavaScript composition of downstream MCP tools. See the [gateway guide](mcp/gateway/README.md).
 - **Decision API MCP:** typed `noul`, `choice`, and `score` evaluations for SystemOne models such as Jev from TypeSafe; OpenRouter is the default backend. See the [Decision API guide](mcp/decision_api/README.md).
 
