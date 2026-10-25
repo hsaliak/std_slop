@@ -60,6 +60,7 @@ cc_library(
         "//core:json_utils",
         "//mcp:protocol",
         "//mcp/server:server",
+        "//mcp/server:tool_utils",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@nlohmann_json//:json",

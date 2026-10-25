@@ -24,6 +24,17 @@ cc_library(
 )
 
 cc_library(
+    name = "tool_utils",
+    hdrs = ["tool_utils.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":server",
+        "//mcp:protocol",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "stdio",
     srcs = ["stdio.cpp"],
     hdrs = ["stdio.h"],

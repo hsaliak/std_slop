@@ -16,15 +16,14 @@ namespace {
 nlohmann::json WorkspaceJson(const Workspace& workspace) {
   return {{"id", workspace.id},
           {"root", workspace.root.string()},
-          {"is_default", workspace.is_default},
-          {"is_git_worktree_root", workspace.is_git_worktree_root}};
+          {"is_default", workspace.is_default}};
 }
 
 }  // namespace
 
 absl::StatusOr<mcp::server::Server> CreateServer(WorkspaceCatalog workspaces) {
   std::vector<mcp::server::ToolRegistration> tools;
-  tools.push_back(MakeToolRegistration(
+  tools.push_back(mcp::server::MakeToolRegistration(
       "workspace_list", "List the launch workspace and currently available linked Git worktrees.",
       {{"type", "object"}, {"properties", nlohmann::json::object()}, {"additionalProperties", false}},
       {{"readOnlyHint", true}, {"openWorldHint", false}, {"destructiveHint", false}, {"idempotentHint", true}},
@@ -36,7 +35,7 @@ absl::StatusOr<mcp::server::Server> CreateServer(WorkspaceCatalog workspaces) {
         for (const Workspace& workspace : *entries) listed.push_back(WorkspaceJson(workspace));
         return MakeJsonToolResult({{"default", "launch"}, {"workspaces", std::move(listed)}});
       }));
-  tools.push_back(MakeToolRegistration(
+  tools.push_back(mcp::server::MakeToolRegistration(
       "workspace_info", "Show the root of the selected workspace; defaults to the launch directory.",
       {{"type", "object"},
        {"properties", {{"workspace", {{"type", "string"}}}}},

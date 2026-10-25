@@ -16,9 +16,10 @@ namespace slop::mcp::local_tools {
 namespace {
 
 std::string RemoveOneLineEnding(std::string text) {
-  if (!text.empty() && text.back() == '\n') text.pop_back();
-  if (!text.empty() && text.back() == '\r') text.pop_back();
-  return text;
+  absl::string_view view = text;
+  view = absl::StripSuffix(view, "\n");
+  view = absl::StripSuffix(view, "\r");
+  return std::string(view);
 }
 
 absl::StatusOr<CommandResult> RunGit(const std::filesystem::path& directory, absl::string_view arguments) {
@@ -98,7 +99,7 @@ absl::StatusOr<WorkspaceCatalog> WorkspaceCatalog::Create(const std::filesystem:
 }
 
 absl::StatusOr<std::vector<Workspace>> WorkspaceCatalog::List() const {
-  std::vector<Workspace> workspaces = {{"launch", launch_directory_, true, false}};
+  std::vector<Workspace> workspaces = {{"launch", launch_directory_, true}};
   if (!is_git_repository_) return workspaces;
 
   ASSIGN_OR_RETURN(auto result, RunGit(git_top_level_, "worktree list --porcelain -z"));
@@ -111,10 +112,7 @@ absl::StatusOr<std::vector<Workspace>> WorkspaceCatalog::List() const {
     if (!root_or.ok()) continue;  // Ignore prunable worktrees.
     const std::filesystem::path& root = *root_or;
 
-    if (root == launch_directory_) {
-      workspaces.front().is_git_worktree_root = true;
-      continue;
-    }
+    if (root == launch_directory_) continue;
     if (std::any_of(workspaces.begin(), workspaces.end(),
                     [&root](const Workspace& workspace) { return workspace.root == root; })) {
       continue;
@@ -124,7 +122,7 @@ absl::StatusOr<std::vector<Workspace>> WorkspaceCatalog::List() const {
                      ReadGitDirectory(root, "rev-parse --path-format=absolute --git-common-dir"));
     if (worktree_common_directory != git_common_directory_) continue;
 
-    workspaces.push_back({absl::StrCat("worktree:", root.string()), root, false, true});
+    workspaces.push_back({absl::StrCat("worktree:", root.string()), root, false});
   }
   return workspaces;
 }

@@ -14,7 +14,6 @@ struct Workspace {
   std::string id;
   std::filesystem::path root;
   bool is_default = false;
-  bool is_git_worktree_root = false;
 };
 
 class WorkspaceCatalog {

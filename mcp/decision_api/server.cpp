@@ -10,6 +10,7 @@
 
 #include "core/json_utils.h"
 #include "mcp/types.h"
+#include "mcp/server/tool_utils.h"
 
 namespace slop::mcp::decision_api {
 namespace {
@@ -75,22 +76,7 @@ nlohmann::json DecideInputSchema() {
 }
 
 mcp::ToolCallResult ToolResult(std::string text, nlohmann::json structured, bool is_error = false) {
-  mcp::ToolCallResult result;
-  result.content.push_back({{"type", "text"}, {"text", std::move(text)}});
-  result.structured_content = std::move(structured);
-  result.is_error = is_error;
-  return result;
-}
-
-mcp::server::ToolRegistration MakeTool(std::string name, std::string description, nlohmann::json schema,
-                                       nlohmann::json annotations, mcp::server::ToolHandler handler) {
-  mcp::server::ToolRegistration registration;
-  registration.definition.name = std::move(name);
-  registration.definition.description = std::move(description);
-  registration.definition.input_schema = std::move(schema);
-  registration.definition.annotations = std::move(annotations);
-  registration.handler = std::move(handler);
-  return registration;
+  return mcp::server::MakeToolCallResult(std::move(text), std::move(structured), is_error);
 }
 
 absl::StatusOr<mcp::ToolCallResult> ErrorResult(const absl::Status& status) {
@@ -233,7 +219,7 @@ nlohmann::json DecisionHelpContent(const std::string& topic, const std::string& 
 absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClient> client, const Config& config) {
   if (client == nullptr) return absl::InvalidArgumentError("decision API client must not be null");
   std::vector<mcp::server::ToolRegistration> tools;
-  tools.push_back(MakeTool(
+  tools.push_back(mcp::server::MakeToolRegistration(
       "decide",
       "Evaluate named noul, choice, and score questions against shared state for SystemOne models such as Jev from "
       "TypeSafe. OpenRouter is the default backend. Returns typed answers, resolved model, and available usage "
@@ -259,7 +245,7 @@ absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClie
                                             "configuration", "models", "errors", "examples"}}}}}},
                                       {"additionalProperties", false}};
   tools.push_back(
-      MakeTool("decision_help",
+      mcp::server::MakeToolRegistration("decision_help",
                "Explain Decision API schemas, SystemOne models such as TypeSafe Jev, question types, model aliases, "
                "configuration, "
                "errors, and uncertainty. OpenRouter is the default backend. This local documentation tool performs no "
@@ -280,7 +266,7 @@ absl::StatusOr<mcp::server::Server> CreateServer(std::shared_ptr<DecisionApiClie
 
   const nlohmann::json empty_schema = {{"type", "object"}, {"additionalProperties", false}};
   tools.push_back(
-      MakeTool("decision_models",
+      mcp::server::MakeToolRegistration("decision_models",
                "List decision-capable SystemOne models such as TypeSafe Jev from the configured catalog, including "
                "exact IDs and "
                "available context/pricing metadata. OpenRouter provides the default catalog. Does not evaluate a "

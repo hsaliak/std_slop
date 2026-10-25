@@ -36,23 +36,6 @@ absl::StatusOr<std::string> RequiredString(const nlohmann::json& arguments, cons
   return *value;
 }
 
-absl::StatusOr<std::string> OptionalString(const nlohmann::json& arguments, const std::string& key,
-                                           std::string default_value) {
-  const nlohmann::json* value = json_at(arguments, key);
-  if (value == nullptr) return default_value;
-  auto parsed = json_getter<std::string>::get(*value);
-  if (!parsed) return absl::InvalidArgumentError(absl::StrCat(key, " must be a string"));
-  return *parsed;
-}
-
-absl::StatusOr<bool> OptionalBool(const nlohmann::json& arguments, const std::string& key, bool default_value) {
-  const nlohmann::json* value = json_at(arguments, key);
-  if (value == nullptr) return default_value;
-  auto parsed = json_getter<bool>::get(*value);
-  if (!parsed) return absl::InvalidArgumentError(absl::StrCat(key, " must be a boolean"));
-  return *parsed;
-}
-
 absl::StatusOr<int> IntegerValue(const nlohmann::json& arguments, const std::string& key, int minimum, int maximum) {
   const auto parsed = json_get<int>(arguments, key);
   if (!parsed) return absl::InvalidArgumentError(absl::StrCat(key, " must be an integer"));
@@ -105,7 +88,7 @@ nlohmann::json IgnoreSchema() {
 
 mcp::server::ToolRegistration MakeFileTool(std::string name, std::string description, nlohmann::json schema,
                                            bool read_only, mcp::server::ToolHandler handler) {
-  return MakeToolRegistration(
+  return mcp::server::MakeToolRegistration(
       std::move(name), std::move(description), std::move(schema),
       {{"readOnlyHint", read_only}, {"openWorldHint", false}, {"destructiveHint", !read_only},
        {"idempotentHint", read_only}},
@@ -135,7 +118,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         if (!start_line_or.ok()) return MakeToolError(start_line_or.status());
         auto end_line_or = OptionalLine(arguments, "end_line");
         if (!end_line_or.ok()) return MakeToolError(end_line_or.status());
-        auto line_numbers_or = OptionalBool(arguments, "line_numbers", false);
+        auto line_numbers_or = OptionalToolBool(arguments, "line_numbers", false);
         if (!line_numbers_or.ok()) return MakeToolError(line_numbers_or.status());
         auto workspace_or = ResolveWorkspace(workspaces, arguments);
         if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
@@ -159,11 +142,11 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
         const absl::Status object_status = ValidateObject(arguments);
         if (!object_status.ok()) return MakeToolError(object_status);
-        auto path_or = OptionalString(arguments, "path", ".");
+        auto path_or = OptionalToolString(arguments, "path", ".");
         if (!path_or.ok()) return MakeToolError(path_or.status());
         auto depth_or = OptionalInteger(arguments, "depth", 1, 1, 8);
         if (!depth_or.ok()) return MakeToolError(depth_or.status());
-        auto include_ignored_or = OptionalBool(arguments, "include_ignored", false);
+        auto include_ignored_or = OptionalToolBool(arguments, "include_ignored", false);
         if (!include_ignored_or.ok()) return MakeToolError(include_ignored_or.status());
         auto ignore_or = IgnorePatterns(arguments);
         if (!ignore_or.ok()) return MakeToolError(ignore_or.status());
@@ -194,15 +177,15 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         if (!object_status.ok()) return MakeToolError(object_status);
         auto pattern_or = RequiredString(arguments, "pattern");
         if (!pattern_or.ok()) return MakeToolError(pattern_or.status());
-        auto path_or = OptionalString(arguments, "path", ".");
+        auto path_or = OptionalToolString(arguments, "path", ".");
         if (!path_or.ok()) return MakeToolError(path_or.status());
         auto context_or = OptionalInteger(arguments, "context", 0, 0, 20);
         if (!context_or.ok()) return MakeToolError(context_or.status());
         auto limit_or = OptionalInteger(arguments, "limit", 200, 1, 1000);
         if (!limit_or.ok()) return MakeToolError(limit_or.status());
-        auto fixed_strings_or = OptionalBool(arguments, "fixed_strings", false);
+        auto fixed_strings_or = OptionalToolBool(arguments, "fixed_strings", false);
         if (!fixed_strings_or.ok()) return MakeToolError(fixed_strings_or.status());
-        auto include_ignored_or = OptionalBool(arguments, "include_ignored", false);
+        auto include_ignored_or = OptionalToolBool(arguments, "include_ignored", false);
         if (!include_ignored_or.ok()) return MakeToolError(include_ignored_or.status());
         auto ignore_or = IgnorePatterns(arguments);
         if (!ignore_or.ok()) return MakeToolError(ignore_or.status());

@@ -79,6 +79,7 @@ cc_library(
         "//core:json_utils",
         "//core:shell_lib",
         "//mcp/server:server",
+        "//mcp/server:tool_utils",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@nlohmann_json//:json",

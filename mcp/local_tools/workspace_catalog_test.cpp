@@ -63,7 +63,6 @@ TEST(WorkspaceCatalogTest, NonGitLaunchIsTheOnlyDefaultWorkspace) {
   EXPECT_EQ(workspaces->front().id, "launch");
   EXPECT_EQ(workspaces->front().root, std::filesystem::canonical(root));
   EXPECT_TRUE(workspaces->front().is_default);
-  EXPECT_FALSE(workspaces->front().is_git_worktree_root);
 
   auto unknown = catalog->Resolve("worktree:/elsewhere");
   ASSERT_FALSE(unknown.ok());
@@ -86,7 +85,6 @@ TEST(WorkspaceCatalogTest, DiscoversWorktreeAddedAfterCatalogCreation) {
   auto initial = catalog->List();
   ASSERT_TRUE(initial.ok()) << initial.status().message();
   ASSERT_EQ(initial->size(), 1);
-  EXPECT_TRUE(initial->front().is_git_worktree_root);
 
   ASSERT_TRUE(RunGit(repository, absl::StrCat("worktree add --quiet -b feature ",
                                              EscapeShellArg(worktree.string())))
@@ -105,7 +103,6 @@ TEST(WorkspaceCatalogTest, DiscoversWorktreeAddedAfterCatalogCreation) {
   EXPECT_EQ(feature->root, std::filesystem::canonical(worktree));
   EXPECT_EQ(feature->id, absl::StrCat("worktree:", feature->root.string()));
   EXPECT_FALSE(feature->is_default);
-  EXPECT_TRUE(feature->is_git_worktree_root);
 
   auto resolved = catalog->Resolve(feature->id);
   ASSERT_TRUE(resolved.ok()) << resolved.status().message();
@@ -139,9 +136,7 @@ TEST(WorkspaceCatalogTest, LaunchSubdirectoryAndWorktreeRootAreSeparateEntries) 
 
   EXPECT_EQ(workspaces->front().id, "launch");
   EXPECT_EQ(workspaces->front().root, std::filesystem::canonical(source_directory));
-  EXPECT_FALSE(workspaces->front().is_git_worktree_root);
   EXPECT_EQ(workspaces->back().id, absl::StrCat("worktree:", std::filesystem::canonical(repository).string()));
-  EXPECT_TRUE(workspaces->back().is_git_worktree_root);
 }
 
 }  // namespace

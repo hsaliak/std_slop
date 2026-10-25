@@ -36,23 +36,6 @@ absl::StatusOr<std::string> RequiredCommand(const nlohmann::json& arguments) {
   return *command;
 }
 
-absl::StatusOr<std::string> OptionalString(const nlohmann::json& arguments, const std::string& key,
-                                           std::string default_value) {
-  const nlohmann::json* value = json_at(arguments, key);
-  if (value == nullptr) return default_value;
-  auto parsed = json_getter<std::string>::get(*value);
-  if (!parsed) return absl::InvalidArgumentError(absl::StrCat(key, " must be a string"));
-  return *parsed;
-}
-
-absl::StatusOr<bool> OptionalBool(const nlohmann::json& arguments, const std::string& key, bool default_value) {
-  const nlohmann::json* value = json_at(arguments, key);
-  if (value == nullptr) return default_value;
-  auto parsed = json_getter<bool>::get(*value);
-  if (!parsed) return absl::InvalidArgumentError(absl::StrCat(key, " must be a boolean"));
-  return *parsed;
-}
-
 absl::StatusOr<int> OptionalTimeout(const nlohmann::json& arguments) {
   const nlohmann::json* value = json_at(arguments, "timeout_seconds");
   if (value == nullptr) return kDefaultTimeoutSeconds;
@@ -89,7 +72,7 @@ mcp::ToolCallResult ShellFailure(std::string message, const std::string& command
 }  // namespace
 
 std::vector<mcp::server::ToolRegistration> CreateShellTools(WorkspaceCatalog workspaces) {
-  mcp::server::ToolRegistration registration = MakeToolRegistration(
+  mcp::server::ToolRegistration registration = mcp::server::MakeToolRegistration(
       "execute_bash", "Run a shell command with the selected workspace as its initial working directory. The shell is "
                       "not sandboxed and may access paths outside the workspace.",
       ShellToolSchema(),
@@ -101,13 +84,13 @@ std::vector<mcp::server::ToolRegistration> CreateShellTools(WorkspaceCatalog wor
         auto command_or = RequiredCommand(arguments);
         if (!command_or.ok()) return MakeToolError(command_or.status());
         const std::string command = std::move(*command_or);
-        auto cwd_or = OptionalString(arguments, "cwd", ".");
+        auto cwd_or = OptionalToolString(arguments, "cwd", ".");
         if (!cwd_or.ok()) return MakeToolError(cwd_or.status());
         const std::string relative_cwd = std::move(*cwd_or);
         auto timeout_or = OptionalTimeout(arguments);
         if (!timeout_or.ok()) return MakeToolError(timeout_or.status());
         const int timeout_seconds = *timeout_or;
-        auto allow_nonzero_or = OptionalBool(arguments, "allow_nonzero_exit", false);
+        auto allow_nonzero_or = OptionalToolBool(arguments, "allow_nonzero_exit", false);
         if (!allow_nonzero_or.ok()) return MakeToolError(allow_nonzero_or.status());
         const bool allow_nonzero_exit = *allow_nonzero_or;
         auto workspace_or = ResolveWorkspace(workspaces, arguments);
