@@ -8,28 +8,30 @@
 namespace slop {
 namespace {
 
-void EditEngineIsDeterministicForArbitraryInput(const std::string& original, const std::string& edits_raw) {
+void EditEngineRejectsMalformedEditsAndReturnsConsistentSummaries(const std::string& original,
+                                                                   const std::string& edits_raw) {
   nlohmann::json edits = nlohmann::json::parse(edits_raw, nullptr, false);
   if (edits.is_discarded()) edits = edits_raw;
 
   const absl::Status validation = ValidateTextEdits(edits);
-  const auto first = ApplyTextEdits(original, edits);
-  const auto second = ApplyTextEdits(original, edits);
-  EXPECT_EQ(first.ok(), second.ok());
-  if (!first.ok()) {
-    EXPECT_EQ(first.status().code(), second.status().code());
-    EXPECT_EQ(first.status().message(), second.status().message());
+  const auto result = ApplyTextEdits(original, edits);
+  if (!validation.ok()) {
+    ASSERT_FALSE(result.ok());
+    EXPECT_EQ(result.status().code(), validation.code());
+    EXPECT_EQ(result.status().message(), validation.message());
     return;
   }
 
-  EXPECT_TRUE(validation.ok());
-  EXPECT_NE(first->content, original);
-  EXPECT_EQ(first->content, second->content);
-  EXPECT_EQ(first->changes, second->changes);
-  EXPECT_EQ(first->edit_count, first->changes.size());
+  if (!result.ok()) {
+    EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
+    EXPECT_FALSE(result.status().message().empty());
+    return;
+  }
+  EXPECT_NE(result->content, original);
+  EXPECT_EQ(result->edit_count, result->changes.size());
 }
 
-FUZZ_TEST(EditEngineFuzzTest, EditEngineIsDeterministicForArbitraryInput)
+FUZZ_TEST(EditEngineFuzzTest, EditEngineRejectsMalformedEditsAndReturnsConsistentSummaries)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
 
 }  // namespace
