@@ -1,0 +1,84 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@aspect_rules_lint//format:defs.bzl", "format_test")
+
+format_test(
+    name = "format_test",
+    cc = "//:clang_format_hermetic",
+    srcs = glob(["*.cpp", "*.h"]),
+)
+
+cc_library(
+    name = "workspace_catalog",
+    srcs = ["workspace_catalog.cpp"],
+    hdrs = ["workspace_catalog.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:data",
+        "//core:shell_lib",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "server",
+    srcs = ["server.cpp"],
+    hdrs = ["server.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":workspace_catalog",
+        "//core:json_utils",
+        "//mcp/server:server",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_binary(
+    name = "local_tools_server",
+    srcs = ["server_main.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":server",
+        "//mcp/server:stdio",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+sh_test(
+    name = "workspace_subprocess_test",
+    size = "small",
+    srcs = ["workspace_subprocess_test.sh"],
+    data = [
+        ":local_tools_server",
+        "workspace_subprocess_test.py",
+    ],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
+cc_test(
+    name = "workspace_catalog_test",
+    srcs = ["workspace_catalog_test.cpp"],
+    deps = [
+        ":workspace_catalog",
+        "//core:shell_lib",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "server_test",
+    srcs = ["server_test.cpp"],
+    deps = [
+        ":server",
+        "//core:json_utils",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
