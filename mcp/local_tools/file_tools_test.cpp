@@ -214,6 +214,11 @@ TEST(LocalFileToolsTest, ShellUsesChildCwdBoundsTimeoutAndHandlesExitCodes) {
       CallTool(*server, 7, "execute_bash", {{"command", "true"}, {"timeout_seconds", 46}});
   ASSERT_TRUE(too_long.contains("result"));
   EXPECT_TRUE(too_long["result"]["isError"].get<bool>());
+  const auto extra_argument = CallTool(*server, 8, "execute_bash",
+                                       {{"command", "touch rejected_extra_argument"}, {"unexpected", true}});
+  ASSERT_TRUE(extra_argument.contains("result"));
+  EXPECT_TRUE(extra_argument["result"]["isError"].get<bool>());
+  EXPECT_FALSE(std::filesystem::exists(root / "rejected_extra_argument"));
 }
 
 TEST(LocalFileToolsTest, InvalidPathsAndSymlinksCannotModifyOutsideFiles) {

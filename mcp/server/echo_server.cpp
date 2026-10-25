@@ -4,6 +4,7 @@
 
 #include "core/json_utils.h"
 #include "mcp/server/stdio.h"
+#include "mcp/server/tool_utils.h"
 
 int main(int argc, char** argv) {
   if (argc != 1) {
@@ -19,21 +20,18 @@ int main(int argc, char** argv) {
   slop::mcp::ImplementationInfo identity;
   identity.name = "slop-echo-server";
   identity.version = "1.0";
-  slop::mcp::server::ToolRegistration echo;
-  echo.definition.name = "echo";
-  echo.definition.description = "Return the supplied text without side effects";
-  echo.definition.input_schema = {{"type", "object"},
-                                  {"properties", {{"text", {{"type", "string"}}}}},
-                                  {"required", {"text"}},
-                                  {"additionalProperties", false}};
+  auto echo = slop::mcp::server::MakeToolRegistration(
+      "echo", "Return the supplied text without side effects",
+      {{"type", "object"},
+       {"properties", {{"text", {{"type", "string"}}}}},
+       {"required", {"text"}},
+       {"additionalProperties", false}},
+      {{"readOnlyHint", true}},
+      [](const nlohmann::json& arguments) -> absl::StatusOr<slop::mcp::ToolCallResult> {
+        return slop::mcp::server::MakeToolCallResult(
+            slop::json_get_or(arguments, "text", std::string{}), arguments);
+      });
   echo.definition.output_schema = echo.definition.input_schema;
-  echo.definition.annotations = {{"readOnlyHint", true}};
-  echo.handler = [](const nlohmann::json& arguments) -> absl::StatusOr<slop::mcp::ToolCallResult> {
-    slop::mcp::ToolCallResult result;
-    result.content.push_back({{"type", "text"}, {"text", slop::json_get_or(arguments, "text", std::string{})}});
-    result.structured_content = arguments;
-    return result;
-  };
   const auto server = slop::mcp::server::Server::Create(identity, {echo});
   if (!server.ok()) {
     std::cerr << "echo server: " << server.status().message() << '\n';

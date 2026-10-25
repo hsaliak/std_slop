@@ -68,13 +68,6 @@ absl::StatusOr<std::vector<std::string>> IgnorePatterns(const nlohmann::json& ar
   return *parsed;
 }
 
-absl::Status ValidateObject(const nlohmann::json& arguments) {
-  if (!json_is<nlohmann::json::object_t>(arguments)) {
-    return absl::InvalidArgumentError("Tool arguments must be a JSON object");
-  }
-  return absl::OkStatus();
-}
-
 nlohmann::json StringSchema() { return {{"type", "string"}}; }
 
 nlohmann::json IgnoreSchema() {
@@ -105,8 +98,6 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "read_file", "Read a workspace-relative file with optional line range and line numbers.",
       ObjectSchema(std::move(read_properties), {"path"}), true,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        const absl::Status object_status = ValidateObject(arguments);
-        if (!object_status.ok()) return MakeToolError(object_status);
         auto path_or = RequiredString(arguments, "path");
         if (!path_or.ok()) return MakeToolError(path_or.status());
         auto start_line_or = OptionalLine(arguments, "start_line");
@@ -125,7 +116,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         auto content = file_ops::ReadWorkspaceFile(workspace.root, path,
                                                     file_ops::ReadFileOptions{start_line, end_line, line_numbers});
         if (!content.ok()) return MakeToolError(content.status());
-        return MakeToolResult(*content, {{"workspace", workspace.id}, {"path", path}, {"content", *content}});
+        return mcp::server::MakeToolCallResult(*content, {{"workspace", workspace.id}, {"path", path}, {"content", *content}});
       }));
 
   nlohmann::json directory_properties = {{"path", StringSchema()}, {"workspace", StringSchema()},
@@ -136,8 +127,6 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "list_directory", "List files and directories inside the selected workspace.",
       ObjectSchema(std::move(directory_properties)), true,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        const absl::Status object_status = ValidateObject(arguments);
-        if (!object_status.ok()) return MakeToolError(object_status);
         auto path_or = OptionalToolString(arguments, "path", ".");
         if (!path_or.ok()) return MakeToolError(path_or.status());
         auto depth_or = OptionalInteger(arguments, "depth", 1, 1, 8);
@@ -155,7 +144,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         const Workspace workspace = std::move(*workspace_or);
         auto output = file_ops::ListWorkspaceDirectory(workspace.root, path, depth, include_ignored, ignore);
         if (!output.ok()) return MakeToolError(output.status());
-        return MakeToolResult(*output,
+        return mcp::server::MakeToolCallResult(*output,
                               {{"workspace", workspace.id}, {"path", path}, {"entries", *output}});
       }));
 
@@ -169,8 +158,6 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "grep", "Search workspace text files with literal or RE2 regular-expression matching.",
       ObjectSchema(std::move(grep_properties), {"pattern"}), true,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        const absl::Status object_status = ValidateObject(arguments);
-        if (!object_status.ok()) return MakeToolError(object_status);
         auto pattern_or = RequiredString(arguments, "pattern");
         if (!pattern_or.ok()) return MakeToolError(pattern_or.status());
         auto path_or = OptionalToolString(arguments, "path", ".");
@@ -198,7 +185,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         auto output = file_ops::GrepWorkspaceFiles(workspace.root, path, pattern, context, limit, fixed_strings, include_ignored,
                                          ignore);
         if (!output.ok()) return MakeToolError(output.status());
-        return MakeToolResult(*output, {{"workspace", workspace.id}, {"path", path}, {"matches", *output}});
+        return mcp::server::MakeToolCallResult(*output, {{"workspace", workspace.id}, {"path", path}, {"matches", *output}});
       }));
 
   nlohmann::json write_properties = {
@@ -207,8 +194,6 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "write_file", "Atomically write a file inside the selected workspace.",
       ObjectSchema(std::move(write_properties), {"path", "content"}), false,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        const absl::Status object_status = ValidateObject(arguments);
-        if (!object_status.ok()) return MakeToolError(object_status);
         auto path_or = RequiredString(arguments, "path");
         if (!path_or.ok()) return MakeToolError(path_or.status());
         auto content_or = RequiredString(arguments, "content", true);
@@ -220,7 +205,7 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
         const Workspace workspace = std::move(*workspace_or);
         auto output = file_ops::WriteWorkspaceFile(workspace.root, path, content);
         if (!output.ok()) return MakeToolError(output.status());
-        return MakeToolResult(*output,
+        return mcp::server::MakeToolCallResult(*output,
                               {{"workspace", workspace.id}, {"path", path}, {"bytes_written", content.size()}});
       }));
 
@@ -230,8 +215,6 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "edit_tool", "Apply exact-text edits to a workspace file and replace it atomically.",
       ObjectSchema(std::move(edit_properties), {"path", "edits"}), false,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        const absl::Status object_status = ValidateObject(arguments);
-        if (!object_status.ok()) return MakeToolError(object_status);
         auto path_or = RequiredString(arguments, "path");
         if (!path_or.ok()) return MakeToolError(path_or.status());
         const nlohmann::json* edits = json_at(arguments, "edits");

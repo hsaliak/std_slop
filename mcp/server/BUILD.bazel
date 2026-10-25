@@ -52,6 +52,7 @@ cc_binary(
     visibility = ["//mcp/client:__pkg__", "//mcp/server:__pkg__", "//mcp/gateway:__pkg__"],
     deps = [
         ":stdio",
+        ":tool_utils",
         "//core:json_utils",
     ],
 )

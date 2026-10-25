@@ -78,9 +78,6 @@ std::vector<mcp::server::ToolRegistration> CreateShellTools(WorkspaceCatalog wor
       ShellToolSchema(),
       {{"readOnlyHint", false}, {"openWorldHint", true}, {"destructiveHint", true}, {"idempotentHint", false}},
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        if (!json_is<nlohmann::json::object_t>(arguments)) {
-          return MakeToolError(absl::InvalidArgumentError("Tool arguments must be a JSON object"));
-        }
         auto command_or = RequiredCommand(arguments);
         if (!command_or.ok()) return MakeToolError(command_or.status());
         const std::string command = std::move(*command_or);
@@ -122,7 +119,7 @@ std::vector<mcp::server::ToolRegistration> CreateShellTools(WorkspaceCatalog wor
         if (is_error) {
           result["error"] = {{"message", absl::StrCat("Command failed with exit code ", command_result->exit_code)}};
         }
-        return MakeToolResult(std::move(output), std::move(result), is_error);
+        return mcp::server::MakeToolCallResult(std::move(output), std::move(result), is_error);
       });
   return {std::move(registration)};
 }

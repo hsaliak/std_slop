@@ -44,14 +44,9 @@ inline absl::StatusOr<bool> OptionalToolBool(const nlohmann::json& arguments, co
   return *parsed;
 }
 
-inline mcp::ToolCallResult MakeToolResult(std::string text, nlohmann::json structured_content,
-                                          bool is_error = false) {
-  return mcp::server::MakeToolCallResult(std::move(text), std::move(structured_content), is_error);
-}
-
 inline mcp::ToolCallResult MakeJsonToolResult(nlohmann::json structured_content, bool is_error = false) {
   std::string text = json_dump(structured_content);
-  return MakeToolResult(std::move(text), std::move(structured_content), is_error);
+  return mcp::server::MakeToolCallResult(std::move(text), std::move(structured_content), is_error);
 }
 
 inline mcp::ToolCallResult MakeToolError(const absl::Status& status) {
