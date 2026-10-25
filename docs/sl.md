@@ -129,6 +129,20 @@ sl mcp add local-files --transport stdio \
   --args-json '["--root", "/work/project"]'
 ```
 
+### Bundled local workspace tools
+
+The repository includes a local stdio server that uses its launch directory as the default workspace and discovers linked Git worktrees dynamically. Build and register it with no extra arguments or saved workspace path:
+
+```sh
+bazel build //mcp/local_tools:local_tools_server
+sl mcp add local-tools --transport stdio \
+  --command /absolute/path/to/bazel-bin/mcp/local_tools/local_tools_server
+```
+
+The server provides workspace listing/info, file read/list/grep/write/edit, and shell tools, but no dedicated Git tools. File paths are relative to the selected workspace; shell starts there but is not sandboxed. See the [MCP user guide](mcp-slop-userguide.md#bundled-local-workspace-tools) for limits and the full tool contract.
+
+When `std_slop` runs in mail mode, all imported MCP calls—including read-only hints—are blocked unless the host is on a `slop/staging/*` branch. This branch gate does not sandbox an allowed MCP call or shell command.
+
 For HTTP servers, `--auth` accepts `none`, `bearer`, or `oauth`. Bearer mode requires `--token`; OAuth mode requires `--client-id`. `--scope` may be repeated. OAuth scopes are provider-specific: select the scopes required by the tools you plan to use; `std_slop` does not infer them. A login can succeed while later tool calls fail for insufficient scope. After changing scopes, run `std_slop mcp oauth-login NAME` again. `--token-path PATH` overrides the default token location. Server names use letters, digits, hyphens, or underscores.
 
 SondaHub provides a public endpoint and an OAuth endpoint. The public endpoint needs no OAuth. For OAuth, request `mcp:read` for read tools and `mcp:write` for write tools:

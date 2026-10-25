@@ -1,5 +1,6 @@
 #include "core/shell_util.h"
 
+#include <filesystem>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -95,6 +96,29 @@ TEST(ShellUtilTest, RunCommandTimeout) {
   auto res = RunCommand("sleep 10", nullptr, "", 1);
   ASSERT_FALSE(res.ok());
   EXPECT_EQ(res.status().code(), absl::StatusCode::kDeadlineExceeded);
+}
+
+TEST(ShellUtilTest, RunCommandUsesChildWorkingDirectoryOnly) {
+  const std::filesystem::path original_directory = std::filesystem::current_path();
+  const std::filesystem::path expected_directory = std::filesystem::canonical("/tmp");
+  auto result = RunCommand("pwd -P", nullptr, "", 0, "/tmp");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  EXPECT_EQ(result->stdout_out, expected_directory.string() + "\n");
+  EXPECT_EQ(std::filesystem::current_path(), original_directory);
+}
+
+TEST(ShellUtilTest, RunCommandWorkingDirectoryFailureIsReported) {
+  auto result = RunCommand("printf should-not-run", nullptr, "", 0, "/path/that/does/not/exist");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_NE(result->stderr_out.find("Failed to change working directory"), std::string::npos);
+  EXPECT_TRUE(result->stdout_out.empty());
+}
+
+TEST(ShellUtilTest, RunCommandOutputLimitKillsCommand) {
+  auto result = RunCommand("while :; do printf x; done", nullptr, "", 5, "", 1024);
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kResourceExhausted);
 }
 
 TEST(ShellUtilTest, RunCommandQuietProcessWithinTimeoutDoesNotFail) {

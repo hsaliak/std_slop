@@ -153,6 +153,65 @@ TEST(LocalFileToolsTest, WorkspaceSelectionTargetsOnlyTheChosenWorktree) {
       CallTool(*server, 3, "read_file", {{"workspace", worktree_id}, {"path", "data.txt"}});
   ASSERT_TRUE(feature_read.contains("result"));
   EXPECT_EQ(feature_read["result"]["content"][0]["text"], "feature content\n");
+
+  const auto feature_cwd =
+      CallTool(*server, 4, "execute_bash", {{"workspace", worktree_id}, {"command", "pwd -P"}});
+  ASSERT_TRUE(feature_cwd.contains("result"));
+  EXPECT_EQ(feature_cwd["result"]["structuredContent"]["stdout"],
+            std::filesystem::canonical(worktree).string() + "\n");
+}
+
+TEST(LocalFileToolsTest, ShellUsesChildCwdBoundsTimeoutAndHandlesExitCodes) {
+  const std::filesystem::path root = MakeTempDirectory();
+  ASSERT_FALSE(root.empty());
+  absl::Cleanup remove_root = [&root] {
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+  };
+  std::filesystem::create_directories(root / "nested");
+  auto catalog = WorkspaceCatalog::Create(root);
+  ASSERT_TRUE(catalog.ok()) << catalog.status().message();
+  auto server = CreateServer(std::move(*catalog));
+  ASSERT_TRUE(server.ok()) << server.status().message();
+  const std::filesystem::path original_cwd = std::filesystem::current_path();
+
+  const auto cwd = CallTool(*server, 1, "execute_bash", {{"command", "pwd -P"}, {"cwd", "nested"}});
+  ASSERT_TRUE(cwd.contains("result"));
+  EXPECT_FALSE(cwd["result"]["isError"].get<bool>());
+  EXPECT_EQ(cwd["result"]["structuredContent"]["stdout"],
+            std::filesystem::canonical(root / "nested").string() + "\n");
+  EXPECT_EQ(std::filesystem::current_path(), original_cwd);
+
+  const auto nonzero = CallTool(*server, 2, "execute_bash", {{"command", "exit 7"}});
+  ASSERT_TRUE(nonzero.contains("result"));
+  EXPECT_TRUE(nonzero["result"]["isError"].get<bool>());
+  EXPECT_EQ(nonzero["result"]["structuredContent"]["exit_code"], 7);
+  const auto allowed_nonzero =
+      CallTool(*server, 3, "execute_bash", {{"command", "exit 7"}, {"allow_nonzero_exit", true}});
+  ASSERT_TRUE(allowed_nonzero.contains("result"));
+  EXPECT_FALSE(allowed_nonzero["result"]["isError"].get<bool>());
+
+  const auto bad_cwd = CallTool(*server, 4, "execute_bash",
+                                {{"command", "printf should-not-run"}, {"cwd", "../outside"}});
+  ASSERT_TRUE(bad_cwd.contains("result"));
+  EXPECT_TRUE(bad_cwd["result"]["isError"].get<bool>());
+
+  const auto timeout =
+      CallTool(*server, 5, "execute_bash", {{"command", "sleep 5"}, {"timeout_seconds", 1}});
+  ASSERT_TRUE(timeout.contains("result"));
+  EXPECT_TRUE(timeout["result"]["isError"].get<bool>());
+
+  const auto output_limit = CallTool(*server, 6, "execute_bash",
+                                     {{"command", "while :; do printf x; done"}, {"timeout_seconds", 5}});
+  ASSERT_TRUE(output_limit.contains("result"));
+  EXPECT_TRUE(output_limit["result"]["isError"].get<bool>());
+  EXPECT_EQ(output_limit["result"]["structuredContent"]["error"]["message"],
+            "Command output exceeded the configured byte limit");
+
+  const auto too_long =
+      CallTool(*server, 7, "execute_bash", {{"command", "true"}, {"timeout_seconds", 46}});
+  ASSERT_TRUE(too_long.contains("result"));
+  EXPECT_TRUE(too_long["result"]["isError"].get<bool>());
 }
 
 TEST(LocalFileToolsTest, InvalidPathsAndSymlinksCannotModifyOutsideFiles) {

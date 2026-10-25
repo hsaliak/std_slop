@@ -94,6 +94,9 @@ TEST(WorkspaceFileSystemTest, ReadsAndWritesDoNotFollowSymlinks) {
   std::filesystem::create_symlink(outside / "secret.txt", root / "secret_link.txt", error);
   ASSERT_FALSE(error) << error.message();
 
+  auto escaped_cwd = ResolveWorkspaceDirectory(root, "escape");
+  ASSERT_FALSE(escaped_cwd.ok());
+  EXPECT_EQ(escaped_cwd.status().code(), absl::StatusCode::kPermissionDenied);
   auto escaped_read = ReadWorkspaceFile(root, "escape/secret.txt", ReadFileOptions{});
   ASSERT_FALSE(escaped_read.ok());
   EXPECT_EQ(escaped_read.status().code(), absl::StatusCode::kPermissionDenied);
@@ -121,6 +124,10 @@ TEST(WorkspaceFileSystemTest, ListsSymlinksButDoesNotTraverseThem) {
   };
   std::filesystem::create_directories(root / "nested");
   WriteTestFile(root / "nested" / "file.txt", "needle\n");
+
+  auto nested_directory = ResolveWorkspaceDirectory(root, "nested");
+  ASSERT_TRUE(nested_directory.ok()) << nested_directory.status().message();
+  EXPECT_EQ(*nested_directory, root / "nested");
 
   auto listing = ListWorkspaceDirectory(root, ".", 3, false, {});
   ASSERT_TRUE(listing.ok()) << listing.status().message();

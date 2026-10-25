@@ -90,16 +90,6 @@ absl::StatusOr<std::vector<std::string>> IgnorePatterns(const nlohmann::json& ar
   return *parsed;
 }
 
-absl::StatusOr<Workspace> ResolveWorkspace(const WorkspaceCatalog& catalog, const nlohmann::json& arguments) {
-  const nlohmann::json* value = json_at(arguments, "workspace");
-  if (value == nullptr) return catalog.Resolve("launch");
-  auto workspace_id = json_getter<std::string>::get(*value);
-  if (!workspace_id || workspace_id->empty()) {
-    return absl::InvalidArgumentError("workspace must be a non-empty workspace ID string");
-  }
-  return catalog.Resolve(*workspace_id);
-}
-
 absl::Status ValidateObject(const nlohmann::json& arguments) {
   if (!json_is<nlohmann::json::object_t>(arguments)) {
     return absl::InvalidArgumentError("Tool arguments must be a JSON object");
@@ -137,12 +127,23 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "read_file", "Read a workspace-relative file with optional line range and line numbers.",
       ObjectSchema(std::move(read_properties), {"path"}), true,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        RETURN_IF_ERROR(ValidateObject(arguments));
-        ASSIGN_OR_RETURN(const std::string path, RequiredString(arguments, "path"));
-        ASSIGN_OR_RETURN(const std::optional<int> start_line, OptionalLine(arguments, "start_line"));
-        ASSIGN_OR_RETURN(const std::optional<int> end_line, OptionalLine(arguments, "end_line"));
-        ASSIGN_OR_RETURN(const bool line_numbers, OptionalBool(arguments, "line_numbers", false));
-        ASSIGN_OR_RETURN(const Workspace workspace, ResolveWorkspace(workspaces, arguments));
+        const absl::Status object_status = ValidateObject(arguments);
+        if (!object_status.ok()) return MakeToolError(object_status);
+        auto path_or = RequiredString(arguments, "path");
+        if (!path_or.ok()) return MakeToolError(path_or.status());
+        auto start_line_or = OptionalLine(arguments, "start_line");
+        if (!start_line_or.ok()) return MakeToolError(start_line_or.status());
+        auto end_line_or = OptionalLine(arguments, "end_line");
+        if (!end_line_or.ok()) return MakeToolError(end_line_or.status());
+        auto line_numbers_or = OptionalBool(arguments, "line_numbers", false);
+        if (!line_numbers_or.ok()) return MakeToolError(line_numbers_or.status());
+        auto workspace_or = ResolveWorkspace(workspaces, arguments);
+        if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
+        const std::string path = std::move(*path_or);
+        const std::optional<int> start_line = *start_line_or;
+        const std::optional<int> end_line = *end_line_or;
+        const bool line_numbers = *line_numbers_or;
+        const Workspace workspace = std::move(*workspace_or);
         auto content = ReadWorkspaceFile(workspace.root, path, {start_line, end_line, line_numbers});
         if (!content.ok()) return MakeToolError(content.status());
         return MakeToolResult(*content, {{"workspace", workspace.id}, {"path", path}, {"content", *content}});
@@ -156,12 +157,23 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "list_directory", "List files and directories inside the selected workspace.",
       ObjectSchema(std::move(directory_properties)), true,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        RETURN_IF_ERROR(ValidateObject(arguments));
-        ASSIGN_OR_RETURN(const std::string path, OptionalString(arguments, "path", "."));
-        ASSIGN_OR_RETURN(const int depth, OptionalInteger(arguments, "depth", 1, 1, 8));
-        ASSIGN_OR_RETURN(const bool include_ignored, OptionalBool(arguments, "include_ignored", false));
-        ASSIGN_OR_RETURN(const std::vector<std::string> ignore, IgnorePatterns(arguments));
-        ASSIGN_OR_RETURN(const Workspace workspace, ResolveWorkspace(workspaces, arguments));
+        const absl::Status object_status = ValidateObject(arguments);
+        if (!object_status.ok()) return MakeToolError(object_status);
+        auto path_or = OptionalString(arguments, "path", ".");
+        if (!path_or.ok()) return MakeToolError(path_or.status());
+        auto depth_or = OptionalInteger(arguments, "depth", 1, 1, 8);
+        if (!depth_or.ok()) return MakeToolError(depth_or.status());
+        auto include_ignored_or = OptionalBool(arguments, "include_ignored", false);
+        if (!include_ignored_or.ok()) return MakeToolError(include_ignored_or.status());
+        auto ignore_or = IgnorePatterns(arguments);
+        if (!ignore_or.ok()) return MakeToolError(ignore_or.status());
+        auto workspace_or = ResolveWorkspace(workspaces, arguments);
+        if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
+        const std::string path = std::move(*path_or);
+        const int depth = *depth_or;
+        const bool include_ignored = *include_ignored_or;
+        const std::vector<std::string> ignore = std::move(*ignore_or);
+        const Workspace workspace = std::move(*workspace_or);
         auto output = ListWorkspaceDirectory(workspace.root, path, depth, include_ignored, ignore);
         if (!output.ok()) return MakeToolError(output.status());
         return MakeToolResult(*output,
@@ -178,15 +190,32 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "grep", "Search workspace text files with literal or RE2 regular-expression matching.",
       ObjectSchema(std::move(grep_properties), {"pattern"}), true,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        RETURN_IF_ERROR(ValidateObject(arguments));
-        ASSIGN_OR_RETURN(const std::string pattern, RequiredString(arguments, "pattern"));
-        ASSIGN_OR_RETURN(const std::string path, OptionalString(arguments, "path", "."));
-        ASSIGN_OR_RETURN(const int context, OptionalInteger(arguments, "context", 0, 0, 20));
-        ASSIGN_OR_RETURN(const int limit, OptionalInteger(arguments, "limit", 200, 1, 1000));
-        ASSIGN_OR_RETURN(const bool fixed_strings, OptionalBool(arguments, "fixed_strings", false));
-        ASSIGN_OR_RETURN(const bool include_ignored, OptionalBool(arguments, "include_ignored", false));
-        ASSIGN_OR_RETURN(const std::vector<std::string> ignore, IgnorePatterns(arguments));
-        ASSIGN_OR_RETURN(const Workspace workspace, ResolveWorkspace(workspaces, arguments));
+        const absl::Status object_status = ValidateObject(arguments);
+        if (!object_status.ok()) return MakeToolError(object_status);
+        auto pattern_or = RequiredString(arguments, "pattern");
+        if (!pattern_or.ok()) return MakeToolError(pattern_or.status());
+        auto path_or = OptionalString(arguments, "path", ".");
+        if (!path_or.ok()) return MakeToolError(path_or.status());
+        auto context_or = OptionalInteger(arguments, "context", 0, 0, 20);
+        if (!context_or.ok()) return MakeToolError(context_or.status());
+        auto limit_or = OptionalInteger(arguments, "limit", 200, 1, 1000);
+        if (!limit_or.ok()) return MakeToolError(limit_or.status());
+        auto fixed_strings_or = OptionalBool(arguments, "fixed_strings", false);
+        if (!fixed_strings_or.ok()) return MakeToolError(fixed_strings_or.status());
+        auto include_ignored_or = OptionalBool(arguments, "include_ignored", false);
+        if (!include_ignored_or.ok()) return MakeToolError(include_ignored_or.status());
+        auto ignore_or = IgnorePatterns(arguments);
+        if (!ignore_or.ok()) return MakeToolError(ignore_or.status());
+        auto workspace_or = ResolveWorkspace(workspaces, arguments);
+        if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
+        const std::string pattern = std::move(*pattern_or);
+        const std::string path = std::move(*path_or);
+        const int context = *context_or;
+        const int limit = *limit_or;
+        const bool fixed_strings = *fixed_strings_or;
+        const bool include_ignored = *include_ignored_or;
+        const std::vector<std::string> ignore = std::move(*ignore_or);
+        const Workspace workspace = std::move(*workspace_or);
         auto output = GrepWorkspaceFiles(workspace.root, path, pattern, context, limit, fixed_strings, include_ignored,
                                          ignore);
         if (!output.ok()) return MakeToolError(output.status());
@@ -199,10 +228,17 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "write_file", "Atomically write a file inside the selected workspace.",
       ObjectSchema(std::move(write_properties), {"path", "content"}), false,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        RETURN_IF_ERROR(ValidateObject(arguments));
-        ASSIGN_OR_RETURN(const std::string path, RequiredString(arguments, "path"));
-        ASSIGN_OR_RETURN(const std::string content, RequiredString(arguments, "content", true));
-        ASSIGN_OR_RETURN(const Workspace workspace, ResolveWorkspace(workspaces, arguments));
+        const absl::Status object_status = ValidateObject(arguments);
+        if (!object_status.ok()) return MakeToolError(object_status);
+        auto path_or = RequiredString(arguments, "path");
+        if (!path_or.ok()) return MakeToolError(path_or.status());
+        auto content_or = RequiredString(arguments, "content", true);
+        if (!content_or.ok()) return MakeToolError(content_or.status());
+        auto workspace_or = ResolveWorkspace(workspaces, arguments);
+        if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
+        const std::string path = std::move(*path_or);
+        const std::string content = std::move(*content_or);
+        const Workspace workspace = std::move(*workspace_or);
         auto output = WriteWorkspaceFile(workspace.root, path, content);
         if (!output.ok()) return MakeToolError(output.status());
         return MakeToolResult(*output,
@@ -215,11 +251,16 @@ std::vector<mcp::server::ToolRegistration> CreateFileTools(WorkspaceCatalog work
       "edit_tool", "Apply exact-text edits to a workspace file and replace it atomically.",
       ObjectSchema(std::move(edit_properties), {"path", "edits"}), false,
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        RETURN_IF_ERROR(ValidateObject(arguments));
-        ASSIGN_OR_RETURN(const std::string path, RequiredString(arguments, "path"));
+        const absl::Status object_status = ValidateObject(arguments);
+        if (!object_status.ok()) return MakeToolError(object_status);
+        auto path_or = RequiredString(arguments, "path");
+        if (!path_or.ok()) return MakeToolError(path_or.status());
         const nlohmann::json* edits = json_at(arguments, "edits");
         if (edits == nullptr) return MakeToolError(absl::InvalidArgumentError("Missing mandatory field: edits"));
-        ASSIGN_OR_RETURN(const Workspace workspace, ResolveWorkspace(workspaces, arguments));
+        auto workspace_or = ResolveWorkspace(workspaces, arguments);
+        if (!workspace_or.ok()) return MakeToolError(workspace_or.status());
+        const std::string path = std::move(*path_or);
+        const Workspace workspace = std::move(*workspace_or);
         auto result = EditWorkspaceFile(workspace.root, path, *edits);
         if (!result.ok()) return MakeToolError(result.status());
         nlohmann::json structured = {{"workspace", workspace.id},

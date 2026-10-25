@@ -6,6 +6,7 @@
 
 #include "core/json_utils.h"
 #include "mcp/local_tools/file_tools.h"
+#include "mcp/local_tools/shell_tool.h"
 #include "mcp/local_tools/tool_utils.h"
 #include "mcp/types.h"
 
@@ -42,16 +43,16 @@ absl::StatusOr<mcp::server::Server> CreateServer(WorkspaceCatalog workspaces) {
        {"additionalProperties", false}},
       {{"readOnlyHint", true}, {"openWorldHint", false}, {"destructiveHint", false}, {"idempotentHint", true}},
       [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
-        auto workspace_id = json_get<std::string>(arguments, "workspace");
-        if (json_at(arguments, "workspace") != nullptr && !workspace_id) {
-          return MakeToolError(absl::InvalidArgumentError("workspace must be a string"));
-        }
-        auto workspace = workspaces.Resolve(workspace_id.value_or("launch"));
+        auto workspace = ResolveWorkspace(workspaces, arguments);
         if (!workspace.ok()) return MakeToolError(workspace.status());
         return MakeJsonToolResult(WorkspaceJson(*workspace));
       }));
 
   for (mcp::server::ToolRegistration& tool : CreateFileTools(workspaces)) {
+    tools.push_back(std::move(tool));
+  }
+
+  for (mcp::server::ToolRegistration& tool : CreateShellTools(workspaces)) {
     tools.push_back(std::move(tool));
   }
 

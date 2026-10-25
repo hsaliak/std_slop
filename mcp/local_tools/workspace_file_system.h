@@ -23,6 +23,8 @@ struct ReadFileOptions {
 absl::StatusOr<std::string> FormatFileLines(absl::string_view content, const ReadFileOptions& options);
 
 absl::StatusOr<std::vector<std::string>> ParseWorkspaceRelativePath(absl::string_view path, bool allow_root);
+absl::StatusOr<std::filesystem::path> ResolveWorkspaceDirectory(const std::filesystem::path& root,
+                                                                absl::string_view path);
 absl::StatusOr<std::string> ReadWorkspaceFile(const std::filesystem::path& root, absl::string_view path,
                                               const ReadFileOptions& options);
 absl::StatusOr<std::string> ListWorkspaceDirectory(const std::filesystem::path& root, absl::string_view path,

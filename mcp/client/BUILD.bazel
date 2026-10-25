@@ -512,12 +512,14 @@ cc_test(
 cc_test(
     name = "runtime_test",
     srcs = ["runtime_test.cpp"],
-    data = ["//mcp/server:echo_server"],
+    data = ["//mcp/server:echo_server", "//mcp/local_tools:local_tools_server"],
     deps = [
         ":runtime",
         "//core:json_utils",
+        "//core:shell_lib",
         "//core:transport",
         "//tools:runtime",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

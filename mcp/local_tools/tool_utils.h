@@ -8,9 +8,21 @@
 
 #include "core/json_utils.h"
 #include "mcp/server/server.h"
+#include "mcp/local_tools/workspace_catalog.h"
 #include "mcp/types.h"
 
 namespace slop::mcp::local_tools {
+
+inline absl::StatusOr<Workspace> ResolveWorkspace(const WorkspaceCatalog& catalog,
+                                                   const nlohmann::json& arguments) {
+  const nlohmann::json* value = json_at(arguments, "workspace");
+  if (value == nullptr) return catalog.Resolve("launch");
+  auto workspace_id = json_getter<std::string>::get(*value);
+  if (!workspace_id || workspace_id->empty()) {
+    return absl::InvalidArgumentError("workspace must be a non-empty workspace ID string");
+  }
+  return catalog.Resolve(*workspace_id);
+}
 
 inline mcp::ToolCallResult MakeToolResult(std::string text, nlohmann::json structured_content,
                                           bool is_error = false) {

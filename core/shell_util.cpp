@@ -66,8 +66,14 @@ ScopedRawMode::~ScopedRawMode() {
 bool ScopedRawMode::IsActive() const { return g_terminal_state.active; }
 
 absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_ptr<CancellationRequest> cancellation,
-                                         std::string_view input, int timeout_seconds) {
-  LOG(INFO) << "Running command: " << command;
+                                         std::string_view input, int timeout_seconds,
+                                         std::string_view working_directory, std::size_t max_output_bytes) {
+  if (working_directory.find('\0') != std::string_view::npos) {
+    return absl::InvalidArgumentError("Working directory contains a NUL byte");
+  }
+  const std::string command_string(command);
+  const std::string working_directory_string(working_directory);
+  LOG(INFO) << "Running shell command";
 
   int stdout_pipe[2] = {-1, -1};
   int stderr_pipe[2] = {-1, -1};
@@ -101,9 +107,13 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
     close(stdin_pipe[0]);
     close(stdin_pipe[1]);
 
+    if (!working_directory_string.empty() && chdir(working_directory_string.c_str()) != 0) {
+      constexpr char kWorkingDirectoryError[] = "Failed to change working directory\\n";
+      (void)write(STDERR_FILENO, kWorkingDirectoryError, sizeof(kWorkingDirectoryError) - 1);
+      _exit(1);
+    }
     const char* shell = "/bin/sh";
-    std::string cmd_str(command);
-    const char* args[] = {shell, "-c", cmd_str.c_str(), nullptr};
+    const char* args[] = {shell, "-c", command_string.c_str(), nullptr};
     execvp(shell, const_cast<char* const*>(args));
     _exit(1);
   }
@@ -146,6 +156,7 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
   std::string stdout_str, stderr_str;
   stdout_str.reserve(4096);
   stderr_str.reserve(4096);
+  std::size_t total_output_bytes = 0;
   std::vector<char> buffer(4096);
   size_t stdin_written = 0;
   bool stdin_open = !input.empty();
@@ -203,7 +214,12 @@ absl::StatusOr<CommandResult> RunCommand(std::string_view command, std::shared_p
       if (p_fds[i].fd != -1 && (p_fds[i].revents & (POLLIN | POLLHUP))) {
         ssize_t bytes = read(p_fds[i].fd, buffer.data(), buffer.size());
         if (bytes > 0) {
-          (i == 0 ? stdout_str : stderr_str).append(buffer.data(), bytes);
+          const std::size_t byte_count = static_cast<std::size_t>(bytes);
+          if (max_output_bytes > 0 && byte_count > max_output_bytes - total_output_bytes) {
+            return absl::ResourceExhaustedError("Command output exceeded the configured byte limit");
+          }
+          (i == 0 ? stdout_str : stderr_str).append(buffer.data(), byte_count);
+          if (max_output_bytes > 0) total_output_bytes += byte_count;
         } else if (bytes == 0 || (bytes == -1 && errno != EAGAIN)) {
           close_fd(i == 0 ? stdout_pipe[0] : stderr_pipe[0]);
         }

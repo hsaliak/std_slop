@@ -4,17 +4,20 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "nlohmann/json.hpp"
 
 #include "core/http_client.h"
+#include "core/shell_util.h"
 #include "core/json_utils.h"
 #include "mcp/client/registry.h"
 #include "mcp/client/token_store.h"
@@ -133,6 +136,20 @@ ServerRegistryEntry MakeStdioEntry(const std::string& name, const std::string& c
   return entry;
 }
 
+std::string LocalToolsServerPath() {
+  const char* test_srcdir = std::getenv("TEST_SRCDIR");
+  const char* test_workspace = std::getenv("TEST_WORKSPACE");
+  if (test_srcdir == nullptr || test_workspace == nullptr) return "";
+  return absl::StrCat(test_srcdir, "/", test_workspace, "/mcp/local_tools/local_tools_server");
+}
+
+absl::Status RunGit(const std::filesystem::path& directory, const std::string& arguments) {
+  auto result = RunCommand(absl::StrCat("git -C ", EscapeShellArg(directory.string()), " ", arguments));
+  if (!result.ok()) return result.status();
+  if (result->exit_code != 0) return absl::InternalError(result->stderr_out);
+  return absl::OkStatus();
+}
+
 std::string EchoServerPath() {
   const char* test_srcdir = std::getenv("TEST_SRCDIR");
   const char* test_workspace = std::getenv("TEST_WORKSPACE");
@@ -186,6 +203,64 @@ TEST(McpRuntimeTest, DuplicateServerToolNamesDoNotCollide) {
   EXPECT_EQ(sessions[0]->called_arguments["query"], "repo");
 }
 
+TEST(McpRuntimeTest, MailModeGateBlocksImportedToolsBeforeRemoteCall) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  FakeHttpClient http_client;
+
+  const std::string registry_path = TempRegistryPath();
+  ASSERT_TRUE(SaveServerRegistry(registry_path, {MakeEntry("remote")}).ok());
+  FakeRuntimeSession* runtime_session = nullptr;
+  RuntimeOptions options;
+  options.registry_path = registry_path;
+  RuntimeManager manager(&db, executor->get(), &http_client, options,
+                         [&runtime_session](const ServerRegistryEntry&, HttpClient*, const RuntimeOptions&) {
+                           ToolCallResult result;
+                           result.content.push_back(nlohmann::json{{"type", "text"}, {"text", "ok"}});
+                           auto session = std::make_unique<FakeRuntimeSession>(std::vector<Tool>{MakeTool("search")},
+                                                                               result);
+                           runtime_session = session.get();
+                           return absl::StatusOr<std::unique_ptr<RuntimeSession>>(std::move(session));
+                         });
+  ASSERT_TRUE(manager.Start().ok());
+  ASSERT_NE(runtime_session, nullptr);
+  (*executor)->SetMailMode(true);
+
+  const char* old_branch_value = std::getenv("SLOP_FORCE_BRANCH_NAME");
+  const std::optional<std::string> old_branch =
+      old_branch_value == nullptr ? std::nullopt : std::optional<std::string>(old_branch_value);
+  const char* old_skip_value = std::getenv("SLOP_SKIP_STAGING_CHECK");
+  const std::optional<std::string> old_skip =
+      old_skip_value == nullptr ? std::nullopt : std::optional<std::string>(old_skip_value);
+  absl::Cleanup restore_environment = [&] {
+    if (old_branch) {
+      setenv("SLOP_FORCE_BRANCH_NAME", old_branch->c_str(), 1);
+    } else {
+      unsetenv("SLOP_FORCE_BRANCH_NAME");
+    }
+    if (old_skip) {
+      setenv("SLOP_SKIP_STAGING_CHECK", old_skip->c_str(), 1);
+    } else {
+      unsetenv("SLOP_SKIP_STAGING_CHECK");
+    }
+  };
+
+  ASSERT_EQ(setenv("SLOP_FORCE_BRANCH_NAME", "main", 1), 0);
+  ASSERT_EQ(unsetenv("SLOP_SKIP_STAGING_CHECK"), 0);
+  const auto blocked = (*executor)->Execute("mcp_remote_search", {{"query", "secret"}});
+  ASSERT_FALSE(blocked.ok());
+  EXPECT_EQ(blocked.status().code(), absl::StatusCode::kFailedPrecondition);
+  EXPECT_TRUE(runtime_session->called_tool_name.empty());
+
+  ASSERT_EQ(setenv("SLOP_FORCE_BRANCH_NAME", "slop/staging/test", 1), 0);
+  const auto allowed = (*executor)->Execute("mcp_remote_search", {{"query", "safe"}});
+  ASSERT_TRUE(allowed.ok()) << allowed.status().message();
+  EXPECT_EQ(runtime_session->called_tool_name, "search");
+  EXPECT_EQ(runtime_session->called_arguments["query"], "safe");
+}
+
 TEST(McpRuntimeTest, StartsStdioServerWithoutHttpClientAndRoutesCalls) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());
@@ -215,6 +290,107 @@ TEST(McpRuntimeTest, StartsStdioServerWithoutHttpClientAndRoutesCalls) {
   EXPECT_EQ(json_get_or(*parsed, "structured_content", nlohmann::json::object()),
             nlohmann::json({{"text", "stdio runtime"}}));
   ASSERT_TRUE((*manager)->RefreshCatalogs().ok());
+  manager->reset();
+}
+
+TEST(McpRuntimeTest, LocalToolsRuntimeUsesWorktreesAndFileToolsPerCall) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  const std::string local_server = LocalToolsServerPath();
+  ASSERT_FALSE(local_server.empty());
+
+  const std::filesystem::path temporary_root =
+      std::filesystem::path(::testing::TempDir()) / absl::StrCat("mcp_runtime_local_", absl::ToUnixNanos(absl::Now()));
+  std::error_code filesystem_error;
+  std::filesystem::create_directories(temporary_root, filesystem_error);
+  ASSERT_FALSE(filesystem_error) << filesystem_error.message();
+  absl::Cleanup remove_temporary_root = [&temporary_root] {
+    std::error_code error;
+    std::filesystem::remove_all(temporary_root, error);
+  };
+
+  const std::filesystem::path repository = temporary_root / "repository";
+  const std::filesystem::path worktree = temporary_root / "feature worktree";
+  std::filesystem::create_directories(repository, filesystem_error);
+  ASSERT_FALSE(filesystem_error) << filesystem_error.message();
+  ASSERT_TRUE(RunGit(repository, "init --quiet -b main").ok());
+  ASSERT_TRUE(RunGit(repository, "config user.name runtime-test").ok());
+  ASSERT_TRUE(RunGit(repository, "config user.email runtime-test@example.invalid").ok());
+  {
+    std::ofstream file(repository / "data.txt", std::ios::binary);
+    ASSERT_TRUE(file.is_open());
+    file << "main content\n";
+    ASSERT_TRUE(file.good());
+  }
+  ASSERT_TRUE(RunGit(repository, "add data.txt").ok());
+  ASSERT_TRUE(RunGit(repository, "commit --quiet -m initial").ok());
+
+  const std::string registry_path = TempRegistryPath();
+  absl::Cleanup remove_registry = [&registry_path] {
+    std::error_code error;
+    std::filesystem::remove(registry_path, error);
+  };
+  const std::string launch_command =
+      absl::StrCat("cd ", EscapeShellArg(repository.string()), " && exec ", EscapeShellArg(local_server));
+  ServerRegistryEntry entry = MakeStdioEntry("local", "/bin/sh", {"-c", launch_command});
+  ASSERT_TRUE(SaveServerRegistry(registry_path, {entry}).ok());
+  RuntimeOptions options;
+  options.registry_path = registry_path;
+  auto manager = StartMcpRuntime(&db, executor->get(), nullptr, options);
+  ASSERT_TRUE(manager.ok()) << manager.status();
+  ASSERT_EQ((*manager)->active_server_count(), 1);
+
+  auto launch_info = (*executor)->Execute("mcp_local_workspace_info", nlohmann::json::object());
+  ASSERT_TRUE(launch_info.ok()) << launch_info.status().message();
+  auto parsed_info = json_parse(*launch_info);
+  ASSERT_TRUE(parsed_info.has_value());
+  EXPECT_EQ(json_get_or(*parsed_info, "structured_content", nlohmann::json::object())["root"],
+            std::filesystem::canonical(repository).string());
+
+  ASSERT_TRUE(RunGit(repository,
+                     absl::StrCat("worktree add --quiet -b feature ", EscapeShellArg(worktree.string())))
+                  .ok());
+  const std::string worktree_id = absl::StrCat("worktree:", std::filesystem::canonical(worktree).string());
+  auto listed = (*executor)->Execute("mcp_local_workspace_list", nlohmann::json::object());
+  ASSERT_TRUE(listed.ok()) << listed.status().message();
+  auto parsed_list = json_parse(*listed);
+  ASSERT_TRUE(parsed_list.has_value());
+  const nlohmann::json list_content = json_get_or(*parsed_list, "structured_content", nlohmann::json::object());
+  bool found_worktree = false;
+  for (const auto& item : list_content["workspaces"]) {
+    if (json_get_or(item, "id", std::string()) == worktree_id) found_worktree = true;
+  }
+  EXPECT_TRUE(found_worktree);
+
+  const nlohmann::json write_args = {
+      {"workspace", worktree_id}, {"path", "data.txt"}, {"content", "feature content\n"}};
+  auto write = (*executor)->Execute("mcp_local_write_file", write_args);
+  ASSERT_TRUE(write.ok()) << write.status().message();
+  const nlohmann::json edits = {{{"op", "replace"}, {"find", "feature"}, {"text", "edited"}}};
+  auto edit = (*executor)->Execute("mcp_local_edit_tool", {{"workspace", worktree_id}, {"path", "data.txt"},
+                                                              {"edits", edits}});
+  ASSERT_TRUE(edit.ok()) << edit.status().message();
+
+  auto main_read = (*executor)->Execute("mcp_local_read_file", {{"path", "data.txt"}});
+  ASSERT_TRUE(main_read.ok()) << main_read.status().message();
+  auto parsed_main = json_parse(*main_read);
+  ASSERT_TRUE(parsed_main.has_value());
+  EXPECT_EQ(json_get_or(*parsed_main, "structured_content", nlohmann::json::object())["content"], "main content\n");
+
+  auto worktree_read = (*executor)->Execute("mcp_local_read_file", {{"workspace", worktree_id}, {"path", "data.txt"}});
+  ASSERT_TRUE(worktree_read.ok()) << worktree_read.status().message();
+  auto parsed_worktree = json_parse(*worktree_read);
+  ASSERT_TRUE(parsed_worktree.has_value());
+  EXPECT_EQ(json_get_or(*parsed_worktree, "structured_content", nlohmann::json::object())["content"], "edited content\n");
+
+  auto shell = (*executor)->Execute("mcp_local_execute_bash", {{"workspace", worktree_id}, {"command", "pwd -P"}});
+  ASSERT_TRUE(shell.ok()) << shell.status().message();
+  auto parsed_shell = json_parse(*shell);
+  ASSERT_TRUE(parsed_shell.has_value());
+  EXPECT_EQ(json_get_or(*parsed_shell, "structured_content", nlohmann::json::object())["stdout"],
+            std::filesystem::canonical(worktree).string() + "\n");
   manager->reset();
 }
 

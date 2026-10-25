@@ -69,14 +69,15 @@ cc_test(
 
 cc_library(
     name = "server",
-    srcs = ["file_tools.cpp", "server.cpp"],
-    hdrs = ["file_tools.h", "server.h", "tool_utils.h"],
+    srcs = ["file_tools.cpp", "server.cpp", "shell_tool.cpp"],
+    hdrs = ["file_tools.h", "server.h", "shell_tool.h", "tool_utils.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":workspace_catalog",
         ":workspace_file_system",
         "//core:data",
         "//core:json_utils",
+        "//core:shell_lib",
         "//mcp/server:server",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",

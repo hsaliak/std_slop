@@ -1,6 +1,7 @@
 #ifndef SLOP_SHELL_UTIL_H_
 #define SLOP_SHELL_UTIL_H_
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -17,11 +18,14 @@ struct CommandResult {
   int exit_code;
 };
 
-// Runs a shell command and returns the output and exit code.
+// Runs a shell command and returns the output and exit code. An optional child
+// working directory does not change the caller's current directory. A nonzero
+// output limit kills the process when combined stdout and stderr exceed it.
 // If cancellation is requested, the process and its children are killed.
 absl::StatusOr<CommandResult> RunCommand(std::string_view command,
                                          std::shared_ptr<CancellationRequest> cancellation = nullptr,
-                                         std::string_view input = "", int timeout_seconds = 0);
+                                         std::string_view input = "", int timeout_seconds = 0,
+                                         std::string_view working_directory = "", std::size_t max_output_bytes = 0);
 
 // Escapes a string for use as a shell argument.
 std::string EscapeShellArg(std::string_view arg);

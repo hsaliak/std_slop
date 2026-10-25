@@ -130,6 +130,23 @@ enabled = true
 
 A stdio child runs as the same user as the agent and inherits its environment and working directory. It can access the same local files and environment variables. Register only programs you trust. `mcp list` displays the transport and command, but does not display argv values.
 
+### Bundled local workspace tools
+
+Build and register the local workspace service:
+
+```sh
+bazel build //mcp/local_tools:local_tools_server
+std_slop mcp add local-tools \
+  --transport stdio \
+  --command /absolute/path/to/bazel-bin/mcp/local_tools/local_tools_server
+```
+
+The service needs no extra arguments or saved workspace path. It captures its launch directory as the default workspace, `launch`, then discovers linked Git worktrees when it lists or resolves workspaces. Worktree IDs have the form `worktree:/absolute/path`; each call may include a `workspace` ID. `workspace_list` lists the current catalog and `workspace_info` returns one workspace root.
+
+The service provides `workspace_list`, `workspace_info`, `read_file`, `list_directory`, `grep`, `write_file`, `edit_tool`, and `execute_bash`. File paths are relative to the selected workspace. File tools reject absolute paths, traversal, and symlink traversal, and they have size/output limits. The service has no dedicated Git MCP tools. `execute_bash` starts in the selected workspace, or an optional workspace-relative `cwd`; it is **not a sandbox**. A command can use absolute paths, change directory, run Git, or access files outside the workspace. The shell tool has a 30-second default timeout, a 45-second maximum, and a 1 MiB combined stdout/stderr limit.
+
+In mail mode, every dynamically imported MCP tool requires the host to be on a `slop/staging/*` branch, including tools that declare a read-only hint. Native read tools and the staging-branch bootstrap tool remain available off staging. This is a branch gate, not sandboxing: a call allowed on staging can still affect another worktree or external system.
+
 ## Bearer-token servers
 
 Use `--auth bearer --token <token>` for a static bearer token:

@@ -394,6 +394,17 @@ absl::StatusOr<std::vector<std::string>> ParseWorkspaceRelativePath(absl::string
   return components;
 }
 
+absl::StatusOr<std::filesystem::path> ResolveWorkspaceDirectory(const std::filesystem::path& root,
+                                                                absl::string_view path) {
+  ASSIGN_OR_RETURN(const std::vector<std::string> components, ParseWorkspaceRelativePath(path, true));
+  ASSIGN_OR_RETURN(int directory_descriptor, OpenDirectory(root, components));
+  absl::Cleanup close_directory = [directory_descriptor] { close(directory_descriptor); };
+
+  std::filesystem::path resolved = root;
+  for (const std::string& component : components) resolved /= component;
+  return resolved;
+}
+
 absl::StatusOr<std::string> FormatFileLines(absl::string_view content, const ReadFileOptions& options) {
   RETURN_IF_ERROR(ValidateFileLineOptions(options));
 
