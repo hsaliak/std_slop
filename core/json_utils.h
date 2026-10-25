@@ -2,9 +2,12 @@
 #define SLOP_CORE_JSON_UTILS_H_
 
 #include <array>
+#include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -44,10 +47,24 @@ struct json_getter {
 
   static std::optional<T> get(const nlohmann::json& j) {
     if (!is(j)) return std::nullopt;
-    if constexpr (std::is_same_v<T, nlohmann::json>)
+    if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+      if (j.is_number_unsigned()) {
+        const std::uint64_t value = j.get<std::uint64_t>();
+        if (value > static_cast<std::uint64_t>(std::numeric_limits<T>::max())) return std::nullopt;
+        return static_cast<T>(value);
+      }
+      const std::int64_t value = j.get<std::int64_t>();
+      if constexpr (std::is_signed_v<T>) {
+        if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) return std::nullopt;
+      } else {
+        if (value < 0 || static_cast<std::uint64_t>(value) > std::numeric_limits<T>::max()) return std::nullopt;
+      }
+      return static_cast<T>(value);
+    } else if constexpr (std::is_same_v<T, nlohmann::json>) {
       return j;
-    else
+    } else {
       return j.get<T>();
+    }
   }
 };
 

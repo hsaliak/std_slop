@@ -41,6 +41,22 @@ TEST(JsonUtilsTest, GetInt) {
   EXPECT_EQ(*val, 123);
 }
 
+TEST(JsonUtilsTest, IntegerGettersRejectOutOfRangeValues) {
+  const auto too_large_signed = json_parse(R"({"value":2147483648})");
+  ASSERT_TRUE(too_large_signed.has_value());
+  EXPECT_FALSE(json_get<int>(*too_large_signed, "value").has_value());
+  EXPECT_EQ(json_get_or<int>(*too_large_signed, "value", 17), 17);
+
+  const auto too_small_signed = json_parse(R"({"value":-2147483649})");
+  ASSERT_TRUE(too_small_signed.has_value());
+  EXPECT_FALSE(json_get<int>(*too_small_signed, "value").has_value());
+
+  const auto too_large_unsigned = json_parse(R"({"value":18446744073709551615})");
+  ASSERT_TRUE(too_large_unsigned.has_value());
+  EXPECT_FALSE(json_get<int>(*too_large_unsigned, "value").has_value());
+  EXPECT_FALSE(json_get<std::int64_t>(*too_large_unsigned, "value").has_value());
+}
+
 TEST(JsonUtilsTest, GetVector) {
   auto j = nlohmann::json::parse("{\"key\": [1, 2, 3]}");
   auto val = json_get<std::vector<int>>(j, "key");

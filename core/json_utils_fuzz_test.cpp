@@ -35,6 +35,18 @@ void GetOrIsDeterministicForTypeMismatch(const std::string& raw_json, const std:
   EXPECT_EQ(first, second);
 }
 
+void IntegerGettersNeverThrowOrNarrowWrap(const std::string& raw_json, const std::string& key) {
+  const auto parsed = json_parse(raw_json);
+  if (!parsed.has_value()) return;
+
+  const auto first_int = json_get<int>(*parsed, key);
+  const auto second_int = json_get<int>(*parsed, key);
+  EXPECT_EQ(first_int, second_int);
+  const auto first_int64 = json_get<std::int64_t>(*parsed, key);
+  const auto second_int64 = json_get<std::int64_t>(*parsed, key);
+  EXPECT_EQ(first_int64, second_int64);
+}
+
 void ArrayGetterRequiresHomogeneousTypes(const std::vector<int>& values, const std::string& bad_tail) {
   nlohmann::json j;
   j["ok"] = values;
@@ -72,6 +84,9 @@ FUZZ_TEST(JsonUtilsFuzzTest, ParseAndDumpNeverCrashes);
 
 FUZZ_TEST(JsonUtilsFuzzTest, GetOrIsDeterministicForTypeMismatch)
     .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<int>());
+
+FUZZ_TEST(JsonUtilsFuzzTest, IntegerGettersNeverThrowOrNarrowWrap)
+    .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<std::string>());
 
 FUZZ_TEST(JsonUtilsFuzzTest, ArrayGetterRequiresHomogeneousTypes)
     .WithDomains(fuzztest::VectorOf(fuzztest::Arbitrary<int>()), fuzztest::Arbitrary<std::string>());

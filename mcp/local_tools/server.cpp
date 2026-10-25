@@ -4,36 +4,13 @@
 #include <utility>
 #include <vector>
 
-#include "absl/status/status.h"
-
 #include "core/json_utils.h"
+#include "mcp/local_tools/file_tools.h"
+#include "mcp/local_tools/tool_utils.h"
 #include "mcp/types.h"
 
 namespace slop::mcp::local_tools {
 namespace {
-
-mcp::ToolCallResult ToolResult(nlohmann::json structured_content, bool is_error = false) {
-  mcp::ToolCallResult result;
-  result.content.push_back({{"type", "text"}, {"text", json_dump(structured_content)}});
-  result.structured_content = std::move(structured_content);
-  result.is_error = is_error;
-  return result;
-}
-
-mcp::ToolCallResult ToolError(const absl::Status& status) {
-  return ToolResult({{"error", {{"message", std::string(status.message())}}}}, true);
-}
-
-mcp::server::ToolRegistration MakeTool(std::string name, std::string description, nlohmann::json input_schema,
-                                       nlohmann::json annotations, mcp::server::ToolHandler handler) {
-  mcp::server::ToolRegistration registration;
-  registration.definition.name = std::move(name);
-  registration.definition.description = std::move(description);
-  registration.definition.input_schema = std::move(input_schema);
-  registration.definition.annotations = std::move(annotations);
-  registration.handler = std::move(handler);
-  return registration;
-}
 
 nlohmann::json WorkspaceJson(const Workspace& workspace) {
   return {{"id", workspace.id},
@@ -46,30 +23,37 @@ nlohmann::json WorkspaceJson(const Workspace& workspace) {
 
 absl::StatusOr<mcp::server::Server> CreateServer(WorkspaceCatalog workspaces) {
   std::vector<mcp::server::ToolRegistration> tools;
-  tools.push_back(MakeTool(
+  tools.push_back(MakeToolRegistration(
       "workspace_list", "List the launch workspace and currently available linked Git worktrees.",
       {{"type", "object"}, {"properties", nlohmann::json::object()}, {"additionalProperties", false}},
       {{"readOnlyHint", true}, {"openWorldHint", false}, {"destructiveHint", false}, {"idempotentHint", true}},
-      [workspaces](const nlohmann::json&) mutable -> absl::StatusOr<mcp::ToolCallResult> {
+      [workspaces](const nlohmann::json&) -> absl::StatusOr<mcp::ToolCallResult> {
         auto entries = workspaces.List();
-        if (!entries.ok()) return ToolError(entries.status());
+        if (!entries.ok()) return MakeToolError(entries.status());
 
         nlohmann::json listed = nlohmann::json::array();
         for (const Workspace& workspace : *entries) listed.push_back(WorkspaceJson(workspace));
-        return ToolResult({{"default", "launch"}, {"workspaces", std::move(listed)}});
+        return MakeJsonToolResult({{"default", "launch"}, {"workspaces", std::move(listed)}});
       }));
-  tools.push_back(MakeTool(
+  tools.push_back(MakeToolRegistration(
       "workspace_info", "Show the root of the selected workspace; defaults to the launch directory.",
       {{"type", "object"},
        {"properties", {{"workspace", {{"type", "string"}}}}},
        {"additionalProperties", false}},
       {{"readOnlyHint", true}, {"openWorldHint", false}, {"destructiveHint", false}, {"idempotentHint", true}},
-      [workspaces](const nlohmann::json& arguments) mutable -> absl::StatusOr<mcp::ToolCallResult> {
-        const std::string workspace_id = json_get_or(arguments, "workspace", std::string("launch"));
-        auto workspace = workspaces.Resolve(workspace_id);
-        if (!workspace.ok()) return ToolError(workspace.status());
-        return ToolResult(WorkspaceJson(*workspace));
+      [workspaces](const nlohmann::json& arguments) -> absl::StatusOr<mcp::ToolCallResult> {
+        auto workspace_id = json_get<std::string>(arguments, "workspace");
+        if (json_at(arguments, "workspace") != nullptr && !workspace_id) {
+          return MakeToolError(absl::InvalidArgumentError("workspace must be a string"));
+        }
+        auto workspace = workspaces.Resolve(workspace_id.value_or("launch"));
+        if (!workspace.ok()) return MakeToolError(workspace.status());
+        return MakeJsonToolResult(WorkspaceJson(*workspace));
       }));
+
+  for (mcp::server::ToolRegistration& tool : CreateFileTools(workspaces)) {
+    tools.push_back(std::move(tool));
+  }
 
   mcp::ImplementationInfo identity;
   identity.name = "slop-local-tools";

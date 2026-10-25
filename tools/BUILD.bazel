@@ -23,6 +23,47 @@ cc_library(
 )
 
 cc_library(
+    name = "edit_engine",
+    srcs = ["edit_engine.cpp"],
+    hdrs = ["edit_engine.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core:data",
+        "//core:json_utils",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "edit_engine_test",
+    srcs = ["edit_engine_test.cpp"],
+    deps = [
+        ":edit_engine",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "edit_engine_fuzz_test",
+    srcs = ["edit_engine_fuzz_test.cpp"],
+    copts = [
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+    ],
+    deps = [
+        ":edit_engine",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_library(
     name = "runtime",
     srcs = [
         "common.cpp",
@@ -51,6 +92,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":dispatcher",
+        ":edit_engine",
         "//core:data",
         "//core:json_utils",
         "//core:shell_lib",
