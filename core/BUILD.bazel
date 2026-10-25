@@ -257,6 +257,7 @@ cc_library(
  "@sqlite3//:sqlite3",
  "@googletest//:gtest_main",
  "@nlohmann_json//:json",
+ "@abseil-cpp//absl/cleanup",
  "@abseil-cpp//absl/status",],
  )
   for test_name in [

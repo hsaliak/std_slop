@@ -4,8 +4,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -228,6 +230,72 @@ TEST(ToolExecutorTest, MailModelEnforcementAppliesToAllMailTools) {
 
   unsetenv("SLOP_FORCE_BRANCH_NAME");
   setenv("SLOP_SKIP_STAGING_CHECK", "1", 1);
+}
+
+TEST(ToolExecutorTest, MailModePolicyGuardsDynamicToolsByDefault) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+  executor.SetMailMode(true);
+
+  const char* old_branch_value = std::getenv("SLOP_FORCE_BRANCH_NAME");
+  const std::optional<std::string> old_branch =
+      old_branch_value == nullptr ? std::nullopt : std::optional<std::string>(old_branch_value);
+  const char* old_skip_value = std::getenv("SLOP_SKIP_STAGING_CHECK");
+  const std::optional<std::string> old_skip =
+      old_skip_value == nullptr ? std::nullopt : std::optional<std::string>(old_skip_value);
+  absl::Cleanup restore_environment = [&] {
+    if (old_branch) {
+      setenv("SLOP_FORCE_BRANCH_NAME", old_branch->c_str(), 1);
+    } else {
+      unsetenv("SLOP_FORCE_BRANCH_NAME");
+    }
+    if (old_skip) {
+      setenv("SLOP_SKIP_STAGING_CHECK", old_skip->c_str(), 1);
+    } else {
+      unsetenv("SLOP_SKIP_STAGING_CHECK");
+    }
+  };
+
+  int handler_calls = 0;
+  executor.RegisterTool("runtime_registered_tool",
+                        [&handler_calls](const nlohmann::json&, std::shared_ptr<CancellationRequest>)
+                            -> absl::StatusOr<std::string> {
+                          ++handler_calls;
+                          return std::string("executed");
+                        });
+
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+  unsetenv("SLOP_SKIP_STAGING_CHECK");
+  auto denied = executor.Execute("runtime_registered_tool", nlohmann::json::object());
+  ASSERT_FALSE(denied.ok());
+  EXPECT_EQ(denied.status().code(), absl::StatusCode::kFailedPrecondition);
+  EXPECT_EQ(handler_calls, 0);
+
+  setenv("SLOP_FORCE_BRANCH_NAME", "slop/staging/test", 1);
+  auto allowed = executor.Execute("runtime_registered_tool", nlohmann::json::object());
+  ASSERT_TRUE(allowed.ok()) << allowed.status().message();
+  EXPECT_EQ(*allowed, "executed");
+  EXPECT_EQ(handler_calls, 1);
+
+  setenv("SLOP_FORCE_BRANCH_NAME", "main", 1);
+  denied = executor.Execute("runtime_registered_tool", nlohmann::json::object());
+  EXPECT_FALSE(denied.ok());
+  EXPECT_EQ(handler_calls, 1);
+
+  int bootstrap_calls = 0;
+  executor.RegisterTool("staging_bootstrap_test",
+                        [&bootstrap_calls](const nlohmann::json&, std::shared_ptr<CancellationRequest>)
+                            -> absl::StatusOr<std::string> {
+                          ++bootstrap_calls;
+                          return std::string("bootstrapped");
+                        },
+                        ToolExecutor::ToolExecutionPolicy::kStagingBootstrap);
+  auto bootstrap = executor.Execute("staging_bootstrap_test", nlohmann::json::object());
+  ASSERT_TRUE(bootstrap.ok()) << bootstrap.status().message();
+  EXPECT_EQ(bootstrap_calls, 1);
 }
 
 TEST(ToolExecutorTest, StandardModeBypassesStagingGuardForMailTools) {

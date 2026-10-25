@@ -36,9 +36,9 @@ ToolExecutor::~ToolExecutor() = default;
 
 void ToolExecutor::SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher) { dispatcher_ = std::move(dispatcher); }
 
-void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler) {
+void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler, ToolExecutionPolicy policy) {
   CHECK(!dispatch_map_.contains(name)) << "Duplicate tool registration: " << name;
-  dispatch_map_[name] = std::move(handler);
+  dispatch_map_[name] = RegisteredTool{std::move(handler), policy};
 }
 
 void ToolExecutor::UnregisterTool(const std::string& name) { dispatch_map_.erase(name); }
@@ -55,18 +55,24 @@ std::vector<std::string> ToolExecutor::GetRegisteredToolNamesForTest() const {
 
 void ToolExecutor::RegisterTools() {
   RegisterTool("query_db", [this](const nlohmann::json& args, auto) { return HandleQueryDb(args); });
-  RegisterTool("read_file", [this](const nlohmann::json& args, auto) { return HandleReadFile(args); });
-  RegisterTool("list_directory", [this](const nlohmann::json& args, auto) { return HandleListDirectory(args); });
-  RegisterTool("describe_db", [this](const nlohmann::json& args, auto) { return HandleDescribeDb(args); });
-  RegisterTool("grep", [this](const nlohmann::json& args, auto) { return HandleGrep(args); });
+  RegisterTool("read_file", [this](const nlohmann::json& args, auto) { return HandleReadFile(args); },
+               ToolExecutionPolicy::kReadOnly);
+  RegisterTool("list_directory", [this](const nlohmann::json& args, auto) { return HandleListDirectory(args); },
+               ToolExecutionPolicy::kReadOnly);
+  RegisterTool("describe_db", [this](const nlohmann::json& args, auto) { return HandleDescribeDb(args); },
+               ToolExecutionPolicy::kReadOnly);
+  RegisterTool("grep", [this](const nlohmann::json& args, auto) { return HandleGrep(args); },
+               ToolExecutionPolicy::kReadOnly);
   RegisterTool("execute_bash", [this](const nlohmann::json& args, auto) { return HandleExecuteBash(args); });
   RegisterTool("edit_tool", [this](const nlohmann::json& args, auto) { return HandleEditTool(args); });
   RegisterTool("write_file", [this](const nlohmann::json& args, auto) { return HandleWriteFile(args); });
-  RegisterTool("read_scratchpad", [this](const nlohmann::json& args, auto) { return HandleReadScratchpad(args); });
+  RegisterTool("read_scratchpad", [this](const nlohmann::json& args, auto) { return HandleReadScratchpad(args); },
+               ToolExecutionPolicy::kReadOnly);
   RegisterTool("write_scratchpad", [this](const nlohmann::json& args, auto) { return HandleWriteScratchpad(args); });
   RegisterTool("use_skill", [this](const nlohmann::json& args, auto) { return HandleUseSkill(args); });
   RegisterTool("git_create_staging_branch",
-               [this](const nlohmann::json& args, auto) { return HandleGitCreateStagingBranch(args); });
+               [this](const nlohmann::json& args, auto) { return HandleGitCreateStagingBranch(args); },
+               ToolExecutionPolicy::kStagingBootstrap);
   RegisterTool("git_commit_patch",
                [this](const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
                  return HandleGitCommitPatch(args, cancellation);
@@ -123,19 +129,30 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   RETURN_IF_ERROR(ValidateSubqueryPolicy(name));
 
   auto it = dispatch_map_.find(name);
-  if (it != dispatch_map_.end()) {
-    auto res = it->second(args, cancellation);
-    if (IsDebugToolsEnabled()) {
-      LOG(INFO) << "[tool_debug] Execute direct name=" << name << " status=" << (res.ok() ? "ok" : "error")
-                << " output_preview=" << (res.ok() ? TruncateForLog(*res) : TruncateForLog(res.status().ToString()));
-    }
-    if (res.ok() && db_) {
-      (void)db_->IncrementToolCallCount(name);
-    }
-    return res;
+  if (it == dispatch_map_.end()) {
+    return absl::NotFoundError(absl::StrCat("NOT_FOUND: Tool not found: ", name));
   }
 
-  return absl::NotFoundError(absl::StrCat("NOT_FOUND: Tool not found: ", name));
+  switch (it->second.policy) {
+    case ToolExecutionPolicy::kReadOnly:
+    case ToolExecutionPolicy::kStagingBootstrap:
+      break;
+    case ToolExecutionPolicy::kRequiresStaging:
+      if (mail_mode_) RETURN_IF_ERROR(MaybeEnforceMailStagingGuard(mail_mode_));
+      break;
+    default:
+      return absl::InvalidArgumentError("Unknown tool execution policy");
+  }
+
+  auto res = it->second.handler(args, cancellation);
+  if (IsDebugToolsEnabled()) {
+    LOG(INFO) << "[tool_debug] Execute direct name=" << name << " status=" << (res.ok() ? "ok" : "error")
+              << " output_preview=" << (res.ok() ? TruncateForLog(*res) : TruncateForLog(res.status().ToString()));
+  }
+  if (res.ok() && db_) {
+    (void)db_->IncrementToolCallCount(name);
+  }
+  return res;
 }
 
 void ToolExecutor::InvalidateActiveSkillsCache() {

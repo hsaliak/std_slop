@@ -30,6 +30,12 @@ class ToolExecutor {
     kSubquery,
   };
 
+  enum class ToolExecutionPolicy {
+    kReadOnly,
+    kRequiresStaging,
+    kStagingBootstrap,
+  };
+
   static absl::StatusOr<std::unique_ptr<ToolExecutor>> Create(Database* db) {
     if (db == nullptr) {
       return absl::InvalidArgumentError("Database cannot be null");
@@ -62,7 +68,8 @@ class ToolExecutor {
 
   using ToolHandler =
       std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
-  void RegisterTool(const std::string& name, ToolHandler handler);
+  void RegisterTool(const std::string& name, ToolHandler handler,
+                    ToolExecutionPolicy policy = ToolExecutionPolicy::kRequiresStaging);
   void UnregisterTool(const std::string& name);
 
   ~ToolExecutor();
@@ -107,7 +114,12 @@ class ToolExecutor {
 
   absl::Status ValidateSubqueryPolicy(const std::string& tool_name) const;
 
-  absl::flat_hash_map<std::string, ToolHandler> dispatch_map_;
+  struct RegisteredTool {
+    ToolHandler handler;
+    ToolExecutionPolicy policy;
+  };
+
+  absl::flat_hash_map<std::string, RegisteredTool> dispatch_map_;
   absl::Mutex active_skills_mu_;
   bool active_skills_cache_valid_ ABSL_GUARDED_BY(active_skills_mu_) = false;
   std::string active_skills_cache_session_id_ ABSL_GUARDED_BY(active_skills_mu_);

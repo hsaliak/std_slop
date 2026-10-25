@@ -121,6 +121,7 @@ cc_test(
     ],
     deps = [
         ":runtime",
+        "@abseil-cpp//absl/cleanup",
         "@fuzztest//fuzztest",
         "@fuzztest//fuzztest:fuzztest_gtest_main",
         "@googletest//:gtest",
