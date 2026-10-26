@@ -60,6 +60,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Install CodeQL build dependencies
+      if: matrix.build-mode == 'manual'
+      run: sudo apt-get update && sudo apt-get install --yes libxml2
+
     - name: Prefetch readline source
       if: matrix.build-mode == 'manual'
       shell: bash
