@@ -19,10 +19,15 @@ void NormalizeQueryOptionsNeverCrashes(const std::string& session_id, bool has_s
   options.session_id = session_id;
   if (has_skill) options.skill = skill;
   if (has_context_window) options.context_window = context_window;
-  options.execution_scope = (scope_raw % 2 == 0) ? Scope::kRoot : Scope::kSubquery;
+  options.execution_scope = scope_raw % 3 == 0 ? Scope::kRoot
+                            : scope_raw % 3 == 1 ? Scope::kSubquery
+                                                 : static_cast<Scope>(2);
   options.execution_depth = depth;
 
   auto normalized = InteractionEngine::NormalizeQueryOptions(options);
+  if (options.execution_scope != Scope::kRoot && options.execution_scope != Scope::kSubquery) {
+    EXPECT_FALSE(normalized.ok());
+  }
   if (!normalized.ok()) {
     EXPECT_FALSE(normalized.ok());
     return;
@@ -69,6 +74,7 @@ FUZZ_TEST(QueryOptionsFuzzTest, NormalizeQueryOptionsNeverCrashes)
         std::make_tuple(std::string("code_review"), true, std::string(""), true, 0, 1, 1),
         std::make_tuple(std::string("code_review"), false, std::string(""), true, 0, 1, 1),
         std::make_tuple(std::string("root"), false, std::string(""), false, 0, 1, 0),
+        std::make_tuple(std::string("invalid"), false, std::string(""), false, 0, 2, 1),
     });
 
 FUZZ_TEST(QueryOptionsFuzzTest, NormalizeQueryOptionsDeterministic)

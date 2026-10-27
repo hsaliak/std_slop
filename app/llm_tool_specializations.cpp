@@ -33,6 +33,26 @@ absl::Status DeleteStaleSpecializationTools(Database* db,
 
 }  // namespace
 
+absl::StatusOr<std::string> ParseLlmQueryArgument(const nlohmann::json& args) {
+  auto query = json_get<std::string>(args, "query");
+  if (!query) return absl::InvalidArgumentError("Missing 'query' argument");
+  return *query;
+}
+
+absl::Status RegisterLlmQueryHandler(ToolExecutor* tool_executor, const std::vector<std::string>& active_skills,
+                                     LlmQueryInvoker llm_query_invoker) {
+  if (tool_executor == nullptr) return absl::InvalidArgumentError("tool_executor must not be null");
+  if (!llm_query_invoker) return absl::InvalidArgumentError("llm_query_invoker must not be empty");
+  tool_executor->RegisterTool(
+      "llm_query", [llm_query_invoker, active_skills](const nlohmann::json& args,
+                                                    std::shared_ptr<CancellationRequest>) -> absl::StatusOr<std::string> {
+        auto query = ParseLlmQueryArgument(args);
+        if (!query.ok()) return query.status();
+        return llm_query_invoker(*query, active_skills, LlmQueryOptions{});
+      });
+  return absl::OkStatus();
+}
+
 absl::Status ReconcileLlmSpecializationTools(Database* db,
                                              const std::vector<LlmToolSpecializationConfig>& configs) {
   if (db == nullptr) {
@@ -84,10 +104,8 @@ absl::Status RegisterLlmSpecializationHandlers(ToolExecutor* tool_executor,
         [llm_query_invoker, active_skills, specialization_skill = cfg.skill, context_window = cfg.context_window,
          session_id = cfg.session_id](const nlohmann::json& args,
                                       std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
-          auto query = slop::json_get<std::string>(args, "query");
-          if (!query) {
-            return absl::InvalidArgumentError("Missing 'query' argument");
-          }
+          auto query = ParseLlmQueryArgument(args);
+          if (!query.ok()) return query.status();
 
           std::vector<std::string> merged_skills = active_skills;
           if (!specialization_skill.empty() &&

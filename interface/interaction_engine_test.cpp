@@ -216,6 +216,15 @@ TEST_F(InteractionEngineTest, QueryOptionsContextWindowNegativeRejected) {
   EXPECT_TRUE(absl::StrContains(normalized.status().message(), "context_window must be >= 0"));
 }
 
+TEST_F(InteractionEngineTest, QueryOptionsRejectUnknownExecutionScope) {
+  InteractionEngine::QueryOptions options;
+  options.execution_scope = static_cast<InteractionEngine::QueryOptions::ExecutionScope>(2);
+  options.execution_depth = 1;
+  const auto normalized = InteractionEngine::NormalizeQueryOptions(options);
+  ASSERT_FALSE(normalized.ok());
+  EXPECT_EQ(normalized.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
   InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);

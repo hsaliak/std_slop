@@ -592,7 +592,10 @@ bool InteractionEngine::IsValidQueryExecutionContext(const QueryOptions& options
   if (options.execution_scope == QueryOptions::ExecutionScope::kRoot) {
     return options.execution_depth == 0;
   }
-  return options.execution_depth == 1;
+  if (options.execution_scope == QueryOptions::ExecutionScope::kSubquery) {
+    return options.execution_depth == 1;
+  }
+  return false;
 }
 
 absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, const Config& config,

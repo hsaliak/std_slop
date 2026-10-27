@@ -30,6 +30,7 @@ cc_library(
     deps = [
         "//core:core",
         "//core:data",
+        "//core:json_utils",
         "//tools:runtime",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -150,6 +151,19 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "llm_query_args_fuzz_test",
+    srcs = ["llm_query_args_fuzz_test.cpp"],
+    copts = ["-Wno-unused-parameter", "-Wno-deprecated-declarations"],
+    deps = [
+        ":llm_tool_specializations",
+        "//core:json_utils",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest",
     ],
 )
 

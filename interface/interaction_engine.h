@@ -8,6 +8,7 @@
 
 #include "core/database.h"
 #include "core/http_client.h"
+#include "core/llm_query_options.h"
 #include "core/oauth_handler.h"
 #include "core/orchestrator.h"
 #include "tools/tool_dispatcher.h"
@@ -51,18 +52,7 @@ class InteractionEngine {
   PromptRunResult ProcessPrompt(std::string input, std::string session_id, std::vector<std::string> active_skills,
                                 Config config);
 
-  struct QueryOptions {
-    enum class ExecutionScope {
-      kRoot,
-      kSubquery,
-    };
-
-    std::string session_id = "query";
-    std::optional<std::string> skill;
-    std::optional<int> context_window;
-    ExecutionScope execution_scope = ExecutionScope::kRoot;
-    int execution_depth = 0;
-  };
+  using QueryOptions = LlmQueryOptions;
 
   absl::StatusOr<std::string> Query(const std::string& prompt, const Config& config,
                                     const std::vector<std::string>& active_skills = {});

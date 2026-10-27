@@ -26,6 +26,47 @@ LlmToolSpecializationConfig MakeConfig(const std::string& tool_name, const std::
   return cfg;
 }
 
+TEST(LlmToolSpecializationsTest, DefaultQueryHandlerValidatesBeforeInvoking) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  int calls = 0;
+  LlmQueryOptions captured;
+  ASSERT_TRUE(RegisterLlmQueryHandler(
+                  executor->get(), {"active"},
+                  [&](const std::string& query, const std::vector<std::string>& skills,
+                      const LlmQueryOptions& options) -> absl::StatusOr<std::string> {
+                    ++calls;
+                    EXPECT_EQ(query, "hello");
+                    EXPECT_EQ(skills, std::vector<std::string>{"active"});
+                    captured = options;
+                    return std::string("answer");
+                  })
+                  .ok());
+  EXPECT_FALSE((*executor)->Execute("llm_query", nlohmann::json::array()).ok());
+  EXPECT_FALSE((*executor)->Execute("llm_query", {{"query", 7}}).ok());
+  EXPECT_EQ(calls, 0);
+  auto result = (*executor)->Execute("llm_query", {{"query", "hello"}});
+  ASSERT_TRUE(result.ok()) << result.status();
+  EXPECT_EQ(*result, "answer");
+  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(captured.session_id, "query");
+  EXPECT_FALSE(captured.skill.has_value());
+  EXPECT_FALSE(captured.context_window.has_value());
+  EXPECT_EQ(captured.execution_scope, LlmQueryOptions::ExecutionScope::kRoot);
+  EXPECT_EQ(captured.execution_depth, 0);
+}
+
+TEST(LlmToolSpecializationsTest, DefaultQueryHandlerRejectsMissingDependencies) {
+  EXPECT_EQ(RegisterLlmQueryHandler(nullptr, {}, {}).code(), absl::StatusCode::kInvalidArgument);
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor.ok());
+  EXPECT_EQ(RegisterLlmQueryHandler(executor->get(), {}, {}).code(), absl::StatusCode::kInvalidArgument);
+}
+
 TEST(LlmToolSpecializationsTest, RegistersConfiguredSpecializations) {
   const std::vector<LlmToolSpecializationConfig> configs = {
       MakeConfig("llm_tool_code_review_llm", "review code", "code_review", "code_reviewer", 8),

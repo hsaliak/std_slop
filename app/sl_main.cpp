@@ -612,31 +612,13 @@ int RunPrompt() {
   auto llm_query_invoker = [&engine, config](const std::string& query, const std::vector<std::string>& skills,
                                              const slop::LlmQueryOptions& options)
       -> absl::StatusOr<std::string> {
-    slop::InteractionEngine::QueryOptions query_options;
-    query_options.session_id = options.session_id;
-    query_options.skill = options.skill;
-    query_options.context_window = options.context_window;
-    query_options.execution_scope = options.execution_scope == slop::LlmQueryOptions::ExecutionScope::kSubquery
-                                        ? slop::InteractionEngine::QueryOptions::ExecutionScope::kSubquery
-                                        : slop::InteractionEngine::QueryOptions::ExecutionScope::kRoot;
-    query_options.execution_depth = options.execution_depth;
-    return engine.Query(query, config, skills, query_options);
+    return engine.Query(query, config, skills, options);
   };
-  executor->RegisterTool(
-      "llm_query",
-      [llm_query_invoker, active_skills](const nlohmann::json& args,
-                                         std::shared_ptr<slop::CancellationRequest>) -> absl::StatusOr<std::string> {
-        auto query = slop::json_get<std::string>(args, "query");
-        if (!query) return absl::InvalidArgumentError("Missing 'query' argument");
-        slop::LlmQueryOptions options;
-        options.session_id = "query";
-        options.execution_scope = slop::LlmQueryOptions::ExecutionScope::kRoot;
-        options.execution_depth = 0;
-        return llm_query_invoker(*query, active_skills, options);
-      });
+  auto register_status = slop::RegisterLlmQueryHandler(executor.get(), active_skills, llm_query_invoker);
+  if (!register_status.ok()) return PrintPromptError(register_status, json);
 
   const auto& specializations = *specializations_or;
-  auto register_status = slop::ReconcileLlmSpecializationTools(db.get(), specializations);
+  register_status = slop::ReconcileLlmSpecializationTools(db.get(), specializations);
   if (!register_status.ok()) return PrintPromptError(register_status, json);
   register_status =
       slop::RegisterLlmSpecializationHandlers(executor.get(), specializations, active_skills, llm_query_invoker);
