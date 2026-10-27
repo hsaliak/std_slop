@@ -585,12 +585,6 @@ int RunPrompt() {
   auto executor_or = slop::ToolExecutor::Create(db.get());
   if (!executor_or.ok()) return PrintPromptError(executor_or.status(), json);
   auto executor = std::move(*executor_or);
-  auto dispatcher = std::make_unique<slop::ToolDispatcher>(
-      [&executor](const std::string& name, const nlohmann::json& args,
-                  std::shared_ptr<slop::CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
-        return executor->Execute(name, args, cancellation);
-      });
-  executor->SetDispatcher(std::move(dispatcher));
   auto mcp_runtime_or = slop::mcp::StartMcpRuntime(db.get(), executor.get(), &http_client);
   if (!mcp_runtime_or.ok()) return PrintPromptError(mcp_runtime_or.status(), json);
   auto command_handler_or = slop::CommandHandler::Create(db.get(), orchestrator.get(), oauth_handler.get(), openai_key);
@@ -599,7 +593,12 @@ int RunPrompt() {
   const std::string session = DefaultSession();
   executor->SetSessionId(session);
   const std::vector<std::string> active_skills = executor->GetActiveSkills();
-  slop::InteractionEngine engine(*db, *orchestrator, *command_handler, *executor->dispatcher(), *executor, http_client,
+  slop::ToolDispatcher dispatcher(
+      [executor_ptr = executor.get()](const std::string& name, const nlohmann::json& args,
+                                      std::shared_ptr<slop::CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
+        return executor_ptr->Execute(name, args, cancellation);
+      });
+  slop::InteractionEngine engine(*db, *orchestrator, *command_handler, dispatcher, *executor, http_client,
                                  oauth_handler);
   slop::InteractionEngine::Config config;
   config.openai_api_key = openai_key;

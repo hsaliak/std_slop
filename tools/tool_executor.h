@@ -21,8 +21,6 @@
 
 namespace slop {
 
-class ToolDispatcher;
-
 class ToolExecutor {
  public:
   enum class ExecutionScope {
@@ -62,9 +60,6 @@ class ToolExecutor {
   // Resolves the base branch for git operations.
   // Resolves from database (staging_branches) or defaults to main.
   absl::StatusOr<std::string> GetBaseBranch(const std::string& requested_base);
-
-  void SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher);
-  ToolDispatcher* dispatcher() const { return dispatcher_.get(); }
 
   using ToolHandler =
       std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
@@ -125,7 +120,6 @@ class ToolExecutor {
   std::string active_skills_cache_session_id_ ABSL_GUARDED_BY(active_skills_mu_);
   std::vector<std::string> active_skills_cache_ ABSL_GUARDED_BY(active_skills_mu_);
   absl::flat_hash_set<std::string> active_skills_cache_set_ ABSL_GUARDED_BY(active_skills_mu_);
-  std::unique_ptr<ToolDispatcher> dispatcher_;
 };
 
 }  // namespace slop

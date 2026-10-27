@@ -26,15 +26,12 @@
 #include "interface/renderer.h"
 #include "interface/terminal.h"
 #include "tools/common.h"
-#include "tools/tool_dispatcher.h"
 
 namespace slop {
 
 ToolExecutor::ToolExecutor(Database* db) : db_(db) { RegisterTools(); }
 
 ToolExecutor::~ToolExecutor() = default;
-
-void ToolExecutor::SetDispatcher(std::unique_ptr<ToolDispatcher> dispatcher) { dispatcher_ = std::move(dispatcher); }
 
 void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler, ToolExecutionPolicy policy) {
   CHECK(!dispatch_map_.contains(name)) << "Duplicate tool registration: " << name;

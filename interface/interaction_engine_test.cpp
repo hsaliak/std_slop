@@ -1,6 +1,7 @@
 #include "interface/interaction_engine.h"
 
 #include <algorithm>
+#include <atomic>
 #include <unistd.h>
 
 #include <fstream>
@@ -38,6 +39,7 @@ class InteractionEngineTest : public ::testing::Test {
   MockHttpClient mock_http;
   std::unique_ptr<Orchestrator> orchestrator;
   std::unique_ptr<ToolExecutor> tool_executor;
+  std::unique_ptr<ToolDispatcher> dispatcher;
   std::unique_ptr<CommandHandler> cmd_handler;
 
   void SetUp() override {
@@ -51,11 +53,10 @@ class InteractionEngineTest : public ::testing::Test {
     ASSERT_TRUE(exec_or.ok());
     tool_executor = std::move(*exec_or);
 
-    auto dispatcher = std::make_unique<ToolDispatcher>(
+    dispatcher = std::make_unique<ToolDispatcher>(
         [this](const std::string& name, const nlohmann::json& args, std::shared_ptr<CancellationRequest> cancellation) {
           return tool_executor->Execute(name, args, cancellation);
         });
-    tool_executor->SetDispatcher(std::move(dispatcher));
 
     auto cmd_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "");
     ASSERT_TRUE(cmd_or.ok());
@@ -93,8 +94,26 @@ class InteractionEngineTest : public ::testing::Test {
   }
 };
 
+TEST_F(InteractionEngineTest, DispatcherJoinsExecutorCallbacksBeforeDestruction) {
+  std::atomic<bool> completed{false};
+  tool_executor->RegisterTool(
+      "lifetime_probe", [&completed](const nlohmann::json&, std::shared_ptr<CancellationRequest>)
+                            -> absl::StatusOr<std::string> {
+        completed.store(true);
+        return std::string("done");
+      });
+  {
+    ToolDispatcher pending([executor = tool_executor.get()](const std::string& name, const nlohmann::json& args,
+                                                           std::shared_ptr<CancellationRequest> cancellation) {
+      return executor->Execute(name, args, cancellation);
+    });
+    pending.Submit({"probe", "lifetime_probe", nlohmann::json::object()});
+  }
+  EXPECT_TRUE(completed.load());
+}
+
 TEST_F(InteractionEngineTest, QueryIsolationTest) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
 
   InteractionEngine::Config config;
@@ -113,7 +132,7 @@ TEST_F(InteractionEngineTest, QueryIsolationTest) {
 }
 
 TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
 
   InteractionEngine::Config config;
@@ -129,7 +148,7 @@ TEST_F(InteractionEngineTest, QueryWithNestedToolsTest) {
 }
 
 TEST_F(InteractionEngineTest, QueryOptionsApplySessionSkillAndContextWindow) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
 
   ASSERT_TRUE(
@@ -198,7 +217,7 @@ TEST_F(InteractionEngineTest, QueryOptionsContextWindowNegativeRejected) {
 }
 
 TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
 
   InteractionEngine::Config config;
@@ -217,7 +236,7 @@ TEST_F(InteractionEngineTest, LegacyQueryOverloadPreservesDefaultSession) {
 }
 
 TEST_F(InteractionEngineTest, QueryUsesStreamingResponsesTransport) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
   InteractionEngine::Config config;
   config.silent = true;
@@ -230,7 +249,7 @@ TEST_F(InteractionEngineTest, QueryUsesStreamingResponsesTransport) {
   auto command_handler_or = CommandHandler::Create(&db, orchestrator.get(), nullptr, "");
   ASSERT_TRUE(command_handler_or.ok());
   cmd_handler = std::move(*command_handler_or);
-  InteractionEngine streaming_engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor,
+  InteractionEngine streaming_engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor,
                                      mock_http, nullptr);
   const std::string response =
       "data: {\"type\":\"response.output_text.delta\",\"delta\":\"streamed\"}\n\n"
@@ -251,7 +270,7 @@ TEST_F(InteractionEngineTest, QueryUsesStreamingResponsesTransport) {
 }
 
 TEST_F(InteractionEngineTest, ProcessPromptReturnsStructuredOutputAndStops) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
   InteractionEngine::Config config;
   config.silent = true;
@@ -269,7 +288,7 @@ TEST_F(InteractionEngineTest, ProcessPromptReturnsStructuredOutputAndStops) {
 }
 
 TEST_F(InteractionEngineTest, ProcessPromptFailsWhenStructuredOutputMissing) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
   InteractionEngine::Config config;
   config.silent = true;
@@ -285,7 +304,7 @@ TEST_F(InteractionEngineTest, ProcessPromptFailsWhenStructuredOutputMissing) {
 }
 
 TEST_F(InteractionEngineTest, ProcessPromptFailsOnInvalidStructuredOutput) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
   InteractionEngine::Config config;
   config.silent = true;
@@ -301,7 +320,7 @@ TEST_F(InteractionEngineTest, ProcessPromptFailsOnInvalidStructuredOutput) {
 }
 
 TEST_F(InteractionEngineTest, ErrorHandlingTest) {
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            nullptr);
 
   InteractionEngine::Config config;
@@ -344,7 +363,7 @@ TEST_F(InteractionEngineTest, OpenAiOAuthUsesCodexEndpointAndAccountHeader) {
   oauth_handler->SetTokenPath(temp_path);
   oauth_handler->SetEnabled(true);
 
-  InteractionEngine engine(db, *orchestrator, *cmd_handler, *tool_executor->dispatcher(), *tool_executor, mock_http,
+  InteractionEngine engine(db, *orchestrator, *cmd_handler, *dispatcher, *tool_executor, mock_http,
                            oauth_handler);
 
   InteractionEngine::Config config;

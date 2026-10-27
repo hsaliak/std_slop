@@ -406,13 +406,6 @@ int main(int argc, char* argv[]) {
   }
   auto tool_executor = std::move(*tool_executor_or);
 
-  auto dispatcher = std::make_unique<slop::ToolDispatcher>(
-      [&tool_executor](const std::string& name, const nlohmann::json& args,
-                       std::shared_ptr<slop::CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
-        return tool_executor->Execute(name, args, cancellation);
-      });
-  tool_executor->SetDispatcher(std::move(dispatcher));
-
   auto mcp_runtime_or = slop::mcp::StartMcpRuntime(&db, tool_executor.get(), &http_client);
   if (!mcp_runtime_or.ok()) {
     std::cerr << "Failed to initialize MCP runtime: " << mcp_runtime_or.status().message() << std::endl;
@@ -442,7 +435,12 @@ int main(int argc, char* argv[]) {
 
   std::vector<std::string> active_skills = tool_executor->GetActiveSkills();
 
-  slop::InteractionEngine engine(db, *orchestrator, cmd_handler, *tool_executor->dispatcher(), *tool_executor,
+  slop::ToolDispatcher dispatcher(
+      [executor = tool_executor.get()](const std::string& name, const nlohmann::json& args,
+                                       std::shared_ptr<slop::CancellationRequest> cancellation) -> absl::StatusOr<std::string> {
+        return executor->Execute(name, args, cancellation);
+      });
+  slop::InteractionEngine engine(db, *orchestrator, cmd_handler, dispatcher, *tool_executor,
                                  http_client, oauth_handler);
   slop::InteractionEngine::Config engine_config;
   engine_config.openai_api_key = openai_key;

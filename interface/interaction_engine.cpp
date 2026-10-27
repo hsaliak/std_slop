@@ -640,13 +640,13 @@ absl::StatusOr<std::string> InteractionEngine::Query(const std::string& prompt, 
                                              : ToolExecutor::ExecutionScope::kRoot,
                                          effective_options.execution_depth);
 
-  sub_tool_executor->SetDispatcher(std::make_unique<ToolDispatcher>(
+  ToolDispatcher sub_dispatcher(
       [executor = sub_tool_executor.get()](const std::string& name, const nlohmann::json& args,
                                            std::shared_ptr<CancellationRequest> cancellation) {
         return executor->Execute(name, args, cancellation);
-      }));
+      });
 
-  InteractionEngine sub_engine(transient_db, **sub_orch_or, cmd_handler_, *sub_tool_executor->dispatcher(),
+  InteractionEngine sub_engine(transient_db, **sub_orch_or, cmd_handler_, sub_dispatcher,
                                *sub_tool_executor, http_client_, oauth_handler_);
   Config sub_config = config;
   sub_config.silent = true;
