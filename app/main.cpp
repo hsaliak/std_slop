@@ -59,6 +59,7 @@ ABSL_FLAG(std::string, db, "", "Path to SQLite database (default: slop.db)");
 ABSL_FLAG(std::string, log, "", "Log file path");
 ABSL_FLAG(std::string, project, "", "Set Google Cloud Project ID for OAuth mode");
 ABSL_FLAG(std::string, model, "", "Model name");
+ABSL_FLAG(bool, no_local_tools, false, "Disable local tools for this run; use MCP tools only");
 ABSL_FLAG(std::string, openai_api_key, "", "OpenAI API key");
 ABSL_FLAG(std::string, openai_base_url, "", "OpenAI Base URL");
 ABSL_FLAG(bool, openai_oauth, false, "Use OpenAI OAuth token file (~/.config/slop/chatgpt_plus_token.json)");
@@ -472,6 +473,13 @@ int main(int argc, char* argv[]) {
   if (!register_status.ok()) {
     std::cerr << "Failed to register llm tool specializations: " << register_status.message() << std::endl;
     return 1;
+  }
+  if (absl::GetFlag(FLAGS_no_local_tools)) {
+    register_status = tool_executor->SetMcpOnlyMode();
+    if (!register_status.ok()) {
+      std::cerr << "Failed to disable local tools: " << register_status.message() << std::endl;
+      return 1;
+    }
   }
 
   if (has_prompt_input) {

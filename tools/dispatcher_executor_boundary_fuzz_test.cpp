@@ -123,8 +123,41 @@ void ExecutorMailModeGateRejectsDynamicToolBeforeHandler(const std::string& args
   EXPECT_EQ(handler_calls, 0);
 }
 
+void ExecutorMcpOnlyGateRejectsLocallyRegisteredMcpPrefixedTool(const std::string& name_suffix,
+                                                                 const std::string& args_raw) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+  const std::string tool_name = std::string("mcp_") + name_suffix;
+
+  ASSERT_TRUE(db.RegisterTool({tool_name, "Locally registered fuzz tool", "{}", true}).ok());
+  int handler_calls = 0;
+  executor.RegisterTool(tool_name, [&handler_calls](const nlohmann::json&,
+                                                     std::shared_ptr<CancellationRequest>)
+                                           -> absl::StatusOr<std::string> {
+    ++handler_calls;
+    return std::string("called");
+  });
+  ASSERT_TRUE(executor.SetMcpOnlyMode().ok());
+
+  auto enabled_tools = db.GetTopLevelTools();
+  ASSERT_TRUE(enabled_tools.ok());
+  for (const Database::Tool& tool : *enabled_tools) EXPECT_NE(tool.name, tool_name);
+
+  auto args = nlohmann::json::parse(args_raw, nullptr, false);
+  if (args.is_discarded()) args = nlohmann::json::object();
+  const auto result = executor.Execute(tool_name, args);
+  EXPECT_FALSE(result.ok());
+  EXPECT_EQ(result.status().code(), absl::StatusCode::kPermissionDenied);
+  EXPECT_EQ(handler_calls, 0);
+}
+
 FUZZ_TEST(DispatcherExecutorBoundaryFuzzTest, DispatcherValidateCallRejectsInvalidShape);
 FUZZ_TEST(DispatcherExecutorBoundaryFuzzTest, ExecutorMailModeGateRejectsDynamicToolBeforeHandler);
+FUZZ_TEST(DispatcherExecutorBoundaryFuzzTest, ExecutorMcpOnlyGateRejectsLocallyRegisteredMcpPrefixedTool)
+    .WithDomains(fuzztest::InRegexp("[A-Za-z0-9_-]{0,32}"), fuzztest::Arbitrary<std::string>());
 
 
 FUZZ_TEST(DispatcherExecutorBoundaryFuzzTest, DispatcherSubmitNoCrash);

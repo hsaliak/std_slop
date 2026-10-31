@@ -76,6 +76,43 @@ TEST(ToolExecutorTest, ReadWriteFile) {
   std::filesystem::remove(test_file);
 }
 
+TEST(ToolExecutorTest, McpOnlyModeKeepsMcpToolsAndBlocksLocalTools) {
+  Database db;
+  ASSERT_TRUE(db.Init(":memory:").ok());
+  auto executor_or = ToolExecutor::Create(&db);
+  ASSERT_TRUE(executor_or.ok());
+  auto& executor = **executor_or;
+
+  ASSERT_TRUE(db.RegisterTool({"mcp_test_echo", "MCP test tool", "{}", true}).ok());
+  executor.RegisterMcpTool("mcp_test_echo", [](const nlohmann::json&,
+                                                std::shared_ptr<CancellationRequest>) -> absl::StatusOr<std::string> {
+    return "mcp result";
+  });
+  ASSERT_TRUE(db.RegisterTool({"local_test_tool", "Local test tool", "{}", true}).ok());
+  int local_execution_count = 0;
+  executor.RegisterTool("local_test_tool", [&local_execution_count](const nlohmann::json&,
+                                                                      std::shared_ptr<CancellationRequest>)
+                                                        -> absl::StatusOr<std::string> {
+    ++local_execution_count;
+    return "local result";
+  });
+
+  ASSERT_TRUE(executor.SetMcpOnlyMode().ok());
+  auto enabled_tools = db.GetTopLevelTools();
+  ASSERT_TRUE(enabled_tools.ok());
+  ASSERT_EQ(enabled_tools->size(), 1);
+  EXPECT_EQ(enabled_tools->front().name, "mcp_test_echo");
+
+  auto local_result = executor.Execute("local_test_tool", nlohmann::json::object());
+  ASSERT_FALSE(local_result.ok());
+  EXPECT_EQ(local_result.status().code(), absl::StatusCode::kPermissionDenied);
+  EXPECT_EQ(local_execution_count, 0);
+
+  auto mcp_result = executor.Execute("mcp_test_echo", nlohmann::json::object());
+  ASSERT_TRUE(mcp_result.ok());
+  EXPECT_EQ(*mcp_result, "mcp result");
+}
+
 TEST(ToolExecutorTest, ReadFileGranular) {
   Database db;
   ASSERT_TRUE(db.Init(":memory:").ok());

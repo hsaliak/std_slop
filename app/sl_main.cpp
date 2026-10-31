@@ -43,6 +43,7 @@ ABSL_FLAG(std::string, config, "", "Path to the configuration INI file");
 ABSL_FLAG(std::string, db, "", "Path to SQLite database (default: slop.db)");
 ABSL_FLAG(bool, ephemeral, false, "Use an in-memory database");
 ABSL_FLAG(std::string, model, "", "Model name");
+ABSL_FLAG(bool, no_local_tools, false, "Disable local tools for this run; use MCP tools only");
 ABSL_FLAG(std::string, openai_api_key, "", "OpenAI-compatible API key");
 ABSL_FLAG(std::string, openai_base_url, "", "OpenAI-compatible API base URL");
 ABSL_FLAG(bool, openai_oauth, false, "Use the OpenAI OAuth token");
@@ -389,7 +390,8 @@ bool IsGlobalValueFlag(const std::string& argument) {
 
 bool IsKnownGlobalFlag(const std::string& argument) {
   const std::string name = FlagName(argument);
-  return name == "--config" || name == "--db" || name == "--ephemeral" || name == "--model" ||
+  return name == "--config" || name == "--db" || name == "--ephemeral" || name == "--no_local_tools" ||
+         name == "--model" ||
          name == "--openai_api_key" || name == "--openai_base_url" || name == "--openai_oauth" ||
          name == "--openai_oauth_token_path" || name == "--session" || name == "--prompt" ||
          name == "--prompt_file" || name == "--system_prompt" || name == "--system_prompt_file" ||
@@ -407,7 +409,7 @@ bool IsHelpFlag(const std::string& argument) {
 }
 
 bool IsGlobalBoolFlag(const std::string& name) {
-  return name == "--ephemeral" || name == "--openai_oauth" || name == "--json";
+  return name == "--ephemeral" || name == "--no_local_tools" || name == "--openai_oauth" || name == "--json";
 }
 
 bool IsGlobalIntegerFlag(const std::string& name) {
@@ -623,6 +625,10 @@ int RunPrompt() {
   register_status =
       slop::RegisterLlmSpecializationHandlers(executor.get(), specializations, active_skills, llm_query_invoker);
   if (!register_status.ok()) return PrintPromptError(register_status, json);
+  if (absl::GetFlag(FLAGS_no_local_tools)) {
+    register_status = executor->SetMcpOnlyMode();
+    if (!register_status.ok()) return PrintPromptError(register_status, json);
+  }
 
   const auto result = engine.ProcessPrompt(*prompt_or, session, active_skills, config);
   if (schema.has_value() && result.ok && result.structured_output.has_value()) {
@@ -645,7 +651,7 @@ int main(int argc, char* argv[]) {
   absl::InitializeLog();
   absl::SetProgramUsageMessage(
       "sl [--prompt TEXT|--prompt-file FILE] [--system_prompt TEXT|--system_prompt_file FILE] [--json] "
-      "[--schema FILE] [--db PATH|--ephemeral]\n"
+      "[--schema FILE] [--db PATH|--ephemeral] [--no_local_tools]\n"
       "sl context|session|message|scratchpad|skill|model|stats|tool ...\n"
       "sl mcp ...");
 

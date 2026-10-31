@@ -282,7 +282,7 @@ absl::Status RuntimeManager::RefreshCatalogs() {
     routes_[candidate.runtime_name] =
         ToolRoute{candidate.active->session.get(), candidate.active->entry.name, candidate.active->entry.url,
                   candidate.active->entry.auth, candidate.tool.name};
-    tool_executor_->RegisterTool(candidate.runtime_name,
+    tool_executor_->RegisterMcpTool(candidate.runtime_name,
                                  [this, runtime_name = candidate.runtime_name](const nlohmann::json& args, auto) {
                                    return ExecuteRuntimeTool(runtime_name, args);
                                  });
@@ -329,7 +329,7 @@ absl::Status RuntimeManager::RegisterServerTools(const ServerRegistryEntry& entr
 
   for (const Candidate& candidate : candidates) {
     routes_[candidate.runtime_name] = ToolRoute{session, entry.name, entry.url, entry.auth, candidate.tool->name};
-    tool_executor_->RegisterTool(candidate.runtime_name,
+    tool_executor_->RegisterMcpTool(candidate.runtime_name,
                                  [this, runtime_name = candidate.runtime_name](const nlohmann::json& args, auto) {
                                    return ExecuteRuntimeTool(runtime_name, args);
                                  });

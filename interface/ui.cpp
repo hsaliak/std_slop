@@ -618,6 +618,7 @@ std::string GetCliHelpText() {
       "- `--output <text|json>`: Select prompt-mode output format. JSON writes one object to stdout.\n"
       "- `--session <id>`: Use a specific session ID (overrides positional argument).\n"
       "- `--model <name>`: Specify the model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`).\n"
+      "- `--no_local_tools`: Expose only MCP tools to the agent for this run.\n"
       "- `--fetch_openai_oauth_token`: Run built-in OpenAI OAuth browser+paste login, save the token, and exit.\n"
       "- `--fetch_openai_oauth_device_token`: Run built-in OpenAI OAuth device login, save the token, and exit.\n"
       "- `--helpfull`: See all available command-line flags.\n";

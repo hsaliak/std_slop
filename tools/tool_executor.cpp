@@ -34,8 +34,42 @@ ToolExecutor::ToolExecutor(Database* db) : db_(db) { RegisterTools(); }
 ToolExecutor::~ToolExecutor() = default;
 
 void ToolExecutor::RegisterTool(const std::string& name, ToolHandler handler, ToolExecutionPolicy policy) {
+  RegisterToolInternal(name, std::move(handler), policy, false);
+}
+
+void ToolExecutor::RegisterMcpTool(const std::string& name, ToolHandler handler, ToolExecutionPolicy policy) {
+  RegisterToolInternal(name, std::move(handler), policy, true);
+}
+
+void ToolExecutor::RegisterToolInternal(const std::string& name, ToolHandler handler, ToolExecutionPolicy policy,
+                                        bool is_mcp_tool) {
   CHECK(!dispatch_map_.contains(name)) << "Duplicate tool registration: " << name;
-  dispatch_map_[name] = RegisteredTool{std::move(handler), policy};
+  dispatch_map_[name] = RegisteredTool{std::move(handler), policy, is_mcp_tool};
+}
+
+absl::Status ToolExecutor::SetMcpOnlyMode() {
+  if (mcp_only_mode_) return absl::OkStatus();
+
+  auto tools_or = db_->GetTopLevelTools();
+  if (!tools_or.ok()) return tools_or.status();
+  RETURN_IF_ERROR(db_->Execute("BEGIN IMMEDIATE"));
+  for (const Database::Tool& tool : *tools_or) {
+    const auto registered_tool = dispatch_map_.find(tool.name);
+    if (registered_tool != dispatch_map_.end() && registered_tool->second.is_mcp_tool) continue;
+
+    const absl::Status status = db_->Execute("UPDATE tools SET is_enabled = 0 WHERE name = ?", {tool.name});
+    if (!status.ok()) {
+      (void)db_->Execute("ROLLBACK");
+      return status;
+    }
+  }
+  const absl::Status commit_status = db_->Execute("COMMIT");
+  if (!commit_status.ok()) {
+    (void)db_->Execute("ROLLBACK");
+    return commit_status;
+  }
+  mcp_only_mode_ = true;
+  return absl::OkStatus();
 }
 
 void ToolExecutor::UnregisterTool(const std::string& name) { dispatch_map_.erase(name); }
@@ -128,6 +162,9 @@ absl::StatusOr<std::string> ToolExecutor::Execute(const std::string& name, const
   auto it = dispatch_map_.find(name);
   if (it == dispatch_map_.end()) {
     return absl::NotFoundError(absl::StrCat("NOT_FOUND: Tool not found: ", name));
+  }
+  if (mcp_only_mode_ && !it->second.is_mcp_tool) {
+    return absl::PermissionDeniedError("Local tools are disabled; only MCP tools are available");
   }
 
   switch (it->second.policy) {

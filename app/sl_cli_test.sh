@@ -11,6 +11,7 @@ mkdir -p "${HOME}"
 context_json="$(${sl} --ephemeral context show --json)"
 grep -F '"command":"context show"' <<<"${context_json}"
 grep -F '"retain_groups":2' <<<"${context_json}"
+"${sl}" --no_local_tools --ephemeral context show --json >/dev/null
 
 state_db="${tmp_dir}/state.db"
 "${sl}" --db "${state_db}" context set --retain_groups=3 --watermark_tokens=120 >/dev/null

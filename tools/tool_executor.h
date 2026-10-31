@@ -11,6 +11,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 
@@ -45,6 +46,8 @@ class ToolExecutor {
   void SetMailMode(bool enabled);
   const std::string& session_id() const { return session_id_; }
   void SetExecutionContext(ExecutionScope scope, int depth);
+  // Restricts tool discovery and execution to tools registered by the MCP runtime.
+  absl::Status SetMcpOnlyMode();
 
   bool IsSkillActive(const std::string& name);
   std::vector<std::string> GetActiveSkills();
@@ -65,6 +68,9 @@ class ToolExecutor {
       std::function<absl::StatusOr<std::string>(const nlohmann::json&, std::shared_ptr<CancellationRequest>)>;
   void RegisterTool(const std::string& name, ToolHandler handler,
                     ToolExecutionPolicy policy = ToolExecutionPolicy::kRequiresStaging);
+  // Registers a tool that remains available in MCP-only mode.
+  void RegisterMcpTool(const std::string& name, ToolHandler handler,
+                       ToolExecutionPolicy policy = ToolExecutionPolicy::kRequiresStaging);
   void UnregisterTool(const std::string& name);
 
   ~ToolExecutor();
@@ -80,9 +86,11 @@ class ToolExecutor {
   Database* db_;
   std::string session_id_;
   bool mail_mode_ = false;
+  bool mcp_only_mode_ = false;
   std::pair<ExecutionScope, int> execution_context_ = {ExecutionScope::kRoot, 0};
 
   void RegisterTools();
+  void RegisterToolInternal(const std::string& name, ToolHandler handler, ToolExecutionPolicy policy, bool is_mcp_tool);
 
   absl::StatusOr<std::string> HandleQueryDb(const nlohmann::json& args);
   absl::StatusOr<std::string> HandleReadFile(const nlohmann::json& args);
@@ -112,6 +120,7 @@ class ToolExecutor {
   struct RegisteredTool {
     ToolHandler handler;
     ToolExecutionPolicy policy;
+    bool is_mcp_tool;
   };
 
   absl::flat_hash_map<std::string, RegisteredTool> dispatch_map_;
