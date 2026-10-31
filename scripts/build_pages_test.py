@@ -98,8 +98,14 @@ SOURCES = {
         "# MCP agent integration\n\nRemote tools.\n\n"
         "### Bundled local workspace tools\n\n"
         "The local workspace MCP provides `workspace_list` and `read_file`. Shell execution is not a sandbox.\n\n"
+        "For smoke instructions, see [the package guide](../mcp/local_tools/README.md).\n\n"
         "#### Tool reference\n\n"
         "| Tool | Arguments |\n| --- | --- |\n| `execute_bash` | `timeout_seconds` |\n"
+    ),
+    "mcp/local_tools/README.md": (
+        "# Local workspace MCP smoke test\n\n"
+        "## Smoke test\n\n"
+        "Use `openrouter/free:medium` with `mcp_local_smoke_read_file` in Mail Mode.\n"
     ),
     "mcp/gateway/README.md": (
         "# run_js gateway\n\n"
@@ -115,6 +121,7 @@ SOURCES = {
         "# Documentation guide\n\nChoose a component.\n\n"
         "[Echo MCP server](echo-server.md)\n\n"
         "[Local workspace MCP](mcp-slop-userguide.md#bundled-local-workspace-tools)\n\n"
+        "[Local workspace MCP smoke test](../mcp/local_tools/README.md)\n\n"
         "[run_js gateway](../mcp/gateway/README.md)\n\n"
         "[run_js status](../mcp/gateway/STATUS.md)\n"
     ),
@@ -181,23 +188,22 @@ class BuildPagesTest(unittest.TestCase):
             self.assertIn(text, server)
         self.assertNotIn("Outbound HTTP client", server)
 
-    def test_each_component_has_exactly_one_markdown_source(self):
+    def test_each_component_uses_expected_markdown_sources(self):
         expected = {
-            "agent.html": "docs/WALKTHROUGH.md",
-            "sl.html": "docs/sl.md",
-            "mcp.html": "docs/mcp-api.md",
-            "mcp-server.html": "docs/mcp-server.md",
-            "local-tools.html": "docs/mcp-slop-userguide.md",
-            "echo-server.html": "docs/echo-server.md",
-            "run-js.html": "mcp/gateway/README.md",
-            "decision-api.html": "mcp/decision_api/README.md",
-            "run-js-status.html": "mcp/gateway/STATUS.md",
-            "markdown.html": "markdown/README.md",
+            "agent.html": ("docs/WALKTHROUGH.md",),
+            "sl.html": ("docs/sl.md",),
+            "mcp.html": ("docs/mcp-api.md",),
+            "mcp-server.html": ("docs/mcp-server.md",),
+            "local-tools.html": ("docs/mcp-slop-userguide.md", "mcp/local_tools/README.md"),
+            "echo-server.html": ("docs/echo-server.md",),
+            "run-js.html": ("mcp/gateway/README.md",),
+            "decision-api.html": ("mcp/decision_api/README.md",),
+            "run-js-status.html": ("mcp/gateway/STATUS.md",),
+            "markdown.html": ("markdown/README.md",),
         }
         for page in build_pages.PAGES:
             if page.output in expected:
-                self.assertEqual(len(page.sources), 1)
-                self.assertEqual(page.sources[0].path, expected[page.output])
+                self.assertEqual(tuple(source.path for source in page.sources), expected[page.output])
 
     def test_navigation_order_and_agent_dropdown(self):
         self.assertEqual(
@@ -249,6 +255,9 @@ class BuildPagesTest(unittest.TestCase):
         self.assertIn("read_file", local_tools_page)
         self.assertIn("timeout_seconds", local_tools_page)
         self.assertIn("not a sandbox", local_tools_page)
+        self.assertIn("openrouter/free:medium", local_tools_page)
+        self.assertIn("mcp_local_smoke_read_file", local_tools_page)
+        self.assertIn("Mail Mode", local_tools_page)
         self.assertIn(
             'href="local-tools.html#bundled-local-workspace-tools"', self.page("mcp-server.html")
         )
@@ -320,6 +329,10 @@ class BuildPagesTest(unittest.TestCase):
                 "docs/README.md", "mcp-slop-userguide.md#bundled-local-workspace-tools"
             ),
             "local-tools.html#bundled-local-workspace-tools",
+        )
+        self.assertEqual(
+            build_pages.source_url("docs/README.md", "../mcp/local_tools/README.md"),
+            "local-tools.html",
         )
         self.assertEqual(
             build_pages.source_url("docs/README.md", "mcp-slop-userguide.md"),

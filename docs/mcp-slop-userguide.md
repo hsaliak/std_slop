@@ -143,6 +143,8 @@ std_slop mcp add local-tools \
 
 The service needs no extra arguments or saved workspace path. It captures its launch directory as the default workspace, `launch`, then discovers linked Git worktrees when it lists or resolves workspaces. `workspace_list` refreshes the catalog on every call; `workspace_info` returns one workspace root. A workspace ID is `launch` or `worktree:/absolute/path`. Omit `workspace` to use `launch`.
 
+For a reproducible smoke test of this server, including Git and non-Git directories and Mail Mode, see the [local-tools MCP smoke-test guide](../mcp/local_tools/README.md#smoke-test).
+
 #### Tool reference
 
 Each top-level tool argument object rejects unknown fields. File paths are relative to the selected workspace; absolute paths, `..` traversal, and symlink traversal are rejected. The bundled stdio server also enforces its default 1 MiB input-line limit, including the JSON-RPC envelope. The file service has no dedicated Git MCP tools.

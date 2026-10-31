@@ -1,6 +1,8 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@aspect_rules_lint//format:defs.bzl", "format_test")
 
+exports_files(["README.md"])
+
 format_test(
     name = "format_test",
     cc = "//:clang_format_hermetic",

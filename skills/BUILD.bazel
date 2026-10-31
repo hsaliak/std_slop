@@ -8,4 +8,5 @@ exports_files([
     "delegator.md",
     "subagent_creator.md",
     "github-pages.md",
+    "tmux.md",
 ])

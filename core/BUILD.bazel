@@ -25,6 +25,7 @@ genrule(
   "//skills:delegator.md",
   "//skills:subagent_creator.md",
   "//skills:github-pages.md",
+  "//skills:tmux.md",
  ],
  outs = ["builtin_skills_data.h"],
  tools = ["//scripts:generate_builtin_skills.sh"],
@@ -37,8 +38,9 @@ genrule(
        "$(location //skills:self_improvement_learner.md) " +
        "$(location //skills:delegator.md) " +
        "$(location //skills:subagent_creator.md) " +
-       "$(location //skills:github-pages.md)",
-)
+       "$(location //skills:github-pages.md) " +
+       "$(location //skills:tmux.md)",
+ )
 
 cc_library(
  name = "cancellation",

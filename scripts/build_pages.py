@@ -87,9 +87,12 @@ PAGES = (
     ),
     PageSpec(
         "local-tools.html",
-        "docs/mcp-slop-userguide.md",
+        "mcp/local_tools/README.md",
         "Local workspace MCP",
-        (SourceSpec("docs/mcp-slop-userguide.md", ("Bundled local workspace tools",)),),
+        (
+            SourceSpec("docs/mcp-slop-userguide.md", ("Bundled local workspace tools",)),
+            SourceSpec("mcp/local_tools/README.md", ("Smoke test",)),
+        ),
     ),
     PageSpec(
         "echo-server.html",
@@ -149,6 +152,7 @@ NAVIGATION_DROPDOWNS = {
 
 SITE_SOURCE_PAGES = {
     "docs/mcp-slop-userguide.md": "local-tools.html",
+    "mcp/local_tools/README.md": "local-tools.html",
     "docs/echo-server.md": "echo-server.html",
     "docs/mcp-server.md": "mcp-server.html",
     "mcp/gateway/README.md": "run-js.html",

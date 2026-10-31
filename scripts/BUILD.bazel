@@ -9,6 +9,7 @@ sh_test(
         "//:README.md",
         "//:docs/mcp-api.md",
         "//:docs/mcp-slop-userguide.md",
+        "//mcp/local_tools:README.md",
         "//:docs/echo-server.md",
         "//mcp/gateway:README.md",
         "//mcp/gateway:STATUS.md",
