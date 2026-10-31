@@ -279,6 +279,40 @@ TEST_F(OrchestratorTest, SafeJsonDump) {
   // The invalid byte should be replaced by the Unicode replacement character \uFFFD
   // In a JSON string, this might be escaped or raw depending on how dump handles it.
 }
+TEST_F(OrchestratorTest, ModelAndThrottleUpdatesResetProviderOnlyWhenNeeded) {
+  auto orchestrator_or = Orchestrator::Builder(&db, &http).WithModel("initial").Build();
+  ASSERT_TRUE(orchestrator_or.ok());
+  auto orchestrator = std::move(*orchestrator_or);
+  const std::string response = R"({"output":[{"type":"message","content":[{"type":"output_text","text":"answer"}]}]})";
+
+  ASSERT_TRUE(orchestrator->ProcessResponse("update-session", response).ok());
+  ASSERT_EQ(orchestrator->GetLastOutputItems().size(), 1);
+  orchestrator->SetModel("updated");
+  EXPECT_EQ(orchestrator->GetModel(), "updated");
+  EXPECT_EQ(orchestrator->GetDatabase(), &db);
+  EXPECT_TRUE(orchestrator->GetLastOutputItems().empty());
+
+  ASSERT_TRUE(orchestrator->ProcessResponse("update-session", response).ok());
+  ASSERT_EQ(orchestrator->GetLastOutputItems().size(), 1);
+  orchestrator->SetThrottle(7);
+  EXPECT_EQ(orchestrator->GetThrottle(), 7);
+  EXPECT_EQ(orchestrator->GetDatabase(), &db);
+  EXPECT_EQ(orchestrator->GetLastOutputItems().size(), 1);
+
+  Database other_db;
+  ASSERT_TRUE(other_db.Init(":memory:").ok());
+  auto copy_or = orchestrator->Update().WithDatabase(&other_db).Build();
+  ASSERT_TRUE(copy_or.ok());
+  EXPECT_EQ((*copy_or)->GetDatabase(), &other_db);
+  ASSERT_TRUE((*copy_or)->ProcessResponse("isolated-session", response).ok());
+  auto original_history = db.GetConversationHistory("isolated-session");
+  auto copy_history = other_db.GetConversationHistory("isolated-session");
+  ASSERT_TRUE(original_history.ok());
+  ASSERT_TRUE(copy_history.ok());
+  EXPECT_TRUE(original_history->empty());
+  ASSERT_EQ(copy_history->size(), 1);
+}
+
 TEST_F(OrchestratorTest, ProcessResponsePersists) {
   auto orchestrator_or = Orchestrator::Builder(&db, &http).Build();
   ASSERT_TRUE(orchestrator_or.ok());

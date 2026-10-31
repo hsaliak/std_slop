@@ -36,10 +36,6 @@ Orchestrator::Builder& Orchestrator::Builder::WithBaseUrl(const std::string& url
   config_.base_url = url;
   return *this;
 }
-Orchestrator::Builder& Orchestrator::Builder::WithThrottle(int seconds) {
-  config_.throttle = seconds;
-  return *this;
-}
 Orchestrator::Builder& Orchestrator::Builder::WithDatabase(Database* db) {
   db_ = db;
   return *this;
@@ -53,17 +49,19 @@ absl::StatusOr<std::unique_ptr<Orchestrator>> Orchestrator::Builder::Build() {
   }
   auto orchestrator = std::make_unique<Orchestrator>(db_, http_client_);
   orchestrator->config_ = config_;
-  orchestrator->responses_ =
-      std::make_unique<OpenAiResponsesOrchestrator>(db_, http_client_, config_.model, config_.base_url);
+  orchestrator->ResetResponses();
   (void)orchestrator->LoadAgentMd("./AGENTS.md");
   (void)orchestrator->ReloadAllSkills();
   return orchestrator;
 }
 Orchestrator::Orchestrator(Database* db, HttpClient* http_client) : db_(db), http_client_(http_client) {}
-void Orchestrator::Builder::Apply(Orchestrator* orchestrator) {
-  orchestrator->config_ = config_;
-  orchestrator->responses_ =
-      std::make_unique<OpenAiResponsesOrchestrator>(db_, http_client_, config_.model, config_.base_url);
+void Orchestrator::SetModel(const std::string& model) {
+  config_.model = model;
+  ResetResponses();
+}
+void Orchestrator::SetThrottle(int seconds) { config_.throttle = seconds; }
+void Orchestrator::ResetResponses() {
+  responses_ = std::make_unique<OpenAiResponsesOrchestrator>(db_, http_client_, config_.model, config_.base_url);
 }
 /**
  * @brief Constructs the full prompt payload for the LLM.

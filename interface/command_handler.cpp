@@ -753,7 +753,7 @@ CommandHandler::Result CommandHandler::HandleModel(CommandArgs& args) {
   if (args.args.empty()) {
     std::cout << "Current model: " << orchestrator_->GetModel() << std::endl;
   } else {
-    orchestrator_->Update().WithModel(args.args).Apply(orchestrator_);
+    orchestrator_->SetModel(args.args);
     std::cout << "Model set to: " << args.args << std::endl;
   }
   return Result::HANDLED;
@@ -764,7 +764,7 @@ CommandHandler::Result CommandHandler::HandleThrottle(CommandArgs& args) {
   } else {
     int n;
     if (absl::SimpleAtoi(args.args, &n)) {
-      orchestrator_->Update().WithThrottle(n).Apply(orchestrator_);
+      orchestrator_->SetThrottle(n);
       std::cout << "Throttle set to " << n << " seconds." << std::endl;
     } else {
       std::cerr << "Invalid throttle value: " << args.args << std::endl;

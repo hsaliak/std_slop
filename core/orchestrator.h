@@ -35,20 +35,19 @@ class Orchestrator {
     explicit Builder(const Orchestrator& orchestrator);
     Builder& WithModel(const std::string& model);
     Builder& WithBaseUrl(const std::string& url);
-    Builder& WithThrottle(int seconds);
     Builder& WithDatabase(Database* db);
     absl::StatusOr<std::unique_ptr<Orchestrator>> Build();
-    void Apply(Orchestrator* orchestrator);
 
    private:
     Database* db_;
     HttpClient* http_client_;
     Config config_;
-    std::string active_agent_md_path_ = "./AGENTS.md";
   };
   Orchestrator(Database* db, HttpClient* http_client);
   std::string GetModel() const { return config_.model; }
   int GetThrottle() const { return config_.throttle; }
+  void SetModel(const std::string& model);
+  void SetThrottle(int seconds);
   Builder Update() const { return Builder(*this); }
   absl::StatusOr<nlohmann::json> AssemblePrompt(
       const std::string& session_id, const std::vector<std::string>& active_skills = {},
@@ -89,6 +88,7 @@ class Orchestrator {
   std::vector<std::string> last_selected_groups_;
   std::optional<nlohmann::json> structured_output_schema_;
   std::unique_ptr<OpenAiResponsesOrchestrator> responses_;
+  void ResetResponses();
   std::string BuildSystemInstructions(const std::string& session_id,
                                        const std::optional<std::string>& system_prompt_override);
 };
