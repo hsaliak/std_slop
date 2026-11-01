@@ -664,7 +664,37 @@ TEST_F(CommandHandlerTest, ToolListShowsOnlyTopLevelTools) {
   EXPECT_FALSE(absl::StrContains(output, "Promoted JS Tools (Top-Level Enabled)"));
 }
 
+TEST_F(CommandHandlerTest, ToolListKeepsMultilineDescriptionsInsideTable) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  ASSERT_TRUE(db.RegisterTool({"mcp_parallel_web_search", "First paragraph.\nSecond paragraph has a | separator.", "{}",
+                               true, 0, true})
+                  .ok());
 
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  testing::internal::CaptureStdout();
+  std::string input = "/tools list";
+  EXPECT_EQ(handler.Handle(input, sid, active_skills, []() {}, {}), CommandHandler::Result::HANDLED);
+  const std::string output = testing::internal::GetCapturedStdout();
+
+  const size_t second_paragraph = output.find("Second paragraph");
+  ASSERT_NE(second_paragraph, std::string::npos);
+  const size_t line_start = output.rfind('\n', second_paragraph);
+  const size_t line_end = output.find('\n', second_paragraph);
+  const std::string line = output.substr(line_start == std::string::npos ? 0 : line_start + 1,
+                                         line_end == std::string::npos ? std::string::npos : line_end - line_start - 1);
+  size_t table_border_count = 0;
+  const std::string border = "│";
+  for (size_t border_position = 0; (border_position = line.find(border, border_position)) != std::string::npos;
+       border_position += border.size()) {
+    ++table_border_count;
+  }
+  EXPECT_EQ(table_border_count, 4);
+  EXPECT_NE(line.find("Second paragraph"), std::string::npos);
+  EXPECT_NE(output.find("separator."), std::string::npos);
+}
 
 TEST_F(CommandHandlerTest, RefreshMailModeFromDbTracksSettingsMode) {
   TestableCommandHandler handler(&db);

@@ -88,6 +88,12 @@ bool IsSafeBranchToken(std::string_view name) {
   });
 }
 
+std::string EscapeMarkdownTableCell(const std::string& value) {
+  std::string cell = absl::StrJoin(absl::StrSplit(value, absl::ByAnyChar(" \t\r\n\f\v"), absl::SkipEmpty()), " ");
+  absl::StrReplaceAll({{"|", "\\|"}}, &cell);
+  return cell;
+}
+
 }  // namespace
 CommandHandler::CommandHandler(Database* db, Orchestrator* orchestrator, OAuthHandler* oauth_handler,
                                 std::string openai_api_key)
@@ -334,8 +340,9 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
         md += "| Name | Description | Enabled |\n";
         md += "| :--- | :--- | :---: |\n";
         for (const auto& row : j) {
-          md += absl::Substitute("| `$0` | $1 | $2 |\n", json_get_or(row, "name", std::string{}),
-                                 json_get_or(row, "description", std::string{}),
+          const std::string name = EscapeMarkdownTableCell(json_get_or(row, "name", std::string{}));
+          const std::string description = EscapeMarkdownTableCell(json_get_or(row, "description", std::string{}));
+          md += absl::Substitute("| `$0` | $1 | $2 |\n", name, description,
                                  json_get_or(row, "is_enabled", 1) ? "✅" : "❌");
         }
         PrintMarkdown(md);
