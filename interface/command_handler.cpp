@@ -88,10 +88,33 @@ bool IsSafeBranchToken(std::string_view name) {
   });
 }
 
+std::string NormalizeMarkdownTableCell(const std::string& value) {
+  return absl::StrJoin(absl::StrSplit(value, absl::ByAnyChar(" \t\r\n\f\v"), absl::SkipEmpty()), " ");
+}
+
 std::string EscapeMarkdownTableCell(const std::string& value) {
-  std::string cell = absl::StrJoin(absl::StrSplit(value, absl::ByAnyChar(" \t\r\n\f\v"), absl::SkipEmpty()), " ");
+  std::string cell = NormalizeMarkdownTableCell(value);
   absl::StrReplaceAll({{"|", "\\|"}}, &cell);
   return cell;
+}
+
+constexpr size_t kToolListDescriptionLimit = 120;
+
+std::string TruncateToolListDescription(const std::string& value, const std::string& tool_name) {
+  std::string description = NormalizeMarkdownTableCell(value);
+  if (description.size() > kToolListDescriptionLimit) {
+    size_t length = kToolListDescriptionLimit;
+    while (length > 0 && (static_cast<unsigned char>(description[length]) & 0xC0) == 0x80) {
+      --length;
+    }
+    const size_t last_space = length == 0 ? std::string::npos : description.rfind(' ', length - 1);
+    if (last_space != std::string::npos && last_space > 0) length = last_space;
+    description.resize(length);
+    absl::StrAppend(&description, "... [use /tools show ", NormalizeMarkdownTableCell(tool_name),
+                    " for full description]");
+  }
+  absl::StrReplaceAll({{"|", "\\|"}}, &description);
+  return description;
 }
 
 }  // namespace
@@ -340,8 +363,10 @@ CommandHandler::Result CommandHandler::HandleTool(CommandArgs& args) {
         md += "| Name | Description | Enabled |\n";
         md += "| :--- | :--- | :---: |\n";
         for (const auto& row : j) {
-          const std::string name = EscapeMarkdownTableCell(json_get_or(row, "name", std::string{}));
-          const std::string description = EscapeMarkdownTableCell(json_get_or(row, "description", std::string{}));
+          const std::string raw_name = json_get_or(row, "name", std::string{});
+          const std::string name = EscapeMarkdownTableCell(raw_name);
+          const std::string description =
+              TruncateToolListDescription(json_get_or(row, "description", std::string{}), raw_name);
           md += absl::Substitute("| `$0` | $1 | $2 |\n", name, description,
                                  json_get_or(row, "is_enabled", 1) ? "✅" : "❌");
         }

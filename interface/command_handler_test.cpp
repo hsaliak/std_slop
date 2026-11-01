@@ -662,6 +662,37 @@ TEST_F(CommandHandlerTest, ToolListShowsOnlyTopLevelTools) {
   EXPECT_TRUE(absl::StrContains(output, "top_level_test_tool"));
   EXPECT_FALSE(absl::StrContains(output, "hidden_test_tool"));
   EXPECT_FALSE(absl::StrContains(output, "Promoted JS Tools (Top-Level Enabled)"));
+  EXPECT_FALSE(absl::StrContains(output, "/tools show top_level_test_tool"));
+}
+
+TEST_F(CommandHandlerTest, ToolListTruncatesLongDescriptionsWithShowHint) {
+  auto handler_or = CommandHandler::Create(&db);
+  ASSERT_TRUE(handler_or.ok());
+  auto& handler = **handler_or;
+  std::string long_description = "A long tool description with useful details.";
+  for (int i = 0; i < 20; ++i) long_description += " Additional guidance for this tool.";
+  long_description += " UNIQUE_TAIL_MARKER";
+  ASSERT_TRUE(db.RegisterTool({"mcp_parallel_web_search", long_description, "{}", true, 0, true}).ok());
+  std::string utf8_description(118, 'x');
+  utf8_description += "🧭 UTF8_TAIL_MARKER";
+  ASSERT_TRUE(db.RegisterTool({"utf8_boundary_tool", utf8_description, "{}", true, 0, true}).ok());
+
+  std::string sid = "s1";
+  std::vector<std::string> active_skills;
+  testing::internal::CaptureStdout();
+  std::string input = "/tool list";
+  EXPECT_EQ(handler.Handle(input, sid, active_skills, []() {}, {}), CommandHandler::Result::HANDLED);
+  const std::string output = testing::internal::GetCapturedStdout();
+
+  EXPECT_NE(output.find("A long tool description"), std::string::npos);
+  EXPECT_EQ(output.find("UNIQUE_TAIL_MARKER"), std::string::npos);
+  EXPECT_EQ(output.find("UTF8_TAIL_MARKER"), std::string::npos);
+  EXPECT_EQ(output.find(std::string("\xF0\x9F\xA7", 3)), std::string::npos);
+  EXPECT_NE(output.find("use /tools show"), std::string::npos);
+  EXPECT_NE(output.find("mcp_parallel_web_search for full"), std::string::npos);
+  EXPECT_NE(output.find("utf8_boundary_tool for full"), std::string::npos);
+  EXPECT_NE(output.find("for full"), std::string::npos);
+  EXPECT_NE(output.find("description"), std::string::npos);
 }
 
 TEST_F(CommandHandlerTest, ToolListKeepsMultilineDescriptionsInsideTable) {
