@@ -35,6 +35,7 @@ class Client {
 
 struct ClientOptions {
   SelectionPolicy selection = SelectionPolicy::kPreferLatest;
+  std::string diagnostic_name;  // Optional local label for connection diagnostics.
   ImplementationInfo client_info;
   nlohmann::json modern_capabilities = nlohmann::json::object();
   ClientCapabilities classic_capabilities;

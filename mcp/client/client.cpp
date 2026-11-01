@@ -10,6 +10,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -248,6 +249,11 @@ absl::StatusOr<std::unique_ptr<Client>> ConnectMcp(const StreamableHttpConfig& c
   }
   auto discovery_or = v2026_07_28::ParseDiscovery(*exchange_or->response->result);
   if (!discovery_or.ok()) return discovery_or.status();
+  if (discovery_or->invalid_server_info_reason) {
+    const std::string& server_name = options.diagnostic_name.empty() ? "MCP server" : options.diagnostic_name;
+    LOG(WARNING) << "Ignoring invalid optional serverInfo metadata from " << server_name << ": "
+                 << *discovery_or->invalid_server_info_reason;
+  }
   bool supports_modern = false;
   for (const std::string& version : discovery_or->supported_versions) {
     supports_modern = supports_modern || version == kModernProtocolVersion;

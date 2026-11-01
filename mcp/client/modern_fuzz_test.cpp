@@ -22,6 +22,8 @@ FUZZ_TEST(ModernCodecFuzzTest, ModernPayloadNeverCrashes);
 
 TEST(ModernCodecFuzzTest, RegressionSeeds) {
   ModernPayloadNeverCrashes(R"({"supportedVersions":["2026-07-28"],"capabilities":{}})");
+  ModernPayloadNeverCrashes(
+      R"({"supportedVersions":["2026-07-28"],"capabilities":{},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"Parallel MCP","version":""}}})");
   ModernPayloadNeverCrashes(R"({"resultType":"input_required","requestState":{"step":1},"content":[]})");
   ModernPayloadNeverCrashes(R"({"resultType":"unknown"})");
 }

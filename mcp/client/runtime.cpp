@@ -98,9 +98,10 @@ absl::StatusOr<StreamableHttpConfig> TransportConfigFromEntry(const ServerRegist
   return config;
 }
 
-ClientOptions ClientOptionsForRuntime(const RuntimeOptions& options) {
+ClientOptions ClientOptionsForRuntime(const RuntimeOptions& options, const ServerRegistryEntry& entry) {
   ClientOptions client_options;
   client_options.selection = SelectionPolicy::kPreferLatest;
+  client_options.diagnostic_name = entry.name;
   client_options.client_info.name = options.client_name;
   client_options.client_info.version = options.client_version;
   return client_options;
@@ -127,7 +128,7 @@ absl::StatusOr<std::unique_ptr<RuntimeSession>> RealSessionFactory(const ServerR
     StdioTransportOptions transport_options;
     transport_options.command = entry.command;
     transport_options.args = entry.args;
-    auto client = ConnectStdioMcp(std::move(transport_options), ClientOptionsForRuntime(options));
+    auto client = ConnectStdioMcp(std::move(transport_options), ClientOptionsForRuntime(options, entry));
     if (!client.ok()) return client.status();
     return std::make_unique<RealRuntimeSession>(std::move(*client));
   }
@@ -137,7 +138,7 @@ absl::StatusOr<std::unique_ptr<RuntimeSession>> RealSessionFactory(const ServerR
   if (http_client == nullptr) return absl::InvalidArgumentError("HTTP MCP server requires an HTTP client");
   auto config = TransportConfigFromEntry(entry);
   if (!config.ok()) return config.status();
-  auto client = ConnectMcp(*config, ClientOptionsForRuntime(options), http_client);
+  auto client = ConnectMcp(*config, ClientOptionsForRuntime(options, entry), http_client);
   if (!client.ok()) return WithAuthContext(entry, client.status());
   return std::make_unique<RealRuntimeSession>(std::move(*client));
 }

@@ -325,8 +325,11 @@ absl::StatusOr<Discovery> ParseDiscovery(const nlohmann::json& result) {
     }
     if (const auto* info = json_at(*meta, kServerInfoMetadata)) {
       auto info_or = ParseImplementationInfo(*info);
-      if (!info_or.ok()) return info_or.status();
-      discovery.server_info = std::move(*info_or);
+      if (info_or.ok()) {
+        discovery.server_info = std::move(*info_or);
+      } else {
+        discovery.invalid_server_info_reason = std::string(info_or.status().message());
+      }
     }
   }
   return discovery;

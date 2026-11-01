@@ -42,6 +42,7 @@ struct Discovery {
   nlohmann::json capabilities = nlohmann::json::object();
   std::optional<std::string> instructions;
   std::optional<ImplementationInfo> server_info;
+  std::optional<std::string> invalid_server_info_reason;
 };
 
 enum class ResultType { kComplete, kInputRequired };

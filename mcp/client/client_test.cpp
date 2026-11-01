@@ -117,7 +117,7 @@ TEST(McpClientTest, ConnectClassicStreamableHttpRejectsEmptyEndpoint) {
 TEST(McpClientTest, SelectsModernAndExecutesTools) {
   FakeHttpClient http;
   http.responses.push_back(JsonResponse(
-      R"({"jsonrpc":"2.0","id":"modern-1","result":{"supportedVersions":["2026-07-28"],"capabilities":{"tools":{}}}})"));
+      R"({"jsonrpc":"2.0","id":"modern-1","result":{"supportedVersions":["2026-07-28"],"capabilities":{"tools":{}},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"Parallel MCP","version":""}}}})"));
   http.responses.push_back(JsonResponse(
       R"({"jsonrpc":"2.0","id":"modern-2","result":{"tools":[{"name":"echo","inputSchema":{"type":"object","required":["text"],"properties":{"text":{"type":"string"}}}}]}})"));
   http.responses.push_back(JsonResponse(
@@ -127,7 +127,9 @@ TEST(McpClientTest, SelectsModernAndExecutesTools) {
   StreamableHttpConfig config;
   config.endpoint_url = "https://example.com/mcp";
 
-  auto client = ConnectMcp(config, MakeClientOptions(), &http);
+  ClientOptions options = MakeClientOptions();
+  options.diagnostic_name = "parallel";
+  auto client = ConnectMcp(config, options, &http);
   ASSERT_TRUE(client.ok()) << client.status();
   EXPECT_EQ((*client)->revision(), ProtocolRevision::k2026_07_28);
   auto tools = (*client)->ListTools();

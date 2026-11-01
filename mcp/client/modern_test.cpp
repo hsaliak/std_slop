@@ -93,6 +93,16 @@ TEST(ModernCodecTest, ParsesDiscoveryAndResultVariants) {
   ASSERT_TRUE(discovery->server_info.has_value());
   EXPECT_EQ(discovery->server_info->name, "server");
 
+  auto invalid_server_info = ParseDiscovery({
+      {"supportedVersions", {"2026-07-28"}},
+      {"capabilities", nlohmann::json::object()},
+      {"_meta", {{kServerInfoMetadata, {{"name", "server"}, {"version", ""}}}}},
+  });
+  ASSERT_TRUE(invalid_server_info.ok()) << invalid_server_info.status();
+  ASSERT_TRUE(invalid_server_info->invalid_server_info_reason.has_value());
+  EXPECT_EQ(*invalid_server_info->invalid_server_info_reason, "implementation info requires name and version");
+  EXPECT_FALSE(invalid_server_info->server_info.has_value());
+
   auto implicit = ParseResult({{"value", 1}});
   ASSERT_TRUE(implicit.ok());
   EXPECT_EQ(implicit->type, ResultType::kComplete);
